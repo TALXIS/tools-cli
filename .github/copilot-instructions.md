@@ -29,12 +29,59 @@ This repository contains the TALXIS CLI, a .NET global tool (alias: `txc`). The 
 ```
 /src
   /TALXIS.CLI           # Main entry point
-  /TALXIS.CLI.Core  # Shared command abstractions
+  /TALXIS.CLI.Data      # Example command group
   ...
 ```
 
+## Versioning
 
-## System.CommandLine Best Practices & Usage
+- The repository uses Microsoft-style versioning (e.g., 1.0.0.0) for all projects, set in `Directory.Build.props`.
+- All projects share the same version number for unified packaging and release.
+- Update the version in `Directory.Build.props` before publishing a new release.
+
+## System.CommandLine 2.x Handler & Invocation Best Practices
+
+- **Handler Registration:**
+  - Use `SetAction` to bind logic to commands and subcommands. Example:
+    ```csharp
+    command.SetAction(parseResult => {
+        var value = parseResult.GetValue(optionOrArgument);
+        // ...do something...
+        return 0;
+    });
+    ```
+  - The action receives a `ParseResult` and should return an int exit code (or Task<int> for async).
+
+- **Adding Arguments/Options/Subcommands:**
+  - Use `.Arguments.Add()`, `.Options.Add()`, and `.Subcommands.Add()` to build up commands.
+  - Example:
+    ```csharp
+    var arg = new Argument<string>("text") { Description = "Text to echo back." };
+    var echo = new Command("echo", "Echoes input");
+    echo.Arguments.Add(arg);
+    parent.Subcommands.Add(echo);
+    ```
+
+- **Invocation:**
+  - Parse and invoke with:
+    ```csharp
+    var parseResult = rootCommand.Parse(args);
+    return parseResult.Invoke();
+    ```
+  - For async actions, use `InvokeAsync()`.
+
+- **Getting Values:**
+  - Use `parseResult.GetValue(optionOrArgument)` or `parseResult.GetValue<T>("name")`.
+
+- **Error Handling:**
+  - If you do not use actions, handle parse errors via `parseResult.Errors`.
+
+- **Removed APIs:**
+  - `Handler`, `SetHandler`, and `ICommandHandler` are removed in 2.x. Use `SetAction` exclusively.
+  - `InvocationContext` is replaced by `ParseResult` in actions.
+
+- **Migration:**
+  - See [Migration Guide](https://learn.microsoft.com/en-us/dotnet/standard/commandline/migration-guide-2.0.0-beta5) for breaking changes and new patterns.
 
 - **Install the package:**
   - `dotnet add package System.CommandLine --prerelease`
@@ -75,7 +122,6 @@ This repository contains the TALXIS CLI, a .NET global tool (alias: `txc`). The 
   - [Design guidance](https://learn.microsoft.com/en-us/dotnet/standard/commandline/design-guidance)
   - [API Reference](https://learn.microsoft.com/en-us/dotnet/api/system.commandline)
 
-
 ## .NET Global Tools: Usage & Best Practices
 
 - **What is a .NET Global Tool?**
@@ -103,15 +149,13 @@ This repository contains the TALXIS CLI, a .NET global tool (alias: `txc`). The 
   - Only install tools from trusted sources (tools run in full trust).
   - Document the tool's usage and provide clear help output (`--help`).
   - For local tools, commit the manifest file to your repository for team consistency.
-  - Use semantic versioning and publish to NuGet.org for discoverability.
+  - Use Microsoft-style versioning for consistency across all projects.
 
 - **References:**
   - [How to manage .NET tools](https://learn.microsoft.com/en-us/dotnet/core/tools/global-tools)
   - [Create a .NET tool using the .NET CLI](https://learn.microsoft.com/en-us/dotnet/core/tools/global-tools-how-to-create)
   - [Install and use a .NET global tool](https://learn.microsoft.com/en-us/dotnet/core/tools/global-tools-how-to-use)
   - [Install and use a .NET local tool](https://learn.microsoft.com/en-us/dotnet/core/tools/local-tools-how-to-use)
-
-
 
 ## Creating and Publishing a Custom .NET Global Tool
 

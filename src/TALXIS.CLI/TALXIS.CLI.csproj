@@ -1,4 +1,8 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+﻿
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\TALXIS.CLI.Data\TALXIS.CLI.Data.csproj" />
@@ -13,6 +17,21 @@
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- NuGet packaging and tool-specific metadata -->
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>txc</ToolCommandName>
+    <PackageId>TALXIS.CLI</PackageId>
+    <Title>TALXIS CLI (txc)</Title>
+    <Authors>TALXIS</Authors>
+    <Product>TALXIS CLI</Product>
+    <Description>TALXIS CLI (txc) is a .NET global tool for developer automation and Power Platform scripting.</Description>
+    <PackageTags>cli;dotnet-tool;talxis;automation;powerplatform;txc</PackageTags>
+    <PackageProjectUrl>https://github.com/TALXIS/tools-cli</PackageProjectUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>
 
 </Project>
