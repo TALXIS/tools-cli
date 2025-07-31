@@ -55,6 +55,30 @@ txc data server --port 50505
 }
 ```
 
+**About Alternate Keys:**
+
+Alternate keys are a set of attributes (fields) on a record that, together, uniquely identify that record and never change for its lifetime. For the ComputePrimaryKey endpoint, alternate keys are used to calculate a deterministic primary key (GUID) for each record. This ensures that:
+
+- The same record will always get the same primary key, even if the migration is run multiple times.
+- Records can be upserted (inserted or updated) reliably, because their identity is stable and based on business data, not on system-generated IDs.
+- In Microsoft Dataverse, the primary key must be a GUID, so we use alternate keys to generate a GUID that is unique and repeatable for each record.
+
+This approach is especially useful for data migrations, deduplication and integration with external systems.
+
+The `alternateKeys` object supports any number of key-value pairs, and values can be of any JSON type (string, number, etc). These keys should be attributes that never change for a record and together uniquely identify it. The endpoint returns a deterministic GUID as `{ "primaryKey": "..." }`. The `entity` parameter is used as a prefix to avoid collisions between entities.
+
+- `POST /ComputePrimaryKey` — Accepts a JSON body with the following structure (case-insensitive):
+
+```json
+{
+  "entity": "talxis_salesorder",
+  "alternateKeys": {
+    "talxis_customernumber": 1234,
+    "talxis_sapnumber": "SO34344"
+  }
+}
+```
+
 The `alternateKeys` object supports any number of key-value pairs, and values can be of any JSON type (string, number, etc). The endpoint returns a deterministic GUID as `{ "primaryKey": "..." }`. The `entity` parameter is used as a prefix to avoid collisions between entities.
 
 **Sample request:**
