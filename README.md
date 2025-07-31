@@ -12,7 +12,18 @@ If wish to use this project for your team, please contact us at hello@networg.co
 
 ## Goal
 
+
 The goal of the TALXIS CLI (`txc`) is to provide a modular, extensible .NET global tool that helps Power Platform developers automate tasks across their local code repositories and data manipulation.
+
+## Installation
+
+You can install the TALXIS CLI as a .NET global tool using the following command:
+
+```sh
+dotnet tool install --global TALXIS.CLI
+```
+
+After installation, you can run the CLI using the `txc` command from any terminal.
 
 ## Command Groups
 
