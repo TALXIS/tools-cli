@@ -3,7 +3,7 @@ using DotMake.CommandLine;
 namespace TALXIS.CLI;
 
 [CliCommand(
-    Description = "TALXIS CLI (txc): A modular .NET global tool for automating and managing Power Platform development workflows.",
+    Description = "TALXIS CLI (txc): Tool for automating development loops in Power Platform.",
     Children = new[] { typeof(TALXIS.CLI.Data.DataCliCommand) }
 )]
 public class TxcCliCommand

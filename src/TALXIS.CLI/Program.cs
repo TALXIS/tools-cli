@@ -2,10 +2,18 @@
 using System.Threading.Tasks;
 using DotMake.CommandLine;
 
-class Program
+namespace TALXIS.CLI
 {
-    public static async Task<int> Main(string[] args)
+    public class Program
     {
-        return await Cli.RunAsync<TALXIS.CLI.TxcCliCommand>(args);
+        public static async Task<int> Main(string[] args)
+        {
+            return await Cli.RunAsync<TALXIS.CLI.TxcCliCommand>(args);
+        }
+
+        public static async Task<int> RunCli(string[] args)
+        {
+            return await Main(args);
+        }
     }
 }

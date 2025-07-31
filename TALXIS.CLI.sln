@@ -1,3 +1,4 @@
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.5.2.0
@@ -8,20 +9,54 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TALXIS.CLI.Data", "src\TALX
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TALXIS.CLI", "src\TALXIS.CLI\TALXIS.CLI.csproj", "{047E218E-A6A2-1C66-58E1-AFEF0AD34E7F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TALXIS.CLI.MCP", "src\TALXIS.CLI.MCP\TALXIS.CLI.MCP.csproj", "{DFE5EC2E-21E2-42D6-B9C6-3111CE00FD0B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
 		Release|Any CPU = Release|Any CPU
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{5661B9D5-76FD-DAFA-278B-5B9BE78D957D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{5661B9D5-76FD-DAFA-278B-5B9BE78D957D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5661B9D5-76FD-DAFA-278B-5B9BE78D957D}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{5661B9D5-76FD-DAFA-278B-5B9BE78D957D}.Debug|x64.Build.0 = Debug|Any CPU
+		{5661B9D5-76FD-DAFA-278B-5B9BE78D957D}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{5661B9D5-76FD-DAFA-278B-5B9BE78D957D}.Debug|x86.Build.0 = Debug|Any CPU
 		{5661B9D5-76FD-DAFA-278B-5B9BE78D957D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5661B9D5-76FD-DAFA-278B-5B9BE78D957D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5661B9D5-76FD-DAFA-278B-5B9BE78D957D}.Release|x64.ActiveCfg = Release|Any CPU
+		{5661B9D5-76FD-DAFA-278B-5B9BE78D957D}.Release|x64.Build.0 = Release|Any CPU
+		{5661B9D5-76FD-DAFA-278B-5B9BE78D957D}.Release|x86.ActiveCfg = Release|Any CPU
+		{5661B9D5-76FD-DAFA-278B-5B9BE78D957D}.Release|x86.Build.0 = Release|Any CPU
 		{047E218E-A6A2-1C66-58E1-AFEF0AD34E7F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{047E218E-A6A2-1C66-58E1-AFEF0AD34E7F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{047E218E-A6A2-1C66-58E1-AFEF0AD34E7F}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{047E218E-A6A2-1C66-58E1-AFEF0AD34E7F}.Debug|x64.Build.0 = Debug|Any CPU
+		{047E218E-A6A2-1C66-58E1-AFEF0AD34E7F}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{047E218E-A6A2-1C66-58E1-AFEF0AD34E7F}.Debug|x86.Build.0 = Debug|Any CPU
 		{047E218E-A6A2-1C66-58E1-AFEF0AD34E7F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{047E218E-A6A2-1C66-58E1-AFEF0AD34E7F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{047E218E-A6A2-1C66-58E1-AFEF0AD34E7F}.Release|x64.ActiveCfg = Release|Any CPU
+		{047E218E-A6A2-1C66-58E1-AFEF0AD34E7F}.Release|x64.Build.0 = Release|Any CPU
+		{047E218E-A6A2-1C66-58E1-AFEF0AD34E7F}.Release|x86.ActiveCfg = Release|Any CPU
+		{047E218E-A6A2-1C66-58E1-AFEF0AD34E7F}.Release|x86.Build.0 = Release|Any CPU
+		{DFE5EC2E-21E2-42D6-B9C6-3111CE00FD0B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DFE5EC2E-21E2-42D6-B9C6-3111CE00FD0B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DFE5EC2E-21E2-42D6-B9C6-3111CE00FD0B}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{DFE5EC2E-21E2-42D6-B9C6-3111CE00FD0B}.Debug|x64.Build.0 = Debug|Any CPU
+		{DFE5EC2E-21E2-42D6-B9C6-3111CE00FD0B}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{DFE5EC2E-21E2-42D6-B9C6-3111CE00FD0B}.Debug|x86.Build.0 = Debug|Any CPU
+		{DFE5EC2E-21E2-42D6-B9C6-3111CE00FD0B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DFE5EC2E-21E2-42D6-B9C6-3111CE00FD0B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DFE5EC2E-21E2-42D6-B9C6-3111CE00FD0B}.Release|x64.ActiveCfg = Release|Any CPU
+		{DFE5EC2E-21E2-42D6-B9C6-3111CE00FD0B}.Release|x64.Build.0 = Release|Any CPU
+		{DFE5EC2E-21E2-42D6-B9C6-3111CE00FD0B}.Release|x86.ActiveCfg = Release|Any CPU
+		{DFE5EC2E-21E2-42D6-B9C6-3111CE00FD0B}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -29,6 +64,7 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{5661B9D5-76FD-DAFA-278B-5B9BE78D957D} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{047E218E-A6A2-1C66-58E1-AFEF0AD34E7F} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{DFE5EC2E-21E2-42D6-B9C6-3111CE00FD0B} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {53733BD6-A32A-41B7-9472-E377AF68151F}
