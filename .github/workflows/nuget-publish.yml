@@ -36,6 +36,9 @@ jobs:
   deploy:
     needs: [ create_nuget ]
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/download-artifact@v4
         with:
