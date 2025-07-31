@@ -4,7 +4,7 @@ namespace TALXIS.CLI.Data;
 
 [CliCommand(
     Description = "Data-related utilities for ETL, Power Query and migration scenarios.",
-    Children = new[] { typeof(ServerCliCommand) }
+    Children = new[] { typeof(ServerCliCommand), typeof(ConvertDataCliCommand) }
 )]
 public class DataCliCommand
 {

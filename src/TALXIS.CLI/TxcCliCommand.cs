@@ -10,6 +10,6 @@ public class TxcCliCommand
 {
     public void Run(CliContext context)
     {
-        context.ShowHierarchy();
+        context.ShowHelp();
     }
 }

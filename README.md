@@ -25,6 +25,12 @@ dotnet tool install --global TALXIS.CLI
 
 After installation, you can run the CLI using the `txc` command from any terminal.
 
+To update the TALXIS CLI to the latest version, use the following command:
+
+```sh
+dotnet tool update --global TALXIS.CLI
+```
+
 ## Command Groups
 
 The CLI is organized into modular command groups. Each group provides a set of related commands.
@@ -32,6 +38,16 @@ The CLI is organized into modular command groups. Each group provides a set of r
 ### Data Commands (`txc data`)
 
 Data-related utilities for ETL, Power Query, and automation scenarios.
+
+#### `convert` command
+
+Converts tables from an Excel `.xlsx` file into a structured CMT format. Each table in the spreadsheet is exported as an `<entity>` in the XML, with columns as fields and rows as records.
+
+**Usage:**
+
+```sh
+txc data convert --input <export.xlsx> --output <data.xml>
+```
 
 #### `server` command
 
