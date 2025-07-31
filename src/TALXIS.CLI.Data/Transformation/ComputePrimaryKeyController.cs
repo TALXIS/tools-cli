@@ -14,14 +14,14 @@ public class ComputePrimaryKeyController
             using var reader = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding);
             var body = await reader.ReadToEndAsync();
             var input = JsonSerializer.Deserialize<ComputePrimaryKeyRequest>(body, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-            if (string.IsNullOrWhiteSpace(input?.Id) || string.IsNullOrWhiteSpace(input?.Table))
+            if (string.IsNullOrWhiteSpace(input?.Entity) || input?.AlternateKeys == null || input.AlternateKeys.Count == 0)
             {
                 context.Response.StatusCode = 400;
-                await context.Response.OutputStream.WriteAsync(Encoding.UTF8.GetBytes("Missing 'id' or 'table' field"));
+                await context.Response.OutputStream.WriteAsync(Encoding.UTF8.GetBytes("Missing 'entity' or 'alternateKeys' field"));
                 context.Response.Close();
                 return true;
             }
-            var guid = ComputePrimaryKey(input.Table, input.Id);
+            var guid = ComputePrimaryKey(input.Entity, input.AlternateKeys);
             var response = new { primaryKey = guid };
             var json = JsonSerializer.Serialize(response);
             context.Response.ContentType = "application/json";
@@ -33,17 +33,26 @@ public class ComputePrimaryKeyController
     }
 
 
-    private static Guid ComputePrimaryKey(string table, string id)
+    private static Guid ComputePrimaryKey(string entity, Dictionary<string, object> alternateKeys)
     {
         using var md5 = MD5.Create();
-        var input = $"{table}:{id}";
+        // Sort keys for deterministic order
+        var sortedKeys = alternateKeys.OrderBy(kvp => kvp.Key, StringComparer.OrdinalIgnoreCase);
+        var concat = new StringBuilder();
+        concat.Append(entity).Append(":");
+        foreach (var kvp in sortedKeys)
+        {
+            concat.Append(kvp.Key).Append("=");
+            concat.Append(kvp.Value?.ToString() ?? "null").Append(";");
+        }
+        var input = concat.ToString();
         var hash = md5.ComputeHash(Encoding.UTF8.GetBytes(input));
         return new Guid(hash);
     }
 
     private class ComputePrimaryKeyRequest
     {
-        public string? Id { get; set; }
-        public string? Table { get; set; }
+        public string? Entity { get; set; }
+        public Dictionary<string, object>? AlternateKeys { get; set; }
     }
 }

@@ -40,17 +40,29 @@ txc data server [--port <port>]
 txc data server --port 50505
 ```
 
+
 **Endpoints:**
 
+- `POST /ComputePrimaryKey` — Accepts a JSON body with the following structure (case-insensitive):
 
-- `POST /ComputePrimaryKey` — Accepts a JSON body `{ "table": "your-table-name", "id": "your-id-string" }` (case-insensitive) and returns a deterministic GUID as `{ "primaryKey": "..." }`. The `table` parameter is used as a prefix to avoid collisions between tables.
+```json
+{
+  "entity": "talxis_salesorder",
+  "alternateKeys": {
+    "talxis_customernumber": 1234,
+    "talxis_sapnumber": "SO34344"
+  }
+}
+```
+
+The `alternateKeys` object supports any number of key-value pairs, and values can be of any JSON type (string, number, etc). The endpoint returns a deterministic GUID as `{ "primaryKey": "..." }`. The `entity` parameter is used as a prefix to avoid collisions between entities.
 
 **Sample request:**
 
 ```sh
 curl -X POST http://localhost:50505/ComputePrimaryKey \
   -H "Content-Type: application/json" \
-  -d '{"table":"talxis_opportunity","id":"myidentifiers"}'
+  -d '{"entity":"talxis_salesorder","alternateKeys":{"talxis_customernumber":1234,"talxis_sapnumber":"SO34344"}}'
 ```
 
 
