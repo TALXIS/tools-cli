@@ -58,7 +58,7 @@ curl -X POST http://localhost:50505/ComputePrimaryKey \
 ## Collaboration
 We are happy to collaborate with developers and contributors interested in enhancing Power Platform development processes. If you have feedback, suggestions, or would like to contribute, please feel free to submit issues or pull requests.
 
-## Local building and debugging
+### Local building and debugging
 
 To build and debug the CLI locally:
 
@@ -78,6 +78,6 @@ To build and debug the CLI locally:
    ```
 4. You can also debug using Visual Studio or VS Code by opening the solution and setting breakpoints as needed.
 
-## Releasing a New Version
+### Releasing a new version
 
 This project uses explicit Microsoft-style versioning (e.g., 1.0.0.0) set in the `Directory.Build.props` file. A GitHub Actions workflow publishes new releases to NuGet.org.
