@@ -1,16 +1,11 @@
 ﻿
-
-using System.CommandLine;
-using System.CommandLine.Invocation;
-using TALXIS.CLI.Data;
+using System.Threading.Tasks;
+using DotMake.CommandLine;
 
 class Program
 {
-    public static int Main(string[] args)
+    public static async Task<int> Main(string[] args)
     {
-        var rootCommand = new RootCommand("TALXIS CLI - txc");
-        rootCommand.Subcommands.Add(DataCommand.CreateCommand());
-        var parseResult = rootCommand.Parse(args);
-        return parseResult.Invoke();
+        return await Cli.RunAsync<TALXIS.CLI.TxcCliCommand>(args);
     }
 }
