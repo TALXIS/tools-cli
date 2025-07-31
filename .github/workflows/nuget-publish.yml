@@ -33,7 +33,7 @@ jobs:
           name: nuget
           if-no-files-found: error
           retention-days: 7
-          path: src/TALXIS.CLI/bin/Release/*.nupkg
+          path: src/TALXIS.CLI/bin/Release/
 
   deploy:
     needs: [ create_nuget ]
