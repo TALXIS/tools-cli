@@ -26,14 +26,14 @@ jobs:
           fetch-depth: 0
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
-      - name: Pack
+      - name: Create NuGet package
         run: dotnet pack src/TALXIS.CLI/TALXIS.CLI.csproj --configuration Release
       - uses: actions/upload-artifact@v4
         with:
           name: nuget
           if-no-files-found: error
           retention-days: 7
-          path: src/TALXIS.CLI/bin/Release/
+          path: src/TALXIS.CLI/bin/Release/*.nupkg
 
   deploy:
     needs: [ create_nuget ]
@@ -50,6 +50,6 @@ jobs:
         uses: actions/setup-dotnet@v4
       - name: Publish NuGet package
         run: |
-          for file in ${{ env.NuGetDirectory }}/*.nupkg; do
-            dotnet nuget push "$file" --api-key "${{ secrets.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
-          done
+          foreach($file in (Get-ChildItem "${{ env.NuGetDirectory }}" -Recurse -Include *.nupkg)) {
+              dotnet nuget push $file --api-key "${{ secrets.NUGET_APIKEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+          }
