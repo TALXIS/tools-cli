@@ -52,12 +52,12 @@ namespace TALXIS.CLI.Component
             return templates.FirstOrDefault(t => t.ShortNameList.Contains(shortName, StringComparer.OrdinalIgnoreCase));
         }
 
-        public async Task<IDictionary<string, ITemplateParameter>> ListParametersForTemplateAsync(string shortName, string? version = null)
+        public async Task<IReadOnlyList<ITemplateParameter>> ListParametersForTemplateAsync(string shortName, string? version = null)
         {
             var template = await GetTemplateByShortNameAsync(shortName, version);
             if (template == null) throw new InvalidOperationException($"Template '{shortName}' not found.");
-            // Use ParameterDefinitions instead of obsolete Parameters
-            return template.ParameterDefinitions.ToDictionary(p => p.Name, p => p);
+            // Use ParameterDefinitions property (non-obsolete in v9+)
+            return template.ParameterDefinitions;
         }
 
         public async Task ScaffoldAsync(string shortName, string outputPath, IDictionary<string, string> parameters, string? version = null, CancellationToken cancellationToken = default)

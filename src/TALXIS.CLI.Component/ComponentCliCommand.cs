@@ -6,6 +6,7 @@ namespace TALXIS.CLI.Component;
     Children = new[] {
         typeof(AppComponentCommand),
         typeof(ListTemplatesCliCommand),
+        typeof(ListTemplateParametersCliCommand),
     }
 )]
 public class ComponentCliCommand
