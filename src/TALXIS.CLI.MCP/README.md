@@ -20,9 +20,9 @@ npx @modelcontextprotocol/inspector dotnet run --project src/TALXIS.CLI.MCP
 
 This will launch the MCP Inspector and connect it to the running server.
 
-### 2. Using VS Code with `.vscode/mcp`
+### 2. Using VS Code with `.vscode/mcp.json`
 
-You can also test the MCP server integration with VS Code by opening another window and adding a `.vscode/mcp` file to your project with the following content:
+You can also test the MCP server integration with VS Code by opening another window and adding a `.vscode/mcp.json` file to your project with the following content:
 
 ```json
 {

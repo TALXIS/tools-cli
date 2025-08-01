@@ -8,7 +8,7 @@ namespace TALXIS.CLI.Data;
     "\n  POST /ComputePrimaryKey — Accepts a JSON body with 'entity' and 'alternateKeys' to return a deterministic GUID primary key. " +
     "\n    The 'alternateKeys' are a set of attributes that together uniquely identify a record and never change for its lifetime. "
 )]
-public class ServerCliCommand
+public class TransformServerCliCommand
 {
     [CliOption(Description = "Optional. Port to run the server on (default: 50505)")]
     public int Port { get; set; } = 50505;

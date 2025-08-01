@@ -49,14 +49,14 @@ Converts tables from an Excel `.xlsx` file into a structured CMT format. Each ta
 txc data convert --input <export.xlsx> --output <data.xml>
 ```
 
-#### `server` command
+#### `transform-server` command
 
 Starts a simple local HTTP server exposing endpoints for ETL/data transformation tasks. Useful for integrating with Power Query or other local ETL tools.
 
 **Usage:**
 
 ```sh
-txc data server [--port <port>]
+txc data transform-server [--port <port>]
 ```
 
 - `--port` (optional): Port to run the server on. Defaults to `50505` if not specified.
@@ -64,7 +64,7 @@ txc data server [--port <port>]
 **Example:**
 
 ```sh
-txc data server --port 50505
+txc data transform-server --port 50505
 ```
 
 
@@ -135,9 +135,9 @@ To build and debug the CLI locally:
    ```sh
    dotnet build
    ```
-3. Run the CLI directly (for example, to test the data server):
+3. Run the CLI directly (for example, to test the data transform server):
    ```sh
-   dotnet run --project src/TALXIS.CLI -- data server
+   dotnet run --project src/TALXIS.CLI -- data transform-server
    ```
 4. You can also debug using Visual Studio or VS Code by opening the solution and setting breakpoints as needed.
 

@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TALXIS.CLI.Data\TALXIS.CLI.Data.csproj" />
+    <ProjectReference Include="..\TALXIS.CLI.Component\TALXIS.CLI.Component.csproj" />
   </ItemGroup>
 
   <ItemGroup>
