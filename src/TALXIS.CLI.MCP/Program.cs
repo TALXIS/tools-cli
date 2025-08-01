@@ -63,7 +63,7 @@ static void AddCommandAndChildren(Type cmdType, List<Tool> defs, string? parentN
     bool isGroup = attr.Children != null && attr.Children.Length > 0;
     // If parent is root, don't include its name in the tool name
     var fullName = (parentName == null || parentName == (rootType.GetCustomAttribute(typeof(DotMake.CommandLine.CliCommandAttribute)) as DotMake.CommandLine.CliCommandAttribute)?.Name || parentName == rootType.Name.Replace("CliCommand", "").ToLowerInvariant())
-        ? name : $"{parentName}-{name}";
+        ? name : $"{parentName}_{name}";
     // Only register as a tool if it's not the root, not a direct child of root, and not a group
     if (!isGroup && !isRoot && !isDirectChildOfRoot)
     {
@@ -159,7 +159,7 @@ static async ValueTask<CallToolResult> CallToolAsync(RequestContext<CallToolRequ
 
 static Type? FindCommandTypeByName(string toolName, Type root)
 {
-    var segments = toolName.Split('-', StringSplitOptions.RemoveEmptyEntries);
+    var segments = toolName.Split('_', StringSplitOptions.RemoveEmptyEntries);
     // Try matching as-is (without root segment)
     var found = FindCommandTypeBySegments(segments, 0, root);
     if (found != null)
