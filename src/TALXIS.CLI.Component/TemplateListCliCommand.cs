@@ -10,13 +10,13 @@ namespace TALXIS.CLI.Component;
 [CliCommand(
     Description = "Lists available component templates."
 )]
-public class ListTemplatesCliCommand
+public class TemplateListCliCommand
 {
     public async Task<int> RunAsync()
     {
         try
         {
-            using var scaffolder = new ComponentScaffolder();
+            using var scaffolder = new TemplateInvoker();
             var templates = await scaffolder.ListTemplatesAsync();
             if (templates == null || !templates.Any())
             {

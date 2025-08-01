@@ -2,17 +2,17 @@ using DotMake.CommandLine;
 namespace TALXIS.CLI.Component;
 
 [CliCommand(
-    Description = "Component scaffolding utilities for TALXIS solutions.",
+    Description = "Create or modify components of your solution",
     Children = new[] {
-        typeof(AppComponentCommand),
-        typeof(ListTemplatesCliCommand),
-        typeof(ListTemplateParametersCliCommand),
+        typeof(TemplateListCliCommand),
+        typeof(TemplateParameterListCliCommand),
+        typeof(TemplateScaffoldCliCommand)
     }
 )]
 public class ComponentCliCommand
 {
     public void Run(CliContext context)
     {
-        context.ShowHelp();
+        context.ShowHierarchy();
     }
 }
