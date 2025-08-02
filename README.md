@@ -11,15 +11,13 @@
 
 > [!TIP]
 > **MCP Server Support:**  
-> You can also use this CLI as a Model Context Protocol (MCP) server
-> by installing the related .NET tool `txc-mcp`.  
-> 
+> You can also use this CLI as a Model Context Protocol (MCP) server by installing the related .NET tool `txc-mcp`.  
 > This enables integration with tools and workflows that support the MCP standard.  
 > For setup and usage instructions, see [`TALXIS.CLI.MCP`](src/TALXIS.CLI.MCP/README.md).
 
 ---
 
-TALXIS CLI (`txc`) is a modular, extensible .NET global tool for automating development, data, and solution management tasks—especially for Power Platform and enterprise projects. It is designed to help developers scaffold, transform and manage code and data in local repositories.
+TALXIS CLI (`txc`) is a modular, extensible .NET global tool for automating development, data, and solution management tasks—especially for Power Platform and enterprise projects. It helps developers scaffold, transform, and manage code and data in local repositories.
 
 ---
 
@@ -34,11 +32,13 @@ TALXIS CLI (`txc`) is a modular, extensible .NET global tool for automating deve
 
 ## Installation
 
-```sh title="Install as a .NET global tool"
+**Install the CLI as a .NET global tool:**
+```sh
 dotnet tool install --global TALXIS.CLI
 ```
 
-```sh title="Update to the latest version"
+**Update to the latest version:**
+```sh
 dotnet tool update --global TALXIS.CLI
 ```
 
@@ -48,30 +48,37 @@ After installation, use the CLI via the `txc` command in any terminal.
 
 ## Example Usage
 
-```sh title="Start the data transformation server on default port"
+**Start the data transformation server on the default port:**
+```sh
 txc data transform server start
 ```
 
-```sh title="Convert Excel to CMT XML"
+**Convert Excel to CMT XML:**
+```sh
 txc data package convert --input export.xlsx --output data.xml
 ```
 
-```sh title="List available workspace components"
+**List available workspace components:**
+```sh
 txc workspace component list
 ```
 
 > [!IMPORTANT]
-> Component scaffolding in this CLI relies on the [TALXIS/tools-devkit-templates](https://github.com/TALXIS/tools-devkit-templates) repository, where all component types, metadata and definitions are maintained.
+> Component scaffolding in this CLI relies on the [TALXIS/tools-devkit-templates](https://github.com/TALXIS/tools-devkit-templates) repository, where all component types, metadata, and definitions are maintained.
 
-```sh title="Show details about a component template"
+
+**Show details about a component:**
+```sh
 txc workspace component explain pp-entity
 ```
 
-```sh title="List parameters required for a specific component template"
+**List parameters required for a specific component template:**
+```sh
 txc workspace component parameter list pp-entity
 ```
 
-```sh title="Scaffold a new Dataverse entity component (important example)"
+**Scaffold a new Dataverse entity component:**
+```sh
 txc workspace component create pp-entity \
   --output "/Users/tomasprokop/Desktop/mcp-test/test" \
   --param Behavior=New \
@@ -90,21 +97,22 @@ txc workspace component create pp-entity \
 
 ## Local Development & Debugging
 
-1. Clone the repository and restore dependencies:
-   ```sh
-   git clone <repo-url>
-   cd tools-cli
-   dotnet restore
-   ```
-2. Build the solution:
-   ```sh
-   dotnet build
-   ```
-3. Run the CLI directly (for example, to test the data transform server):
-   ```sh
-   dotnet run --project src/TALXIS.CLI -- data transform server start
-   ```
-4. Debug using Visual Studio or VS Code as needed.
+**Clone the repository and restore dependencies:**
+```sh
+git clone <repo-url>
+cd tools-cli
+dotnet restore
+```
+
+**Build the solution:**
+```sh
+dotnet build
+```
+
+**Run the CLI directly (for example, to test the data transform server):**
+```sh
+dotnet run --project src/TALXIS.CLI -- data transform server start
+```
 
 ---
 
