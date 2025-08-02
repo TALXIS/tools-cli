@@ -1,9 +1,4 @@
-using System.Reflection;
-using System.Text.Json;
-using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
-using TALXIS.CLI;
-using TALXIS.CLI.MCP;
 
 namespace TALXIS.CLI.MCP;
 

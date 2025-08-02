@@ -1,8 +1,4 @@
-using System;
-using System.Collections.Generic;
-
 using Microsoft.TemplateEngine.Abstractions;
-using TALXIS.CLI.Component;
 
 
 namespace TALXIS.CLI.Component

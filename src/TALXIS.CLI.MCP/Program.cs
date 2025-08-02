@@ -4,9 +4,6 @@ using Microsoft.Extensions.Logging;
 using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
-using System.Reflection;
-using System.Text.Json;
-using TALXIS.CLI;
 using TALXIS.CLI.MCP;
 
 var builder = new HostApplicationBuilder(args);

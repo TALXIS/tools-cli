@@ -1,5 +1,3 @@
-using System;
-
 namespace TALXIS.CLI.MCP
 {
     public class CliCommandNameResolver

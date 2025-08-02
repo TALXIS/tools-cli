@@ -1,18 +1,9 @@
 using DotMake.CommandLine;
-using System;
-using System.Collections.Generic;
 using System.CommandLine.Completions;
-using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace TALXIS.CLI.Component;
-
-/// <summary>
-/// CLI command to scaffold a component from a template, passing parameters.
-/// </summary>
 [CliCommand(
-    Description = "Scaffolds a component from a template and passes parameters.",
+    Description = "Scaffolds a component from a template and passes parameters",
     Name = "scaffold")]
 public class TemplateScaffoldCliCommand : ICliGetCompletions
 {

@@ -1,6 +1,4 @@
-﻿
-using System.Threading.Tasks;
-using DotMake.CommandLine;
+﻿using DotMake.CommandLine;
 
 namespace TALXIS.CLI
 {
