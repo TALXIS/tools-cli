@@ -3,7 +3,7 @@ using DotMake.CommandLine;
 namespace TALXIS.CLI.Workspace;
 
 [CliCommand(
-    Description = "Explains a solution component. Use names returned by 'list' command.",
+    Description = "Explains a solution component. Use names returned by 'list' command",
     Name = "explain"
 )]
 public class ComponentExplainCliCommand

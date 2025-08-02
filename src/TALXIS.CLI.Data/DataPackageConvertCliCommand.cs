@@ -4,20 +4,20 @@ namespace TALXIS.CLI.Data;
 
 [CliCommand(
     Name = "convert",
-    Description = "Convert tables from an XLSX file to XML."
+    Description = "Convert tables from an XLSX file to CMT data package XML"
 )]
-public class ConvertDataCliCommand
+public class DataPackageConvertCliCommand
 {
     [CliOption(
         Name = "--input",
-        Description = "Path to the input XLSX file.",
+        Description = "Path to the input XLSX file",
         Required = true
     )]
     public string? InputPath { get; set; }
 
     [CliOption(
         Name = "--output",
-        Description = "Path to the output XML file.",
+        Description = "Path to the output XML file",
         Required = true
     )]
     public string? OutputPath { get; set; }

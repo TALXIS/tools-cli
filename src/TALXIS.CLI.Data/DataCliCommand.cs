@@ -3,8 +3,8 @@ using DotMake.CommandLine;
 namespace TALXIS.CLI.Data;
 
 [CliCommand(
-    Description = "Data-related utilities for ETL, Power Query and migration scenarios",
-    Children = new[] { typeof(TransformServerCliCommand), typeof(ConvertDataCliCommand) }
+    Description = "Data utilities for modeling, demostration, migration and integration",
+    Children = new[] { typeof(TransformCliCommand), typeof(DataPackageCliCommand), typeof(DataModelCliCommand) }
 )]
 public class DataCliCommand
 {

@@ -1,129 +1,90 @@
 ---
-# TALXIS CLI (txc)
+# TALXIS CLI (`txc`)
 
-> [!WARNING]
-> This project is currently in a development phase and not ready for production use.
-> While we actively use these tools internally, our aim is to share and collaborate with the broader community to refine and enhance their capabilities.
-> We are in the process of gradually open-sourcing the code, removing internal dependencies to make it universally applicable.
-> At this stage, it serves as a source of inspiration and a basis for collaboration.
-> We welcome feedback, suggestions, and contributions through pull requests.
+> **WARNING**
+> This project is in active development and not yet production-ready. We welcome feedback, suggestions, and contributions via pull requests.
 
-If wish to use this project for your team, please contact us at hello@networg.com for a personalized onboarding experience and customization to meet your specific needs.
+TALXIS CLI (`txc`) is a modular, extensible .NET global tool for automating development, data, and solution management tasks—especially for Power Platform and enterprise projects. It is designed to help developers scaffold, transform and manage code and data in local repositories.
 
-## Goal
+**MCP Server Support:**
 
+This CLI can also be consumed as a Model Context Protocol (MCP) server by installing the related .NET tool `txc-mcp`. This enables integration with tools and workflows that support the MCP standard.
 
-The goal of the TALXIS CLI (`txc`) is to provide a modular, extensible .NET global tool that helps Power Platform developers automate tasks across their local code repositories and data manipulation.
+- For setup and usage instructions, see [`src/TALXIS.CLI.MCP/README.md`](src/TALXIS.CLI.MCP/README.md) in this repository.
+
+---
 
 ## Installation
 
-You can install the TALXIS CLI as a .NET global tool using the following command:
+Install as a .NET global tool:
 
 ```sh
 dotnet tool install --global TALXIS.CLI
 ```
 
-After installation, you can run the CLI using the `txc` command from any terminal.
-
-To update the TALXIS CLI to the latest version, use the following command:
+Update to the latest version:
 
 ```sh
 dotnet tool update --global TALXIS.CLI
 ```
 
-## Command Groups
+After installation, use the CLI via the `txc` command in any terminal.
+
+---
+
+## Command Groups & Usage
 
 The CLI is organized into modular command groups. Each group provides a set of related commands.
 
 ### Data Commands (`txc data`)
+Data utilities for modeling, migration, ETL, and integration scenarios.
 
-Data-related utilities for ETL, Power Query, and automation scenarios.
+- **`txc data transform`**: Data-related utilities for ETL, Power Query, and migration.
+  - **`txc data transform server start [--port <port>]`**: Starts a local HTTP server for ETL/data transformation tasks. Default port: 50505.
+    - **Endpoints:**
+      - `POST /ComputePrimaryKey` — Deterministically computes a GUID primary key from entity and alternate keys.
 
-#### `convert` command
+- **`txc data package`**: Configuration migration tool (CMT) for moving data between environments.
+  - **`txc data package convert --input <file.xlsx> --output <file.xml>`**: Converts tables from an Excel `.xlsx` file to a CMT data package XML.
 
-Converts tables from an Excel `.xlsx` file into a structured CMT format. Each table in the spreadsheet is exported as an `<entity>` in the XML, with columns as fields and rows as records.
+- **`txc data model`**: Data modeling utilities (see CLI help for available features).
 
-**Usage:**
+### Workspace Commands (`txc workspace`)
+Develop and manage solution components in your local workspace.
 
-```sh
-txc data convert --input <export.xlsx> --output <data.xml>
-```
+- **`txc workspace component`**: Manage solution components.
+  - **`txc workspace component list`**: List available component templates.
+  - **`txc workspace component create <ShortName> [--output <path>] [--param key=value ...]`**: Scaffold a component from a template, passing parameters as needed.
+  - **`txc workspace component explain <Name>`**: Show details about a component template.
+  - **`txc workspace component parameter list <ShortName>`**: List parameters required for a specific component template.
 
-#### `transform-server` command
+### Docs Commands (`txc docs`)
+Knowledge base and documentation for TALXIS CLI and its usage.
 
-Starts a simple local HTTP server exposing endpoints for ETL/data transformation tasks. Useful for integrating with Power Query or other local ETL tools.
+---
 
-**Usage:**
-
-```sh
-txc data transform-server [--port <port>]
-```
-
-- `--port` (optional): Port to run the server on. Defaults to `50505` if not specified.
-
-**Example:**
-
-```sh
-txc data transform-server --port 50505
-```
-
-
-**Endpoints:**
-
-- `POST /ComputePrimaryKey` — Accepts a JSON body with the following structure (case-insensitive):
-
-```json
-{
-  "entity": "talxis_salesorder",
-  "alternateKeys": {
-    "talxis_customernumber": 1234,
-    "talxis_sapnumber": "SO34344"
-  }
-}
-```
-
-**About Alternate Keys:**
-
-Alternate keys are a set of attributes (fields) on a record that, together, uniquely identify that record and never change for its lifetime. For the ComputePrimaryKey endpoint, alternate keys are used to calculate a deterministic primary key (GUID) for each record. This ensures that:
-
-- The same record will always get the same primary key, even if the migration is run multiple times.
-- Records can be upserted (inserted or updated) reliably, because their identity is stable and based on business data, not on system-generated IDs.
-- In Microsoft Dataverse, the primary key must be a GUID, so we use alternate keys to generate a GUID that is unique and repeatable for each record.
-
-This approach is especially useful for data migrations, deduplication and integration with external systems.
-
-The `alternateKeys` object supports any number of key-value pairs, and values can be of any JSON type (string, number, etc). These keys should be attributes that never change for a record and together uniquely identify it. The endpoint returns a deterministic GUID as `{ "primaryKey": "..." }`. The `entity` parameter is used as a prefix to avoid collisions between entities.
-
-- `POST /ComputePrimaryKey` — Accepts a JSON body with the following structure (case-insensitive):
-
-```json
-{
-  "entity": "talxis_salesorder",
-  "alternateKeys": {
-    "talxis_customernumber": 1234,
-    "talxis_sapnumber": "SO34344"
-  }
-}
-```
-
-The `alternateKeys` object supports any number of key-value pairs, and values can be of any JSON type (string, number, etc). The endpoint returns a deterministic GUID as `{ "primaryKey": "..." }`. The `entity` parameter is used as a prefix to avoid collisions between entities.
-
-**Sample request:**
+## Example Usage
 
 ```sh
-curl -X POST http://localhost:50505/ComputePrimaryKey \
-  -H "Content-Type: application/json" \
-  -d '{"entity":"talxis_salesorder","alternateKeys":{"talxis_customernumber":1234,"talxis_sapnumber":"SO34344"}}'
+# Start the data transformation server on default port
+$ txc data transform server start
+
+# Convert Excel to CMT XML
+$ txc data package convert --input export.xlsx --output data.xml
+
+# List available workspace components
+$ txc workspace component list
+
+# Scaffold a new component
+$ txc workspace component create mycomponent --output ./src --param Name=MyComponent --param Type=Custom
+
+# List parameters for a component template
+$ txc workspace component parameter list mycomponent
 ```
 
+---
 
-
-## Collaboration
-We are happy to collaborate with developers and contributors interested in enhancing Power Platform development processes. If you have feedback, suggestions, or would like to contribute, please feel free to submit issues or pull requests.
-
-### Local building and debugging
-
-To build and debug the CLI locally:
+## Local Development & Debugging
 
 1. Clone the repository and restore dependencies:
    ```sh
@@ -137,10 +98,21 @@ To build and debug the CLI locally:
    ```
 3. Run the CLI directly (for example, to test the data transform server):
    ```sh
-   dotnet run --project src/TALXIS.CLI -- data transform-server
+   dotnet run --project src/TALXIS.CLI -- data transform server start
    ```
-4. You can also debug using Visual Studio or VS Code by opening the solution and setting breakpoints as needed.
+4. Debug using Visual Studio or VS Code as needed.
 
-### Releasing a new version
+---
 
-This project uses explicit Microsoft-style versioning (e.g., 1.0.0.0) set in the `Directory.Build.props` file. A GitHub Actions workflow publishes new releases to NuGet.org.
+## Versioning & Release
+
+- Versioning is managed in `Directory.Build.props` (Microsoft-style versioning).
+- Releases are published to NuGet.org via GitHub Actions.
+
+---
+
+## Collaboration
+
+We welcome collaboration! For feedback, suggestions, or contributions, please submit issues or pull requests.
+
+For onboarding or customization, contact us at hello@networg.com.

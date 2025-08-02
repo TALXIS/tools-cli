@@ -5,6 +5,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TALXIS.CLI.Data\TALXIS.CLI.Data.csproj" />
+    <ProjectReference Include="..\TALXIS.CLI.Docs\TALXIS.CLI.Docs.csproj" />
     <ProjectReference Include="..\TALXIS.CLI.Workspace\TALXIS.CLI.Workspace.csproj" />
   </ItemGroup>
 

@@ -1,49 +1,69 @@
-# TALXIS.CLI.MCP
+# TALXIS CLI MCP (`txc-mcp`)
 
-This project hosts a ModelContextProtocol (MCP) server for the TALXIS CLI, advertising a dynamic list of CLI tools and allowing tool invocation via MCP stdio transport.
+This project provides a Model Context Protocol (MCP) server for the TALXIS CLI, enabling dynamic discovery and invocation of CLI tools via the MCP stdio transport. The MCP server is distributed as a global .NET tool and can be easily integrated with GitHub Copilot and other MCP-compatible tools.
 
-## Features
-- Dynamic discovery of CLI commands and subcommands using reflection
-- Implements MCP ListTools and CallTool handlers  
+## Installation
 
-## Debugging and Testing Locally
-
-You can debug and test the MCP server locally in two main ways:
-
-### 1. Using the Model Context Protocol Inspector
-
-You can use the [Model Context Protocol Inspector](https://www.npmjs.com/package/@modelcontextprotocol/inspector) for interactive inspection and debugging:
+Install the MCP server as a global .NET tool (this will add the `txc-mcp` alias):
 
 ```sh
-npx @modelcontextprotocol/inspector dotnet run --project src/TALXIS.CLI.MCP
+dotnet tool install --global TALXIS.CLI.MCP
 ```
 
-This will launch the MCP Inspector and connect it to the running server.
+See the package on NuGet: [TALXIS.CLI.MCP](https://www.nuget.org/packages/TALXIS.CLI.MCP)
 
-### 2. Using VS Code with `.vscode/mcp.json`
+## Usage with VS Code and GitHub Copilot
 
-You can also test the MCP server integration with VS Code by opening another window and adding a `.vscode/mcp.json` file to your project with the following content:
+To use the MCP server in VS Code (or any MCP-compatible tool), create a `.vscode/mcp.json` file in your project with the following content:
 
 ```json
 {
     "inputs": [],
     "servers": {
-        "TALXIS CLI": {
+        "TALXIS CLI Public": {
+            "type": "stdio",
+            "command": "txc-mcp"
+        }
+    }
+}
+```
+
+This will allow GitHub Copilot and other tools to discover and invoke TALXIS CLI commands via MCP.
+
+## Developing and Debugging Locally
+
+When developing the MCP server locally, you can run it directly from source and configure VS Code to use your local build. In your `.vscode/mcp.json`, set the server command to launch the project via `dotnet run`:
+
+```json
+{
+    "inputs": [],
+    "servers": {
+        "TALXIS CLI Dev": {
             "type": "stdio",
             "command": "dotnet",
             "args": [
                 "run",
                 "--project",
-                "/Users/tomasprokop/Desktop/Repos/tools-cli/src/TALXIS.CLI.MCP/TALXIS.CLI.MCP.csproj"
+                "${workspaceFolder}/src/TALXIS.CLI.MCP/TALXIS.CLI.MCP.csproj"
             ]
         }
     }
 }
 ```
 
-**Steps:**
+- Adjust the path in `args` to match your local project location if needed.
+- This setup allows you to test changes without reinstalling the global tool.
 
-1. Open a new VS Code window in any folder (it does not have to be this repo).
-2. Create a `.vscode` directory if it does not exist.
-3. Add the above `mcp` file as `.vscode/mcp`.
-4. Make sure the path in `args` points to the correct location of your `TALXIS.CLI.MCP.csproj` file.
+You can also use the [Model Context Protocol Inspector](https://www.npmjs.com/package/@modelcontextprotocol/inspector) for interactive inspection:
+
+```sh
+npx @modelcontextprotocol/inspector dotnet run --project src/TALXIS.CLI.MCP
+```
+
+## Features
+- Dynamic discovery of CLI commands and subcommands using reflection
+- Implements MCP ListTools and CallTool handlers
+
+---
+
+For more details, see the main [TALXIS CLI README](../../README.md).

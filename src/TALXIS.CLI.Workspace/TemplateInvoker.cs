@@ -61,7 +61,7 @@ namespace TALXIS.CLI.Workspace
         {
             if (string.IsNullOrWhiteSpace(shortName))
             {
-                throw new ArgumentException("Short name must be provided.", nameof(shortName));
+                throw new ArgumentException("Short name must be provided", nameof(shortName));
             }
         }
 
