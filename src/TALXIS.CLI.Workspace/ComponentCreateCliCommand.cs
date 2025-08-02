@@ -1,6 +1,6 @@
 using System.CommandLine.Completions;
 using DotMake.CommandLine;
-namespace TALXIS.CLI.Component;
+namespace TALXIS.CLI.Workspace;
 
 [CliCommand(
     Description = "Scaffolds a component from a template and passes parameters",

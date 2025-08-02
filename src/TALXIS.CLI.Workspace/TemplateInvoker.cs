@@ -4,7 +4,7 @@ using Microsoft.TemplateEngine.Abstractions;
 using Microsoft.TemplateEngine.Edge;
 using Microsoft.TemplateEngine.Edge.Template;
 
-namespace TALXIS.CLI.Component
+namespace TALXIS.CLI.Workspace
 {
     public class TemplateInvoker : IDisposable
     {
@@ -24,7 +24,7 @@ namespace TALXIS.CLI.Component
                  .AddConsole();
             });
             _host = new DefaultTemplateEngineHost(
-                hostIdentifier: "TALXIS.CLI.Component",
+                hostIdentifier: "TALXIS.CLI.Workspace",
                 version: version,
                 defaults: new Dictionary<string, string>
                 {

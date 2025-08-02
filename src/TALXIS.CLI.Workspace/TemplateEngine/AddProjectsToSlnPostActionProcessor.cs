@@ -1,19 +1,19 @@
 using Microsoft.TemplateEngine.Abstractions;
 
 
-namespace TALXIS.CLI.Component
+namespace TALXIS.CLI.Workspace
 {
-    public class AddReferencePostActionProcessor : IPostActionProcessor
+    public class AddProjectsToSlnPostActionProcessor : IPostActionProcessor
     {
-        public Guid ActionId => new Guid("B17581D1-C5C9-4489-8F0A-004BE667B814");
+        public Guid ActionId => new Guid("D396686C-DE0E-4DE6-906D-291CD29FC5DE");
 
         public bool Process(IEngineEnvironmentSettings environment, IPostAction action)
         {
-            // Example: dotnet add <project> reference <reference>
+            // Example: dotnet sln <slnFile> add <projectFiles>
             var args = action.Args;
-            if (!args.TryGetValue("projectFile", out var projectFile) || !args.TryGetValue("referenceFile", out var referenceFile))
+            if (!args.TryGetValue("slnFile", out var slnFile) || !args.TryGetValue("projectFiles", out var projectFiles))
             {
-                Console.Error.WriteLine("Add reference post-action missing required arguments.");
+                Console.Error.WriteLine("Add projects to .sln post-action missing required arguments.");
                 return false;
             }
             try
@@ -23,7 +23,7 @@ namespace TALXIS.CLI.Component
                 StartInfo = new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = "dotnet",
-                    Arguments = $"add \"{projectFile}\" reference \"{referenceFile}\"",
+                    Arguments = $"sln \"{slnFile}\" add {projectFiles}",
                     WorkingDirectory = Environment.CurrentDirectory,
                     // If environment is not null and you want to use a custom path, update here
                     RedirectStandardOutput = true,
@@ -36,14 +36,14 @@ namespace TALXIS.CLI.Component
                 process.WaitForExit();
                 if (process.ExitCode != 0)
                 {
-                    Console.Error.WriteLine($"dotnet add reference exited with code {process.ExitCode}.");
+                    Console.Error.WriteLine($"dotnet sln add exited with code {process.ExitCode}.");
                     return false;
                 }
                 return true;
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Failed to add reference: {ex.Message}");
+                Console.Error.WriteLine($"Failed to add projects to .sln: {ex.Message}");
                 return false;
             }
         }

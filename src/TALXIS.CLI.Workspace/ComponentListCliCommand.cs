@@ -1,6 +1,6 @@
 using DotMake.CommandLine;
 
-namespace TALXIS.CLI.Component;
+namespace TALXIS.CLI.Workspace;
 
 [CliCommand(
     Description = "Lists available solution components",

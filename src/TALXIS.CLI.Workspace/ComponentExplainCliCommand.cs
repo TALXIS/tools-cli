@@ -1,6 +1,6 @@
 using DotMake.CommandLine;
 
-namespace TALXIS.CLI.Component;
+namespace TALXIS.CLI.Workspace;
 
 [CliCommand(
     Description = "Explains a solution component. Use names returned by 'list' command.",

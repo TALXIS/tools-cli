@@ -1,6 +1,6 @@
 using DotMake.CommandLine;
 
-namespace TALXIS.CLI.Component;
+namespace TALXIS.CLI.Workspace;
 
 /// <summary>
 /// CLI command to list parameters required for a specific component template.

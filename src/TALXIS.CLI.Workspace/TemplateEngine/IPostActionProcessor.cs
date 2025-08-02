@@ -1,6 +1,6 @@
 using Microsoft.TemplateEngine.Abstractions;
 
-namespace TALXIS.CLI.Component
+namespace TALXIS.CLI.Workspace
 {
     // Minimal local interface for post action processors
     public interface IPostActionProcessor
