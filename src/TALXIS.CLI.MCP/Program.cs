@@ -60,18 +60,31 @@ async ValueTask<CallToolResult> CallToolAsync(RequestContext<CallToolRequestPara
 
     var output = new StringWriter();
     var origOut = Console.Out;
+    var origErr = Console.Error;
     Console.SetOut(output);
+    Console.SetError(output);
     try
     {
-        await TALXIS.CLI.Program.RunCli(cliArgs.ToArray());
+        var exitCode = await TALXIS.CLI.Program.RunCli(cliArgs.ToArray());
+        Console.Out.Flush();
+        Console.Error.Flush();
+        if (exitCode != 0)
+        {
+            // If the CLI returned a non-zero exit code, treat as error
+            return new CallToolResult {
+                Content = [new TextContentBlock { Text = output.ToString(), Type = "text" }],
+                IsError = true
+            };
+        }
     }
     catch (Exception ex)
     {
-        return new CallToolResult { Content = [new TextContentBlock { Text = ex.ToString(), Type = "text" }] };
+        return new CallToolResult { Content = [new TextContentBlock { Text = ex.ToString(), Type = "text" }], IsError = true };
     }
     finally
     {
         Console.SetOut(origOut);
+        Console.SetError(origErr);
     }
-    return new CallToolResult { Content = [new TextContentBlock { Text = output.ToString(), Type = "text" }] };
+    return new CallToolResult { Content = [new TextContentBlock { Text = output.ToString(), Type = "text" }], IsError = false };
 }

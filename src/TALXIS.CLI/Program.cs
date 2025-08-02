@@ -6,7 +6,7 @@ namespace TALXIS.CLI
     {
         public static async Task<int> Main(string[] args)
         {
-            return await Cli.RunAsync<TALXIS.CLI.TxcCliCommand>(args);
+            return await Cli.RunAsync<TALXIS.CLI.TxcCliCommand>(args, new CliSettings { EnableDefaultExceptionHandler = true });
         }
 
         public static async Task<int> RunCli(string[] args)

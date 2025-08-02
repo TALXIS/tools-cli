@@ -129,11 +129,9 @@ namespace TALXIS.CLI.Component
                     break;
                 case CreationResultStatus.MissingMandatoryParam:
                 case CreationResultStatus.InvalidParamValues:
-                    Console.Error.WriteLine($"Template creation failed due to parameter issues: {result.ErrorMessage}");
-                    break;
+                    throw new InvalidOperationException($"Template creation failed due to parameter issues: {result.ErrorMessage}");
                 default:
-                    Console.Error.WriteLine($"Creation failed: {result.ErrorMessage}");
-                    break;
+                    throw new InvalidOperationException($"Creation failed: {result.ErrorMessage}");
             }
         }
 

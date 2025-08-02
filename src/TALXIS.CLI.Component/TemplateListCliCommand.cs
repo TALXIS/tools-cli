@@ -13,25 +13,18 @@ public class TemplateListCliCommand
 {
     public async Task<int> RunAsync()
     {
-        try
+        using var scaffolder = new TemplateInvoker();
+        var templates = await scaffolder.ListTemplatesAsync();
+        if (templates == null || !templates.Any())
         {
-            using var scaffolder = new TemplateInvoker();
-            var templates = await scaffolder.ListTemplatesAsync();
-            if (templates == null || !templates.Any())
-            {
-                Console.WriteLine("No templates available.");
-                return 0;
-            }
-            Console.WriteLine("Available templates:");
-            foreach (var template in templates)
-            {
-                var description = string.IsNullOrWhiteSpace(template.Description) ? "" : $" - {template.Description}";
-                Console.WriteLine($"- {template.Name} (short name: {string.Join(", ", template.ShortNameList)}){description}");
-            }
+            Console.WriteLine("No templates available.");
+            return 0;
         }
-        catch (Exception ex)
+        Console.WriteLine("Available templates:");
+        foreach (var template in templates)
         {
-            Console.Error.WriteLine($"Error listing templates: {ex.Message}");
+            var description = string.IsNullOrWhiteSpace(template.Description) ? "" : $" - {template.Description}";
+            Console.WriteLine($"- {template.Name} (short name: {string.Join(", ", template.ShortNameList)}){description}");
         }
         return 0;
     }

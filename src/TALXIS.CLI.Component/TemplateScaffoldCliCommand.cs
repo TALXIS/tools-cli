@@ -18,31 +18,22 @@ public class TemplateScaffoldCliCommand : ICliGetCompletions
 
     public async Task<int> RunAsync()
     {
-        try
+        var parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var p in Param)
         {
-            var parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var p in Param)
+            var idx = p.IndexOf('=');
+            if (idx <= 0 || idx == p.Length - 1)
             {
-                var idx = p.IndexOf('=');
-                if (idx <= 0 || idx == p.Length - 1)
-                {
-                    Console.Error.WriteLine($"Invalid parameter format: '{p}'. Use key=value.");
-                    return 1;
-                }
-                var key = p.Substring(0, idx);
-                var value = p.Substring(idx + 1);
-                parameters[key] = value;
+                throw new ArgumentException($"Invalid parameter format: '{p}'. Use key=value.");
             }
+            var key = p.Substring(0, idx);
+            var value = p.Substring(idx + 1);
+            parameters[key] = value;
+        }
 
-            using var scaffolder = new TemplateInvoker();
-            await scaffolder.ScaffoldAsync(ShortName, OutputPath, parameters);
-            Console.WriteLine($"Component scaffolded to '{OutputPath}' using template '{ShortName}'.");
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($"Error scaffolding component: {ex.Message}");
-            return 1;
-        }
+        using var scaffolder = new TemplateInvoker();
+        await scaffolder.ScaffoldAsync(ShortName, OutputPath, parameters);
+        Console.WriteLine($"Component scaffolded to '{OutputPath}' using template '{ShortName}'.");
         return 0;
     }
 

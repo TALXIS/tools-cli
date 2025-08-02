@@ -14,40 +14,32 @@ public class TemplateParameterListCliCommand
     [CliArgument(Description = "Short name of the template.")]
     public required string ShortName { get; set; }
 
-    public async Task<int> RunAsync()
+    public int Run()
     {
-        try
+        using var scaffolder = new TemplateInvoker();
+        var parameters = scaffolder.ListParametersForTemplateAsync(ShortName).GetAwaiter().GetResult();
+        if (parameters == null || parameters.Count == 0)
         {
-            using var scaffolder = new TemplateInvoker();
-            var parameters = await scaffolder.ListParametersForTemplateAsync(ShortName);
-            if (parameters == null || parameters.Count == 0)
-            {
-                Console.WriteLine($"No parameters found for template '{ShortName}'.");
-                return 0;
-            }
-            Console.WriteLine($"Parameters for template '{ShortName}':");
-            foreach (var p in parameters)
-            {
-                Console.Write($"--{p.Name}");
-                Console.Write($"  ({p.DataType})");
-                if (!string.IsNullOrEmpty(p.DefaultValue?.ToString()))
-                    Console.Write($"  [default: {p.DefaultValue}]");
-                // Check if parameter is required by string value
-                if (p.Precedence != null && p.Precedence.ToString() == "Required")
-                    Console.Write("  <required>");
-                if (p.Choices != null && p.Choices.Count > 0)
-                {
-                    var list = string.Join(", ", p.Choices.Keys);
-                    Console.Write($"  choices: {list}");
-                }
-                Console.WriteLine();
-                if (!string.IsNullOrEmpty(p.Description))
-                    Console.WriteLine($"    {p.Description}");
-            }
+            Console.WriteLine($"No parameters found for template '{ShortName}'.");
+            return 0;
         }
-        catch (Exception ex)
+        Console.WriteLine($"Parameters for template '{ShortName}':");
+        foreach (var p in parameters)
         {
-            Console.Error.WriteLine($"Error listing parameters: {ex.Message}");
+            Console.Write($"--{p.Name}");
+            Console.Write($"  ({p.DataType})");
+            if (!string.IsNullOrEmpty(p.DefaultValue?.ToString()))
+                Console.Write($"  [default: {p.DefaultValue}]");
+            if (p.Precedence != null && p.Precedence.ToString() == "Required")
+                Console.Write("  <required>");
+            if (p.Choices != null && p.Choices.Count > 0)
+            {
+                var list = string.Join(", ", p.Choices.Keys);
+                Console.Write($"  choices: {list}");
+            }
+            Console.WriteLine();
+            if (!string.IsNullOrEmpty(p.Description))
+                Console.WriteLine($"    {p.Description}");
         }
         return 0;
     }

@@ -22,12 +22,11 @@ public class ConvertDataCliCommand
     )]
     public string? OutputPath { get; set; }
 
-    public void Run(CliContext context)
+    public int Run()
     {
         if (string.IsNullOrWhiteSpace(InputPath) || string.IsNullOrWhiteSpace(OutputPath))
         {
-            Console.WriteLine("Both --input and --output must be specified.");
-            return;
+            throw new ArgumentException("Both --input and --output must be specified.");
         }
 
         var xEntities = new System.Xml.Linq.XElement("entities",
@@ -36,99 +35,84 @@ public class ConvertDataCliCommand
             new System.Xml.Linq.XAttribute("timestamp", DateTime.UtcNow.ToString("o"))
         );
 
-        try
+        using (var doc = DocumentFormat.OpenXml.Packaging.SpreadsheetDocument.Open(InputPath, false))
         {
-            using (var doc = DocumentFormat.OpenXml.Packaging.SpreadsheetDocument.Open(InputPath, false))
+            var workbookPart = doc.WorkbookPart;
+            if (workbookPart == null)
             {
-                var workbookPart = doc.WorkbookPart;
-                if (workbookPart == null)
-                {
-                    Console.WriteLine("Invalid XLSX file: missing workbook part.");
-                    return;
-                }
-                var sstPart = workbookPart.GetPartsOfType<DocumentFormat.OpenXml.Packaging.SharedStringTablePart>().FirstOrDefault();
-                var sst = sstPart?.SharedStringTable;
-                var sheets = workbookPart.Workbook?.Sheets?.Elements<DocumentFormat.OpenXml.Spreadsheet.Sheet>() ?? Array.Empty<DocumentFormat.OpenXml.Spreadsheet.Sheet>();
+                throw new InvalidOperationException("Invalid XLSX file: missing workbook part.");
+            }
+            var sstPart = workbookPart.GetPartsOfType<DocumentFormat.OpenXml.Packaging.SharedStringTablePart>().FirstOrDefault();
+            var sst = sstPart?.SharedStringTable;
+            var sheets = workbookPart.Workbook?.Sheets?.Elements<DocumentFormat.OpenXml.Spreadsheet.Sheet>() ?? Array.Empty<DocumentFormat.OpenXml.Spreadsheet.Sheet>();
 
-                foreach (var wsPart in workbookPart.WorksheetParts)
-                {
-                    var ws = wsPart.Worksheet;
-                    var sheetId = workbookPart.GetIdOfPart(wsPart);
-                    var sheet = sheets.FirstOrDefault(s => s.Id == sheetId);
-                    if (sheet == null) continue;
+            foreach (var wsPart in workbookPart.WorksheetParts)
+            {
+                var ws = wsPart.Worksheet;
+                var sheetId = workbookPart.GetIdOfPart(wsPart);
+                var sheet = sheets.FirstOrDefault(s => s.Id == sheetId);
+                if (sheet == null) continue;
 
-                    // Find all tables in this worksheet
-                    var tableParts = wsPart.TableDefinitionParts;
-                    foreach (var tablePart in tableParts)
+                // Find all tables in this worksheet
+                var tableParts = wsPart.TableDefinitionParts;
+                foreach (var tablePart in tableParts)
+                {
+                    var table = tablePart.Table;
+                    var tableName = table?.Name?.Value ?? "Table";
+                    var entityElem = new System.Xml.Linq.XElement("entity",
+                        new System.Xml.Linq.XAttribute("name", tableName),
+                        new System.Xml.Linq.XAttribute("displayname", tableName)
+                    );
+                    var recordsElem = new System.Xml.Linq.XElement("records");
+
+                    // Get table range
+                    var refRange = table?.Reference?.Value;
+                    if (string.IsNullOrWhiteSpace(refRange))
+                        continue;
+                    var (startCol, startRow, endCol, endRow) = ParseRange(refRange);
+
+                    // Get header row (first row in range)
+                    var headerRow = GetRow(ws, startRow);
+                    if (headerRow == null)
+                        continue;
+                    var colNames = new List<string>();
+                    for (int col = startCol; col <= endCol; col++)
                     {
-                        var table = tablePart.Table;
-                        var tableName = table?.Name?.Value ?? "Table";
-                        var entityElem = new System.Xml.Linq.XElement("entity",
-                            new System.Xml.Linq.XAttribute("name", tableName),
-                            new System.Xml.Linq.XAttribute("displayname", tableName)
-                        );
-                        var recordsElem = new System.Xml.Linq.XElement("records");
-
-                        // Get table range
-                        var refRange = table?.Reference?.Value;
-                        if (string.IsNullOrWhiteSpace(refRange))
-                            continue;
-                        var (startCol, startRow, endCol, endRow) = ParseRange(refRange);
-
-                        // Get header row (first row in range)
-                        var headerRow = GetRow(ws, startRow);
-                        if (headerRow == null)
-                            continue;
-                        var colNames = new List<string>();
-                        for (int col = startCol; col <= endCol; col++)
-                        {
-                            var cell = GetCell(headerRow, col);
-                            var colName = GetCellValue(cell, sst) ?? $"Column{col}";
-                            colNames.Add(colName);
-                        }
-
-                        // Data rows
-                        for (uint rowIdx = startRow + 1; rowIdx <= endRow; rowIdx++)
-                        {
-                            var row = GetRow(ws, rowIdx);
-                            if (row == null) continue;
-                            var recordElem = new System.Xml.Linq.XElement("record",
-                                new System.Xml.Linq.XAttribute("id", Guid.NewGuid().ToString())
-                            );
-                            for (int col = startCol, i = 0; col <= endCol && i < colNames.Count; col++, i++)
-                            {
-                                var cell = GetCell(row, col);
-                                var value = GetCellValue(cell, sst) ?? string.Empty;
-                                recordElem.Add(new System.Xml.Linq.XElement("field",
-                                    new System.Xml.Linq.XAttribute("name", colNames[i]),
-                                    new System.Xml.Linq.XAttribute("value", value)
-                                ));
-                            }
-                            recordsElem.Add(recordElem);
-                        }
-                        entityElem.Add(recordsElem);
-                        entityElem.Add(new System.Xml.Linq.XElement("m2mrelationships"));
-                        xEntities.Add(entityElem);
+                        var cell = GetCell(headerRow, col);
+                        var colName = GetCellValue(cell, sst) ?? $"Column{col}";
+                        colNames.Add(colName);
                     }
+
+                    // Data rows
+                    for (uint rowIdx = startRow + 1; rowIdx <= endRow; rowIdx++)
+                    {
+                        var row = GetRow(ws, rowIdx);
+                        if (row == null) continue;
+                        var recordElem = new System.Xml.Linq.XElement("record",
+                            new System.Xml.Linq.XAttribute("id", Guid.NewGuid().ToString())
+                        );
+                        for (int col = startCol, i = 0; col <= endCol && i < colNames.Count; col++, i++)
+                        {
+                            var cell = GetCell(row, col);
+                            var value = GetCellValue(cell, sst) ?? string.Empty;
+                            recordElem.Add(new System.Xml.Linq.XElement("field",
+                                new System.Xml.Linq.XAttribute("name", colNames[i]),
+                                new System.Xml.Linq.XAttribute("value", value)
+                            ));
+                        }
+                        recordsElem.Add(recordElem);
+                    }
+                    entityElem.Add(recordsElem);
+                    entityElem.Add(new System.Xml.Linq.XElement("m2mrelationships"));
+                    xEntities.Add(entityElem);
                 }
             }
         }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error processing XLSX: {ex.Message}");
-            return;
-        }
 
         var xdoc = new System.Xml.Linq.XDocument(xEntities);
-        try
-        {
-            xdoc.Save(OutputPath);
-            Console.WriteLine($"Converted '{InputPath}' to '{OutputPath}'.");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error saving XML: {ex.Message}");
-        }
+        xdoc.Save(OutputPath);
+        Console.WriteLine($"Converted '{InputPath}' to '{OutputPath}'.");
+        return 0;
     }
 
     // Helpers for Open XML SDK
