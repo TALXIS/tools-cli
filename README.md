@@ -11,7 +11,9 @@
 
 > [!TIP]
 > **MCP Server Support:**  
-> You can also use this CLI as a Model Context Protocol (MCP) server by installing the related .NET tool `txc-mcp`.  
+> You can also use this CLI as a Model Context Protocol (MCP) server
+> by installing the related .NET tool `txc-mcp`.  
+> 
 > This enables integration with tools and workflows that support the MCP standard.  
 > For setup and usage instructions, see [`TALXIS.CLI.MCP`](src/TALXIS.CLI.MCP/README.md).
 
@@ -23,7 +25,6 @@ TALXIS CLI (`txc`) is a modular, extensible .NET global tool for automating deve
 
 ## Table of Contents
 - [Installation](#installation)
-- [Command Groups & Usage](#command-groups--usage)
 - [Example Usage](#example-usage)
 - [Local Development & Debugging](#local-development--debugging)
 - [Versioning & Release](#versioning--release)
@@ -45,41 +46,6 @@ After installation, use the CLI via the `txc` command in any terminal.
 
 ---
 
-## Command Groups & Usage
-
-The CLI is organized into modular command groups. Each group provides a set of related commands.
-
-| Command Group | Description |
-|--------------|-------------|
-| `txc data` | Data utilities for modeling, migration, ETL, and integration scenarios |
-| `txc workspace` | Develop and manage solution components in your local workspace |
-| `txc docs` | Knowledge base and documentation for TALXIS CLI and its usage |
-
-### Data Commands (`txc data`)
-
-- **`txc data transform`**: Data-related utilities for ETL, Power Query, and migration.
-  - **`txc data transform server start [--port <port>]`**: Starts a local HTTP server for ETL/data transformation tasks. Default port: 50505.
-    - **Endpoints:**
-      - `POST /ComputePrimaryKey` — Deterministically computes a GUID primary key from entity and alternate keys.
-
-- **`txc data package`**: Configuration migration tool (CMT) for moving data between environments.
-  - **`txc data package convert --input <file.xlsx> --output <file.xml>`**: Converts tables from an Excel `.xlsx` file to a CMT data package XML.
-
-- **`txc data model`**: Data modeling utilities (see CLI help for available features).
-
-### Workspace Commands (`txc workspace`)
-
-- **`txc workspace component`**: Manage solution components.
-  - **`txc workspace component list`**: List available component templates.
-  - **`txc workspace component create <ShortName> [--output <path>] [--param key=value ...]`**: Scaffold a component from a template, passing parameters as needed.
-  - **`txc workspace component explain <Name>`**: Show details about a component template.
-  - **`txc workspace component parameter list <ShortName>`**: List parameters required for a specific component template.
-
-### Docs Commands (`txc docs`)
-Knowledge base and documentation for TALXIS CLI and its usage.
-
----
-
 ## Example Usage
 
 ```sh title="Start the data transformation server on default port"
@@ -94,13 +60,31 @@ txc data package convert --input export.xlsx --output data.xml
 txc workspace component list
 ```
 
-```sh title="Scaffold a new component"
-txc workspace component create mycomponent --output ./src --param Name=MyComponent --param Type=Custom
+> [!IMPORTANT]
+> Component scaffolding in this CLI relies on the [TALXIS/tools-devkit-templates](https://github.com/TALXIS/tools-devkit-templates) repository, where all component types, metadata and definitions are maintained.
+
+```sh title="Show details about a component template"
+txc workspace component explain pp-entity
 ```
 
-```sh title="List parameters for a component template"
-txc workspace component parameter list mycomponent
+```sh title="List parameters required for a specific component template"
+txc workspace component parameter list pp-entity
 ```
+
+```sh title="Scaffold a new Dataverse entity component (important example)"
+txc workspace component create pp-entity \
+  --output "/Users/tomasprokop/Desktop/mcp-test/test" \
+  --param Behavior=New \
+  --param PublisherPrefix=tom \
+  --param LogicalName=location \
+  --param LogicalNamePlural=locations \
+  --param DisplayName=Location \
+  --param DisplayNamePlural=Locations \
+  --param SolutionRootPath=Declarations
+```
+
+> [!NOTE]
+> For detailed usage instructions, run `txc --help` or `txc <command> --help` in your terminal.
 
 ---
 
