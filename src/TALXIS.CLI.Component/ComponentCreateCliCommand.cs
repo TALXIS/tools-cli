@@ -7,13 +7,13 @@ namespace TALXIS.CLI.Component;
     Name = "create")]
 public class ComponentCreateCliCommand : ICliGetCompletions
 {
-    [CliArgument(Description = "Short name of the template.")]
+    [CliArgument(Description = "Short name of the component")]
     public required string ShortName { get; set; }
 
-    [CliOption(Name = "output", Description = "Output path for the scaffolded component.")]
+    [CliOption(Name = "output", Description = "Output path for the scaffolded component")]
     public string OutputPath { get; set; } = string.Empty;
 
-    [CliOption(Description = "Template parameters in the form key=value. Can be specified multiple times.")]
+    [CliOption(Description = "Component parameters which can be retrieved by parameter list command. Inputs need to be passed in the form key=value. Can be specified multiple times.")]
     public List<string> Param { get; set; } = new();
 
     public async Task<int> RunAsync()

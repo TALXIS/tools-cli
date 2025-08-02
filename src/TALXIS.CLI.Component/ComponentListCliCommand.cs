@@ -2,11 +2,8 @@ using DotMake.CommandLine;
 
 namespace TALXIS.CLI.Component;
 
-/// <summary>
-/// CLI command to list available templates in the ComponentScaffolder.
-/// </summary>
 [CliCommand(
-    Description = "Lists available component templates",
+    Description = "Lists available solution components",
     Name = "list"
 )]
 public class ComponentListCliCommand
@@ -17,10 +14,10 @@ public class ComponentListCliCommand
         var templates = await scaffolder.ListTemplatesAsync();
         if (templates == null || !templates.Any())
         {
-            Console.WriteLine("No templates available.");
+            Console.WriteLine("No components available.");
             return 0;
         }
-        Console.WriteLine("Available templates:");
+        Console.WriteLine("Available components:");
         foreach (var template in templates)
         {
             var description = string.IsNullOrWhiteSpace(template.Description) ? "" : $" - {template.Description}";

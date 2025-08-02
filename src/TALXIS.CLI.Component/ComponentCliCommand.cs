@@ -7,7 +7,8 @@ namespace TALXIS.CLI.Component;
     Children = new[]
     {
         typeof(ComponentListCliCommand),
-        typeof(ComponentCreateCliCommand)
+        typeof(ComponentCreateCliCommand),
+        typeof(ComponentExplainCliCommand)
     })]
 public class ComponentCliCommand
 {
@@ -17,7 +18,7 @@ public class ComponentCliCommand
     }
 
     [CliCommand(
-        Description = "Parameters for a specific component template",
+        Description = "Parameters for a specific component",
         Children = new[] { typeof(ComponentParameterListCliCommand) },
         Name = "parameter")]
     public class ComponentParameterCliCommand

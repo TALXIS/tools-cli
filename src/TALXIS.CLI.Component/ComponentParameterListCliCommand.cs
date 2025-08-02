@@ -6,12 +6,12 @@ namespace TALXIS.CLI.Component;
 /// CLI command to list parameters required for a specific component template.
 /// </summary>
 [CliCommand(
-    Description = "Lists parameters for a specific component template",
+    Description = "Lists parameters for a specific component",
     Name = "list"
 )]
 public class ComponentParameterListCliCommand
 {
-    [CliArgument(Description = "Short name of the template.")]
+    [CliArgument(Description = "Short name of the component.")]
     public required string ShortName { get; set; }
 
     public int Run()
