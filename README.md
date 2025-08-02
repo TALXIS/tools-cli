@@ -1,4 +1,3 @@
----
 # TALXIS CLI (`txc`)
 
 > **WARNING**
