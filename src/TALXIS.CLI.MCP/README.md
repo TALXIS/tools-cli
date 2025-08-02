@@ -4,10 +4,16 @@ This project provides a Model Context Protocol (MCP) server for the TALXIS CLI, 
 
 ## Installation
 
-Install the MCP server as a global .NET tool (this will add the `txc-mcp` alias):
+**Install the MCP server as a global .NET tool (this will add the `txc-mcp` alias):**
 
 ```sh
 dotnet tool install --global TALXIS.CLI.MCP
+```
+
+**Update to the latest version:**
+
+```sh
+dotnet tool update --global TALXIS.CLI.MCP
 ```
 
 See the package on NuGet: [TALXIS.CLI.MCP](https://www.nuget.org/packages/TALXIS.CLI.MCP)
