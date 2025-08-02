@@ -75,16 +75,20 @@ namespace TALXIS.CLI.Component
                 {
                     Console.Error.WriteLine($"[RunScript][stderr]:\n{stdErr}");
                 }
+                Console.Error.WriteLine($"[DEBUG] RunScriptPostActionProcessor: process.ExitCode = {process.ExitCode}");
                 if (process.ExitCode != 0)
                 {
                     Console.Error.WriteLine($"[RunScript] Script exited with code {process.ExitCode}.");
+                    Console.Error.WriteLine($"[DEBUG] RunScriptPostActionProcessor: returning false");
                     return false;
                 }
+                Console.Error.WriteLine($"[DEBUG] RunScriptPostActionProcessor: returning true");
                 return true;
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"[RunScript] Failed to run script: {ex.Message}");
+                Console.Error.WriteLine($"[RunScript] Failed to run script: {ex}");
+                Console.Error.WriteLine($"[DEBUG] RunScriptPostActionProcessor: returning false due to exception");
                 return false;
             }
         }

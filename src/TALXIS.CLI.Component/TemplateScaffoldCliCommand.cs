@@ -32,9 +32,26 @@ public class TemplateScaffoldCliCommand : ICliGetCompletions
         }
 
         using var scaffolder = new TemplateInvoker();
-        await scaffolder.ScaffoldAsync(ShortName, OutputPath, parameters);
-        Console.WriteLine($"Component scaffolded to '{OutputPath}' using template '{ShortName}'.");
-        return 0;
+        var (success, failedActions) = await scaffolder.ScaffoldAsync(ShortName, OutputPath, parameters);
+        Console.Error.WriteLine($"[DEBUG] TemplateScaffoldCliCommand: failedActions.Count = {failedActions.Count}");
+        if (success)
+        {
+            Console.WriteLine($"Component scaffolded to '{OutputPath}' using template '{ShortName}'.");
+            return 0;
+        }
+        else
+        {
+            Console.Error.WriteLine($"Component scaffolded, but one or more post-actions failed. See errors above.");
+            if (failedActions.Count > 0)
+            {
+                Console.Error.WriteLine("\nSummary of failed post-actions:");
+                foreach (var failed in failedActions)
+                {
+                    Console.Error.WriteLine($"- {failed.Description ?? failed.ActionId.ToString()}");
+                }
+            }
+            return 1;
+        }
     }
 
     public IEnumerable<CompletionItem> GetCompletions(string propertyName, CompletionContext completionContext)

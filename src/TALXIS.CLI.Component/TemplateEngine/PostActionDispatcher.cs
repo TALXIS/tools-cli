@@ -21,9 +21,10 @@ namespace TALXIS.CLI.Component
             };
         }
 
-        public PostActionResult RunPostActions(IReadOnlyList<IPostAction> actions, ScriptPermission scriptPermission)
+        public (PostActionResult, List<IPostAction>) RunPostActions(IReadOnlyList<IPostAction> actions, ScriptPermission scriptPermission)
         {
             var result = PostActionResult.Success;
+            var failedActions = new List<IPostAction>();
             foreach (var action in actions)
             {
                 if (!_processors.TryGetValue(action.ActionId, out var processor))
@@ -31,6 +32,7 @@ namespace TALXIS.CLI.Component
                     Console.Error.WriteLine($"Post-action {action.ActionId} not supported. Please run manually:");
                     ShowManualInstructions(action);
                     result |= PostActionResult.Failure;
+                    failedActions.Add(action);
                     continue;
                 }
 
@@ -44,11 +46,13 @@ namespace TALXIS.CLI.Component
                 if (!ok)
                 {
                     result |= PostActionResult.Failure;
+                    failedActions.Add(action);
                     if (!action.ContinueOnError)
                         throw new InvalidOperationException($"Post-action {action.ActionId} failed");
                 }
             }
-            return result;
+            Console.Error.WriteLine($"[DEBUG] PostActionDispatcher: failedActions.Count = {failedActions.Count}");
+            return (result, failedActions);
         }
 
         private void ShowManualInstructions(IPostAction action)

@@ -83,7 +83,7 @@ namespace TALXIS.CLI.Component
             return template.ParameterDefinitions.Where(p => p.Name != "name" && p.Name != "type" && p.Name != "language").ToList();
         }
 
-        public async Task ScaffoldAsync(string shortName, string outputPath, IDictionary<string, string> parameters, string? version = null, CancellationToken cancellationToken = default)
+        public async Task<(bool Success, List<IPostAction> FailedActions)> ScaffoldAsync(string shortName, string outputPath, IDictionary<string, string> parameters, string? version = null, CancellationToken cancellationToken = default)
         {
             ValidateShortName(shortName);
 
@@ -119,14 +119,18 @@ namespace TALXIS.CLI.Component
                         try
                         {
                             Directory.SetCurrentDirectory(outputPath);
-                            dispatcher.RunPostActions(postActions, ScriptPermission.Yes);
+                            var (postActionResult, failedActions) = dispatcher.RunPostActions(postActions, ScriptPermission.Yes);
+                            if ((postActionResult & PostActionResult.Failure) != 0)
+                            {
+                                return (false, failedActions);
+                            }
                         }
                         finally
                         {
                             Directory.SetCurrentDirectory(originalDirectory);
                         }
                     }
-                    break;
+                    return (true, new List<IPostAction>());
                 case CreationResultStatus.MissingMandatoryParam:
                 case CreationResultStatus.InvalidParamValues:
                     throw new InvalidOperationException($"Template creation failed due to parameter issues: {result.ErrorMessage}");
