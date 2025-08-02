@@ -4,14 +4,13 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <OutputType>Exe</OutputType>
-    <PackAsTool>true</PackAsTool>
     <ToolCommandName>txc-mcp</ToolCommandName>
-    <PackageType>McpServer</PackageType>
+    <PackageType>McpServer;DotnetTool</PackageType>
     <PackageId>TALXIS.CLI.MCP</PackageId>
     <Title>TALXIS CLI MCP Server</Title>
     <Authors>NETWORG</Authors>
     <Product>TALXIS CLI MCP Server</Product>
-    <Description>TALXIS CLI MCP Server is a .NET MCP server for developer automation and Power Platform scripting.</Description>
+    <Description>TALXIS CLI MCP is a server for developer automation and Power Platform scripting.</Description>
     <PackageTags>cli;dotnet-tool;talxis;automation;powerplatform;txc;mcp-server</PackageTags>
     <PackageProjectUrl>https://github.com/TALXIS/tools-cli</PackageProjectUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -23,7 +22,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="../../README.md" Pack="true" PackagePath="" />
+    <None Include="README.md" Pack="true" PackagePath="" />
     <None Include=".mcp/server.json" Pack="true" PackagePath=".mcp/" />
   </ItemGroup>
 
