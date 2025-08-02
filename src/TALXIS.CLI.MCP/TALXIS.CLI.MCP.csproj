@@ -6,6 +6,7 @@
     <OutputType>Exe</OutputType>
     <ToolCommandName>txc-mcp</ToolCommandName>
     <PackageType>McpServer;DotnetTool</PackageType>
+    <PackAsTool>true</PackAsTool>
     <PackageId>TALXIS.CLI.MCP</PackageId>
     <Title>TALXIS CLI MCP Server</Title>
     <Authors>NETWORG</Authors>
