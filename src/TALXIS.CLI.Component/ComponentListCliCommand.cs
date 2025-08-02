@@ -9,7 +9,7 @@ namespace TALXIS.CLI.Component;
     Description = "Lists available component templates",
     Name = "list"
 )]
-public class TemplateListCliCommand
+public class ComponentListCliCommand
 {
     public async Task<int> RunAsync()
     {

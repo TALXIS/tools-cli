@@ -9,7 +9,7 @@ namespace TALXIS.CLI.Component;
     Description = "Lists parameters for a specific component template",
     Name = "list"
 )]
-public class TemplateParameterListCliCommand
+public class ComponentParameterListCliCommand
 {
     [CliArgument(Description = "Short name of the template.")]
     public required string ShortName { get; set; }

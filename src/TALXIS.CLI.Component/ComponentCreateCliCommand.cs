@@ -1,11 +1,11 @@
-using DotMake.CommandLine;
 using System.CommandLine.Completions;
-
+using DotMake.CommandLine;
 namespace TALXIS.CLI.Component;
+
 [CliCommand(
     Description = "Scaffolds a component from a template and passes parameters",
-    Name = "scaffold")]
-public class TemplateScaffoldCliCommand : ICliGetCompletions
+    Name = "create")]
+public class ComponentCreateCliCommand : ICliGetCompletions
 {
     [CliArgument(Description = "Short name of the template.")]
     public required string ShortName { get; set; }
