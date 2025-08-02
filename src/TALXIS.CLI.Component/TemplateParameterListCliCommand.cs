@@ -1,7 +1,4 @@
 using DotMake.CommandLine;
-using System;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace TALXIS.CLI.Component;
 
@@ -9,7 +6,7 @@ namespace TALXIS.CLI.Component;
 /// CLI command to list parameters required for a specific component template.
 /// </summary>
 [CliCommand(
-    Description = "Lists parameters for a specific component template.",
+    Description = "Lists parameters for a specific component template",
     Name = "list"
 )]
 public class TemplateParameterListCliCommand

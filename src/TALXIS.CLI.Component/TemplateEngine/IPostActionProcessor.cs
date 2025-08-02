@@ -1,4 +1,3 @@
-using System;
 using Microsoft.TemplateEngine.Abstractions;
 
 namespace TALXIS.CLI.Component
