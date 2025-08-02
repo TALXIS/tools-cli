@@ -1,5 +1,4 @@
-﻿
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <None Include="../../README.md" Pack="true" PackagePath="" />
   </ItemGroup>
@@ -23,7 +22,7 @@
     <ToolCommandName>txc</ToolCommandName>
     <PackageId>TALXIS.CLI</PackageId>
     <Title>TALXIS CLI (txc)</Title>
-    <Authors>TALXIS</Authors>
+    <Authors>NETWORG</Authors>
     <Product>TALXIS CLI</Product>
     <Description>TALXIS CLI (txc) is a .NET global tool for developer automation and Power Platform scripting.</Description>
     <PackageTags>cli;dotnet-tool;talxis;automation;powerplatform;txc</PackageTags>
@@ -33,6 +32,7 @@
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <Copyright>© 2025 NETWORG Corporation - MIT License</Copyright>
   </PropertyGroup>
 
 </Project>

@@ -1,6 +1,7 @@
 using DotMake.CommandLine;
 using System;
 using System.Collections.Generic;
+using System.CommandLine.Completions;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -11,11 +12,12 @@ namespace TALXIS.CLI.Component;
 /// CLI command to scaffold a component from a template, passing parameters.
 /// </summary>
 [CliCommand(
-    Description = "Scaffolds a component from a template and passes parameters.")]
-public class TemplateScaffoldCliCommand
+    Description = "Scaffolds a component from a template and passes parameters.",
+    Name = "scaffold")]
+public class TemplateScaffoldCliCommand : ICliGetCompletions
 {
     [CliArgument(Description = "Short name of the template.")]
-    public string ShortName { get; set; } = string.Empty;
+    public required string ShortName { get; set; }
 
     [CliOption(Name = "output", Description = "Output path for the scaffolded component.")]
     public string OutputPath { get; set; } = string.Empty;
@@ -51,5 +53,29 @@ public class TemplateScaffoldCliCommand
             return 1;
         }
         return 0;
+    }
+
+    public IEnumerable<CompletionItem> GetCompletions(string propertyName, CompletionContext completionContext)
+    {
+        switch (propertyName)
+        {
+            case nameof(ShortName):
+                try
+                {
+                    using var scaffolder = new TemplateInvoker();
+                    var templates = scaffolder.ListTemplatesAsync().Result;
+                    if (templates != null)
+                    {
+                        return templates.Select(t => new CompletionItem(t.ShortNameList.FirstOrDefault() ?? t.Name));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine($"Error fetching completions: {ex.Message}");
+                }
+                break;
+        }
+
+        return Enumerable.Empty<CompletionItem>();
     }
 }

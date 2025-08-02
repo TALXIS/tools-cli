@@ -3,7 +3,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.TemplateEngine.Abstractions;
 using Microsoft.TemplateEngine.Edge;
 using Microsoft.TemplateEngine.Edge.Template;
-using Microsoft.TemplateEngine.Orchestrator.RunnableProjects;                      
+using Microsoft.TemplateEngine.Orchestrator.RunnableProjects;
+using System.Text.Json;
 
 namespace TALXIS.CLI.Component
 {
@@ -58,33 +59,41 @@ namespace TALXIS.CLI.Component
             return templates.Where(t => t.MountPointUri.Contains(_templatePackageName, StringComparison.OrdinalIgnoreCase)).ToList();
         }
 
+        private static void ValidateShortName(string shortName)
+        {
+            if (string.IsNullOrWhiteSpace(shortName))
+            {
+                throw new ArgumentException("Short name must be provided.", nameof(shortName));
+            }
+        }
+
         public async Task<ITemplateInfo?> GetTemplateByShortNameAsync(string shortName, string? version = null)
         {
+            ValidateShortName(shortName);
+
             var templates = await ListTemplatesAsync(version);
             return templates.FirstOrDefault(t => t.ShortNameList.Contains(shortName, StringComparer.OrdinalIgnoreCase));
         }
 
         public async Task<IReadOnlyList<ITemplateParameter>> ListParametersForTemplateAsync(string shortName, string? version = null)
         {
+            ValidateShortName(shortName);
+
             var template = await GetTemplateByShortNameAsync(shortName, version);
             if (template == null) throw new InvalidOperationException($"Template '{shortName}' not found.");
-            // Use ParameterDefinitions property (non-obsolete in v9+)
-            return template.ParameterDefinitions;
+            // Return the list of parameters defined in the template and exclude name, type and language as they are not user-defined parameters
+            return template.ParameterDefinitions.Where(p => p.Name != "name" && p.Name != "type" && p.Name != "language").ToList();
         }
 
         public async Task ScaffoldAsync(string shortName, string outputPath, IDictionary<string, string> parameters, string? version = null, CancellationToken cancellationToken = default)
         {
+            ValidateShortName(shortName);
+
             await EnsureTemplatePackageInstalled(version);
             var template = await GetTemplateByShortNameAsync(shortName, version);
             if (template == null) throw new InvalidOperationException($"Template '{shortName}' not found.");
-            var name = parameters.ContainsKey("name") ? parameters["name"] : "Component";
 
-            // print template name and paerrameters
-            Console.WriteLine($"Scaffolding component from template '{template.Name}' with parameters:");
-            foreach (var kv in parameters)
-            {
-                Console.WriteLine($"  {kv.Key} = {kv.Value}");
-            }
+            var name = parameters.ContainsKey("name") ? parameters["name"] : null;
             var result = await _bootstrapper.CreateAsync(
                 template,
                 name: name,
@@ -95,7 +104,7 @@ namespace TALXIS.CLI.Component
 
             switch (result.Status)
             {
-                case Microsoft.TemplateEngine.Edge.Template.CreationResultStatus.Success:
+                case CreationResultStatus.Success:
                     Console.WriteLine("Template created.");
                     // Execute post-actions if any
                     var postActions = result.CreationResult?.PostActions;
@@ -120,8 +129,8 @@ namespace TALXIS.CLI.Component
                         }
                     }
                     break;
-                case Microsoft.TemplateEngine.Edge.Template.CreationResultStatus.MissingMandatoryParam:
-                case Microsoft.TemplateEngine.Edge.Template.CreationResultStatus.InvalidParamValues:
+                case CreationResultStatus.MissingMandatoryParam:
+                case CreationResultStatus.InvalidParamValues:
                     Console.Error.WriteLine($"Template creation failed due to parameter issues: {result.ErrorMessage}");
                     break;
                 default:

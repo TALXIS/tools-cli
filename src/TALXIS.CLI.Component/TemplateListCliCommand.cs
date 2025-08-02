@@ -8,7 +8,8 @@ namespace TALXIS.CLI.Component;
 /// CLI command to list available templates in the ComponentScaffolder.
 /// </summary>
 [CliCommand(
-    Description = "Lists available component templates."
+    Description = "Lists available component templates.",
+    Name = "list"
 )]
 public class TemplateListCliCommand
 {
