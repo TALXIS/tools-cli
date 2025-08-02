@@ -1,7 +1,6 @@
-
-
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 
 namespace TALXIS.CLI.MCP
@@ -22,11 +21,20 @@ namespace TALXIS.CLI.MCP
             var cliCommandNameResolver = new CliCommandNameResolver();
             string name = cliCommandNameResolver.ResolveCommandName(cmdType, attr);
             bool isRoot = cmdType == rootType;
-            bool isDirectChildOfRoot = (parentSegments.Count == 0) && isRoot == false;
-            bool isGroup = attr.Children != null && attr.Children.Length > 0;
             var segments = isRoot ? new List<string>() : new List<string>(parentSegments) { name };
             var fullName = string.Join("_", segments);
-            if (!isGroup && !isRoot && !isDirectChildOfRoot)
+
+            // Find children via attribute
+            var childrenViaAttribute = attr.Children ?? Array.Empty<Type>();
+            // Find children via nested types
+            var childrenViaNested = cmdType.GetNestedTypes(BindingFlags.Public | BindingFlags.NonPublic)
+                .Where(t => Attribute.GetCustomAttribute(t, typeof(DotMake.CommandLine.CliCommandAttribute)) != null)
+                .ToArray();
+            var allChildren = childrenViaAttribute.Concat(childrenViaNested).ToArray();
+            bool hasChildren = allChildren.Length > 0;
+
+            // Only register as MCP tool if not root and has no children
+            if (!isRoot && !hasChildren)
             {
                 results.Add(new McpToolDescriptor
                 {
@@ -35,10 +43,11 @@ namespace TALXIS.CLI.MCP
                     CliCommandClass = cmdType
                 });
             }
-            if (attr.Children != null)
+
+            // Traverse all children
+            foreach (var child in allChildren)
             {
-                foreach (var child in attr.Children)
-                    EnumerateRecursive(child, segments, rootType, results);
+                EnumerateRecursive(child, segments, rootType, results);
             }
         }
         public Type? FindCommandTypeByToolName(string toolName, Type rootType)
@@ -53,27 +62,29 @@ namespace TALXIS.CLI.MCP
             if (attr == null) return null;
             var cliCommandNameResolver = new CliCommandNameResolver();
             string cmdName = cliCommandNameResolver.ResolveCommandName(type, attr);
-            if (skipRoot)
-            {
-                if (attr.Children != null)
-                {
-                    foreach (var child in attr.Children)
-                    {
-                        var found = FindCommandTypeBySegments(segments, index, child, skipRoot: false);
-                        if (found != null) return found;
-                    }
-                }
-                return null;
+
+            // Only compare segment if not skipping root
+            if (!skipRoot) {
+                if (!string.Equals(cmdName, segments[index], StringComparison.OrdinalIgnoreCase))
+                    return null;
             }
-            if (!string.Equals(cmdName, segments[index], StringComparison.OrdinalIgnoreCase))
-                return null;
-            if (index == segments.Length - 1)
+
+            // Find children via attribute
+            var childrenViaAttribute = attr.Children ?? Array.Empty<Type>();
+            // Find children via nested types
+            var childrenViaNested = type.GetNestedTypes(BindingFlags.Public | BindingFlags.NonPublic)
+                .Where(t => Attribute.GetCustomAttribute(t, typeof(DotMake.CommandLine.CliCommandAttribute)) != null)
+                .ToArray();
+            var allChildren = childrenViaAttribute.Concat(childrenViaNested).ToArray();
+
+            if (index == segments.Length - 1 && allChildren.Length == 0)
                 return type;
-            if (attr.Children != null)
+
+            if (allChildren.Length > 0)
             {
-                foreach (var child in attr.Children)
+                foreach (var child in allChildren)
                 {
-                    var found = FindCommandTypeBySegments(segments, index + 1, child, skipRoot: false);
+                    var found = FindCommandTypeBySegments(segments, skipRoot ? index : index + 1, child, false);
                     if (found != null) return found;
                 }
             }

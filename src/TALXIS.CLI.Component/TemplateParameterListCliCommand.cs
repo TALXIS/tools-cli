@@ -9,18 +9,19 @@ namespace TALXIS.CLI.Component;
 /// CLI command to list parameters required for a specific component template.
 /// </summary>
 [CliCommand(
-    Description = "Lists parameters for a specific component template."
+    Description = "Lists parameters for a specific component template.",
+    Name = "list"
 )]
-public class ListTemplateParametersCliCommand
+public class TemplateParameterListCliCommand
 {
     [CliArgument(Description = "Short name of the template.")]
-    public string ShortName { get; set; } = string.Empty;
+    public required string ShortName { get; set; }
 
     public async Task<int> RunAsync()
     {
         try
         {
-            using var scaffolder = new ComponentScaffolder();
+            using var scaffolder = new TemplateInvoker();
             var parameters = await scaffolder.ListParametersForTemplateAsync(ShortName);
             if (parameters == null || parameters.Count == 0)
             {
