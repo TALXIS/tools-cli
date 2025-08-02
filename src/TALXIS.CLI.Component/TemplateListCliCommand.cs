@@ -25,7 +25,8 @@ public class TemplateListCliCommand
             Console.WriteLine("Available templates:");
             foreach (var template in templates)
             {
-                Console.WriteLine($"- {template.Name} (short name: {string.Join(", ", template.ShortNameList)})");
+                var description = string.IsNullOrWhiteSpace(template.Description) ? "" : $" - {template.Description}";
+                Console.WriteLine($"- {template.Name} (short name: {string.Join(", ", template.ShortNameList)}){description}");
             }
         }
         catch (Exception ex)

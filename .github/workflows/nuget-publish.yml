@@ -27,13 +27,17 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
       - name: Create NuGet package
-        run: dotnet pack src/TALXIS.CLI/TALXIS.CLI.csproj --configuration Release
+        run: |
+          dotnet pack src/TALXIS.CLI/TALXIS.CLI.csproj --configuration Release
+          dotnet pack src/TALXIS.CLI.MCP/TALXIS.CLI.MCP.csproj --configuration Release
       - uses: actions/upload-artifact@v4
         with:
           name: nuget
           if-no-files-found: error
           retention-days: 7
-          path: src/TALXIS.CLI/bin/Release/*.nupkg
+          path: |
+            src/TALXIS.CLI/bin/Release/*.nupkg
+            src/TALXIS.CLI.MCP/bin/Release/*.nupkg
 
   deploy:
     needs: [ create_nuget ]

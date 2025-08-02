@@ -4,7 +4,29 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <OutputType>Exe</OutputType>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>txc-mcp</ToolCommandName>
+    <PackageType>McpServer</PackageType>
+    <PackageId>TALXIS.CLI.MCP</PackageId>
+    <Title>TALXIS CLI MCP Server</Title>
+    <Authors>NETWORG</Authors>
+    <Product>TALXIS CLI MCP Server</Product>
+    <Description>TALXIS CLI MCP Server is a .NET MCP server for developer automation and Power Platform scripting.</Description>
+    <PackageTags>cli;dotnet-tool;talxis;automation;powerplatform;txc;mcp-server</PackageTags>
+    <PackageProjectUrl>https://github.com/TALXIS/tools-cli</PackageProjectUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <Copyright>© 2025 NETWORG Corporation - MIT License</Copyright>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="" />
+    <None Include=".mcp/server.json" Pack="true" PackagePath=".mcp/" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0-preview.6.25358.103" />
     <PackageReference Include="ModelContextProtocol" Version="0.3.0-preview.3" />
