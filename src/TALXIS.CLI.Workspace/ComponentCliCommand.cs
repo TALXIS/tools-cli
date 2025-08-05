@@ -4,6 +4,8 @@ namespace TALXIS.CLI.Workspace;
 
 [CliCommand(
     Description = "Create or modify components of your solution",
+    Name = "component",
+    Alias = "c",
     Children = new[]
     {
         typeof(ComponentListCliCommand),
