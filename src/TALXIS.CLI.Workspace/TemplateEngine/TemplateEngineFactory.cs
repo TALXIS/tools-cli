@@ -25,7 +25,7 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
             // Create template engine host
             var host = CreateTemplateEngineHost(outputPath, logLevel);
             
-            // Create environment settings
+            // Create environment settings - use the real filesystem cache, not virtualized
             var environmentSettings = new EngineEnvironmentSettings(host, virtualizeSettings: false);
             
             // Create template infrastructure
@@ -33,7 +33,7 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
             var templatePackageManager = new TemplatePackageManager(environmentSettings);
             
             // Create services
-            var packageService = new TemplatePackageService(templatePackageManager);
+            var packageService = new TemplatePackageService(templatePackageManager, environmentSettings);
             var discoveryService = new TemplateDiscoveryService(packageService);
             var parameterValidator = new TemplateParameterValidator();
             
@@ -58,7 +58,7 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
             var environmentSettings = new EngineEnvironmentSettings(host, virtualizeSettings: false);
             var templatePackageManager = new TemplatePackageManager(environmentSettings);
             
-            return new TemplatePackageService(templatePackageManager);
+            return new TemplatePackageService(templatePackageManager, environmentSettings);
         }
 
         /// <summary>
@@ -81,8 +81,9 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
         {
             var version = typeof(TemplateEngineFactory).Assembly.GetName().Version?.ToString() ?? "1.0.0.0";
             
-            // Create the host following official patterns
+            // Add all component collections that the official dotnet CLI uses
             var builtIns = new List<(Type, IIdentifiedComponent)>();
+            builtIns.AddRange(Microsoft.TemplateEngine.Orchestrator.RunnableProjects.Components.AllComponents);
             builtIns.AddRange(Microsoft.TemplateEngine.Edge.Components.AllComponents);
             
             return new TalxisCliTemplateEngineHost(
