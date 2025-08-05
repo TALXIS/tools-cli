@@ -1,7 +1,7 @@
 using Microsoft.TemplateEngine.Abstractions;
 
 
-namespace TALXIS.CLI.Workspace
+namespace TALXIS.CLI.Workspace.TemplateEngine.Services
 {
     public class AddProjectsToSlnPostActionProcessor : IPostActionProcessor
     {
