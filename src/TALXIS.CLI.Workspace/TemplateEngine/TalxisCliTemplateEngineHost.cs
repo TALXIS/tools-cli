@@ -8,7 +8,7 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
     /// <summary>
     /// Custom template engine host for TALXIS CLI that follows the same patterns as the official dotnet CLI.
     /// </summary>
-    public class TalxisCliTemplateEngineHost : DefaultTemplateEngineHost, ITalxisCliTemplateEngineHost
+    public class TalxisCliTemplateEngineHost : DefaultTemplateEngineHost
     {
         public TalxisCliTemplateEngineHost(
             string hostIdentifier,

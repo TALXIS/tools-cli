@@ -1,7 +1,7 @@
 using Microsoft.TemplateEngine.Abstractions;
 
 
-namespace TALXIS.CLI.Workspace.TemplateEngine.Services
+namespace TALXIS.CLI.Workspace.TemplateEngine
 {
     public class PostActionDispatcher
     {

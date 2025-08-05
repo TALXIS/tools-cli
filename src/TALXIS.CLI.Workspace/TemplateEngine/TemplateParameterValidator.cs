@@ -1,11 +1,11 @@
 using Microsoft.TemplateEngine.Abstractions;
 
-namespace TALXIS.CLI.Workspace.TemplateEngine.Services
+namespace TALXIS.CLI.Workspace.TemplateEngine
 {
     /// <summary>
     /// Service responsible for validating template parameters.
     /// </summary>
-    public class TemplateParameterValidator : ITemplateParameterValidator
+    public class TemplateParameterValidator
     {
         public void ValidateParameters(ITemplateInfo template, IDictionary<string, string> userParameters)
         {

@@ -1,15 +1,15 @@
 using Microsoft.TemplateEngine.Abstractions;
 
-namespace TALXIS.CLI.Workspace.TemplateEngine.Services
+namespace TALXIS.CLI.Workspace.TemplateEngine
 {
     /// <summary>
     /// Service responsible for discovering and retrieving templates.
     /// </summary>
-    public class TemplateDiscoveryService : ITemplateDiscoveryService
+    public class TemplateDiscoveryService
     {
-        private readonly ITemplatePackageService _templatePackageService;
+        private readonly TemplatePackageService _templatePackageService;
 
-        public TemplateDiscoveryService(ITemplatePackageService templatePackageService)
+        public TemplateDiscoveryService(TemplatePackageService templatePackageService)
         {
             _templatePackageService = templatePackageService ?? throw new ArgumentNullException(nameof(templatePackageService));
         }

@@ -4,12 +4,12 @@ using Microsoft.TemplateEngine.Abstractions.TemplatePackage;
 using Microsoft.TemplateEngine.Edge.Settings;
 using Microsoft.TemplateEngine.Edge;
 
-namespace TALXIS.CLI.Workspace.TemplateEngine.Services
+namespace TALXIS.CLI.Workspace.TemplateEngine
 {
     /// <summary>
     /// Service responsible for managing template packages (installation, listing, etc.)
     /// </summary>
-    public class TemplatePackageService : ITemplatePackageService
+    public class TemplatePackageService
     {
         private readonly TemplatePackageManager _templatePackageManager;
         private readonly IEngineEnvironmentSettings _environmentSettings;

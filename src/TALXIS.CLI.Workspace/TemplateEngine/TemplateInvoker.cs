@@ -1,7 +1,5 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.TemplateEngine.Abstractions;
-using TALXIS.CLI.Workspace.TemplateEngine.Services;
-
 namespace TALXIS.CLI.Workspace
 {
     /// <summary>
@@ -10,9 +8,9 @@ namespace TALXIS.CLI.Workspace
     /// </summary>
     public class TemplateInvoker : IDisposable
     {
-        private readonly ITemplateCreationService _templateCreationService;
-        private readonly ITemplateDiscoveryService _templateDiscoveryService;
-        private readonly ITemplatePackageService _templatePackageService;
+        private readonly TemplateCreationService _templateCreationService;
+        private readonly TemplateDiscoveryService _templateDiscoveryService;
+        private readonly TemplatePackageService _templatePackageService;
 
         public TemplateInvoker(string? outputPath = null, LogLevel logLevel = LogLevel.Error)
         {

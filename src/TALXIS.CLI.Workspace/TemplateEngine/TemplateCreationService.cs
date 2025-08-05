@@ -4,21 +4,21 @@ using Microsoft.TemplateEngine.Utils;
 using CreationResultStatus = Microsoft.TemplateEngine.Edge.Template.CreationResultStatus;
 using ITemplateCreationResult = Microsoft.TemplateEngine.Edge.Template.ITemplateCreationResult;
 
-namespace TALXIS.CLI.Workspace.TemplateEngine.Services
+namespace TALXIS.CLI.Workspace.TemplateEngine
 {
     /// <summary>
     /// Service responsible for creating templates from template definitions.
     /// </summary>
-    public class TemplateCreationService : ITemplateCreationService
+    public class TemplateCreationService
     {
-        private readonly ITemplateDiscoveryService _templateDiscoveryService;
-        private readonly ITemplateParameterValidator _parameterValidator;
+        private readonly TemplateDiscoveryService _templateDiscoveryService;
+        private readonly TemplateParameterValidator _parameterValidator;
         private readonly TemplateCreator _templateCreator;
         private readonly IEngineEnvironmentSettings _environmentSettings;
 
         public TemplateCreationService(
-            ITemplateDiscoveryService templateDiscoveryService,
-            ITemplateParameterValidator parameterValidator,
+            TemplateDiscoveryService templateDiscoveryService,
+            TemplateParameterValidator parameterValidator,
             TemplateCreator templateCreator,
             IEngineEnvironmentSettings environmentSettings)
         {

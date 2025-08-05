@@ -3,7 +3,6 @@ using Microsoft.TemplateEngine.Abstractions;
 using Microsoft.TemplateEngine.Edge;
 using Microsoft.TemplateEngine.Edge.Settings;
 using Microsoft.TemplateEngine.Edge.Template;
-using TALXIS.CLI.Workspace.TemplateEngine.Services;
 
 namespace TALXIS.CLI.Workspace.TemplateEngine
 {
@@ -18,7 +17,7 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
         /// <param name="outputPath">Optional custom output path for template creation.</param>
         /// <param name="logLevel">Log level for the template engine host.</param>
         /// <returns>A configured template creation service.</returns>
-        public static ITemplateCreationService CreateTemplateCreationService(
+        public static TemplateCreationService CreateTemplateCreationService(
             string? outputPath = null, 
             LogLevel logLevel = LogLevel.Error)
         {
@@ -50,7 +49,7 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
         /// <param name="outputPath">Optional custom output path for template creation.</param>
         /// <param name="logLevel">Log level for the template engine host.</param>
         /// <returns>A configured template package service.</returns>
-        public static ITemplatePackageService CreateTemplatePackageService(
+        public static TemplatePackageService CreateTemplatePackageService(
             string? outputPath = null, 
             LogLevel logLevel = LogLevel.Error)
         {
@@ -67,7 +66,7 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
         /// <param name="outputPath">Optional custom output path for template creation.</param>
         /// <param name="logLevel">Log level for the template engine host.</param>
         /// <returns>A configured template discovery service.</returns>
-        public static ITemplateDiscoveryService CreateTemplateDiscoveryService(
+        public static TemplateDiscoveryService CreateTemplateDiscoveryService(
             string? outputPath = null, 
             LogLevel logLevel = LogLevel.Error)
         {
@@ -75,7 +74,7 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
             return new TemplateDiscoveryService(packageService);
         }
 
-        private static ITalxisCliTemplateEngineHost CreateTemplateEngineHost(
+        private static TalxisCliTemplateEngineHost CreateTemplateEngineHost(
             string? outputPath = null, 
             LogLevel logLevel = LogLevel.Error)
         {
