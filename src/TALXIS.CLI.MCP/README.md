@@ -70,28 +70,28 @@ When developing the MCP server locally, you can run it directly from source and 
 - Adjust the path in `args` to match your local project location if needed.
 - This setup allows you to test changes without reinstalling the global tool.
 
-You can also use the [Model Context Protocol Inspector](https://www.npmjs.com/package/@modelcontextprotocol/inspector) for interactive inspection:
+## Testing and Debugging
+
+### Interactive Manual Testing
+
+You can use the [Model Context Protocol Inspector](https://www.npmjs.com/package/@modelcontextprotocol/inspector) for interactive inspection:
 
 ```sh
 npx @modelcontextprotocol/inspector dotnet run --project src/TALXIS.CLI.MCP
 ```
 
-**Note:** The Inspector is an interactive web browser application designed for manual testing and exploration. It is not suitable for automated testing scenarios.
+> **Note:** The Inspector is an interactive web browser application designed for manual testing and exploration. It is not suitable for automated testing scenarios.
 
-### Command Line Debugging
+### Command Line Debugging & Automated Testing
 
-For debugging MCP server tool invocations directly from the command line, you can interact with the server using the stdio transport. The MCP protocol uses JSON-RPC messages over stdin/stdout.
-
-**Manual Testing with JSON-RPC:**
-
-You can test individual tool calls by sending JSON-RPC messages directly to the server:
+For debugging or automated testing, you can interact with the MCP server using JSON-RPC messages over stdin/stdout:
 
 ```sh
 # Start the server
 dotnet run --project src/TALXIS.CLI.MCP
 
-# Then send JSON-RPC messages via stdin:
-# 1. Initialize the connection
+# Then send JSON-RPC messages via stdin (one per line):
+# 1. Initialize the connection (required by MCP protocol)
 {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "test-client", "version": "1.0.0"}}}
 
 # 2. List available tools
@@ -101,11 +101,20 @@ dotnet run --project src/TALXIS.CLI.MCP
 {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "tool-name", "arguments": {}}}
 ```
 
-**Note:** Each JSON-RPC message must be on a single line and followed by a newline character. The server will respond with JSON-RPC responses to stdout.
 
-## Features
-- Dynamic discovery of CLI commands and subcommands using reflection
-- Implements MCP ListTools and CallTool handlers
+#### Example JSON-RPC Messages
+
+To list available tools:
+
+```json
+{"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}
+```
+
+To call a tool (replace arguments as needed):
+
+```json
+{"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "workspace_component_create", "arguments": {"ShortName": "pp-entity", "name": "TestEntity", "Param": ["EntityType=InvalidType"]}}}
+```
 
 ---
 
