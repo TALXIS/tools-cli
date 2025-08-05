@@ -1,0 +1,21 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Test: Run All Integration Tests",
+			"type": "shell",
+			"command": "dotnet",
+			"args": [
+				"test",
+				"tests/TALXIS.CLI.IntegrationTests/TALXIS.CLI.IntegrationTests.csproj",
+				"--logger",
+				"console;verbosity=normal"
+			],
+			"group": "test",
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"isBackground": false
+		}
+	]
+}

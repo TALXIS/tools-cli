@@ -30,9 +30,9 @@ namespace TALXIS.CLI.Workspace.TemplateEngine.Services
             if (template == null) 
                 throw new InvalidOperationException($"Template '{shortName}' not found.");
 
-            // Return only the template-defined parameters, excluding type and language (matches dotnet CLI behavior)
+            // Return only the template-defined parameters, excluding type, language, and name (matches dotnet CLI behavior)
             // Note: 'name' and 'output' are CLI-level options, not template parameters, so they should not be listed here
-            return template.ParameterDefinitions.Where(p => p.Name != "type" && p.Name != "language").ToList();
+            return template.ParameterDefinitions.Where(p => p.Name != "type" && p.Name != "language" && p.Name != "name").ToList();
         }
 
         private static void ValidateShortName(string shortName)
@@ -42,7 +42,7 @@ namespace TALXIS.CLI.Workspace.TemplateEngine.Services
                 throw new ArgumentException(
                     "Template short name must be provided.\n\n" +
                     "💡 Corrective actions:\n" +
-                    "   • Provide a valid template short name (e.g., 'webapp', 'console', etc.)\n" +
+                    "   • Provide a valid template short name\n" +
                     "   • List available templates to see valid short names", 
                     nameof(shortName));
             }
