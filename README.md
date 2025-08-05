@@ -40,7 +40,11 @@ dotnet tool install --global TALXIS.CLI
 **Update to the latest version:**
 ```sh
 dotnet tool update --global TALXIS.CLI
+
+dotnet new update
 ```
+> [!TIP]
+> Running `dotnet new update` ensures that template packages used by the CLI are updated to their latest versions.
 
 After installation, use the CLI via the `txc` command in any terminal.
 

@@ -1,4 +1,5 @@
 using DotMake.CommandLine;
+using TALXIS.CLI.Workspace.TemplateEngine;
 
 namespace TALXIS.CLI.Workspace;
 

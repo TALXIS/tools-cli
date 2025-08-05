@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.TemplateEngine.Abstractions;
-namespace TALXIS.CLI.Workspace
+namespace TALXIS.CLI.Workspace.TemplateEngine
 {
     /// <summary>
     /// Template invoker that uses the new service-based architecture for template engine operations.
@@ -15,9 +15,9 @@ namespace TALXIS.CLI.Workspace
         public TemplateInvoker(string? outputPath = null, LogLevel logLevel = LogLevel.Error)
         {
             // Use the factory to create the service-based architecture
-            _templateCreationService = TemplateEngine.TemplateEngineFactory.CreateTemplateCreationService(outputPath, logLevel);
-            _templateDiscoveryService = TemplateEngine.TemplateEngineFactory.CreateTemplateDiscoveryService(outputPath, logLevel);
-            _templatePackageService = TemplateEngine.TemplateEngineFactory.CreateTemplatePackageService(outputPath, logLevel);
+            _templateCreationService = TemplateEngineFactory.CreateTemplateCreationService(outputPath, logLevel);
+            _templateDiscoveryService = TemplateEngineFactory.CreateTemplateDiscoveryService(outputPath, logLevel);
+            _templatePackageService = TemplateEngineFactory.CreateTemplatePackageService(outputPath, logLevel);
         }
 
         /// <summary>
@@ -68,7 +68,9 @@ namespace TALXIS.CLI.Workspace
 
         public void Dispose()
         {
-            // Services are created via factory and don't need explicit disposal
+            // Dispose of services that implement IDisposable
+            _templatePackageService?.Dispose();
+            // Note: _templateCreationService and _templateDiscoveryService don't implement IDisposable
             // The underlying template engine components handle their own cleanup
         }
     }
