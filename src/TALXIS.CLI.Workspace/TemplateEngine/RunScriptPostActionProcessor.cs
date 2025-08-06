@@ -17,39 +17,43 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
                 return false;
             }
             var scriptArgs = args.TryGetValue("args", out var scriptArgsValue) ? scriptArgsValue : string.Empty;
+            
             // Log all post-action arguments for debugging
             Console.WriteLine("[RunScript] Action arguments:");
             foreach (var kv in args)
             {
                 Console.WriteLine($"[RunScript]   {kv.Key} = {kv.Value}");
             }
-            // Use 'targetDirectory' (should be the template output directory) if present, else fallback to current directory
-            // Determine working directory: prefer 'workingDirectory', then 'targetDirectory', 'outputPath', 'destinationPath', else current directory
-            string workingDir;
+            
+            // The template engine has already changed the current directory to the output path
+            // before calling post-actions, so we should use the current directory as our working directory.
+            // This ensures that relative paths in the script (like "./.template.scripts/InitializeSolution.ps1")
+            // resolve correctly relative to the template output location.
+            string workingDir = Environment.CurrentDirectory;
+            
+            // If there are explicit directory arguments, they override the current directory
             if (args.TryGetValue("workingDirectory", out var wd) && !string.IsNullOrWhiteSpace(wd))
             {
-                workingDir = wd;
+                workingDir = Path.GetFullPath(wd);
             }
             else if (args.TryGetValue("targetDirectory", out var targetDir) && !string.IsNullOrWhiteSpace(targetDir))
             {
-                workingDir = targetDir;
+                workingDir = Path.GetFullPath(targetDir);
             }
             else if (args.TryGetValue("outputPath", out var outputPath) && !string.IsNullOrWhiteSpace(outputPath))
             {
-                workingDir = outputPath;
+                workingDir = Path.GetFullPath(outputPath);
             }
             else if (args.TryGetValue("destinationPath", out var destPath) && !string.IsNullOrWhiteSpace(destPath))
             {
-                workingDir = destPath;
-            }
-            else
-            {
-                workingDir = Environment.CurrentDirectory;
+                workingDir = Path.GetFullPath(destPath);
             }
             try
             {
                 Console.WriteLine($"[RunScript] Executing: {executable} {scriptArgs}");
                 Console.WriteLine($"[RunScript] Working directory: {workingDir}");
+                Console.WriteLine($"[RunScript] Current directory before execution: {Environment.CurrentDirectory}");
+                
                 var process = new System.Diagnostics.Process
                 {
                     StartInfo = new System.Diagnostics.ProcessStartInfo
@@ -67,6 +71,7 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
                 string stdOut = process.StandardOutput.ReadToEnd();
                 string stdErr = process.StandardError.ReadToEnd();
                 process.WaitForExit();
+                
                 if (!string.IsNullOrWhiteSpace(stdOut))
                 {
                     Console.WriteLine($"[RunScript][stdout]:\n{stdOut}");
@@ -76,10 +81,21 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
                     Console.Error.WriteLine($"[RunScript][stderr]:\n{stdErr}");
                 }
                 Console.Error.WriteLine($"[DEBUG] RunScriptPostActionProcessor: process.ExitCode = {process.ExitCode}");
+                
+                // Even if the process exits with code 0, check if there were any errors in stderr
+                // PowerShell can sometimes return 0 even when there are significant errors
+                bool hasErrors = !string.IsNullOrWhiteSpace(stdErr) && (stdErr.Contains("Exception") || stdErr.Contains("Error:"));
+                
                 if (process.ExitCode != 0)
                 {
                     Console.Error.WriteLine($"[RunScript] Script exited with code {process.ExitCode}.");
                     Console.Error.WriteLine($"[DEBUG] RunScriptPostActionProcessor: returning false");
+                    return false;
+                }
+                else if (hasErrors)
+                {
+                    Console.Error.WriteLine($"[RunScript] Script completed with exit code 0 but had errors in output.");
+                    Console.Error.WriteLine($"[DEBUG] RunScriptPostActionProcessor: returning false due to errors in stderr");
                     return false;
                 }
                 Console.Error.WriteLine($"[DEBUG] RunScriptPostActionProcessor: returning true");

@@ -11,9 +11,18 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
         {
             // Example: dotnet sln <slnFile> add <projectFiles>
             var args = action.Args;
+            
+            // Log all post-action arguments for debugging
+            Console.WriteLine("[AddProjectsToSln] Action arguments:");
+            foreach (var kv in args)
+            {
+                Console.WriteLine($"[AddProjectsToSln]   {kv.Key} = {kv.Value}");
+            }
+            
             if (!args.TryGetValue("slnFile", out var slnFile) || !args.TryGetValue("projectFiles", out var projectFiles))
             {
                 Console.Error.WriteLine("Add projects to .sln post-action missing required arguments.");
+                Console.Error.WriteLine("Expected arguments: slnFile, projectFiles");
                 return false;
             }
             try
