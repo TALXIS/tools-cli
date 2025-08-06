@@ -194,7 +194,7 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
                         try
                         {
                             Directory.SetCurrentDirectory(outputPath);
-                            var (postActionResult, failedActions) = dispatcher.RunPostActions(postActions, ScriptPermission.Yes);
+                            var (postActionResult, failedActions) = dispatcher.RunPostActions(postActions, ScriptPermission.Yes, result, outputPath);
                             
                             if ((postActionResult & PostActionResult.Failure) != 0)
                             {
