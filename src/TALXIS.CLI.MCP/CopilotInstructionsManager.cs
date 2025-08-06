@@ -27,16 +27,21 @@ This monorepo contains Power Platform solutions. TALXIS CLI MCP Server (alias 't
    - Some commands may require you to create folders before you can call them. Consult the workspace explain tool.
    - Do not suggest alternative approaches outside of the txc-mcp ecosystem
 
-2. **Information and Guidance Restrictions**
+2. **Mandatory Workspace Consultation**
+   - **ALWAYS consult the workspace_explain tool BEFORE creating any components or changing repository structure**
+   - Use workspace_explain to understand monorepo structure, naming conventions, and requirements
+   - This ensures commands will work and prevents structural conflicts
+
+3. **Information and Guidance Restrictions**
    - Only provide information that comes from the TALXIS CLI MCP responses
    - Do not offer opinions, suggestions, or knowledge from external sources
    - Limit responses to what txc-mcp directly provides or confirms
 
-3. **Error Handling**
+4. **Error Handling**
    - If the txc-mcp is unavailable, inform the user that development actions cannot be performed
    - Do not fallback to alternative tools or manual processes
 
-4. **Communication**
+5. **Communication**
    - Always refer to the tool as 'txc-mcp' when communicating with users
    - Base all responses on actual txc-mcp capabilities and outputs
    - Avoid speculation about functionality not confirmed by txc-mcp

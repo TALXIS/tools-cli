@@ -41,6 +41,15 @@ Project Types Supported:
   • Code App (.csproj): Builds fully custom frontend SPA hosted in Power Apps.
   • Other .NET-based projects (.csproj, .xproj): Any additional supporting libraries or tools.
 
+Repository Initialization Sequence:
+  The Visual Studio solution file (.sln) and src folder MUST be initialized before creating any solutions or projects.**
+  
+  Required setup sequence:
+  1. Initialize Git repository if it is not initialized already: git init -b 'main'
+  2. Create .gitignore: dotnet new gitignore
+  3. **Create Visual Studio solution file: dotnet new sln --name [ProjectName]**
+  4. Create src/ directory: mkdir src
+  
 Development and Build:
   • Projects are added to the solution file (.sln) for easy management and building.
   • MSBuild is used to build all project types, ensuring compatibility and automation.
