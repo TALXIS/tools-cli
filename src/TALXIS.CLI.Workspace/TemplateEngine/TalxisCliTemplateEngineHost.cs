@@ -34,7 +34,18 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
         {
             string workingPath = FileSystem.GetCurrentDirectory();
             IsCustomOutputPath = outputPath != null;
-            OutputPath = outputPath != null ? Path.Combine(workingPath, outputPath) : workingPath;
+            
+            // Handle both absolute and relative output paths correctly
+            if (outputPath != null)
+            {
+                // If outputPath is already absolute, use it as-is
+                // If it's relative, combine it with the working path
+                OutputPath = Path.IsPathRooted(outputPath) ? outputPath : Path.Combine(workingPath, outputPath);
+            }
+            else
+            {
+                OutputPath = workingPath;
+            }
         }
 
         public string OutputPath { get; }

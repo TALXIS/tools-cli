@@ -52,7 +52,6 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
             {
                 Console.WriteLine($"[RunScript] Executing: {executable} {scriptArgs}");
                 Console.WriteLine($"[RunScript] Working directory: {workingDir}");
-                Console.WriteLine($"[RunScript] Current directory before execution: {Environment.CurrentDirectory}");
                 
                 var process = new System.Diagnostics.Process
                 {
@@ -89,22 +88,19 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
                 if (process.ExitCode != 0)
                 {
                     Console.Error.WriteLine($"[RunScript] Script exited with code {process.ExitCode}.");
-                    Console.Error.WriteLine($"[DEBUG] RunScriptPostActionProcessor: returning false");
                     return false;
                 }
                 else if (hasErrors)
                 {
                     Console.Error.WriteLine($"[RunScript] Script completed with exit code 0 but had errors in output.");
-                    Console.Error.WriteLine($"[DEBUG] RunScriptPostActionProcessor: returning false due to errors in stderr");
                     return false;
                 }
-                Console.Error.WriteLine($"[DEBUG] RunScriptPostActionProcessor: returning true");
+                
                 return true;
             }
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"[RunScript] Failed to run script: {ex}");
-                Console.Error.WriteLine($"[DEBUG] RunScriptPostActionProcessor: returning false due to exception");
                 return false;
             }
         }

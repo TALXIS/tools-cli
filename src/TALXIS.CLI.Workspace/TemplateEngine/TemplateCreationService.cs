@@ -51,26 +51,6 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
             // Prepare template name
             var name = GetTemplateName(parameters, outputPath);
 
-            // Debug: Log the parameters being passed to the template engine
-            Console.WriteLine($"[TemplateCreation] Template: {shortName}");
-            Console.WriteLine($"[TemplateCreation] Name: {name}");
-            Console.WriteLine($"[TemplateCreation] Output Path: {outputPath}");
-            Console.WriteLine($"[TemplateCreation] Parameters:");
-            foreach (var param in parameters)
-            {
-                Console.WriteLine($"[TemplateCreation]   {param.Key} = {param.Value}");
-            }
-            
-            // Debug: Log template symbols to understand what substitutions will happen
-            Console.WriteLine($"[TemplateCreation] Template Symbols:");
-            if (template.ParameterDefinitions != null)
-            {
-                foreach (var symbol in template.ParameterDefinitions)
-                {
-                    Console.WriteLine($"[TemplateCreation]   Symbol: {symbol.Name}, Type: {symbol.Type}, Description: {symbol.Description}");
-                }
-            }
-
             // Create template
             var result = await _templateCreator.InstantiateAsync(
                 templateInfo: template,

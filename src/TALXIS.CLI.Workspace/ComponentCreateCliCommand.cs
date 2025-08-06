@@ -48,12 +48,6 @@ public class ComponentCreateCliCommand : ICliGetCompletions
         
         var parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         
-        // Add the name parameter if provided (this is a CLI-level option, not a template parameter)
-        if (!string.IsNullOrEmpty(Name))
-        {
-            parameters["name"] = Name;
-        }
-        
         // Parse template-specific parameters
         foreach (var p in Param)
         {
@@ -65,6 +59,13 @@ public class ComponentCreateCliCommand : ICliGetCompletions
             var key = p.Substring(0, idx);
             var value = p.Substring(idx + 1);
             parameters[key] = value;
+        }
+        
+        // Always add the name parameter if provided
+        // The template engine will handle preferNameDirectory behavior correctly
+        if (!string.IsNullOrEmpty(Name))
+        {
+            parameters["name"] = Name;
         }
 
         using var scaffolder = new TemplateInvoker();
