@@ -24,7 +24,6 @@ public static class CliRunner
         psi.ArgumentList.Add("run");
         psi.ArgumentList.Add("--project");
         psi.ArgumentList.Add(CliProject);
-        psi.ArgumentList.Add("--no-build"); // Use pre-built assembly
         psi.ArgumentList.Add("--");
         
         var commandArgs = command.Split(' ', StringSplitOptions.RemoveEmptyEntries);
