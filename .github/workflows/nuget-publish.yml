@@ -18,7 +18,23 @@ defaults:
     shell: pwsh
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+      - name: Restore dependencies
+        run: dotnet restore TALXIS.CLI.sln
+      - name: Build
+        run: dotnet build TALXIS.CLI.sln --configuration Release --no-restore
+      - name: Run tests (including integration tests)
+        run: dotnet test TALXIS.CLI.sln --configuration Release --no-build --logger "trx;LogFileName=test_results.trx"
+
   create_nuget:
+    needs: [ test ]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4

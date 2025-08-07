@@ -28,6 +28,22 @@ public class McpToolRegistry
         {
             _descriptorProvider.AddDescriptor(descriptor.Name, descriptor.Description, descriptor.CliCommandClass);
         }
+
+        // Register MCP-specific tools that are not part of the main CLI command tree
+        RegisterMcpSpecificTools();
+    }
+
+    /// <summary>
+    /// Registers MCP-specific tools that should not appear in the main CLI interface
+    /// but are available through the MCP protocol.
+    /// </summary>
+    private void RegisterMcpSpecificTools()
+    {
+        _descriptorProvider.AddDescriptor(
+            "copilot-instructions",
+            "Creates or updates .github/copilot-instructions.md file with TALXIS CLI instructions in the target project",
+            typeof(CopilotInstructionsCliCommand)
+        );
     }
 
     /// <summary>
@@ -56,6 +72,12 @@ public class McpToolRegistry
     /// <returns>The <see cref="Type"/> of the command if found; otherwise, null.</returns>
     public Type? FindCommandTypeByToolName(string toolName)
     {
+        // First check if it's a registered MCP-specific tool
+        var descriptor = _descriptorProvider.GetDescriptor(toolName);
+        if (descriptor != null)
+            return descriptor.CliCommandClass;
+
+        // Fall back to CLI command hierarchy lookup
         return _commandLookup.FindCommandTypeByToolName(toolName, typeof(TxcCliCommand));
     }
 }

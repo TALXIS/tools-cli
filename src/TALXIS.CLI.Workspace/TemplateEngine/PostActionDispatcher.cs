@@ -1,7 +1,9 @@
 using Microsoft.TemplateEngine.Abstractions;
+using Microsoft.TemplateEngine.Core.Contracts;
+using Microsoft.TemplateEngine.Edge.Template;
 
 
-namespace TALXIS.CLI.Workspace
+namespace TALXIS.CLI.Workspace.TemplateEngine
 {
     public class PostActionDispatcher
     {
@@ -21,7 +23,11 @@ namespace TALXIS.CLI.Workspace
             };
         }
 
-        public (PostActionResult, List<IPostAction>) RunPostActions(IReadOnlyList<IPostAction> actions, ScriptPermission scriptPermission)
+        public (PostActionResult, List<IPostAction>) RunPostActions(
+            IReadOnlyList<IPostAction> actions, 
+            ScriptPermission scriptPermission,
+            ITemplateCreationResult? templateCreationResult = null,
+            string? outputBasePath = null)
         {
             var result = PostActionResult.Success;
             var failedActions = new List<IPostAction>();
@@ -42,7 +48,25 @@ namespace TALXIS.CLI.Workspace
                     continue;
                 }
 
-                bool ok = processor.Process(_environment, action);
+                // Use ProcessInternal if available and we have templateCreationResult, otherwise fall back to Process
+                bool ok;
+                if (processor is AddProjectsToSlnPostActionProcessor addProjectProcessor && templateCreationResult?.CreationResult != null)
+                {
+                    var basePath = outputBasePath ?? Directory.GetCurrentDirectory();
+                    // We already checked for null above, so we can safely access the property
+                    ok = addProjectProcessor.ProcessInternal(_environment, action, null!, templateCreationResult!.CreationResult, basePath);
+                }
+                else if (processor is RunScriptPostActionProcessor runScriptProcessor)
+                {
+                    var basePath = outputBasePath ?? Directory.GetCurrentDirectory();
+                    // Use ProcessInternal with explicit outputBasePath for consistent working directory handling
+                    ok = runScriptProcessor.ProcessInternal(_environment, action, null!, templateCreationResult?.CreationResult, basePath);
+                }
+                else
+                {
+                    ok = processor.Process(_environment, action);
+                }
+                
                 if (!ok)
                 {
                     result |= PostActionResult.Failure;
@@ -51,7 +75,6 @@ namespace TALXIS.CLI.Workspace
                         throw new InvalidOperationException($"Post-action {action.ActionId} failed");
                 }
             }
-            Console.Error.WriteLine($"[DEBUG] PostActionDispatcher: failedActions.Count = {failedActions.Count}");
             return (result, failedActions);
         }
 
