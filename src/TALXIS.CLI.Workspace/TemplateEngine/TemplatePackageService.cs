@@ -4,11 +4,12 @@ using Microsoft.TemplateEngine.Abstractions.TemplatePackage;
 using Microsoft.TemplateEngine.Edge.Settings;
 using Microsoft.TemplateEngine.Edge;
 using System.Security.Cryptography;
+using System.Diagnostics;
 
 namespace TALXIS.CLI.Workspace.TemplateEngine
 {
     /// <summary>
-    /// Service responsible for managing template packages (installation, listing, etc.)
+    /// Manages the TALXIS template package ensuring a single installation across processes.
     /// </summary>
     public class TemplatePackageService : IDisposable
     {
@@ -16,8 +17,12 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
         private readonly IEngineEnvironmentSettings _environmentSettings;
         private readonly string _templatePackageName = "TALXIS.DevKit.Templates.Dataverse";
         private readonly SemaphoreSlim _installationSemaphore = new(1, 1);
-        private volatile bool _isTemplateInstalled = false;
+        private volatile bool _isTemplateInstalled;
         private IManagedTemplatePackage? _installedTemplatePackage;
+
+        // Tunables
+        private const int MutexPollDelayMs = 300;          // Small delay between attempts
+        private static readonly TimeSpan MutexMaxWait = TimeSpan.FromSeconds(30); // Fail fast threshold
 
         public string TemplatePackageName => _templatePackageName;
 
@@ -27,25 +32,19 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
             _environmentSettings = environmentSettings ?? throw new ArgumentNullException(nameof(environmentSettings));
         }
 
+        /// <summary>
+        /// Ensures the template package is installed (idempotent, thread + process safe).
+        /// </summary>
         public async Task EnsureTemplatePackageInstalledAsync(string? version = null)
         {
-            // Double-checked locking pattern for thread safety within the same process
-            if (_isTemplateInstalled && _installedTemplatePackage != null)
-            {
-                return; // Already installed and we have a reference to it
-            }
+            // Fast in-memory short‑circuit
+            if (_isTemplateInstalled && _installedTemplatePackage != null) return;
 
             await _installationSemaphore.WaitAsync();
             try
             {
-                // Check again inside the lock (double-checked locking)
-                if (_isTemplateInstalled && _installedTemplatePackage != null)
-                {
-                    return; // Another thread completed the installation
-                }
-
-                // Use cross-process synchronization to prevent race conditions between multiple CLI/MCP instances
-                await EnsureTemplatePackageInstalledWithCrossProcessLockAsync(version);
+                if (_isTemplateInstalled && _installedTemplatePackage != null) return;
+                await EnsureInstalledCrossProcessAsync(version);
             }
             finally
             {
@@ -53,162 +52,118 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
             }
         }
 
-        /// <summary>
-        /// Ensures template package installation with cross-process synchronization to prevent race conditions
-        /// during parallel test execution or multiple CLI instances.
-        /// </summary>
-        private async Task EnsureTemplatePackageInstalledWithCrossProcessLockAsync(string? version)
+        // ---------------------------- Internal helpers ----------------------------
+
+        private async Task EnsureInstalledCrossProcessAsync(string? version)
         {
-            // Create a cross-process mutex name based on the package name
+            // Pre-check without lock (cheap) – if another process already completed install.
+            if (await TryLoadExistingInstalledPackageAsync()) return;
+
             var mutexName = CreateCrossProcessMutexName(_templatePackageName);
-            
-            using var mutex = new Mutex(false, mutexName, out var createdNew);
-            var mutexAcquired = false;
-            
+            using var mutex = new Mutex(false, mutexName, out _);
+            var acquired = await AcquireMutexWithPollingAsync(mutex, version);
             try
             {
-                // Wait for the mutex with a reasonable timeout to prevent hanging tests
-                mutexAcquired = mutex.WaitOne(TimeSpan.FromMinutes(5));
-                if (!mutexAcquired)
+                if (!acquired)
                 {
-                    throw new TimeoutException($"Timeout waiting for cross-process lock to install template package '{_templatePackageName}'");
+                    throw new TimeoutException($"Timeout ({MutexMaxWait.TotalSeconds:F0}s) waiting to install '{_templatePackageName}'. Another process may be stalled.");
                 }
 
-                // First check if the package is already installed globally (cross-process safety)
-                var existingPackages = await _templatePackageManager.GetManagedTemplatePackagesAsync(false, CancellationToken.None);
-                var existingPackage = existingPackages.FirstOrDefault(p => 
-                    string.Equals(p.Identifier, _templatePackageName, StringComparison.OrdinalIgnoreCase));
-                
-                if (existingPackage != null)
-                {
-                    // Package is already installed globally, just store reference
-                    _installedTemplatePackage = existingPackage;
-                    _isTemplateInstalled = true;
-                    return;
-                }
+                // Final check inside critical section (double-checked cross-process)
+                if (await TryLoadExistingInstalledPackageAsync()) return;
 
-                // Package not installed, proceed with installation
-                // Following the official dotnet CLI pattern: create install request with details
-                var installRequest = new InstallRequest(_templatePackageName, version, details: new Dictionary<string, string>(), force: false);
-                
-                // Get the managed provider for global scope (matches official CLI approach)
-                var provider = _templatePackageManager.GetBuiltInManagedProvider(InstallationScope.Global);
-                var installResults = await provider.InstallAsync(new[] { installRequest }, CancellationToken.None);
-                
-                // Check if installation was successful
-                var installResult = installResults.FirstOrDefault();
-                if (installResult == null || !installResult.Success)
-                {
-                    var packageId = _templatePackageName;
-                    var detailedErrors = installResult?.ErrorMessage ?? "Unknown installation error";
-                    
-                    var userErrorMessage = $"Failed to install template package '{packageId}'.\n" + 
-                                         $"Details:\n{detailedErrors}\n\n" + 
-                                         $"💡 Corrective actions:\n" + 
-                                         $"   • Check your internet connection\n" + 
-                                         $"   • Verify the package name and version are correct\n" + 
-                                         $"   • Ensure you have sufficient permissions for global package installation\n" + 
-                                         $"   • If using a private package source, ensure it's properly configured";
-                    
-                    throw new InvalidOperationException(userErrorMessage);
-                }
-                
-                // Following the official dotnet CLI pattern: store reference to the installed package
-                // This is crucial for later template discovery
-                _installedTemplatePackage = installResult.TemplatePackage as IManagedTemplatePackage;
-                if (_installedTemplatePackage == null)
-                {
-                    throw new InvalidOperationException($"Template package '{_templatePackageName}' was installed but could not be retrieved as a managed package");
-                }
-                
-                // Set flag last to ensure atomic operation visibility
-                _isTemplateInstalled = true;
-            }
-            catch (AbandonedMutexException)
-            {
-                // Previous process crashed while holding the mutex, but we can continue
-                // The mutex is now owned by this thread
-                mutexAcquired = true; // Mark as acquired since we now own it
-                
-                // Retry the installation operation (but avoid infinite recursion)
-                // Just perform the installation logic directly here
-                var existingPackages = await _templatePackageManager.GetManagedTemplatePackagesAsync(false, CancellationToken.None);
-                var existingPackage = existingPackages.FirstOrDefault(p => 
-                    string.Equals(p.Identifier, _templatePackageName, StringComparison.OrdinalIgnoreCase));
-                
-                if (existingPackage != null)
-                {
-                    _installedTemplatePackage = existingPackage;
-                    _isTemplateInstalled = true;
-                    return;
-                }
-
-                // If package still needs installation, let the exception propagate
-                // to avoid complex retry logic
-                throw new InvalidOperationException($"Template package installation was interrupted by another process crash. Please retry the operation.");
-            }
-            catch (Exception ex) when (!(ex is InvalidOperationException) && !(ex is TimeoutException))
-            {
-                // Wrap unexpected exceptions with user-friendly message
-                var userErrorMessage = $"Unexpected error while installing template package '{_templatePackageName}'{(version != null ? $" version {version}" : "")}.\n" + 
-                                     $"Technical details: {ex.Message}\n\n" + 
-                                     $"💡 Corrective actions:\n" + 
-                                     $"   • Check your internet connection\n" + 
-                                     $"   • Ensure you have permission to install global packages\n" + 
-                                     $"   • Check if the package source is accessible";
-                
-                throw new InvalidOperationException(userErrorMessage, ex);
+                await InstallTemplatePackageAsync(version);
             }
             finally
             {
-                // Only release the mutex if we successfully acquired it
-                if (mutexAcquired)
+                if (acquired)
                 {
-                    try
-                    {
-                        mutex.ReleaseMutex();
-                    }
-                    catch (Exception)
-                    {
-                        // Ignore release errors - mutex will be released when the process exits
-                    }
+                    try { mutex.ReleaseMutex(); } catch { /* ignore */ }
                 }
             }
         }
 
         /// <summary>
-        /// Creates a deterministic mutex name for cross-process synchronization based on the package name.
+        /// Polls for mutex ownership while periodically re-checking whether installation completed elsewhere.
         /// </summary>
+        private async Task<bool> AcquireMutexWithPollingAsync(Mutex mutex, string? version)
+        {
+            var sw = Stopwatch.StartNew();
+            while (sw.Elapsed < MutexMaxWait)
+            {
+                try
+                {
+                    if (mutex.WaitOne(TimeSpan.Zero)) return true; // Acquired immediately
+                }
+                catch (AbandonedMutexException)
+                {
+                    return true; // Treat abandoned as success (we now own it)
+                }
+
+                // Re-check installation status – if installed we do not need the lock anymore.
+                if (await TryLoadExistingInstalledPackageAsync()) return false; // False = we did not own the mutex but work is done
+
+                await Task.Delay(MutexPollDelayMs);
+            }
+            return false; // Timed out
+        }
+
+        /// <summary>
+        /// Attempts to locate an already installed package; updates internal state if found.
+        /// </summary>
+        private async Task<bool> TryLoadExistingInstalledPackageAsync()
+        {
+            var existingPackages = await _templatePackageManager.GetManagedTemplatePackagesAsync(false, CancellationToken.None);
+            var existing = existingPackages.FirstOrDefault(p => string.Equals(p.Identifier, _templatePackageName, StringComparison.OrdinalIgnoreCase));
+            if (existing == null) return false;
+            _installedTemplatePackage = existing;
+            _isTemplateInstalled = true;
+            return true;
+        }
+
+        private async Task InstallTemplatePackageAsync(string? version)
+        {
+            var request = new InstallRequest(_templatePackageName, version, details: new Dictionary<string, string>(), force: false);
+            var provider = _templatePackageManager.GetBuiltInManagedProvider(InstallationScope.Global);
+            var results = await provider.InstallAsync(new[] { request }, CancellationToken.None);
+            var result = results.FirstOrDefault();
+
+            if (result == null || !result.Success)
+            {
+                var details = result?.ErrorMessage ?? "Unknown installation error";
+                throw new InvalidOperationException($"Failed to install template package '{_templatePackageName}'.\nDetails:\n{details}\n" +
+                                                    "💡 Corrective actions:\n" +
+                                                    "   • Check internet connectivity\n" +
+                                                    "   • Verify package name/version\n" +
+                                                    "   • Ensure global install permissions\n" +
+                                                    "   • Validate private feeds (if used)");
+            }
+
+            _installedTemplatePackage = result.TemplatePackage as IManagedTemplatePackage
+                ?? throw new InvalidOperationException($"Template package '{_templatePackageName}' installed but not retrievable as managed package");
+            _isTemplateInstalled = true; // Publish state last
+        }
+
         private static string CreateCrossProcessMutexName(string packageName)
         {
-            // Create a hash of the package name to ensure the mutex name is valid and deterministic
             using var sha256 = SHA256.Create();
-            var hashBytes = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(packageName));
-            var hashString = Convert.ToBase64String(hashBytes).Replace('+', '-').Replace('/', '_').TrimEnd('=');
-            
-            // Prefix with a namespace to avoid conflicts with other applications
-            return $"Global\\TALXIS_CLI_TemplatePackage_{hashString}";
+            var hash = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(packageName));
+            var token = Convert.ToBase64String(hash).Replace('+', '-').Replace('/', '_').TrimEnd('=');
+            // Omit Windows-specific Global\ prefix for cross-platform consistency.
+            return $"TALXIS_CLI_TemplatePackage_{token}";
         }
 
         public async Task<List<ITemplateInfo>> ListTemplatesAsync(string? version = null)
         {
             await EnsureTemplatePackageInstalledAsync(version);
-            
-            // Read the installed package reference with memory barrier for thread safety
-            var installedPackage = _installedTemplatePackage;
-            if (installedPackage == null)
-            {
-                throw new InvalidOperationException("Template package was installed but reference is not available");
-            }
-            
-            // Use the official dotnet CLI pattern - get templates from the specific installed package
-            var templates = await _templatePackageManager.GetTemplatesAsync(installedPackage, CancellationToken.None);
+            var pkg = _installedTemplatePackage ?? throw new InvalidOperationException("Template package reference missing after install.");
+            var templates = await _templatePackageManager.GetTemplatesAsync(pkg, CancellationToken.None);
             return templates.ToList();
         }
 
         public void Dispose()
         {
-            _installationSemaphore?.Dispose();
+            _installationSemaphore.Dispose();
         }
     }
 }
