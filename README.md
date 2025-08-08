@@ -17,7 +17,7 @@
 
 ---
 
-TALXIS CLI (`txc`) is a modular, extensible .NET global tool for automating development, data, and solution management tasks—especially for Power Platform and enterprise projects. It helps developers scaffold, transform, and manage code and data in local repositories.
+TALXIS CLI (`txc`) is a modular, extensible .NET global tool for automating development, data, and solution management tasks - especially for Power Platform and enterprise projects. It helps developers scaffold, transform, and manage code and data in local repositories.
 
 ---
 
