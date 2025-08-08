@@ -7,15 +7,17 @@ using ModelContextProtocol.Server;
 using TALXIS.CLI.MCP;
 using System.Reflection;
 
-var builder = new HostApplicationBuilder(args);
-builder.Logging.AddConsole(consoleLogOptions =>
-{
-    // Configure all logs to go to stderr
-    consoleLogOptions.LogToStandardErrorThreshold = LogLevel.Trace;
-});
-
 // Create a single instance of McpToolRegistry
 var mcpToolRegistry = new McpToolRegistry();
+
+try
+{
+    var builder = new HostApplicationBuilder(args);
+    builder.Logging.AddConsole(consoleLogOptions =>
+    {
+        // Configure all logs to go to stderr
+        consoleLogOptions.LogToStandardErrorThreshold = LogLevel.Trace;
+    });
 
 builder.Services.AddMcpServer(options =>
 {
@@ -35,13 +37,16 @@ builder.Services.AddMcpServer(options =>
             CallToolHandler = CallToolAsync
         }
     };
-})
-.WithStdioServerTransport();
+    })
+    .WithStdioServerTransport();
 
-
-await builder.Build().RunAsync();
-
-// MCP tool listing
+    await builder.Build().RunAsync();
+}
+catch (Exception ex)
+{
+    Console.Error.WriteLine($"Fatal error starting MCP server: {ex}");
+    Environment.Exit(1);
+}// MCP tool listing
 ValueTask<ListToolsResult> ListToolsAsync(RequestContext<ListToolsRequestParams> ctx, CancellationToken ct)
     => ValueTask.FromResult(new ListToolsResult { Tools = mcpToolRegistry.ListTools() });
 

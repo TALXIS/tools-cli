@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using ModelContextProtocol.Client;
@@ -24,15 +25,27 @@ public sealed class McpClient : IAsyncDisposable
 
     private static async Task<McpClient> CreateInstanceAsync()
     {
+        var mcpProjectPath = GetMcpProjectPath();
+        
+        // Build the MCP project first to ensure it's available
+        await BuildMcpProjectAsync(mcpProjectPath);
+        
         var transport = new StdioClientTransport(new StdioClientTransportOptions
         {
             Name = "TALXIS CLI MCP Test Client",
             Command = "dotnet",
-            Arguments = ["run", "--project", GetMcpProjectPath(), "--no-build"]
+            Arguments = ["run", "--project", mcpProjectPath]
         });
 
-        var client = await McpClientFactory.CreateAsync(transport);
-        return new McpClient(client);
+        try
+        {
+            var client = await McpClientFactory.CreateAsync(transport);
+            return new McpClient(client);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Failed to create MCP client. This might be due to server startup issues. Error: {ex.Message}", ex);
+        }
     }
 
     public async Task<CallToolResult> CallToolAsync(string toolName, Dictionary<string, object> arguments = null)
@@ -65,5 +78,35 @@ public sealed class McpClient : IAsyncDisposable
             throw new InvalidOperationException("Could not find repository root");
             
         return System.IO.Path.Combine(dir.FullName, "src", "TALXIS.CLI.MCP", "TALXIS.CLI.MCP.csproj");
+    }
+
+    /// <summary>
+    /// Builds the MCP project to ensure it's available for testing.
+    /// This is especially important in CI environments where --no-build might not work reliably.
+    /// </summary>
+    private static async Task BuildMcpProjectAsync(string projectPath)
+    {
+        var processInfo = new ProcessStartInfo
+        {
+            FileName = "dotnet",
+            Arguments = $"build \"{projectPath}\" --configuration Release",
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+
+        using var process = Process.Start(processInfo);
+        if (process == null)
+            throw new InvalidOperationException("Failed to start dotnet build process");
+
+        await process.WaitForExitAsync();
+        
+        if (process.ExitCode != 0)
+        {
+            var stdout = await process.StandardOutput.ReadToEndAsync();
+            var stderr = await process.StandardError.ReadToEndAsync();
+            throw new InvalidOperationException($"Failed to build MCP project. Exit code: {process.ExitCode}. Output: {stdout}. Error: {stderr}");
+        }
     }
 }
