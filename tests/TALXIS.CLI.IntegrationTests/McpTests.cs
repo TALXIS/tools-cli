@@ -59,7 +59,7 @@ public class McpTests
 
         if (result.Content[0] is TextContentBlock textBlock)
         {
-            Assert.Contains("Name:", textBlock.Text);
+            Assert.Contains("Type:", textBlock.Text);
             Assert.Contains("pp-entity", textBlock.Text);
         }
     }

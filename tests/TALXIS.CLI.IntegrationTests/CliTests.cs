@@ -34,7 +34,7 @@ public class CliTests
     {
         var output = await CliRunner.RunAsync("workspace component type explain pp-entity");
         
-        Assert.Contains("Name:", output);
+        Assert.Contains("Type:", output);
         Assert.Contains("Description:", output);
         Assert.Contains("pp-entity", output);
     }
