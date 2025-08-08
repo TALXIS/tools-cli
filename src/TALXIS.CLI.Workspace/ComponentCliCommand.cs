@@ -8,9 +8,7 @@ namespace TALXIS.CLI.Workspace;
     Alias = "c",
     Children = new[]
     {
-        typeof(ComponentListCliCommand),
-        typeof(ComponentCreateCliCommand),
-        typeof(ComponentExplainCliCommand)
+        typeof(ComponentCreateCliCommand)
     })]
 public class ComponentCliCommand
 {
@@ -24,6 +22,18 @@ public class ComponentCliCommand
         Children = new[] { typeof(ComponentParameterListCliCommand) },
         Name = "parameter")]
     public class ComponentParameterCliCommand
+    {
+        public void Run(CliContext context)
+        {
+            context.ShowHelp();
+        }
+    }
+
+    [CliCommand(
+        Description = "Types of available components",
+        Children = new[] { typeof(ComponentTypeListCliCommand), typeof(ComponentTypeExplainCliCommand) },
+        Name = "type")]
+    public class ComponentTypeCliCommand
     {
         public void Run(CliContext context)
         {

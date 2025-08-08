@@ -6,11 +6,12 @@ namespace TALXIS.CLI.IntegrationTests;
 /// <summary>
 /// Tests for CLI command execution.
 /// </summary>
+[Collection("Sequential")]
 public class CliTests
 {
     [Theory]
-    [InlineData("workspace component list")]
-    [InlineData("workspace component explain pp-entity")]
+    [InlineData("workspace component type list")]
+    [InlineData("workspace component type explain pp-entity")]
     [InlineData("workspace component parameter list pp-entity")]
     public async Task Command_ExecutesSuccessfully(string command)
     {
@@ -23,7 +24,7 @@ public class CliTests
     [Fact]
     public async Task WorkspaceComponentList_ContainsExpectedComponents()
     {
-        var output = await CliRunner.RunAsync("workspace component list");
+        var output = await CliRunner.RunAsync("workspace component type list");
         
         Assert.Contains("Available components:", output);
         Assert.Contains("pp-entity", output);
@@ -31,9 +32,9 @@ public class CliTests
     }
 
     [Fact]
-    public async Task WorkspaceComponentExplain_ReturnsComponentDetails()
+    public async Task WorkspaceComponentType_ReturnsComponentDetails()
     {
-        var output = await CliRunner.RunAsync("workspace component explain pp-entity");
+        var output = await CliRunner.RunAsync("workspace component type explain pp-entity");
         
         Assert.Contains("Name:", output);
         Assert.Contains("Short names:", output);

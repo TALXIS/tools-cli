@@ -64,7 +64,7 @@ txc data package convert --input export.xlsx --output data.xml
 
 **List available workspace components:**
 ```sh
-txc workspace component list
+txc workspace component type list
 ```
 
 > [!IMPORTANT]

@@ -21,7 +21,7 @@ public class McpTests
         var toolNames = tools.Select(t => t.Name).ToList();
         
         Assert.Contains("workspace_component_list", toolNames);
-        Assert.Contains("workspace_component_explain", toolNames);
+        Assert.Contains("workspace_component_type_explain", toolNames);
     }
 
     [Fact]
@@ -37,12 +37,12 @@ public class McpTests
     }
 
     [Fact]
-    public async Task WorkspaceComponentExplain_ReturnsComponentDetails()
+    public async Task WorkspaceComponentTypeExplain_ReturnsComponentDetails()
     {
         var client = await McpClient.InstanceAsync;
         var args = new Dictionary<string, object> { { "Name", "pp-entity" } };
-        
-        var result = await client.CallToolAsync("workspace_component_explain", args);
+
+        var result = await client.CallToolAsync("workspace_component_type_explain", args);
         
         Assert.NotNull(result.Content);
         Assert.NotEmpty(result.Content);

@@ -46,6 +46,9 @@ This monorepo contains Power Platform solutions. TALXIS CLI MCP Server (alias 't
    - Base all responses on actual txc-mcp capabilities and outputs
    - Avoid speculation about functionality not confirmed by txc-mcp
 
+6. **Default Values to use unless specified**
+   - Always use `SolutionRootPath=Declarations` when passing parameter values to component create tool
+
 ## Project Structure and Naming Conventions
 
 **Note**: These are recommended naming conventions. Users may choose different naming styles based on their preferences or organizational standards.

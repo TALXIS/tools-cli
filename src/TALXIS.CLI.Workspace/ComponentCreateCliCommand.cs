@@ -8,43 +8,21 @@ namespace TALXIS.CLI.Workspace;
     Name = "create")]
 public class ComponentCreateCliCommand : ICliGetCompletions
 {
-    [CliArgument(Description = "Short name of the component")]
-    public required string ShortName { get; set; }
+    [CliArgument(Description = "Type of the component (e.g. 'pp-entity')")]
+    public required string Type { get; set; }
 
-    [CliOption(Name = "output", Aliases = ["-o"], Description = "Output path for the scaffolded component")]
-    public string OutputPath { get; set; } = string.Empty;
+    [CliOption(Name = "Output", Aliases = ["-o"], Description = "Output path for the new component")]
+    public required string OutputPath { get; set; }
 
-    [CliOption(Name = "name", Aliases = ["-n"], Description = "The name for the created output. If not specified, the name of the output directory is used.", Required = false)]
-    public string? Name { get; set; }
+    // Conflicts with OutputPath in our templates
+    // [CliOption(Name = "name", Aliases = ["-n"], Description = "The name for the created output. If not specified, the name of the output directory is used.", Required = false)]
+    // public string? Name { get; set; }
 
     [CliOption(Description = "Component parameters which can be retrieved by parameter list command. Inputs need to be passed in the form key=value. Can be specified multiple times.")]
     public List<string> Param { get; set; } = new();
 
     public async Task<int> RunAsync()
     {
-        // Validate that at least output path or name is provided
-        if (string.IsNullOrWhiteSpace(OutputPath) && string.IsNullOrWhiteSpace(Name))
-        {
-            Console.Error.WriteLine("Error: Either --output or --name must be specified.");
-            Console.Error.WriteLine("Use --help for more information.");
-            return 1;
-        }
-        
-        // If name is provided but no output path, use current directory
-        var resolvedOutputPath = OutputPath;
-        if (string.IsNullOrWhiteSpace(resolvedOutputPath))
-        {
-            if (!string.IsNullOrWhiteSpace(Name))
-            {
-                resolvedOutputPath = Name; // Use name as the directory name in current location
-            }
-            else
-            {
-                // This shouldn't happen due to validation above, but just in case
-                Console.Error.WriteLine("Error: Output path could not be determined.");
-                return 1;
-            }
-        }
         
         var parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         
@@ -60,21 +38,13 @@ public class ComponentCreateCliCommand : ICliGetCompletions
             var value = p.Substring(idx + 1);
             parameters[key] = value;
         }
-        
-        // Always add the name parameter if provided
-        // The template engine will handle preferNameDirectory behavior correctly
-        if (!string.IsNullOrEmpty(Name))
-        {
-            parameters["name"] = Name;
-        }
-
         using var scaffolder = new TemplateInvoker();
         try
         {
-            var (success, failedActions) = await scaffolder.ScaffoldAsync(ShortName, resolvedOutputPath, parameters);
+            var (success, failedActions) = await scaffolder.ScaffoldAsync(Type, OutputPath, parameters);
             if (success)
             {
-                Console.WriteLine($"Component scaffolded to '{resolvedOutputPath}' using template '{ShortName}'.");
+                Console.WriteLine($"Component scaffolded to '{OutputPath}' using template '{Type}'.");
                 return 0;
             }
             else
@@ -107,7 +77,7 @@ public class ComponentCreateCliCommand : ICliGetCompletions
     {
         switch (propertyName)
         {
-            case nameof(ShortName):
+            case nameof(Type):
                 try
                 {
                     using var scaffolder = new TemplateInvoker();

@@ -28,6 +28,8 @@ public class ComponentParameterListCliCommand
         foreach (var p in parameters)
         {
             Console.Write($"--{p.Name}");
+            if (!string.IsNullOrEmpty(p.DisplayName))
+                Console.Write($" ({p.DisplayName})");
             Console.Write($"  ({p.DataType})");
             if (!string.IsNullOrEmpty(p.DefaultValue?.ToString()))
                 Console.Write($"  [default: {p.DefaultValue}]");

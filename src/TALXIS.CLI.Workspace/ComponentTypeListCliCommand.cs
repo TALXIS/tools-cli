@@ -7,7 +7,7 @@ namespace TALXIS.CLI.Workspace;
     Description = "Lists available solution components",
     Name = "list"
 )]
-public class ComponentListCliCommand
+public class ComponentTypeListCliCommand
 {
     public async Task<int> RunAsync()
     {
@@ -22,7 +22,7 @@ public class ComponentListCliCommand
         foreach (var template in templates)
         {
             var description = string.IsNullOrWhiteSpace(template.Description) ? "" : $" - {template.Description}";
-            Console.WriteLine($"- {template.Name} (short name: {string.Join(", ", template.ShortNameList)}){description}");
+            Console.WriteLine($"- {template.ShortNameList.FirstOrDefault()}{description}");
         }
         return 0;
     }
