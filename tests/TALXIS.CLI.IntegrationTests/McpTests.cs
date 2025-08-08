@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -20,7 +21,7 @@ public class McpTests
         var tools = await client.ListToolsAsync();
         var toolNames = tools.Select(t => t.Name).ToList();
         
-        Assert.Contains("workspace_component_list", toolNames);
+        Assert.Contains("workspace_component_type_list", toolNames);
         Assert.Contains("workspace_component_type_explain", toolNames);
     }
 
@@ -29,7 +30,7 @@ public class McpTests
     {
         var client = await McpClient.InstanceAsync;
         
-        var result = await client.CallToolAsync("workspace_component_list");
+        var result = await client.CallToolAsync("workspace_component_type_list");
         
         Assert.NotNull(result.Content);
         Assert.NotEmpty(result.Content);
@@ -40,12 +41,20 @@ public class McpTests
     public async Task WorkspaceComponentTypeExplain_ReturnsComponentDetails()
     {
         var client = await McpClient.InstanceAsync;
-        var args = new Dictionary<string, object> { { "Name", "pp-entity" } };
+        var args = new Dictionary<string, object> { { "Type", "pp-entity" } };
 
         var result = await client.CallToolAsync("workspace_component_type_explain", args);
         
         Assert.NotNull(result.Content);
         Assert.NotEmpty(result.Content);
+        
+        // Log the actual error for debugging
+        if (result.IsError == true)
+        {
+            var errorContent = result.Content[0] is TextContentBlock errorBlock ? errorBlock.Text : "Unknown error";
+            throw new InvalidOperationException($"MCP call failed: {errorContent}");
+        }
+        
         Assert.True(result.IsError != true);
 
         if (result.Content[0] is TextContentBlock textBlock)

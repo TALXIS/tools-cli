@@ -40,10 +40,10 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
             if (string.IsNullOrWhiteSpace(shortName))
             {
                 throw new ArgumentException(
-                    "Template short name must be provided.\n\n" +
+                    "Component type must be provided.\n\n" +
                     "💡 Corrective actions:\n" +
-                    "   • Provide a valid template short name\n" +
-                    "   • List available templates to see valid short names", 
+                    "   • Provide a valid component type\n" +
+                    "   • List available component types to see valid names",
                     nameof(shortName));
             }
         }

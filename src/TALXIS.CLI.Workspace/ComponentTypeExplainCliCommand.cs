@@ -31,8 +31,7 @@ public class ComponentTypeExplainCliCommand
             return 1;
         }
 
-        Console.WriteLine($"Name: {template.Name}");
-        Console.WriteLine($"Short names: {string.Join(", ", template.ShortNameList)}");
+        Console.WriteLine($"Type: {template.ShortNameList.FirstOrDefault()}");
         Console.WriteLine($"Description: {template.Description}");
         return 0;
     }

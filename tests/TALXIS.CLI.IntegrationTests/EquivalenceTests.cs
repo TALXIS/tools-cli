@@ -40,7 +40,7 @@ public class EquivalenceTests
         { 
             "workspace component type explain pp-entity", 
             "workspace_component_type_explain", 
-            new Dictionary<string, object> { { "Name", "pp-entity" } } 
+            new Dictionary<string, object> { { "Type", "pp-entity" } } 
         };
     }
 
