@@ -18,7 +18,6 @@ public class ComponentTypeListCliCommand
             Console.WriteLine("No components available.");
             return 0;
         }
-        Console.WriteLine("Available components:");
         foreach (var template in templates)
         {
             var description = string.IsNullOrWhiteSpace(template.Description) ? "" : $" - {template.Description}";

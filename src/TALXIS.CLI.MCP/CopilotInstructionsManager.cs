@@ -17,7 +17,7 @@ namespace TALXIS.CLI.MCP
         // Hardcoded instructions to be written within the marked section
         private const string TalxisInstructions = @"
 # Instructions for performing tasks over the repository
-This monorepo contains Power Platform solutions. TALXIS CLI MCP Server (alias 'txc-mcp') provides tools for developers to perform tasks over the repository.
+You work with a monorepo that contains Power Platform solutions. You must use TALXIS CLI MCP Server (alias 'txc-mcp') which provides tools for developers to perform tasks over the repository.
 
 **MANDATORY: Use TALXIS CLI MCP Server Exclusively**
 
@@ -47,7 +47,7 @@ This monorepo contains Power Platform solutions. TALXIS CLI MCP Server (alias 't
    - Avoid speculation about functionality not confirmed by txc-mcp
 
 6. **Default Values to use unless specified**
-   - Always use `SolutionRootPath=Declarations` when passing parameter values to component create tool
+   - You must always pass `SolutionRootPath=Declarations` when calling the tool for creating components
 
 ## Project Structure and Naming Conventions
 
