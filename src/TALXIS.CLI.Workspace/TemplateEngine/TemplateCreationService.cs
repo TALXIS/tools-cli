@@ -188,24 +188,19 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
                             (permission, action) => permission == ScriptPermission.Yes // Always allow for now - can be configurable later
                         );
                         
-                        // Change current directory to outputPath before running post-actions, restoring afterwards
-                        // This ensures relative script paths resolve correctly
-                        string originalDirectory = Directory.GetCurrentDirectory();
-                        try
+                        // Use the actual output directory from the template creation result
+                        // This is where the template was actually created, which may be different from the input outputPath
+                        // if the template creates files in a subdirectory
+                        string actualOutputDirectory = result.OutputBaseDirectory ?? outputPath;
+                        // Ensure the path is absolute for post-action processors
+                        actualOutputDirectory = Path.GetFullPath(actualOutputDirectory);
+                        var (postActionResult, failedActions) = dispatcher.RunPostActions(postActions, ScriptPermission.Yes, result, actualOutputDirectory);
+                        
+                        if ((postActionResult & PostActionResult.Failure) != 0)
                         {
-                            Directory.SetCurrentDirectory(outputPath);
-                            var (postActionResult, failedActions) = dispatcher.RunPostActions(postActions, ScriptPermission.Yes, result, outputPath);
-                            
-                            if ((postActionResult & PostActionResult.Failure) != 0)
-                            {
-                                // Some post-actions failed but we still return success for template creation
-                                Console.WriteLine($"\n⚠️  Some post-actions failed. Template was created successfully but setup may be incomplete.");
-                                return Task.FromResult(new TemplateScaffoldResult { Success = true, FailedActions = failedActions });
-                            }
-                        }
-                        finally
-                        {
-                            Directory.SetCurrentDirectory(originalDirectory);
+                            // Some post-actions failed but we still return success for template creation
+                            Console.WriteLine($"\n⚠️  Some post-actions failed. Template was created successfully but setup may be incomplete.");
+                            return Task.FromResult(new TemplateScaffoldResult { Success = true, FailedActions = failedActions });
                         }
                     }
                     
