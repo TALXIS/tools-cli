@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net462</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <TypeScriptDir>$(MSBuildProjectDirectory)\TS</TypeScriptDir>
+    <TypeScriptBuildDir>$(TypeScriptDir)\build</TypeScriptBuildDir>
+      <RunNodeBuild Condition="'$(RunNodeBuild)'==''">true</RunNodeBuild>
+  </PropertyGroup>
+
+  <Target Name="BuildTypeScript" BeforeTargets="Build" Condition="'$(RunNodeBuild)'=='true'">
+    <Message Text="Building TypeScript in $(TypeScriptDir)" Importance="High" />
+    <Exec WorkingDirectory="$(TypeScriptDir)" Command="npm install" />
+    <Exec WorkingDirectory="$(TypeScriptDir)" Command="npm run build" />
+  </Target>
+
+  <ItemGroup>
+    <None Include="TS\build\**\*.*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <Target Name="GetProjectOutputPath" Outputs="@(ProjectOutputPathItem)">
+    <ItemGroup>
+      <ProjectOutputPathItem Include="$(TargetDir)" />
+    </ItemGroup>
+  </Target>
+</Project>

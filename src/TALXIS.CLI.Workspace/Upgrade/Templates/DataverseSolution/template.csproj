@@ -1,0 +1,11 @@
+<Project Sdk="TALXIS.DevKit.Build.Sdk/0.0.0.1">
+  <PropertyGroup>
+    <TargetFramework>net462</TargetFramework>
+    <ProjectType>Solution</ProjectType>
+    <SolutionRootPath></SolutionRootPath>
+	  <Version> </Version>
+	  <AssemblyVersion> </AssemblyVersion>
+	  <FileVersion> </FileVersion>
+  </PropertyGroup>
+  <Target Name="Publish" />
+</Project>

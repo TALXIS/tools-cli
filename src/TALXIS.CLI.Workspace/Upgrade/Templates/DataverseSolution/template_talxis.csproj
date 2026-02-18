@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<TargetFramework>net462</TargetFramework>
+		<LangVersion>latest</LangVersion>
+		<AssemblyName>PCT21016.Apps.Core.Model</AssemblyName>
+		<RootNamespace>PCT21016.Apps.Core.Model</RootNamespace>
+		<Deterministic>false</Deterministic>
+		<Version>0.0.20000.0</Version>
+		<AssemblyVersion>0.0.20000.0</AssemblyVersion>
+		<FileVersion>0.0.20000.0</FileVersion>
+	</PropertyGroup>
+	<ItemGroup>
+		<PackageReference Include="TALXIS.SDK.BuildTargets.CDS.Solution" Version="2.1.*" />
+	</ItemGroup>
+</Project>
+
+
+

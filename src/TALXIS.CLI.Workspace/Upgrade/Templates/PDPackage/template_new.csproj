@@ -1,0 +1,16 @@
+<Project Sdk="TALXIS.DevKit.Build.Sdk/0.0.0.1">
+	<PropertyGroup>
+		<TargetFramework>net472</TargetFramework>
+		<AssemblyTitle></AssemblyTitle>
+		<Product></Product>
+		<Copyright>Copyright © 2026</Copyright>
+		<ProjectType>PDPackage</ProjectType>
+	</PropertyGroup>
+	<ItemGroup>
+		<PackageReference Include="Microsoft.CrmSdk.XrmTooling.CoreAssembly" Version="9.1.0.79" PrivateAssets="all" />
+		<PackageReference Include="Microsoft.CrmSdk.XrmTooling.PackageDeployment" Version="9.1.0.74" PrivateAssets="all" />
+	</ItemGroup>
+	<ItemGroup>
+		<Reference Include="System.ComponentModel.Composition" />
+	</ItemGroup>
+</Project>

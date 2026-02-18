@@ -7,7 +7,8 @@ namespace TALXIS.CLI.Workspace;
     Alias = "ws",
     Children = new[]
     {
-        typeof(ComponentCliCommand)
+        typeof(ComponentCliCommand),
+        typeof(UpgradeCliCommand)
     })]
 public class WorkspaceCliCommand
 {

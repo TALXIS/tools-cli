@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<TargetFramework>net462</TargetFramework>
+		<LangVersion>latest</LangVersion>
+		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+		<TypeScriptDir>$(MSBuildProjectDirectory)\TS</TypeScriptDir>
+		<TypeScriptBuildDir>$(TypeScriptDir)\build</TypeScriptBuildDir>
+		<RunNodeBuild>true</RunNodeBuild>
+		<ProjectType>ScriptLibrary</ProjectType>
+	</PropertyGroup>
+</Project>
