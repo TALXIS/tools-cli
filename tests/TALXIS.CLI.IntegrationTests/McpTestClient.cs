@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Threading;
+using System.IO;
 using System.Threading.Tasks;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
@@ -9,21 +9,21 @@ using ModelContextProtocol.Protocol;
 namespace TALXIS.CLI.IntegrationTests;
 
 /// <summary>
-/// Singleton MCP client for testing purposes. Reuses the same connection across all tests.
+/// Singleton MCP client wrapper for testing purposes. Reuses the same connection across all tests.
 /// </summary>
-public sealed class McpClient : IAsyncDisposable
+public sealed class McpTestClient : IAsyncDisposable
 {
-    private static readonly Lazy<Task<McpClient>> _instance = new(CreateInstanceAsync);
-    private readonly IMcpClient _client;
+    private static readonly Lazy<Task<McpTestClient>> _instance = new(CreateInstanceAsync);
+    private readonly McpClient _client;
 
-    private McpClient(IMcpClient client)
+    private McpTestClient(McpClient client)
     {
         _client = client;
     }
 
-    public static Task<McpClient> InstanceAsync => _instance.Value;
+    public static Task<McpTestClient> InstanceAsync => _instance.Value;
 
-    private static async Task<McpClient> CreateInstanceAsync()
+    private static async Task<McpTestClient> CreateInstanceAsync()
     {
         var mcpProjectPath = GetMcpProjectPath();
         
@@ -37,20 +37,13 @@ public sealed class McpClient : IAsyncDisposable
             Arguments = ["run", "--project", mcpProjectPath]
         });
 
-        try
-        {
-            var client = await McpClientFactory.CreateAsync(transport);
-            return new McpClient(client);
-        }
-        catch (Exception ex)
-        {
-            throw new InvalidOperationException($"Failed to create MCP client. This might be due to server startup issues. Error: {ex.Message}", ex);
-        }
+        var client = await McpClient.CreateAsync(transport);
+        return new McpTestClient(client);
     }
 
-    public async Task<CallToolResult> CallToolAsync(string toolName, Dictionary<string, object> arguments = null)
+    public async Task<CallToolResult> CallToolAsync(string toolName, Dictionary<string, object>? arguments = null)
     {
-        arguments = arguments ?? new Dictionary<string, object>();
+        arguments ??= new Dictionary<string, object>();
         return await _client.CallToolAsync(toolName, arguments);
     }
 
@@ -67,17 +60,15 @@ public sealed class McpClient : IAsyncDisposable
     private static string GetMcpProjectPath()
     {
         var baseDir = AppContext.BaseDirectory;
-        var dir = new System.IO.DirectoryInfo(baseDir);
-        
-        while (dir != null && !System.IO.File.Exists(System.IO.Path.Combine(dir.FullName, "TALXIS.CLI.sln")))
-        {
+        var dir = new DirectoryInfo(baseDir);
+
+        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "TALXIS.CLI.sln")))
             dir = dir.Parent;
-        }
-        
+
         if (dir == null)
             throw new InvalidOperationException("Could not find repository root");
-            
-        return System.IO.Path.Combine(dir.FullName, "src", "TALXIS.CLI.MCP", "TALXIS.CLI.MCP.csproj");
+
+        return Path.Combine(dir.FullName, "src", "TALXIS.CLI.MCP", "TALXIS.CLI.MCP.csproj");
     }
 
     /// <summary>
