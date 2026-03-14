@@ -3,11 +3,12 @@ using DotMake.CommandLine;
 namespace TALXIS.CLI.Workspace;
 
 [CliCommand(
-    Description = "Develop solutions in your local workspace",
+    Description = "Implement software in your local computer workspace (Git repository)",
     Alias = "ws",
     Children = new[]
     {
-        typeof(ComponentCliCommand)
+        typeof(ComponentCliCommand),
+        typeof(ProjectCliCommand)
     })]
 public class WorkspaceCliCommand
 {
@@ -15,6 +16,7 @@ public class WorkspaceCliCommand
     {
         context.ShowHelp();
     }
+
 
     [CliCommand(
         Description = "Provides a summary of repository structure, build system, project types, components, and how they are organized for development and deployment. Use this tool whenever the user asks about organizing or understanding the workspace. This includes details about the monorepo layout, use of .NET project and solution files, supported project types (such as Dataverse solutions, plugins, packages, Power Apps components, and custom code apps), and how projects are managed and built using MSBuild. The summary also explains how solution and package projects reference and compose other components for deployment, offering flexibility in organizing code for various scenarios.",
@@ -24,22 +26,16 @@ public class WorkspaceCliCommand
         public void Run(CliContext context)
         {
             Console.WriteLine(
-@"Repository Structure Overview
+      @"Repository Structure Overview
 
 This repository is organized as a monorepo based on the .NET project system. It uses a Visual Studio solution file (.sln) to track all projects, and each project is defined by its own project file (.csproj, .cdsproj, or other .(x)proj formats). All projects are built using MSBuild.
+
+Rules for repository root unless user explicitly instructs to do it differently:
 
   • The root contains essential files such as README.md, .gitignore, and the .sln solution file
   • The src/ directory holds all source code, organized into folders for different project types
 
-Project Types Supported:
-  • Dataverse Solution (.cdsproj or .csproj): Used for defining Dataverse components and metadata. Build artifact is solution ZIP file.
-  • Dataverse Package (.csproj): Bundles multiple solutions and custom logic for deployment; references other projects to form a unit of deployment. Build artifact is package ZIP file which contains all solutions, import config, data and deployment automation/migration code.
-  • Dataverse Plugin (.csproj): Contains custom business logic, event handlers, and automation for Dataverse. Build artifact is a plugin DLL file.
-  • Power Apps Component Framework control (.csproj): Implements custom controls for Power Apps. Build artifact is a PCF control bundle JS.
-  • Power Apps Script Library (.csproj): Provides reusable scripts for Power Platform solutions. Build artifact is a script bundle JS file.
-  • Power Platform Connector (.csproj): Defines custom connectors for Power Platform integrations.
-  • Code App (.csproj): Builds fully custom frontend SPA hosted in Power Apps.
-  • Other .NET-based projects (.csproj, .xproj): Any additional supporting libraries or tools.
+You can find supported project types with 'workspace project explain' command/tool.
 
 Repository Initialization Sequence:
   The Visual Studio solution file (.sln) and src folder MUST be initialized before creating any solutions or projects.**
@@ -50,14 +46,7 @@ Repository Initialization Sequence:
   3. **Create Visual Studio solution file: dotnet new sln --name [ProjectName]**
   4. Create src/ directory: mkdir src
   
-Development and Build:
-  • All projects are added to the single solution file (.sln) which is placed in the root directory
-  • MSBuild (dotnet build) is used to build all project types
-  • Solution projects can have ProjectReferences to plugin, script, PCF, and Code App project types. When the solution is built, it pulls outputs of the referenced projects and places them into the solution artifact (the build output of the solution project).
-  • Multiple solutions can be added as ProjectReferences to the package project. When the package is built, it composes ImportConfig.xml with the list of solutions and the order in which they are imported to Dataverse upon deployment.
-  • Package project type can contain C# migration and deployment automation/infra code. Dataverse packages can also contain configuration and test data which needs to be deployed with the code/definitions.
-
-This structure is flexible and does not enforce a specific layering or project type arrangement. Developers are free to organize solutions, plugins, packages, and other projects as needed for their scenario. The .NET project system and solution file provide a unified way to manage, build, and deploy all components in the repository."
+This structure is flexible and does not enforce a specific segmentation, layering or project arrangement. Developers are free to organize solutions, plugins, packages, and other projects as needed for their scenario. The .NET project system and Visual Studio solution file provide a unified way to manage, build, and deploy all components in the repository."
             );
         }
     }

@@ -47,7 +47,7 @@ You work with a monorepo that contains Power Platform solutions. You must use TA
    - Avoid speculation about functionality not confirmed by txc-mcp
 
 6. **Default Values to use unless specified**
-   - You must always pass `SolutionRootPath=Declarations` when calling the tool for creating components
+   - You must always pass `SolutionRootPath=Declarations` component parameter when calling the tool for creating components
 
 ## Project Structure and Naming Conventions
 

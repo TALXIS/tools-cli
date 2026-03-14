@@ -113,9 +113,9 @@ dotnet restore
 dotnet build
 ```
 
-**Run the CLI directly (for example, to test the data transform server):**
+**Run the CLI directly:**
 ```sh
-dotnet run --project src/TALXIS.CLI -- data transform server start
+dotnet run --project src/TALXIS.CLI -- workspace explain
 ```
 
 ---

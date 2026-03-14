@@ -26,13 +26,13 @@ public class ComponentParameterListCliCommand
             return 0;
         }
         Console.WriteLine($"Parameters for template '{ShortName}':");
-        
+
         // Always show the mandatory output parameter first
         Console.WriteLine("--output (Project folder path)  (text)  <required>");
         Console.WriteLine("    Specifies the target project folder path where the component will be created.");
         Console.WriteLine("    Required for both creating new projects (solution, plugin, PCF, etc.) and adding components to existing projects.");
         Console.WriteLine("    Format: \"src\\Solutions.DataModel\"");
-        
+
         foreach (var p in parameters)
         {
             Console.Write($"--{p.Name}");
@@ -42,7 +42,7 @@ public class ComponentParameterListCliCommand
             if (!string.IsNullOrEmpty(p.DefaultValue?.ToString()))
                 Console.Write($"  [default: {p.DefaultValue}]");
             // Check if parameter is required
-            if (p.Precedence.IsRequired || 
+            if (p.Precedence.IsRequired ||
                 p.Precedence.PrecedenceDefinition == Microsoft.TemplateEngine.Abstractions.PrecedenceDefinition.Required)
                 Console.Write("  <required>");
             if (p.Choices != null && p.Choices.Count > 0)
