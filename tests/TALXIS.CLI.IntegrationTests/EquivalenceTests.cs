@@ -19,7 +19,7 @@ public class EquivalenceTests
     {
         var cliOutput = await CliRunner.RunAsync(cliCommand);
         
-        var mcpClient = await McpClient.InstanceAsync;
+        var mcpClient = await McpTestClient.InstanceAsync;
         var mcpResult = await mcpClient.CallToolAsync(mcpTool, mcpArgs);
         
         var mcpOutput = ExtractTextContent(mcpResult);

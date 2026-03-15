@@ -16,7 +16,7 @@ public class McpTests
     [Fact]
     public async Task ListTools_ReturnsExpectedTools()
     {
-        var client = await McpClient.InstanceAsync;
+        var client = await McpTestClient.InstanceAsync;
         
         var tools = await client.ListToolsAsync();
         var toolNames = tools.Select(t => t.Name).ToList();
@@ -28,7 +28,7 @@ public class McpTests
     [Fact]
     public async Task WorkspaceComponentList_ReturnsValidResponse()
     {
-        var client = await McpClient.InstanceAsync;
+        var client = await McpTestClient.InstanceAsync;
         
         var result = await client.CallToolAsync("workspace_component_type_list");
         
@@ -40,10 +40,10 @@ public class McpTests
     [Fact]
     public async Task WorkspaceComponentTypeExplain_ReturnsComponentDetails()
     {
-        var client = await McpClient.InstanceAsync;
-        var args = new Dictionary<string, object> { { "Type", "pp-entity" } };
-
-        var result = await client.CallToolAsync("workspace_component_type_explain", args);
+        var client = await McpTestClient.InstanceAsync;
+        var args = new Dictionary<string, object> { { "Name", "pp-entity" } };
+        
+        var result = await client.CallToolAsync("workspace_component_explain", args);
         
         Assert.NotNull(result.Content);
         Assert.NotEmpty(result.Content);

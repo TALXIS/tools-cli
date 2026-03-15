@@ -4,7 +4,8 @@ namespace TALXIS.CLI.Data;
 
 [CliCommand(
     Name = "model",
-    Description = "Data modeling utilities"
+    Description = "Data modeling utilities",
+    Children = new[] { typeof(DataModelConvertCliCommand) }
 )]
 public class DataModelCliCommand
 {

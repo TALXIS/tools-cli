@@ -7,6 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\TALXIS.CLI.Data\TALXIS.CLI.Data.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="DotMake.CommandLine" Version="2.6.7" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.7" />
     <PackageReference Include="Microsoft.TemplateEngine.IDE" Version="9.0.302" />
