@@ -1,0 +1,64 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <NoWarn>$(NoWarn);NU1701</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DotMake.CommandLine" Version="2.6.7" />
+    <PackageReference Include="Microsoft.CrmSdk.XrmTooling.CoreAssembly" Version="9.1.1.65" />
+    <PackageReference Include="Microsoft.Identity.Client" Version="4.73.1" />
+    <PackageReference Include="Microsoft.Identity.Client.Extensions.Msal" Version="4.73.1" />
+    <PackageReference Include="System.ServiceModel.Http" Version="4.10.3" />
+    <PackageReference Include="System.ServiceModel.Primitives" Version="4.10.3" />
+    <PackageReference Include="System.ComponentModel.Composition" Version="10.0.0" />
+    <PackageReference Include="System.Configuration.ConfigurationManager" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageDownload Include="Microsoft.CrmSdk.XrmTooling.PackageDeployment.Core" Version="[9.1.0.184]" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Microsoft.Deployment.Compression">
+      <HintPath>$(NuGetPackageRoot)microsoft.crmsdk.xrmtooling.packagedeployment.core/9.1.0.184/lib/net462/Microsoft.Deployment.Compression.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Deployment.Compression.Cab">
+      <HintPath>$(NuGetPackageRoot)microsoft.crmsdk.xrmtooling.packagedeployment.core/9.1.0.184/lib/net462/Microsoft.Deployment.Compression.Cab.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Expression.Interactions">
+      <HintPath>$(NuGetPackageRoot)microsoft.crmsdk.xrmtooling.packagedeployment.core/9.1.0.184/lib/net462/Microsoft.Expression.Interactions.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Xrm.Tooling.CrmConnectControl">
+      <HintPath>$(NuGetPackageRoot)microsoft.crmsdk.xrmtooling.packagedeployment.core/9.1.0.184/lib/net462/Microsoft.Xrm.Tooling.CrmConnectControl.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Xrm.Tooling.Dmt.DataMigCommon">
+      <HintPath>$(NuGetPackageRoot)microsoft.crmsdk.xrmtooling.packagedeployment.core/9.1.0.184/lib/net462/Microsoft.Xrm.Tooling.Dmt.DataMigCommon.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Xrm.Tooling.Dmt.ImportProcessor">
+      <HintPath>$(NuGetPackageRoot)microsoft.crmsdk.xrmtooling.packagedeployment.core/9.1.0.184/lib/net462/Microsoft.Xrm.Tooling.Dmt.ImportProcessor.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Xrm.Tooling.Dmt.MetadataHandler">
+      <HintPath>$(NuGetPackageRoot)microsoft.crmsdk.xrmtooling.packagedeployment.core/9.1.0.184/lib/net462/Microsoft.Xrm.Tooling.Dmt.MetadataHandler.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Xrm.Tooling.PackageDeployment.CrmPackageCore">
+      <HintPath>$(NuGetPackageRoot)microsoft.crmsdk.xrmtooling.packagedeployment.core/9.1.0.184/lib/net462/Microsoft.Xrm.Tooling.PackageDeployment.CrmPackageCore.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Xrm.Tooling.PackageDeployment.CrmPackageCore.Azure">
+      <HintPath>$(NuGetPackageRoot)microsoft.crmsdk.xrmtooling.packagedeployment.core/9.1.0.184/lib/net462/Microsoft.Xrm.Tooling.PackageDeployment.CrmPackageCore.Azure.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Xrm.Tooling.PackageDeployment.CrmPackageCore.FinanceOperations">
+      <HintPath>$(NuGetPackageRoot)microsoft.crmsdk.xrmtooling.packagedeployment.core/9.1.0.184/lib/net462/Microsoft.Xrm.Tooling.PackageDeployment.CrmPackageCore.FinanceOperations.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Xrm.Tooling.PackageDeployment.CrmPackageExtentionBase">
+      <HintPath>$(NuGetPackageRoot)microsoft.crmsdk.xrmtooling.packagedeployment.core/9.1.0.184/lib/net462/Microsoft.Xrm.Tooling.PackageDeployment.CrmPackageExtentionBase.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Xrm.Tooling.Ui.Styles">
+      <HintPath>$(NuGetPackageRoot)microsoft.crmsdk.xrmtooling.packagedeployment.core/9.1.0.184/lib/net462/Microsoft.Xrm.Tooling.Ui.Styles.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>

@@ -62,6 +62,13 @@ txc data transform server start
 txc data package convert --input export.xlsx --output data.xml
 ```
 
+**Download and deploy a Dataverse package from NuGet:**
+```sh
+txc environment install TALXIS.Controls.FileExplorer.Package \
+  --version 0.0.0.10 \
+  --environment "https://contoso.crm.dynamics.com"
+```
+
 **List available workspace components:**
 ```sh
 txc workspace component type list
