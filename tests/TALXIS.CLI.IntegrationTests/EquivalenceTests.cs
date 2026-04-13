@@ -15,7 +15,7 @@ public class EquivalenceTests
 {
     [Theory]
     [MemberData(nameof(GetTestCases))]
-    public async Task CliAndMcp_ProduceEquivalentOutput(string cliCommand, string mcpTool, Dictionary<string, object> mcpArgs)
+    public async Task CliAndMcp_ProduceEquivalentOutput(string cliCommand, string mcpTool, Dictionary<string, object?> mcpArgs)
     {
         var cliOutput = await CliRunner.RunAsync(cliCommand);
         
@@ -33,14 +33,14 @@ public class EquivalenceTests
         { 
             "workspace component type list", 
             "workspace_component_type_list", 
-            new Dictionary<string, object>() 
+            new Dictionary<string, object?>() 
         };
         
         yield return new object[] 
         { 
             "workspace component type explain pp-entity", 
             "workspace_component_type_explain", 
-            new Dictionary<string, object> { { "Type", "pp-entity" } } 
+            new Dictionary<string, object?> { { "Type", "pp-entity" } } 
         };
     }
 

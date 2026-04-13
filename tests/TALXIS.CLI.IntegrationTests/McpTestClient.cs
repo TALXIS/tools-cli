@@ -41,9 +41,9 @@ public sealed class McpTestClient : IAsyncDisposable
         return new McpTestClient(client);
     }
 
-    public async Task<CallToolResult> CallToolAsync(string toolName, Dictionary<string, object>? arguments = null)
+    public async Task<CallToolResult> CallToolAsync(string toolName, IReadOnlyDictionary<string, object?>? arguments = null)
     {
-        arguments ??= new Dictionary<string, object>();
+        arguments ??= new Dictionary<string, object?>();
         return await _client.CallToolAsync(toolName, arguments);
     }
 

@@ -19,25 +19,26 @@ try
         consoleLogOptions.LogToStandardErrorThreshold = LogLevel.Trace;
     });
 
-builder.Services.AddMcpServer(options =>
-{
-    var version = typeof(Program).Assembly.GetName().Version?.ToString() ?? "unknown";
-    options.ServerInfo = new Implementation
+builder.Services
+    .AddMcpServer(options =>
     {
-        Name = "TALXIS CLI MCP (txc-mcp)",
-        Version = version
-    };
-    options.ServerInstructions = "This server is a wrapper for the TALXIS CLI. It provides tools for developers to implement functionality in their repository.";
-    options.Capabilities = new ServerCapabilities
-    {
-        Tools = new ToolsCapability
+        var version = typeof(Program).Assembly.GetName().Version?.ToString() ?? "unknown";
+        options.ServerInfo = new Implementation
         {
-            ListChanged = true,
-            ListToolsHandler = ListToolsAsync,
-            CallToolHandler = CallToolAsync
-        }
-    };
+            Name = "TALXIS CLI MCP (txc-mcp)",
+            Version = version
+        };
+        options.ServerInstructions = "This server is a wrapper for the TALXIS CLI. It provides tools for developers to implement functionality in their repository.";
+        options.Capabilities = new ServerCapabilities
+        {
+            Tools = new ToolsCapability
+            {
+                ListChanged = true
+            }
+        };
     })
+    .WithListToolsHandler(ListToolsAsync)
+    .WithCallToolHandler(CallToolAsync)
     .WithStdioServerTransport();
 
     await builder.Build().RunAsync();
@@ -79,7 +80,7 @@ async ValueTask<CallToolResult> CallToolAsync(RequestContext<CallToolRequestPara
             if (exitCode != 0)
             {
                 return new CallToolResult {
-                    Content = [new TextContentBlock { Text = output.ToString(), Type = "text" }],
+                    Content = [new TextContentBlock { Text = output.ToString() }],
                     IsError = true
                 };
             }
@@ -88,14 +89,17 @@ async ValueTask<CallToolResult> CallToolAsync(RequestContext<CallToolRequestPara
         {
             // Execute regular CLI commands through the main CLI
             var cliCommandAdapter = new CliCommandAdapter();
-            var cliArgs = cliCommandAdapter.BuildCliArgs(toolName, p?.Arguments);
+            IReadOnlyDictionary<string, System.Text.Json.JsonElement>? cliArguments = p?.Arguments is null
+                ? null
+                : new Dictionary<string, System.Text.Json.JsonElement>(p.Arguments);
+            var cliArgs = cliCommandAdapter.BuildCliArgs(toolName, cliArguments);
             var exitCode = await TALXIS.CLI.Program.RunCli(cliArgs.ToArray());
             Console.Out.Flush();
             Console.Error.Flush();
             if (exitCode != 0)
             {
                 return new CallToolResult {
-                    Content = [new TextContentBlock { Text = output.ToString(), Type = "text" }],
+                    Content = [new TextContentBlock { Text = output.ToString() }],
                     IsError = true
                 };
             }
@@ -103,14 +107,14 @@ async ValueTask<CallToolResult> CallToolAsync(RequestContext<CallToolRequestPara
     }
     catch (Exception ex)
     {
-        return new CallToolResult { Content = [new TextContentBlock { Text = ex.ToString(), Type = "text" }], IsError = true };
+        return new CallToolResult { Content = [new TextContentBlock { Text = ex.ToString() }], IsError = true };
     }
     finally
     {
         Console.SetOut(origOut);
         Console.SetError(origErr);
     }
-    return new CallToolResult { Content = [new TextContentBlock { Text = output.ToString(), Type = "text" }], IsError = false };
+    return new CallToolResult { Content = [new TextContentBlock { Text = output.ToString() }], IsError = false };
 }
 
 // Helper method to check if a tool is MCP-specific
@@ -122,7 +126,7 @@ bool IsMcpSpecificTool(string toolName)
 }
 
 // Helper method to execute MCP-specific tools directly
-async Task<int> ExecuteMcpSpecificToolAsync(Type commandType, IReadOnlyDictionary<string, System.Text.Json.JsonElement>? arguments, CancellationToken ct)
+async Task<int> ExecuteMcpSpecificToolAsync(Type commandType, IDictionary<string, System.Text.Json.JsonElement>? arguments, CancellationToken ct)
 {
     try
     {
