@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Reflection;
+using System.Runtime.Loader;
 using Microsoft.Xrm.Tooling.Connector;
 using Microsoft.Xrm.Tooling.CrmConnectControl.Utility;
 using Microsoft.Xrm.Tooling.PackageDeployment.CrmPackageCore.ImportCode;
@@ -42,6 +43,9 @@ public sealed class PackageDeployerRunner
         public ManagedPackageDeployerHost(PackageDeployerRequest request)
         {
             _request = request;
+
+            // Register our shim assembly for the Connector assembly name that
+            // CrmPackageCore was compiled against.
             _assemblyMap = new Dictionary<string, Assembly>(StringComparer.OrdinalIgnoreCase)
             {
                 ["Newtonsoft.Json"] = typeof(Newtonsoft.Json.JsonConverter).Assembly,
@@ -50,6 +54,7 @@ public sealed class PackageDeployerRunner
             };
 
             AppDomain.CurrentDomain.AssemblyResolve += OnResolveAssembly;
+            AssemblyLoadContext.Default.Resolving += OnResolveAssemblyLoadContext;
         }
 
         public PackageDeployerResult Run()
@@ -80,6 +85,9 @@ public sealed class PackageDeployerRunner
 
                     authHook = new DataverseInteractiveAuthHook(environmentUri, _request.DeviceCode, _request.Verbose);
                     CrmServiceClient.AuthOverrideHook = authHook;
+
+                    // Use the token provider constructor — our shim delegates
+                    // to AuthOverrideHook internally when the URI constructor is used.
                     crmServiceClient = new CrmServiceClient(environmentUri, useUniqueInstance: true);
                 }
 
@@ -103,7 +111,12 @@ public sealed class PackageDeployerRunner
                     _coreObjects.ParseRuntimeSettingsDelimitedString(_request.Settings);
                 }
 
-                _coreObjects.CrmSvc = crmServiceClient;
+                // Use reflection to set CrmSvc — the property type is
+                // CrmServiceClient from the strong-named legacy assembly, but at
+                // runtime our shim satisfies the reference via the assembly resolver.
+                var crmSvcProp = _coreObjects.GetType().GetProperty("CrmSvc")
+                    ?? throw new InvalidOperationException("CoreObjects.CrmSvc property not found.");
+                crmSvcProp.SetValue(_coreObjects, crmServiceClient);
 
                 PackageImportConfigurationParser parser = new(_coreObjects);
                 parser.ConfigReadComplete += Parser_ConfigReadComplete;
@@ -195,6 +208,22 @@ public sealed class PackageDeployerRunner
             if (_unresolvedAssemblies.Add(requestedAssembly) && _request.Verbose)
             {
                 Console.WriteLine($"[txc] unresolved assembly requested: {requestedAssembly}");
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// AssemblyLoadContext resolver — catches requests that the
+        /// AppDomain resolver does not handle on modern .NET.
+        /// </summary>
+        private Assembly? OnResolveAssemblyLoadContext(AssemblyLoadContext context, System.Reflection.AssemblyName assemblyName)
+        {
+            string key = assemblyName.Name ?? "<unknown>";
+
+            if (_assemblyMap.TryGetValue(key, out Assembly? assembly))
+            {
+                return assembly;
             }
 
             return null;
@@ -320,6 +349,7 @@ public sealed class PackageDeployerRunner
         public void Dispose()
         {
             AppDomain.CurrentDomain.AssemblyResolve -= OnResolveAssembly;
+            AssemblyLoadContext.Default.Resolving -= OnResolveAssemblyLoadContext;
             _workComplete.Dispose();
             _logFile?.Dispose();
             _traceSource?.Close();

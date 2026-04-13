@@ -4,6 +4,13 @@ using Microsoft.Xrm.Tooling.Connector;
 
 namespace TALXIS.CLI.Environment;
 
+/// <summary>
+/// MSAL-based auth hook that implements <see cref="IOverrideAuthHookWrapper"/>
+/// for the CrmServiceClient shim, and also serves as a
+/// <c>Func&lt;string, Task&lt;string&gt;&gt;</c> token provider for ServiceClient.
+/// Uses the same public client ID and redirect URI that PAC CLI uses so
+/// users don't need to register their own application.
+/// </summary>
 public sealed class DataverseInteractiveAuthHook : IOverrideAuthHookWrapper, IDisposable
 {
     private static readonly Guid PacClientId = new("9cee029c-6210-4654-90bb-17e6e9d36617");

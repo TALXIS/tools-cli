@@ -9,15 +9,16 @@
 
   <ItemGroup>
     <PackageReference Include="DotMake.CommandLine" Version="2.6.7" />
-    <PackageReference Include="Microsoft.CrmSdk.XrmTooling.CoreAssembly" Version="9.1.1.65" />
     <PackageReference Include="Microsoft.Identity.Client" Version="4.73.1" />
     <PackageReference Include="Microsoft.Identity.Client.Extensions.Msal" Version="4.73.1" />
-    <PackageReference Include="System.ServiceModel.Http" Version="4.10.3" />
-    <PackageReference Include="System.ServiceModel.Primitives" Version="4.10.3" />
     <PackageReference Include="System.ComponentModel.Composition" Version="10.0.0" />
-    <PackageReference Include="System.Configuration.ConfigurationManager" Version="10.0.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\TALXIS.CLI.Environment.XrmShim\TALXIS.CLI.Environment.XrmShim.csproj" />
+  </ItemGroup>
+
+  <!-- PackageDeployment.Core assemblies (net462, loaded at runtime) -->
   <ItemGroup>
     <PackageDownload Include="Microsoft.CrmSdk.XrmTooling.PackageDeployment.Core" Version="[9.1.0.184]" />
   </ItemGroup>
