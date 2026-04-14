@@ -1,5 +1,7 @@
 using Microsoft.PowerPlatform.Dataverse.Client;
 using Microsoft.Xrm.Sdk;
+using Microsoft.Xrm.Sdk.Messages;
+using Microsoft.Xrm.Sdk.Metadata;
 using Microsoft.Xrm.Sdk.Query;
 
 namespace Microsoft.Xrm.Tooling.Connector;
@@ -96,6 +98,20 @@ public class CrmServiceClient : ServiceClient, IDisposable
 
     public new static TimeSpan MaxConnectionTimeout { get; set; } = TimeSpan.FromMinutes(10);
 
+    /// <summary>
+    /// Legacy property. When set to <c>true</c>, requests should bypass
+    /// custom plugin execution. The modern <see cref="ServiceClient"/> applies
+    /// this per-request; we store the flag so CMT code that sets it does not
+    /// throw <see cref="MissingMethodException"/>.
+    /// </summary>
+    public bool BypassPluginExecution { get; set; }
+
+    /// <summary>
+    /// Legacy property indicating whether the client supports forced metadata
+    /// cache consistency. Stored but not enforced on the modern transport.
+    /// </summary>
+    public bool ForceServerMetadataCacheConsistency { get; set; }
+
     #endregion
 
     #region Constructors
@@ -133,6 +149,72 @@ public class CrmServiceClient : ServiceClient, IDisposable
     public string LastCrmError => LastError;
     public Exception? LastCrmException => LastException;
     public Uri CrmConnectOrgUriActual => ConnectedOrgUriActual;
+
+    private Version? _cachedOrgVersion;
+
+    /// <summary>
+    /// Hides the base <see cref="ServiceClient.ConnectedOrgVersion"/> which
+    /// can return 9.0.0.0 when the token-provider constructor path is used.
+    /// This version queries the server via RetrieveVersion if the base
+    /// property returns a stale/default value.
+    /// </summary>
+    public new Version ConnectedOrgVersion
+    {
+        get
+        {
+            if (_cachedOrgVersion != null)
+                return _cachedOrgVersion;
+
+            var baseVersion = base.ConnectedOrgVersion;
+            if (baseVersion > new Version(9, 0, 0, 0))
+            {
+                _cachedOrgVersion = baseVersion;
+                return baseVersion;
+            }
+
+            // Base returned 9.0.0.0 or lower — query the actual version.
+            try
+            {
+                var response = Execute(new OrganizationRequest("RetrieveVersion"));
+                if (response.Results.TryGetValue("Version", out var versionObj) &&
+                    versionObj is string versionStr &&
+                    Version.TryParse(versionStr, out var realVersion))
+                {
+                    _cachedOrgVersion = realVersion;
+                    return realVersion;
+                }
+            }
+            catch
+            {
+                // Fall through to base version on failure.
+            }
+
+            _cachedOrgVersion = baseVersion;
+            return baseVersion;
+        }
+    }
+
+    #endregion
+
+    #region Execute override — BypassPluginExecution support
+
+    /// <summary>
+    /// Overrides <see cref="ServiceClient.Execute"/> to inject the
+    /// <c>BypassCustomPluginExecution</c> request parameter when
+    /// <see cref="BypassPluginExecution"/> is <c>true</c>. The legacy
+    /// CrmServiceClient applied this globally; the modern SDK requires
+    /// it per-request.
+    /// </summary>
+    public new OrganizationResponse Execute(OrganizationRequest request)
+    {
+        if (BypassPluginExecution &&
+            !request.Parameters.ContainsKey("BypassCustomPluginExecution"))
+        {
+            request.Parameters["BypassCustomPluginExecution"] = true;
+        }
+
+        return base.Execute(request);
+    }
 
     #endregion
 
@@ -282,6 +364,67 @@ public class CrmServiceClient : ServiceClient, IDisposable
         return Create(entity);
     }
 
+    public List<EntityMetadata> GetAllEntityMetadata(bool onlyPublished = true, EntityFilters filter = EntityFilters.Entity)
+    {
+        try
+        {
+            var response = (RetrieveAllEntitiesResponse)Execute(new RetrieveAllEntitiesRequest
+            {
+                EntityFilters = filter,
+                RetrieveAsIfPublished = !onlyPublished
+            });
+
+            return response.EntityMetadata?.ToList() ?? new List<EntityMetadata>();
+        }
+        catch
+        {
+            return null!;
+        }
+    }
+
+    public EntityMetadata GetEntityMetadata(string entityLogicalname, EntityFilters queryFilter = EntityFilters.Entity)
+    {
+        try
+        {
+            var response = (RetrieveEntityResponse)Execute(new RetrieveEntityRequest
+            {
+                LogicalName = entityLogicalname,
+                EntityFilters = queryFilter,
+                RetrieveAsIfPublished = false
+            });
+
+            return response.EntityMetadata;
+        }
+        catch
+        {
+            return null!;
+        }
+    }
+
+    public List<AttributeMetadata> GetAllAttributesForEntity(string entityLogicalname)
+    {
+        if (string.IsNullOrWhiteSpace(entityLogicalname))
+        {
+            return null!;
+        }
+
+        try
+        {
+            var response = (RetrieveEntityResponse)Execute(new RetrieveEntityRequest
+            {
+                LogicalName = entityLogicalname,
+                EntityFilters = EntityFilters.Attributes,
+                RetrieveAsIfPublished = false
+            });
+
+            return response.EntityMetadata?.Attributes?.ToList() ?? new List<AttributeMetadata>();
+        }
+        catch
+        {
+            return null!;
+        }
+    }
+
     public bool UpdateEntity(string entityName, string keyFieldName, Guid id, Dictionary<string, CrmDataTypeWrapper> fieldList, string applyToSolution = "", bool enabledDuplicateDetection = false, Guid batchId = default)
     {
         try
@@ -310,6 +453,32 @@ public class CrmServiceClient : ServiceClient, IDisposable
         }
     }
 
+    public bool UpdateStateAndStatusForEntity(string entName, Guid id, string stateCode, string statusCode, Guid batchId = default)
+    {
+        try
+        {
+            return Microsoft.PowerPlatform.Dataverse.Client.Extensions.CRUDExtentions
+                .UpdateStateAndStatusForEntity(this, entName, id, stateCode, statusCode, batchId);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public bool UpdateStateAndStatusForEntity(string entName, Guid id, int stateCode, int statusCode, Guid batchId = default)
+    {
+        try
+        {
+            return Microsoft.PowerPlatform.Dataverse.Client.Extensions.CRUDExtentions
+                .UpdateStateAndStatusForEntity(this, entName, id, stateCode, statusCode, batchId);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public bool DeleteEntityAssociation(string entityName1, Guid entity1Id, string entityName2, Guid entity2Id, string relationshipName, Guid batchId = default)
     {
         try
@@ -321,6 +490,93 @@ public class CrmServiceClient : ServiceClient, IDisposable
         {
             return false;
         }
+    }
+
+    /// <summary>
+    /// Assigns an entity record to a specific user.
+    /// </summary>
+    public bool AssignEntityToUser(Guid userId, string entityName, Guid entityId, Guid batchId = default)
+    {
+        return Microsoft.PowerPlatform.Dataverse.Client.Extensions.GeneralExtensions
+            .AssignEntityToUser(this, userId, entityName, entityId, batchId);
+    }
+
+    /// <summary>
+    /// Associates multiple entities of the same type to a single entity.
+    /// </summary>
+    public bool CreateMultiEntityAssociation(string targetEntity, Guid targetEntityId, string sourceEntityName, List<Guid> sourceEntitieIds, string relationshipName, Guid batchId = default, bool isReflexiveRelationship = false)
+    {
+        return Microsoft.PowerPlatform.Dataverse.Client.Extensions.CRUDExtentions
+            .CreateMultiEntityAssociation(this, targetEntity, targetEntityId, sourceEntityName, sourceEntitieIds, relationshipName, batchId, isReflexiveRelationship);
+    }
+
+    /// <summary>
+    /// Closes an opportunity as either Won or Lost.
+    /// Status code 1 = Won (WinOpportunity), 2 = Lost (LoseOpportunity).
+    /// Defaults to Won when an unrecognised status is provided.
+    /// </summary>
+    public Guid CloseOpportunity(Guid opportunityId, Dictionary<string, CrmDataTypeWrapper> closeData, int status, Guid batchId = default)
+    {
+        string requestName = status == 2 ? "LoseOpportunity" : "WinOpportunity";
+        return ExecuteCloseRequest("opportunityclose", "opportunityid", "opportunity", opportunityId, closeData, status, requestName);
+    }
+
+    /// <summary>
+    /// Closes an incident (case). Legacy convenience method implemented via Execute.
+    /// </summary>
+    public Guid CloseIncident(Guid incidentId, Dictionary<string, CrmDataTypeWrapper> closeData, int status, Guid batchId = default)
+    {
+        return ExecuteCloseRequest("incidentresolution", "incidentid", "incident", incidentId, closeData, status, "CloseIncident");
+    }
+
+    /// <summary>
+    /// Closes a quote. Legacy convenience method implemented via Execute.
+    /// </summary>
+    public Guid CloseQuote(Guid quoteId, Dictionary<string, CrmDataTypeWrapper> closeData, int status, Guid batchId = default)
+    {
+        return ExecuteCloseRequest("quoteclose", "quoteid", "quote", quoteId, closeData, status, "CloseQuote");
+    }
+
+    /// <summary>
+    /// Cancels a sales order. Legacy convenience method implemented via Execute.
+    /// </summary>
+    public Guid CancelSalesOrder(Guid orderId, Dictionary<string, CrmDataTypeWrapper> closeData, int status, Guid batchId = default)
+    {
+        return ExecuteCloseRequest("orderclose", "salesorderid", "salesorder", orderId, closeData, status, "CancelSalesOrder");
+    }
+
+    /// <summary>
+    /// Shared helper for close/cancel operations. Creates an activity entity
+    /// and executes the corresponding organization request.
+    /// </summary>
+    private Guid ExecuteCloseRequest(string closeEntityName, string regardingFieldName, string regardingEntityName, Guid regardingId, Dictionary<string, CrmDataTypeWrapper> closeData, int status, string requestName)
+    {
+        var closeEntity = new Entity(closeEntityName);
+        closeEntity[regardingFieldName] = new EntityReference(regardingEntityName, regardingId);
+        if (closeData != null)
+        {
+            foreach (var kvp in closeData)
+            {
+                closeEntity[kvp.Key] = kvp.Value?.Value;
+            }
+        }
+
+        var request = new OrganizationRequest(requestName);
+        request["Status"] = new OptionSetValue(status);
+
+        // Each close request uses a different parameter name for the close entity
+        string closeParamName = requestName switch
+        {
+            "WinOpportunity" or "LoseOpportunity" => "OpportunityClose",
+            "CloseIncident" => "IncidentResolution",
+            "CloseQuote" => "QuoteClose",
+            "CancelSalesOrder" or "FulfillSalesOrder" => "OrderClose",
+            _ => closeEntityName,
+        };
+        request[closeParamName] = closeEntity;
+
+        var response = Execute(request);
+        return response.Results.TryGetValue("id", out var id) ? (Guid)id : Guid.Empty;
     }
 
     public Guid DeleteAndPromoteSolutionAsync(string uniqueName)
@@ -576,6 +832,168 @@ public class CrmServiceClient : ServiceClient, IDisposable
             CrmFieldType.Customer or CrmFieldType.Lookup => wrapper.Value is EntityReference er ? er : wrapper.Value,
             _ => wrapper.Value
         };
+    }
+
+    #endregion
+
+    #region Solution import methods
+    // CrmPackageCore calls these as instance methods on CrmServiceClient.
+    // The modern ServiceClient exposes them as extension methods in
+    // Microsoft.PowerPlatform.Dataverse.Client.Extensions, so we delegate.
+
+    /// <summary>
+    /// Asynchronously imports a solution to Dataverse from a file path.
+    /// Legacy name kept for CrmPackageCore compatibility (it calls ImportSolutionToCrmAsync).
+    /// </summary>
+    public Guid ImportSolutionToCrmAsync(
+        string solutionPath,
+        out Guid importId,
+        bool activatePlugIns = true,
+        bool overwriteUnManagedCustomizations = false,
+        bool skipDependancyOnProductUpdateCheckOnInstall = false,
+        bool importAsHoldingSolution = false,
+        bool isInternalUpgrade = false,
+        Dictionary<string, object>? extraParameters = null)
+    {
+        return Microsoft.PowerPlatform.Dataverse.Client.Extensions.DeploymentExtensions
+            .ImportSolutionAsync(this, solutionPath, out importId, activatePlugIns,
+                overwriteUnManagedCustomizations, skipDependancyOnProductUpdateCheckOnInstall,
+                importAsHoldingSolution, isInternalUpgrade, extraParameters!);
+    }
+
+    /// <summary>
+    /// Asynchronously imports a staged solution.
+    /// </summary>
+    public Guid ImportSolutionAsync(
+        Guid stageSolutionUploadId,
+        out Guid importId,
+        bool activatePlugIns = true,
+        bool overwriteUnManagedCustomizations = false,
+        bool skipDependancyOnProductUpdateCheckOnInstall = false,
+        bool importAsHoldingSolution = false,
+        bool isInternalUpgrade = false,
+        Dictionary<string, object>? extraParameters = null)
+    {
+        return Microsoft.PowerPlatform.Dataverse.Client.Extensions.DeploymentExtensions
+            .ImportSolutionAsync(this, stageSolutionUploadId, out importId, activatePlugIns,
+                overwriteUnManagedCustomizations, skipDependancyOnProductUpdateCheckOnInstall,
+                importAsHoldingSolution, isInternalUpgrade, extraParameters!);
+    }
+
+    /// <summary>
+    /// Synchronously imports a solution to Dataverse from a file path.
+    /// </summary>
+    public Guid ImportSolutionToCrm(
+        string solutionPath,
+        out Guid importId,
+        bool activatePlugIns = true,
+        bool overwriteUnManagedCustomizations = false,
+        bool skipDependancyOnProductUpdateCheckOnInstall = false,
+        bool importAsHoldingSolution = false,
+        bool isInternalUpgrade = false,
+        Dictionary<string, object>? extraParameters = null)
+    {
+        return Microsoft.PowerPlatform.Dataverse.Client.Extensions.DeploymentExtensions
+            .ImportSolution(this, solutionPath, out importId, activatePlugIns,
+                overwriteUnManagedCustomizations, skipDependancyOnProductUpdateCheckOnInstall,
+                importAsHoldingSolution, isInternalUpgrade, extraParameters!);
+    }
+
+    /// <summary>
+    /// Synchronously imports a staged solution.
+    /// </summary>
+    public Guid ImportSolutionToCrm(
+        Guid stageSolutionUploadId,
+        out Guid importId,
+        bool activatePlugIns = true,
+        bool overwriteUnManagedCustomizations = false,
+        bool skipDependancyOnProductUpdateCheckOnInstall = false,
+        bool importAsHoldingSolution = false,
+        bool isInternalUpgrade = false,
+        Dictionary<string, object>? extraParameters = null)
+    {
+        return Microsoft.PowerPlatform.Dataverse.Client.Extensions.DeploymentExtensions
+            .ImportSolution(this, stageSolutionUploadId, out importId, activatePlugIns,
+                overwriteUnManagedCustomizations, skipDependancyOnProductUpdateCheckOnInstall,
+                importAsHoldingSolution, isInternalUpgrade, extraParameters!);
+    }
+
+    #endregion
+
+    #region Batch Operations
+
+    /// <summary>
+    /// Creates a batch operation request. Legacy CrmServiceClient exposed this
+    /// as an instance method; the modern ServiceClient has it as an extension
+    /// method in <see cref="Microsoft.PowerPlatform.Dataverse.Client.Extensions.BatchExtensions"/>.
+    /// </summary>
+    public Guid CreateBatchOperationRequest(string batchName, bool returnResults = true, bool continueOnError = false)
+    {
+        return Microsoft.PowerPlatform.Dataverse.Client.Extensions.BatchExtensions
+            .CreateBatchOperationRequest(this, batchName, returnResults, continueOnError);
+    }
+
+    /// <summary>
+    /// Executes a batch operation by ID.
+    /// </summary>
+    public ExecuteMultipleResponse ExecuteBatch(Guid batchId)
+    {
+        return Microsoft.PowerPlatform.Dataverse.Client.Extensions.BatchExtensions
+            .ExecuteBatch(this, batchId);
+    }
+
+    /// <summary>
+    /// Returns a request batch by BatchID, wrapped in the legacy
+    /// <see cref="RequestBatch"/> shim type.
+    /// </summary>
+    public RequestBatch? GetBatchById(Guid batchId)
+    {
+        var modern = Microsoft.PowerPlatform.Dataverse.Client.Extensions.BatchExtensions
+            .GetBatchById(this, batchId);
+        return modern is not null ? new RequestBatch(modern) : null;
+    }
+
+    /// <summary>
+    /// Returns the batch ID for a given batch name.
+    /// </summary>
+    public Guid GetBatchOperationIdRequestByName(string batchName)
+    {
+        return Microsoft.PowerPlatform.Dataverse.Client.Extensions.BatchExtensions
+            .GetBatchOperationIdRequestByName(this, batchName);
+    }
+
+    /// <summary>
+    /// Releases a batch from the stack once processing is complete.
+    /// </summary>
+    public void ReleaseBatchInfoById(Guid batchId)
+    {
+        Microsoft.PowerPlatform.Dataverse.Client.Extensions.BatchExtensions
+            .ReleaseBatchInfoById(this, batchId);
+    }
+
+    /// <summary>
+    /// Retrieves the response from a batch operation.
+    /// </summary>
+    public object? RetrieveBatchResponse(Guid batchId)
+    {
+        try
+        {
+            return Microsoft.PowerPlatform.Dataverse.Client.Extensions.BatchExtensions
+                .RetrieveBatchResponse(this, batchId);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Returns the organization request at a given position within a batch.
+    /// </summary>
+    public OrganizationRequest? GetBatchRequestAtPosition(Guid batchId, int position)
+    {
+        return Microsoft.PowerPlatform.Dataverse.Client.Extensions.BatchExtensions
+            .GetBatchRequestAtPosition(this, batchId, position);
     }
 
     #endregion

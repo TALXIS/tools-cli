@@ -5,7 +5,7 @@ namespace TALXIS.CLI.Environment;
 [CliCommand(
     Name = "environment",
     Description = "Environment deployment utilities for Dataverse packages",
-    Children = new[] { typeof(EnvironmentInstallCliCommand) }
+    Children = new[] { typeof(EnvironmentDeployCliCommand) }
 )]
 public class EnvironmentCliCommand
 {

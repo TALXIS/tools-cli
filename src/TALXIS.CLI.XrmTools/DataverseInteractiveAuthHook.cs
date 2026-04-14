@@ -2,7 +2,7 @@ using Microsoft.Identity.Client;
 using Microsoft.Identity.Client.Extensions.Msal;
 using Microsoft.Xrm.Tooling.Connector;
 
-namespace TALXIS.CLI.Environment;
+namespace TALXIS.CLI.XrmTools;
 
 /// <summary>
 /// MSAL-based auth hook that implements <see cref="IOverrideAuthHookWrapper"/>

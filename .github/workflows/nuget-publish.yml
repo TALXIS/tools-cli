@@ -31,8 +31,7 @@ jobs:
       - name: Build
         run: dotnet build TALXIS.CLI.sln --configuration Release --no-restore
       - name: Run tests (including integration tests)
-        # Temporarily exclude the known-broken DataModelConvert integration suite so publish can proceed.
-        run: dotnet test TALXIS.CLI.sln --configuration Release --no-build --filter "FullyQualifiedName!~DataModelConvertTests" --logger "trx;LogFileName=test_results.trx"
+        run: dotnet test TALXIS.CLI.sln --configuration Release --no-build --logger "trx;LogFileName=test_results.trx"
 
   create_nuget:
     needs: [ test ]

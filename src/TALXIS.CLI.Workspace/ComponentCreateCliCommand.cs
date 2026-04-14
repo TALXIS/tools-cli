@@ -11,7 +11,7 @@ public class ComponentCreateCliCommand : ICliGetCompletions
     [CliArgument(Description = "Type of the component (e.g. 'pp-entity')")]
     public required string Type { get; set; }
 
-    [CliOption(Name = "Output", Aliases = ["-o"], Description = "Output path for the new component")]
+    [CliOption(Name = "--output", Aliases = ["-o"], Description = "Output path for the new component")]
     public required string OutputPath { get; set; }
 
     // Conflicts with OutputPath in our templates

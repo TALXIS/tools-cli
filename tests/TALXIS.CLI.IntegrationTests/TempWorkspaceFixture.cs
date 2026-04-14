@@ -125,7 +125,13 @@ public sealed class TempWorkspaceFixture : IAsyncLifetime
             psi.ArgumentList.Add(arg);
 
         using var process = Process.Start(psi)!;
+
+        // Drain both streams concurrently to prevent buffer-full deadlocks.
+        var outTask = process.StandardOutput.ReadToEndAsync();
+        var errTask = process.StandardError.ReadToEndAsync();
+
         await process.WaitForExitAsync();
+        await Task.WhenAll(outTask, errTask);
 
         if (process.ExitCode != 0)
             throw new InvalidOperationException($"dotnet {string.Join(' ', args)} failed in {workingDirectory}");

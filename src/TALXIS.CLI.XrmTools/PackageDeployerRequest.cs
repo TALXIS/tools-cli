@@ -1,4 +1,4 @@
-namespace TALXIS.CLI.Environment;
+namespace TALXIS.CLI.XrmTools;
 
 public sealed record PackageDeployerRequest(
     string PackagePath,

@@ -78,9 +78,16 @@ public static class CliRunner
             psi.ArgumentList.Add(arg);
 
         using var process = Process.Start(psi)!;
-        string output = await process.StandardOutput.ReadToEndAsync();
-        string error = await process.StandardError.ReadToEndAsync();
+
+        // Read stdout and stderr concurrently to avoid deadlocks when
+        // the child process fills one of the OS pipe buffers (~4 KB).
+        var outputTask = process.StandardOutput.ReadToEndAsync();
+        var errorTask = process.StandardError.ReadToEndAsync();
+
         await process.WaitForExitAsync();
+
+        string output = await outputTask;
+        string error = await errorTask;
 
         return new CliResult(process.ExitCode, output, error);
     }

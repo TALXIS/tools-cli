@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http;
 using System.Text;
 using TALXIS.CLI.Environment;
+using TALXIS.CLI.XrmTools;
 using Xunit;
 
 namespace TALXIS.CLI.IntegrationTests;
