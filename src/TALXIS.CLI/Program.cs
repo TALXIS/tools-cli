@@ -1,4 +1,5 @@
 ﻿using DotMake.CommandLine;
+using TALXIS.CLI.Environment;
 
 namespace TALXIS.CLI
 {
@@ -6,6 +7,12 @@ namespace TALXIS.CLI
     {
         public static async Task<int> Main(string[] args)
         {
+            int? packageDeployerExitCode = await PackageDeployerSubprocess.TryRunAsync(args);
+            if (packageDeployerExitCode.HasValue)
+            {
+                return packageDeployerExitCode.Value;
+            }
+
             return await Cli.RunAsync<TALXIS.CLI.TxcCliCommand>(args, new CliSettings { EnableDefaultExceptionHandler = true });
         }
 

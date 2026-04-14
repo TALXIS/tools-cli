@@ -4,8 +4,8 @@ namespace TALXIS.CLI.XrmTools;
 /// Request parameters for standalone CMT data import.
 /// </summary>
 public sealed record CmtImportRequest(
-    /// <summary>Path to the CMT data.zip file.</summary>
-    string DataZipPath,
+    /// <summary>Path to the CMT data package (.zip file or extracted folder containing data.xml and data_schema.xml).</summary>
+    string DataPath,
 
     /// <summary>Dataverse connection string. Mutually exclusive with <see cref="EnvironmentUrl"/>.</summary>
     string? ConnectionString,

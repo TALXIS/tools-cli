@@ -8,4 +8,6 @@ public sealed record PackageDeployerRequest(
     string? Settings,
     string? LogFile,
     bool LogConsole,
-    bool Verbose);
+    bool Verbose,
+    string? TemporaryArtifactsDirectory,
+    int ParentProcessId);

@@ -12,7 +12,7 @@ public class DataPackageImportCliCommand
 {
     private readonly CmtImportRunner _cmtImportRunner = new();
 
-    [CliArgument(Description = "Path to the CMT data package (.zip)")]
+    [CliArgument(Description = "Path to the CMT data package (.zip file or folder containing data.xml and data_schema.xml)")]
     public required string Data { get; set; }
 
     [CliOption(Name = "--connection-string", Description = "Dataverse connection string. If omitted, txc checks DATAVERSE_CONNECTION_STRING and TXC_DATAVERSE_CONNECTION_STRING.", Required = false)]
@@ -35,11 +35,11 @@ public class DataPackageImportCliCommand
     {
         if (string.IsNullOrWhiteSpace(Data))
         {
-            Console.Error.WriteLine("A path to a CMT data package (.zip) must be provided.");
+            Console.Error.WriteLine("A path to a CMT data package (.zip or folder) must be provided.");
             return 1;
         }
 
-        if (!File.Exists(Data))
+        if (!File.Exists(Data) && !Directory.Exists(Data))
         {
             Console.Error.WriteLine($"Data package not found: '{Data}'");
             return 1;

@@ -42,6 +42,7 @@ public sealed class PackageDeployerRunner
         private string? _packagePathForCoreObjects;
         private string? _searchPathForCoreObjects;
         private string? _extractedDirectory;
+        private string? _temporaryArtifactsDirectory;
         private TraceSource? _traceSource;
         private FileStream? _logFile;
         private BaseImportCustomizations? _import;
@@ -95,7 +96,12 @@ public sealed class PackageDeployerRunner
 
                 if (!crmServiceClient.IsReady)
                 {
-                    return new PackageDeployerResult(false, crmServiceClient.LastCrmException?.Message ?? crmServiceClient.LastCrmError, _effectiveLogFilePath, _effectiveCmtLogFilePath);
+                    return new PackageDeployerResult(
+                        false,
+                        crmServiceClient.LastCrmException?.Message ?? crmServiceClient.LastCrmError,
+                        _effectiveLogFilePath,
+                        _effectiveCmtLogFilePath,
+                        _temporaryArtifactsDirectory);
                 }
 
                 if (_request.Verbose)
@@ -178,7 +184,12 @@ public sealed class PackageDeployerRunner
                 catch (Exception ex)
                 {
                     TryPersistCmtLog();
-                    return new PackageDeployerResult(false, ex.Message, _effectiveLogFilePath, _effectiveCmtLogFilePath);
+                    return new PackageDeployerResult(
+                        false,
+                        ex.Message,
+                        _effectiveLogFilePath,
+                        _effectiveCmtLogFilePath,
+                        _temporaryArtifactsDirectory);
                 }
                 finally
                 {
@@ -198,7 +209,12 @@ public sealed class PackageDeployerRunner
 
                 TryPersistCmtLog();
                 TryDumpImportLogErrors();
-                return new PackageDeployerResult(string.IsNullOrWhiteSpace(_errorMessage), _errorMessage, _effectiveLogFilePath, _effectiveCmtLogFilePath);
+                return new PackageDeployerResult(
+                    string.IsNullOrWhiteSpace(_errorMessage),
+                    _errorMessage,
+                    _effectiveLogFilePath,
+                    _effectiveCmtLogFilePath,
+                    _temporaryArtifactsDirectory);
             }
             finally
             {
@@ -212,7 +228,7 @@ public sealed class PackageDeployerRunner
         {
             if (LooksLikeZipArchive(_request.PackagePath))
             {
-                _extractedDirectory = Path.Combine(Path.GetTempPath(), "txc", "package-deployer", Guid.NewGuid().ToString("N"));
+                _extractedDirectory = Path.Combine(GetTemporaryArtifactsDirectory(), "package");
                 Directory.CreateDirectory(_extractedDirectory);
                 ZipFile.ExtractToDirectory(_request.PackagePath, _extractedDirectory, overwriteFiles: true);
                 _searchPathForCoreObjects = _extractedDirectory;
@@ -269,7 +285,7 @@ public sealed class PackageDeployerRunner
                 return Path.GetFullPath(_request.LogFile);
             }
 
-            string logsDirectory = Path.Combine(Path.GetTempPath(), "txc", "package-deployer-logs");
+            string logsDirectory = Path.Combine(GetTemporaryArtifactsDirectory(), "logs");
             string packageName = Path.GetFileNameWithoutExtension(_request.PackagePath);
             return Path.Combine(logsDirectory, $"{packageName}-{Guid.NewGuid():N}.log");
         }
@@ -283,11 +299,28 @@ public sealed class PackageDeployerRunner
 
             string logsDirectory = !string.IsNullOrWhiteSpace(_effectiveLogFilePath)
                 ? Path.GetDirectoryName(_effectiveLogFilePath!)!
-                : Path.Combine(Path.GetTempPath(), "txc", "package-deployer-logs");
+                : Path.Combine(GetTemporaryArtifactsDirectory(), "logs");
 
             string packageName = Path.GetFileNameWithoutExtension(_request.PackagePath);
             _effectiveCmtLogFilePath = Path.Combine(logsDirectory, $"{packageName}-cmt-{Guid.NewGuid():N}.log");
             return _effectiveCmtLogFilePath;
+        }
+
+        private string GetTemporaryArtifactsDirectory()
+        {
+            if (string.IsNullOrWhiteSpace(_temporaryArtifactsDirectory))
+            {
+                _temporaryArtifactsDirectory = !string.IsNullOrWhiteSpace(_request.TemporaryArtifactsDirectory)
+                    ? Path.GetFullPath(_request.TemporaryArtifactsDirectory)
+                    : Path.Combine(
+                        Path.GetTempPath(),
+                        "txc",
+                        "package-deployer-host",
+                        Guid.NewGuid().ToString("N"));
+            }
+
+            Directory.CreateDirectory(_temporaryArtifactsDirectory);
+            return _temporaryArtifactsDirectory;
         }
 
         private void TryPersistCmtLog()
@@ -751,11 +784,6 @@ public sealed class PackageDeployerRunner
             _workComplete.Dispose();
             _logFile?.Dispose();
             _traceSource?.Close();
-
-            if (!string.IsNullOrWhiteSpace(_extractedDirectory) && Directory.Exists(_extractedDirectory))
-            {
-                Directory.Delete(_extractedDirectory, recursive: true);
-            }
         }
     }
 }

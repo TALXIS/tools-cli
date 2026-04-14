@@ -11,7 +11,6 @@ namespace TALXIS.CLI.Environment;
 public class EnvironmentDeployCliCommand
 {
     private readonly NuGetPackageInstallerService _packageInstaller = new();
-    private readonly PackageDeployerRunner _packageDeployerRunner = new();
 
     [CliArgument(Description = "NuGet package name, or path to a local .pdpkg.zip / package DLL")]
     public required string Package { get; set; }
@@ -114,6 +113,12 @@ public class EnvironmentDeployCliCommand
 
         string? resolvedConnectionString = ResolveConnectionString(ConnectionString);
         string? resolvedEnvironmentUrl = ResolveEnvironmentUrl(EnvironmentUrl);
+        PackageDeployerResult? deployResult = null;
+        string packageDeployerArtifactsDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "txc",
+            "package-deployer-host",
+            Guid.NewGuid().ToString("N"));
 
         if (string.IsNullOrWhiteSpace(resolvedConnectionString) && string.IsNullOrWhiteSpace(resolvedEnvironmentUrl))
         {
@@ -125,7 +130,7 @@ public class EnvironmentDeployCliCommand
 
         try
         {
-            PackageDeployerResult deployResult = await _packageDeployerRunner.RunAsync(new PackageDeployerRequest(
+            deployResult = await PackageDeployerSubprocess.RunAsync(new PackageDeployerRequest(
                 packagePath,
                 resolvedConnectionString,
                 resolvedEnvironmentUrl,
@@ -133,7 +138,9 @@ public class EnvironmentDeployCliCommand
                 Settings,
                 LogFile,
                 LogConsole,
-                Verbose));
+                Verbose,
+                packageDeployerArtifactsDirectory,
+                System.Environment.ProcessId));
 
             if (!deployResult.Succeeded)
             {
@@ -142,23 +149,23 @@ public class EnvironmentDeployCliCommand
                     Console.Error.WriteLine(deployResult.ErrorMessage);
                 }
 
-                if (!string.IsNullOrWhiteSpace(deployResult.LogFilePath))
+                if (!string.IsNullOrWhiteSpace(LogFile) && !string.IsNullOrWhiteSpace(deployResult.LogFilePath))
                 {
                     Console.Error.WriteLine($"Detailed Package Deployer log: '{deployResult.LogFilePath}'.");
                 }
 
-                if (!string.IsNullOrWhiteSpace(deployResult.CmtLogFilePath))
+                if (!string.IsNullOrWhiteSpace(LogFile) && !string.IsNullOrWhiteSpace(deployResult.CmtLogFilePath))
                 {
                     Console.Error.WriteLine($"Detailed CMT import log: '{deployResult.CmtLogFilePath}'.");
+                }
+                else if (string.IsNullOrWhiteSpace(LogFile) &&
+                    (!string.IsNullOrWhiteSpace(deployResult.LogFilePath) || !string.IsNullOrWhiteSpace(deployResult.CmtLogFilePath)))
+                {
+                    Console.Error.WriteLine("Detailed temporary logs were cleaned up. Pass --log-file to preserve them.");
                 }
 
                 Console.Error.WriteLine($"Package deploy failed. Package located at '{packagePath}'.");
                 return 1;
-            }
-
-            if (tempWorkingDirectory is not null)
-            {
-                Directory.Delete(tempWorkingDirectory, recursive: true);
             }
 
             Console.WriteLine("Package deploy completed successfully.");
@@ -175,6 +182,15 @@ public class EnvironmentDeployCliCommand
             Console.Error.WriteLine(ex.Message);
             Console.Error.WriteLine($"Package located at '{packagePath}'.");
             return 1;
+        }
+        finally
+        {
+            PackageDeployerSubprocess.TryDeleteDirectory(packageDeployerArtifactsDirectory);
+
+            if (!string.IsNullOrWhiteSpace(tempWorkingDirectory))
+            {
+                PackageDeployerSubprocess.TryDeleteDirectory(tempWorkingDirectory);
+            }
         }
     }
 

@@ -52,15 +52,8 @@ After installation, use the CLI via the `txc` command in any terminal.
 
 ## Example Usage
 
-**Start the data transformation server on the default port:**
-```sh
-txc data transform server start
-```
-
-**Convert Excel to CMT XML:**
-```sh
-txc data package convert --input export.xlsx --output data.xml
-```
+> [!IMPORTANT]
+> `txc` runs both **Dataverse Package Deployer** and **Configuration Migration Tool (CMT)** on **modern .NET**, including **Linux** and **macOS**. This makes it possible to run deployment and data import flows outside the traditional Windows-only .NET Framework tooling.
 
 **Download and deploy a Dataverse package from NuGet:**
 ```sh
@@ -69,9 +62,9 @@ txc environment deploy TALXIS.Controls.FileExplorer.Package \
   --environment "https://contoso.crm.dynamics.com"
 ```
 
-**Import CMT data package into Dataverse:**
+**Import a CMT data folder into Dataverse:**
 ```sh
-txc data package import data.zip \
+txc data package import ./data-package \
   --environment "https://contoso.crm.dynamics.com"
 ```
 
@@ -105,6 +98,11 @@ txc workspace component create pp-entity \
   --param DisplayName=Location \
   --param DisplayNamePlural=Locations \
   --param SolutionRootPath=Declarations
+```
+
+**Convert Excel to CMT XML:**
+```sh
+txc data package convert --input export.xlsx --output data.xml
 ```
 
 > [!NOTE]

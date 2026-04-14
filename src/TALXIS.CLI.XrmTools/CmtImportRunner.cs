@@ -59,9 +59,12 @@ public sealed class CmtImportRunner
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        if (!File.Exists(request.DataZipPath))
+        bool isDirectory = Directory.Exists(request.DataPath);
+        bool isFile = !isDirectory && File.Exists(request.DataPath);
+
+        if (!isDirectory && !isFile)
         {
-            return new CmtImportResult(false, $"Data package not found: '{request.DataZipPath}'");
+            return new CmtImportResult(false, $"Data package not found: '{request.DataPath}'");
         }
 
         // Register instance-level assembly resolver for any DLLs shipped
@@ -70,21 +73,42 @@ public sealed class CmtImportRunner
         AssemblyLoadContext.Default.Resolving += OnResolveAssemblyLoadContext;
 
         string? workingFolder = null;
+        // Track whether we created a temp folder that should be cleaned up.
+        bool ownsWorkingFolder = false;
         CrmServiceClient? crmServiceClient = null;
         DataverseInteractiveAuthHook? authHook = null;
 
         try
         {
-            // 1. Extract the data.zip into a temporary working directory.
-            workingFolder = Path.Combine(
-                Path.GetTempPath(),
-                "txc",
-                "cmt-import",
-                $"{Path.GetFileNameWithoutExtension(request.DataZipPath)}-{Guid.NewGuid():N}");
+            // 1. Resolve working folder — extract zip or use folder directly.
+            if (isDirectory)
+            {
+                workingFolder = request.DataPath;
 
-            Directory.CreateDirectory(workingFolder);
-            Console.WriteLine($"Extracting data package to '{workingFolder}'...");
-            ZipFile.ExtractToDirectory(request.DataZipPath, workingFolder, overwriteFiles: true);
+                // Validate the folder contains the required CMT files.
+                string schemaFile = Path.Combine(workingFolder, "data_schema.xml");
+                string dataFile = Path.Combine(workingFolder, "data.xml");
+                if (!File.Exists(schemaFile) || !File.Exists(dataFile))
+                {
+                    return new CmtImportResult(false,
+                        $"Folder '{workingFolder}' does not contain required CMT files (data.xml and data_schema.xml).");
+                }
+
+                Console.WriteLine($"Using data folder: '{workingFolder}'");
+            }
+            else
+            {
+                workingFolder = Path.Combine(
+                    Path.GetTempPath(),
+                    "txc",
+                    "cmt-import",
+                    $"{Path.GetFileNameWithoutExtension(request.DataPath)}-{Guid.NewGuid():N}");
+
+                Directory.CreateDirectory(workingFolder);
+                ownsWorkingFolder = true;
+                Console.WriteLine($"Extracting data package to '{workingFolder}'...");
+                ZipFile.ExtractToDirectory(request.DataPath, workingFolder, overwriteFiles: true);
+            }
 
             // Register extracted directory for assembly probing.
             RegisterExtractedDirectoryForProbing(workingFolder);
@@ -221,8 +245,8 @@ public sealed class CmtImportRunner
             AppDomain.CurrentDomain.AssemblyResolve -= OnResolveAssembly;
             AssemblyLoadContext.Default.Resolving -= OnResolveAssemblyLoadContext;
 
-            // Clean up extracted working directory.
-            if (workingFolder is not null)
+            // Clean up extracted working directory (only if we created it).
+            if (ownsWorkingFolder && workingFolder is not null)
             {
                 try { Directory.Delete(workingFolder, recursive: true); } catch { }
             }
