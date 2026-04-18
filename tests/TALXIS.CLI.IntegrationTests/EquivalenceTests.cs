@@ -42,6 +42,20 @@ public class EquivalenceTests
             "workspace_component_type_explain", 
             new Dictionary<string, object?> { { "Type", "pp-entity" } } 
         };
+
+        yield return new object[]
+        {
+            "workspace explain",
+            "workspace_explain",
+            new Dictionary<string, object?>()
+        };
+
+        yield return new object[]
+        {
+            "workspace component parameter list pp-entity",
+            "workspace_component_parameter_list",
+            new Dictionary<string, object?> { { "ShortName", "pp-entity" } }
+        };
     }
 
     private static string ExtractTextContent(CallToolResult result)
