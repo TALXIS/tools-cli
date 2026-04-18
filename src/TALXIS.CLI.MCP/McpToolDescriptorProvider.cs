@@ -10,12 +10,10 @@ namespace TALXIS.CLI.MCP
         /// <summary>
         /// Registers a descriptor for a MCP tool.
         /// </summary>
-        /// <param name="name">The unique name of the tool.</param>
-        /// <param name="description">A description of the tool.</param>
-        /// <param name="toolType">The <see cref="Type"/> implementing the tool.</param>
-        public void AddDescriptor(string name, string description, Type toolType)
+        /// <param name="descriptor">The tool descriptor to register.</param>
+        public void AddDescriptor(McpToolDescriptor descriptor)
         {
-            _descriptors[name] = new McpToolDescriptor { Name = name, Description = description, CliCommandClass = toolType };
+            _descriptors[descriptor.Name] = descriptor;
         }
 
         /// <summary>

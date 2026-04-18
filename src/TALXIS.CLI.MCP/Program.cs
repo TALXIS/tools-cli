@@ -1,14 +1,28 @@
+#pragma warning disable MCPEXP001
+
+using System.Collections.Concurrent;
+using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
-using TALXIS.CLI.MCP;
 using System.Reflection;
+using TALXIS.CLI.MCP;
 
 // Create a single instance of McpToolRegistry
 var mcpToolRegistry = new McpToolRegistry();
+RootsService? rootsService = null;
+
+// Per-task cancellation tracking for tasks/cancel support
+var taskCancellationTokens = new ConcurrentDictionary<string, CancellationTokenSource>();
+
+// Task store for long-running operations (experimental MCP feature)
+var taskStore = new InMemoryMcpTaskStore(
+    defaultTtl: TimeSpan.FromHours(4),
+    pollInterval: TimeSpan.FromSeconds(2)
+);
 
 try
 {
@@ -29,25 +43,36 @@ builder.Services
             Version = version
         };
         options.ServerInstructions = "This server is a wrapper for the TALXIS CLI. It provides tools for developers to implement functionality in their repository.";
+        options.TaskStore = taskStore;
+        options.SendTaskStatusNotifications = true;
         options.Capabilities = new ServerCapabilities
         {
             Tools = new ToolsCapability
             {
                 ListChanged = true
-            }
+            },
+            Logging = new LoggingCapability {}
         };
     })
     .WithListToolsHandler(ListToolsAsync)
     .WithCallToolHandler(CallToolAsync)
     .WithStdioServerTransport();
 
-    await builder.Build().RunAsync();
+    var host = builder.Build();
+    // Initialize RootsService with the McpServer instance from DI
+    var mcpServer = host.Services.GetRequiredService<McpServer>();
+    var loggerFactory = host.Services.GetService<ILoggerFactory>();
+    rootsService = new RootsService(mcpServer, loggerFactory?.CreateLogger<RootsService>());
+    await host.RunAsync();
+    return 0;
 }
 catch (Exception ex)
 {
     Console.Error.WriteLine($"Fatal error starting MCP server: {ex}");
-    Environment.Exit(1);
-}// MCP tool listing
+    return 1;
+}
+
+// MCP tool listing
 ValueTask<ListToolsResult> ListToolsAsync(RequestContext<ListToolsRequestParams> ctx, CancellationToken ct)
     => ValueTask.FromResult(new ListToolsResult { Tools = mcpToolRegistry.ListTools() });
 
@@ -61,60 +86,171 @@ async ValueTask<CallToolResult> CallToolAsync(RequestContext<CallToolRequestPara
     var cmdType = mcpToolRegistry.FindCommandTypeByToolName(toolName);
     if (cmdType == null)
         throw new McpException($"Tool '{toolName}' not found.");
-
-    var output = new StringWriter();
-    var origOut = Console.Out;
-    var origErr = Console.Error;
-    Console.SetOut(output);
-    Console.SetError(output);
     
+    // Check if client requested task-augmented execution
+    var descriptor = mcpToolRegistry.GetDescriptor(toolName);
+    if (p?.Task is { } taskMetadata && descriptor?.SupportsTaskExecution == true)
+    {
+        return await ExecuteAsTaskAsync(ctx, toolName, cmdType, taskMetadata, ct);
+    }
+
     try
     {
         // Check if this is an MCP-specific tool (not part of the main CLI hierarchy)
         if (IsMcpSpecificTool(toolName))
         {
-            // Execute MCP-specific tools directly
-            var exitCode = await ExecuteMcpSpecificToolAsync(cmdType, p?.Arguments, ct);
-            Console.Out.Flush();
-            Console.Error.Flush();
-            if (exitCode != 0)
-            {
-                return new CallToolResult {
-                    Content = [new TextContentBlock { Text = output.ToString() }],
-                    IsError = true
-                };
-            }
+            return await ExecuteMcpSpecificToolWithCapturedOutputAsync(cmdType, p?.Arguments, ct);
         }
-        else
+
+        var cliCommandAdapter = new CliCommandAdapter();
+        IReadOnlyDictionary<string, System.Text.Json.JsonElement>? cliArguments = p?.Arguments is null
+            ? null
+            : new Dictionary<string, System.Text.Json.JsonElement>(p.Arguments);
+        var cliArgs = cliCommandAdapter.BuildCliArgs(toolName, cliArguments);
+
+        // Create a per-request log forwarder that streams subprocess logs to the MCP client
+        var mcpLoggerProvider = ctx.Server.AsClientLoggerProvider();
+        var mcpLogger = mcpLoggerProvider.CreateLogger($"txc.{toolName}");
+        var progressToken = ctx.Params?.ProgressToken;
+        var logForwarder = new McpLogForwarder(mcpLogger, ctx.Server, progressToken);
+
+        mcpLogger.LogInformation("Starting tool: {ToolName}", toolName);
+
+        // Resolve working directory from client roots (lazy, cached)
+        string? workingDirectory = rootsService is not null
+            ? await rootsService.GetWorkingDirectoryAsync(ct)
+            : null;
+
+        CliSubprocessResult result = await CliSubprocessRunner.RunAsync(cliArgs, logForwarder, ct, workingDirectory);
+
+        mcpLogger.LogInformation("Tool completed: {ToolName} (exit code {ExitCode})", toolName, result.ExitCode);
+
+        // When the tool fails and stdout is empty, include error log messages in the result
+        // so the client can display them (log notifications may not be visible in all clients)
+        var resultText = result.Output;
+        if (result.ExitCode != 0 && string.IsNullOrWhiteSpace(resultText) && !string.IsNullOrWhiteSpace(result.LastErrors))
         {
-            // Execute regular CLI commands through the main CLI
-            var cliCommandAdapter = new CliCommandAdapter();
-            IReadOnlyDictionary<string, System.Text.Json.JsonElement>? cliArguments = p?.Arguments is null
-                ? null
-                : new Dictionary<string, System.Text.Json.JsonElement>(p.Arguments);
-            var cliArgs = cliCommandAdapter.BuildCliArgs(toolName, cliArguments);
-            var exitCode = await TALXIS.CLI.Program.RunCli(cliArgs.ToArray());
-            Console.Out.Flush();
-            Console.Error.Flush();
-            if (exitCode != 0)
-            {
-                return new CallToolResult {
-                    Content = [new TextContentBlock { Text = output.ToString() }],
-                    IsError = true
-                };
-            }
+            resultText = result.LastErrors;
         }
+
+        return new CallToolResult
+        {
+            Content = [new TextContentBlock { Text = resultText }],
+            IsError = result.ExitCode != 0
+        };
+    }
+    catch (OperationCanceledException) when (ct.IsCancellationRequested)
+    {
+        throw;
     }
     catch (Exception ex)
     {
         return new CallToolResult { Content = [new TextContentBlock { Text = ex.ToString() }], IsError = true };
     }
-    finally
+
+}
+
+// Execute a tool call as an MCP task (call-now, fetch-later pattern)
+async ValueTask<CallToolResult> ExecuteAsTaskAsync(
+    RequestContext<CallToolRequestParams> ctx,
+    string toolName,
+    Type cmdType,
+    McpTaskMetadata taskMetadata,
+    CancellationToken ct)
+{
+    var p = ctx.Params;
+    var server = ctx.Server;
+
+    // Create the task in the store
+    var mcpTask = await taskStore.CreateTaskAsync(
+        taskMetadata,
+        ctx.JsonRpcRequest.Id,
+        ctx.JsonRpcRequest,
+        server.SessionId,
+        ct);
+
+    // Create a per-task CTS so tasks/cancel can stop the subprocess
+    var taskCts = CancellationTokenSource.CreateLinkedTokenSource(CancellationToken.None);
+    taskCancellationTokens[mcpTask.TaskId] = taskCts;
+
+    // Fire-and-forget: run the tool in the background
+    _ = Task.Run(async () =>
     {
-        Console.SetOut(origOut);
-        Console.SetError(origErr);
-    }
-    return new CallToolResult { Content = [new TextContentBlock { Text = output.ToString() }], IsError = false };
+        try
+        {
+            // Mark task as working
+            var workingTask = await taskStore.UpdateTaskStatusAsync(
+                mcpTask.TaskId, McpTaskStatus.Working, null, server.SessionId, CancellationToken.None);
+            await server.NotifyTaskStatusAsync(workingTask, CancellationToken.None);
+
+            // Build CLI args and run subprocess
+            var cliCommandAdapter = new CliCommandAdapter();
+            IReadOnlyDictionary<string, System.Text.Json.JsonElement>? cliArguments = p?.Arguments is null
+                ? null
+                : new Dictionary<string, System.Text.Json.JsonElement>(p.Arguments);
+            var cliArgs = cliCommandAdapter.BuildCliArgs(toolName, cliArguments);
+
+            var mcpLoggerProvider = server.AsClientLoggerProvider();
+            var mcpLogger = mcpLoggerProvider.CreateLogger($"txc.{toolName}");
+            var logForwarder = new McpLogForwarder(mcpLogger);
+
+            mcpLogger.LogInformation("Starting task-augmented tool: {ToolName} (taskId: {TaskId})", toolName, mcpTask.TaskId);
+
+            string? workingDirectory = rootsService is not null
+                ? await rootsService.GetWorkingDirectoryAsync(taskCts.Token)
+                : null;
+
+            CliSubprocessResult result = await CliSubprocessRunner.RunAsync(cliArgs, logForwarder, taskCts.Token, workingDirectory);
+
+            mcpLogger.LogInformation("Task completed: {ToolName} (exit code {ExitCode}, taskId: {TaskId})", toolName, result.ExitCode, mcpTask.TaskId);
+
+            var taskResultText = result.Output;
+            if (result.ExitCode != 0 && string.IsNullOrWhiteSpace(taskResultText) && !string.IsNullOrWhiteSpace(result.LastErrors))
+            {
+                taskResultText = result.LastErrors;
+            }
+
+            var callToolResult = new CallToolResult
+            {
+                Content = [new TextContentBlock { Text = taskResultText }],
+                IsError = result.ExitCode != 0
+            };
+
+            var finalStatus = result.ExitCode != 0 ? McpTaskStatus.Failed : McpTaskStatus.Completed;
+            var resultElement = System.Text.Json.JsonSerializer.SerializeToElement(callToolResult);
+            var finalTask = await taskStore.StoreTaskResultAsync(
+                mcpTask.TaskId, finalStatus, resultElement, server.SessionId, CancellationToken.None);
+            await server.NotifyTaskStatusAsync(finalTask, CancellationToken.None);
+        }
+        catch (OperationCanceledException) when (taskCts.Token.IsCancellationRequested)
+        {
+            // Task was cancelled — store handles status via tasks/cancel handler
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                var errorResult = new CallToolResult
+                {
+                    IsError = true,
+                    Content = [new TextContentBlock { Text = $"Task execution failed: {ex.Message}" }]
+                };
+                var errorElement = System.Text.Json.JsonSerializer.SerializeToElement(errorResult);
+                var failedTask = await taskStore.StoreTaskResultAsync(
+                    mcpTask.TaskId, McpTaskStatus.Failed, errorElement, server.SessionId, CancellationToken.None);
+                await server.NotifyTaskStatusAsync(failedTask, CancellationToken.None);
+            }
+            catch { /* Best effort */ }
+        }
+        finally
+        {
+            taskCancellationTokens.TryRemove(mcpTask.TaskId, out _);
+            taskCts.Dispose();
+        }
+    }, CancellationToken.None);
+
+    // Return immediately with task handle
+    return new CallToolResult { Task = mcpTask };
 }
 
 // Helper method to check if a tool is MCP-specific
@@ -156,11 +292,11 @@ async Task<int> ExecuteMcpSpecificToolAsync(Type commandType, IDictionary<string
             var result = runMethod.Invoke(command, new object?[] { null });
             if (result is Task<int> taskResult)
             {
-                return await taskResult;
+                return await taskResult.WaitAsync(ct);
             }
             else if (result is Task task)
             {
-                await task;
+                await task.WaitAsync(ct);
                 return 0;
             }
         }
@@ -176,10 +312,43 @@ async Task<int> ExecuteMcpSpecificToolAsync(Type commandType, IDictionary<string
 
         throw new InvalidOperationException($"No suitable Run or RunAsync method found on {commandType.FullName}");
     }
+    catch (OperationCanceledException) when (ct.IsCancellationRequested)
+    {
+        throw;
+    }
     catch (Exception ex)
     {
         Console.WriteLine($"Error executing MCP-specific tool: {ex.Message}");
         return 1;
+    }
+}
+
+async Task<CallToolResult> ExecuteMcpSpecificToolWithCapturedOutputAsync(Type commandType, IDictionary<string, System.Text.Json.JsonElement>? arguments, CancellationToken ct)
+{
+    var output = new StringWriter();
+
+    // Redirect OutputWriter (result data) to our capture buffer.
+    // In-process MCP tools use OutputWriter.WriteLine() for result data.
+    using var redirect = TALXIS.CLI.Shared.OutputWriter.RedirectTo(output);
+
+    try
+    {
+        var exitCode = await ExecuteMcpSpecificToolAsync(commandType, arguments, ct);
+        output.Flush();
+
+        return new CallToolResult
+        {
+            Content = [new TextContentBlock { Text = output.ToString() }],
+            IsError = exitCode != 0
+        };
+    }
+    catch (Exception ex)
+    {
+        return new CallToolResult
+        {
+            Content = [new TextContentBlock { Text = ex.ToString() }],
+            IsError = true
+        };
     }
 }
 

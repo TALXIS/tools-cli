@@ -17,10 +17,15 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <NoWarn>$(NoWarn);MCPEXP001</NoWarn>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <Copyright>© 2025 NETWORG Corporation - MIT License</Copyright>
   </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="TALXIS.CLI.Tests" />
+  </ItemGroup>
 
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="" />
@@ -32,5 +37,6 @@
     <PackageReference Include="ModelContextProtocol" Version="1.2.0" />
     <ProjectReference Include="../TALXIS.CLI/TALXIS.CLI.csproj" />
     <ProjectReference Include="../TALXIS.CLI.Data/TALXIS.CLI.Data.csproj" />
+    <ProjectReference Include="../TALXIS.CLI.Logging/TALXIS.CLI.Logging.csproj" />
   </ItemGroup>
 </Project>
