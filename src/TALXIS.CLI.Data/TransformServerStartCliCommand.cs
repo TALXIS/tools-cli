@@ -1,4 +1,6 @@
 using DotMake.CommandLine;
+using Microsoft.Extensions.Logging;
+using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Data;
 
@@ -11,6 +13,7 @@ namespace TALXIS.CLI.Data;
 )]
 public class TransformServerStartCliCommand
 {
+    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(TransformServerStartCliCommand));
     [CliOption(Description = "Optional. Port to run the server on (default: 50505)")]
     public int Port { get; set; } = 50505;
 
@@ -22,7 +25,7 @@ public class TransformServerStartCliCommand
             cts.Cancel();
         };
         var server = new DataTransformationServer(Port);
-        Console.WriteLine($"Press Ctrl+C to stop the server.");
+        _logger.LogInformation("Press Ctrl+C to stop the server");
         await server.StartAsync(cts.Token);
         return 0;
     }

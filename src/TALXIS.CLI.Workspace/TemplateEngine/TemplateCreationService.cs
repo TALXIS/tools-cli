@@ -1,6 +1,8 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.TemplateEngine.Abstractions;
 using Microsoft.TemplateEngine.Edge.Template;
 using Microsoft.TemplateEngine.Utils;
+using TALXIS.CLI.Logging;
 using CreationResultStatus = Microsoft.TemplateEngine.Edge.Template.CreationResultStatus;
 using ITemplateCreationResult = Microsoft.TemplateEngine.Edge.Template.ITemplateCreationResult;
 
@@ -11,6 +13,7 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
     /// </summary>
     public class TemplateCreationService
     {
+        private static readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(TemplateCreationService));
         private readonly TemplateDiscoveryService _templateDiscoveryService;
         private readonly TemplateParameterValidator _parameterValidator;
         private readonly TemplateCreator _templateCreator;
@@ -174,13 +177,13 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
             switch (result.Status)
             {
                 case CreationResultStatus.Success:
-                    Console.WriteLine("Template created successfully.");
+                    _logger.LogInformation("Template created successfully");
                     
                     // Execute post-actions if any using the proper PostActionDispatcher
                     var postActions = result.CreationResult?.PostActions;
                     if (postActions != null && postActions.Count > 0)
                     {
-                        Console.WriteLine($"Executing {postActions.Count} post-action(s)...");
+                        _logger.LogInformation("Executing {Count} post-action(s)...", postActions.Count);
                         
                         // Use the existing PostActionDispatcher implementation
                         var dispatcher = new PostActionDispatcher(
@@ -199,7 +202,7 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
                         if ((postActionResult & PostActionResult.Failure) != 0)
                         {
                             // Some post-actions failed but we still return success for template creation
-                            Console.WriteLine($"\n⚠️  Some post-actions failed. Template was created successfully but setup may be incomplete.");
+                            _logger.LogWarning("Some post-actions failed. Template was created successfully but setup may be incomplete");
                             return Task.FromResult(new TemplateScaffoldResult { Success = true, FailedActions = failedActions });
                         }
                     }

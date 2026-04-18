@@ -1,10 +1,13 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.TemplateEngine.Abstractions;
+using TALXIS.CLI.Logging;
 
 
 namespace TALXIS.CLI.Workspace.TemplateEngine
 {
     public class AddReferencePostActionProcessor : IPostActionProcessor
     {
+        private static readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(AddReferencePostActionProcessor));
         public Guid ActionId => new Guid("B17581D1-C5C9-4489-8F0A-004BE667B814");
 
         public bool Process(IEngineEnvironmentSettings environment, IPostAction action)
@@ -13,7 +16,7 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
             var args = action.Args;
             if (!args.TryGetValue("projectFile", out var projectFile) || !args.TryGetValue("referenceFile", out var referenceFile))
             {
-                Console.Error.WriteLine("Add reference post-action missing required arguments.");
+                _logger.LogError("Add reference post-action missing required arguments");
                 return false;
             }
             try
@@ -36,14 +39,14 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
                 process.WaitForExit();
                 if (process.ExitCode != 0)
                 {
-                    Console.Error.WriteLine($"dotnet add reference exited with code {process.ExitCode}.");
+                    _logger.LogError("dotnet add reference exited with code {ExitCode}", process.ExitCode);
                     return false;
                 }
                 return true;
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Failed to add reference: {ex.Message}");
+                _logger.LogError("Failed to add reference: {Message}", ex.Message);
                 return false;
             }
         }

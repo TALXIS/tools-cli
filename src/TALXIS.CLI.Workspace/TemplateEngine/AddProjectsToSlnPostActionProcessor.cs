@@ -1,5 +1,7 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.TemplateEngine.Abstractions;
 using Microsoft.TemplateEngine.Edge.Template;
+using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Workspace.TemplateEngine
 {
@@ -9,6 +11,7 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
     /// </summary>
     public class AddProjectsToSlnPostActionProcessor : IPostActionProcessor
     {
+        private static readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(AddProjectsToSlnPostActionProcessor));
         public Guid ActionId => new Guid("D396686C-DE0E-4DE6-906D-291CD29FC5DE");
 
         public bool Process(IEngineEnvironmentSettings environment, IPostAction action)
@@ -22,11 +25,11 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
         /// </summary>
         public bool ProcessInternal(IEngineEnvironmentSettings environment, IPostAction action, ICreationEffects creationEffects, ICreationResult? templateCreationResult, string outputBasePath)
         {
-            Console.WriteLine($"[AddProjectsToSln] Processing with output path: {outputBasePath}");
+            _logger.LogInformation("Processing with output path: {OutputPath}", outputBasePath);
             
             if (templateCreationResult == null)
             {
-                Console.Error.WriteLine("❌ templateCreationResult is null - cannot process primary outputs");
+                _logger.LogError("templateCreationResult is null - cannot process primary outputs");
                 return false;
             }
             
@@ -37,7 +40,7 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
                 
                 if (string.IsNullOrEmpty(slnFile) || !projectFiles.Any())
                 {
-                    Console.Error.WriteLine("❌ No solution file or project files found to process.");
+                    _logger.LogError("No solution file or project files found to process");
                     return false;
                 }
 
@@ -46,7 +49,7 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"❌ Failed to add projects to solution: {ex.Message}");
+                _logger.LogError("Failed to add projects to solution: {Message}", ex.Message);
                 return false;
             }
         }
@@ -61,7 +64,7 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
             var foundSlnFile = FindSolutionFile(outputBasePath);
             if (foundSlnFile == null)
             {
-                Console.Error.WriteLine("❌ No solution file found.");
+                _logger.LogError("No solution file found");
                 return (null, Enumerable.Empty<string>());
             }
 
@@ -69,7 +72,7 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
             var projectFiles = GetProjectFilesFromPrimaryOutputs(action, templateCreationResult, outputBasePath);
             if (!projectFiles.Any())
             {
-                Console.Error.WriteLine("❌ No project files found to add.");
+                _logger.LogError("No project files found to add");
                 return (null, Enumerable.Empty<string>());
             }
 
@@ -79,11 +82,11 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
                 action.Args.TryGetValue("solutionFolder", out var solutionFolder) &&
                 !string.IsNullOrWhiteSpace(solutionFolder))
             {
-                Console.Error.WriteLine("❌ Cannot specify both inRoot=true and solutionFolder.");
+                _logger.LogError("Cannot specify both inRoot=true and solutionFolder");
                 return (null, Enumerable.Empty<string>());
             }
 
-            Console.WriteLine($"✅ Found solution and {projectFiles.Count()} project file(s) to add");
+            _logger.LogInformation("Found solution and {Count} project file(s) to add", projectFiles.Count());
             return (foundSlnFile, projectFiles);
         }
 
@@ -150,14 +153,14 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
             var projectFilesList = projectFiles.ToList();
             if (!projectFilesList.Any())
             {
-                Console.Error.WriteLine("❌ No project files to add.");
+                _logger.LogError("No project files to add");
                 return false;
             }
 
             var projectArgs = string.Join(" ", projectFilesList.Select(f => $"\"{f}\""));
             var command = $"sln \"{slnFile}\" add {projectArgs}";
             
-            Console.WriteLine($"Running: dotnet {command}");
+            _logger.LogInformation("Running: dotnet {Command}", command);
 
             var process = new System.Diagnostics.Process
             {
@@ -178,15 +181,15 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
 
             if (process.ExitCode == 0)
             {
-                Console.WriteLine($"✅ Successfully added {projectFilesList.Count} project(s) to solution.");
+                _logger.LogInformation("Successfully added {Count} project(s) to solution", projectFilesList.Count);
                 return true;
             }
 
             var stdout = process.StandardOutput.ReadToEnd();
             var stderr = process.StandardError.ReadToEnd();
-            Console.Error.WriteLine($"❌ dotnet sln add failed (exit code {process.ExitCode})");
-            if (!string.IsNullOrEmpty(stdout)) Console.Error.WriteLine($"stdout: {stdout}");
-            if (!string.IsNullOrEmpty(stderr)) Console.Error.WriteLine($"stderr: {stderr}");
+            _logger.LogError("dotnet sln add failed (exit code {ExitCode})", process.ExitCode);
+            if (!string.IsNullOrEmpty(stdout)) _logger.LogError("stdout: {Output}", stdout);
+            if (!string.IsNullOrEmpty(stderr)) _logger.LogError("stderr: {Output}", stderr);
             
             return false;
         }

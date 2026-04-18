@@ -1,5 +1,8 @@
 using System.CommandLine.Completions;
 using DotMake.CommandLine;
+using Microsoft.Extensions.Logging;
+using TALXIS.CLI.Logging;
+using TALXIS.CLI.Shared;
 using TALXIS.CLI.Workspace.TemplateEngine;
 namespace TALXIS.CLI.Workspace;
 
@@ -8,6 +11,7 @@ namespace TALXIS.CLI.Workspace;
     Name = "create")]
 public class ComponentCreateCliCommand : ICliGetCompletions
 {
+    private static readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ComponentCreateCliCommand));
     [CliArgument(Description = "Type of the component (e.g. 'pp-entity')")]
     public required string Type { get; set; }
 
@@ -44,18 +48,18 @@ public class ComponentCreateCliCommand : ICliGetCompletions
             var (success, failedActions) = await scaffolder.ScaffoldAsync(Type, OutputPath, parameters);
             if (success)
             {
-                Console.WriteLine($"Component scaffolded to '{OutputPath}' using template '{Type}'.");
+                OutputWriter.WriteLine($"Component scaffolded to {OutputPath} using template {Type}");
                 return 0;
             }
             else
             {
-                Console.Error.WriteLine($"Component scaffolded, but one or more post-actions failed. See errors above.");
+                _logger.LogError("Component scaffolded, but one or more post-actions failed. See errors above.");
                 if (failedActions.Count > 0)
                 {
-                    Console.Error.WriteLine("\nSummary of failed post-actions:");
+                    _logger.LogError("Summary of failed post-actions:");
                     foreach (var failed in failedActions)
                     {
-                        Console.Error.WriteLine($"- {failed.Description ?? failed.ActionId.ToString()}");
+                        _logger.LogError("- {FailedAction}", failed.Description ?? failed.ActionId.ToString());
                     }
                 }
                 return 1;
@@ -63,12 +67,12 @@ public class ComponentCreateCliCommand : ICliGetCompletions
         }
         catch (ArgumentException ex) when (ex.Message.Contains("Parameter validation failed"))
         {
-            Console.Error.WriteLine($"Error: {ex.Message}");
+            _logger.LogError("Error: {Message}", ex.Message);
             return 1;
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("parameter") || ex.Message.Contains("Creation failed"))
         {
-            Console.Error.WriteLine($"Error: {ex.Message}");
+            _logger.LogError("Error: {Message}", ex.Message);
             return 1;
         }
     }
@@ -89,7 +93,7 @@ public class ComponentCreateCliCommand : ICliGetCompletions
                 }
                 catch (Exception ex)
                 {
-                    Console.Error.WriteLine($"Error fetching completions: {ex.Message}");
+                    _logger.LogError("Error fetching completions: {Message}", ex.Message);
                 }
                 break;
         }

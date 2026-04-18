@@ -7,14 +7,17 @@ using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Linq;
 using System.Xml.Serialization;
+using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Data.DataModelConverter.Extensions;
 using TALXIS.CLI.Data.DataModelConverter.Model;
 using TALXIS.CLI.Data.DataModelConverter.Translators;
+using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Data.DataModelConverter;
 
 public class DataModelConverterService
 {
+    private static readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(DataModelConverterService));
     private static readonly string[] SupportedFormats = ["dbml", "sql", "edmx", "ribbon"];
 
     /// <summary>
@@ -274,7 +277,7 @@ public class DataModelConverterService
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error loading {file}: {ex.Message}");
+                _logger.LogError(ex, "Error loading {File}", file);
             }
         }
 
@@ -292,7 +295,7 @@ public class DataModelConverterService
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error loading {file}: {ex.Message}");
+                _logger.LogError(ex, "Error loading {File}", file);
             }
         }
 
@@ -310,7 +313,7 @@ public class DataModelConverterService
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error loading {file}: {ex.Message}");
+                _logger.LogError(ex, "Error loading {File}", file);
             }
         }
 
@@ -394,7 +397,7 @@ public class DataModelConverterService
 
         foreach (var module in modules)
         {
-            Console.WriteLine($"Parsing {module.ModuleName} with {module.relationships.Count} relationships");
+            _logger.LogInformation("Parsing {ModuleName} with {Count} relationships", module.ModuleName, module.relationships.Count);
 
             foreach (var relationship in module.relationships)
             {
@@ -515,7 +518,7 @@ public class DataModelConverterService
 
         foreach (var module in modules)
         {
-            Console.WriteLine($"Parsing {module.ModuleName} with {module.optionsets.Count} option sets");
+            _logger.LogInformation("Parsing {ModuleName} with {Count} option sets", module.ModuleName, module.optionsets.Count);
             foreach (var optionsetXElement in module.optionsets)
             {
 
@@ -566,7 +569,7 @@ public class DataModelConverterService
 
         foreach (var module in modules)
         {
-            Console.WriteLine($"Parsing {module.ModuleName} with {module.entities.Count} entities");
+            _logger.LogInformation("Parsing {ModuleName} with {Count} entities", module.ModuleName, module.entities.Count);
 
             foreach (var entityXmlElement in module.entities)
             {

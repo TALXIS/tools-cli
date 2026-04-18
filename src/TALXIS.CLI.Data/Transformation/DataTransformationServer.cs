@@ -1,5 +1,6 @@
 using System.Net;
 using TALXIS.CLI.Data.DataServer;
+using TALXIS.CLI.Shared;
 
 namespace TALXIS.CLI.Data;
 
@@ -20,7 +21,7 @@ public class DataTransformationServer
     {
         _isRunning = true;
         _listener.Start();
-        Console.WriteLine($"Data Transformation server running on http://localhost:{_port}/");
+        OutputWriter.WriteLine($"Data Transformation server running on http://localhost:{_port}/");
         while (_isRunning && !cancellationToken.IsCancellationRequested)
         {
             var context = await _listener.GetContextAsync();

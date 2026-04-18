@@ -80,7 +80,18 @@ public static class PackageDeployerSubprocess
 
             using Process process = StartSubprocess(requestPath, resultPath);
             using Process cleanupHelper = StartCleanupHelper(coordinatorDirectory, temporaryArtifactsDirectory, process.Id);
-            await process.WaitForExitAsync(cancellationToken);
+            try
+            {
+                await process.WaitForExitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                TryKillProcessTree(process);
+                TryKillProcess(cleanupHelper);
+                await WaitForExitIgnoringErrorsAsync(process);
+                await WaitForExitIgnoringErrorsAsync(cleanupHelper);
+                throw;
+            }
 
             if (!File.Exists(resultPath))
             {
@@ -237,6 +248,49 @@ public static class PackageDeployerSubprocess
     {
         string fileName = Path.GetFileNameWithoutExtension(processPath);
         return string.Equals(fileName, "dotnet", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void TryKillProcessTree(Process process)
+    {
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+        catch (InvalidOperationException)
+        {
+        }
+        catch (NotSupportedException)
+        {
+            TryKillProcess(process);
+        }
+    }
+
+    private static void TryKillProcess(Process process)
+    {
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill();
+            }
+        }
+        catch (InvalidOperationException)
+        {
+        }
+    }
+
+    private static async Task WaitForExitIgnoringErrorsAsync(Process process)
+    {
+        try
+        {
+            await process.WaitForExitAsync();
+        }
+        catch (InvalidOperationException)
+        {
+        }
     }
 
     private static async Task<int?> RunCleanupHelperAsync(string[] args)

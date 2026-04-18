@@ -1,5 +1,6 @@
 using DotMake.CommandLine;
 using TALXIS.CLI.Data.DataModelConverter;
+using TALXIS.CLI.Shared;
 
 namespace TALXIS.CLI.Data;
 
@@ -46,7 +47,7 @@ public class DataModelConvertCliCommand
 
         DataModelConverterService.ConvertModel(inputPath, TargetFormat!, outputFilePath);
 
-        Console.WriteLine($"Output written to: {outputFilePath}");
+        OutputWriter.WriteLine($"Output written to: {outputFilePath}");
         return 0;
     }
 

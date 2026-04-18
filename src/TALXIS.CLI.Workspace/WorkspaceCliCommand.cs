@@ -1,4 +1,5 @@
 using DotMake.CommandLine;
+using TALXIS.CLI.Shared;
 
 namespace TALXIS.CLI.Workspace;
 
@@ -25,7 +26,7 @@ public class WorkspaceCliCommand
     {
         public void Run(CliContext context)
         {
-            Console.WriteLine(
+            OutputWriter.WriteLine(
       @"Repository Structure Overview
 
 This repository is organized as a monorepo based on the .NET project system. It uses a Visual Studio solution file (.sln) to track all projects, and each project is defined by its own project file (.csproj, .cdsproj, or other .(x)proj formats). All projects are built using MSBuild.

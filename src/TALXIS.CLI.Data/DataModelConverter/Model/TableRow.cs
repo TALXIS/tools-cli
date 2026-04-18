@@ -3,13 +3,17 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Xml.Linq;
+using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Data.DataModelConverter.Extensions;
+using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Data.DataModelConverter.Model;
 
 
 public class TableRow
 {
+    private static readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(TableRow));
+
     public TableRow(string name, RowType rowType)
     {
         Name = name;
@@ -101,7 +105,7 @@ public class TableRow
 
                 if (!Enum.TryParse<RowType>(typeValue.FirstCharToUpper(), out rowType))
                 {
-                    Console.WriteLine($"Warning: Unknown attribute type '{typeValue}' on '{attribute.Attribute("PhysicalName")?.Value}'. Skipping.");
+                    _logger.LogWarning("Unknown attribute type {TypeValue} on {AttributeName}. Skipping", typeValue, attribute.Attribute("PhysicalName")?.Value);
                     return null;
                 }
                 break;

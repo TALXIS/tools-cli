@@ -1,4 +1,5 @@
 using DotMake.CommandLine;
+using TALXIS.CLI.Shared;
 
 namespace TALXIS.CLI.Workspace;
 
@@ -20,7 +21,7 @@ public class ProjectCliCommand
     {
         public void Run(CliContext context)
         {
-            Console.WriteLine(
+            OutputWriter.WriteLine(
       @"Use of projects in this repository
 
 Project Types Supported:

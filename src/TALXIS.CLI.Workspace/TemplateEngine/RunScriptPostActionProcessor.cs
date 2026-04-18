@@ -1,6 +1,8 @@
 using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 using Microsoft.TemplateEngine.Abstractions;
 using Microsoft.TemplateEngine.Abstractions.PhysicalFileSystem;
+using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Workspace.TemplateEngine
 {
@@ -10,6 +12,7 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
     /// </summary>
     public class RunScriptPostActionProcessor : IPostActionProcessor
     {
+        private static readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(RunScriptPostActionProcessor));
         internal static readonly Guid ActionProcessorId = new Guid("3A7C4B45-1F5D-4A30-959A-51B88E82B5D2");
 
         public Guid ActionId => ActionProcessorId;
@@ -31,7 +34,7 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
             var args = action.Args;
             if (!args.TryGetValue("executable", out var executable))
             {
-                Console.Error.WriteLine("[RunScript] Error: Script post-action missing 'executable' argument.");
+                _logger.LogError("[RunScript] Script post-action missing 'executable' argument");
                 return false;
             }
             
@@ -49,7 +52,7 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
 
             try
             {
-                Console.WriteLine($"[RunScript] Executing: {executable} {scriptArgs} in {workingDir}");
+                _logger.LogInformation("[RunScript] Executing: {Executable} {Args} in {WorkDir}", executable, scriptArgs, workingDir);
                 
                 // Resolve executable path like the official .NET SDK
                 string resolvedExecutablePath = ResolveExecutableFilePath(environment.Host.FileSystem, executable, outputBasePath);
@@ -63,7 +66,7 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"[RunScript] Error: Failed to run script - {ex.Message}");
+                _logger.LogError("[RunScript] Failed to run script - {Message}", ex.Message);
                 return false;
             }
         }
@@ -127,15 +130,15 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
         {
             if (!string.IsNullOrWhiteSpace(stdOut))
             {
-                Console.WriteLine($"[RunScript][stdout]:\n{stdOut}");
+                _logger.LogInformation("[RunScript][stdout]:\n{Output}", stdOut);
             }
             
             if (!string.IsNullOrWhiteSpace(stdErr))
             {
-                Console.Error.WriteLine($"[RunScript][stderr]:\n{stdErr}");
+                _logger.LogError("[RunScript][stderr]:\n{Output}", stdErr);
             }
             
-            Console.WriteLine($"[RunScript] Process exited with code: {exitCode}");
+            _logger.LogInformation("[RunScript] Process exited with code: {ExitCode}", exitCode);
         }
 
         /// <summary>
@@ -145,14 +148,14 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
         {
             if (exitCode != 0)
             {
-                Console.Error.WriteLine($"[RunScript] Error: Script failed with exit code {exitCode}");
+                _logger.LogError("[RunScript] Script failed with exit code {ExitCode}", exitCode);
                 return false;
             }
 
             // Check for PowerShell errors that may not set exit code
             if (HasCriticalErrors(stdErr))
             {
-                Console.Error.WriteLine("[RunScript] Error: Script completed with exit code 0 but had critical errors");
+                _logger.LogError("[RunScript] Script completed with exit code 0 but had critical errors");
                 return false;
             }
 

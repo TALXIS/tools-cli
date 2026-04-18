@@ -1,4 +1,5 @@
 using DotMake.CommandLine;
+using TALXIS.CLI.Shared;
 using TALXIS.CLI.Workspace.TemplateEngine;
 
 namespace TALXIS.CLI.Workspace;
@@ -15,13 +16,13 @@ public class ComponentTypeListCliCommand
         var templates = await scaffolder.ListTemplatesAsync();
         if (templates == null || !templates.Any())
         {
-            Console.WriteLine("No components available.");
+            OutputWriter.WriteLine("No components available.");
             return 0;
         }
         foreach (var template in templates)
         {
             var description = string.IsNullOrWhiteSpace(template.Description) ? "" : $" - {template.Description}";
-            Console.WriteLine($"- {template.ShortNameList.FirstOrDefault()}{description}");
+            OutputWriter.WriteLine($"- {template.ShortNameList.FirstOrDefault()}{description}");
         }
         return 0;
     }

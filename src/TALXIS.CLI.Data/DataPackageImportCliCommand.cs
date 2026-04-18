@@ -1,5 +1,7 @@
 using System.ComponentModel;
 using DotMake.CommandLine;
+using Microsoft.Extensions.Logging;
+using TALXIS.CLI.Logging;
 using TALXIS.CLI.XrmTools;
 
 namespace TALXIS.CLI.Data;
@@ -11,6 +13,7 @@ namespace TALXIS.CLI.Data;
 public class DataPackageImportCliCommand
 {
     private readonly CmtImportRunner _cmtImportRunner = new();
+    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(DataPackageImportCliCommand));
 
     [CliArgument(Description = "Path to the CMT data package (.zip file or folder containing data.xml and data_schema.xml)")]
     public required string Data { get; set; }
@@ -35,13 +38,13 @@ public class DataPackageImportCliCommand
     {
         if (string.IsNullOrWhiteSpace(Data))
         {
-            Console.Error.WriteLine("A path to a CMT data package (.zip or folder) must be provided.");
+            _logger.LogError("A path to a CMT data package (.zip or folder) must be provided.");
             return 1;
         }
 
         if (!File.Exists(Data) && !Directory.Exists(Data))
         {
-            Console.Error.WriteLine($"Data package not found: '{Data}'");
+            _logger.LogError("Data package not found: {DataPath}", Data);
             return 1;
         }
 
@@ -50,8 +53,7 @@ public class DataPackageImportCliCommand
 
         if (string.IsNullOrWhiteSpace(resolvedConnectionString) && string.IsNullOrWhiteSpace(resolvedEnvironmentUrl))
         {
-            Console.Error.WriteLine(
-                "Dataverse authentication is required. Pass --connection-string, pass --environment for interactive sign-in, or set DATAVERSE_CONNECTION_STRING / TXC_DATAVERSE_CONNECTION_STRING / DATAVERSE_ENVIRONMENT_URL / TXC_DATAVERSE_ENVIRONMENT_URL.");
+            _logger.LogError("Dataverse authentication is required. Pass --connection-string, pass --environment for interactive sign-in, or set DATAVERSE_CONNECTION_STRING / TXC_DATAVERSE_CONNECTION_STRING / DATAVERSE_ENVIRONMENT_URL / TXC_DATAVERSE_ENVIRONMENT_URL.");
             return 1;
         }
 
@@ -69,20 +71,20 @@ public class DataPackageImportCliCommand
             {
                 if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
                 {
-                    Console.Error.WriteLine(result.ErrorMessage);
+                    _logger.LogError("{ErrorMessage}", result.ErrorMessage);
                 }
 
-                Console.Error.WriteLine($"Data import failed. Data package: '{Path.GetFullPath(Data)}'.");
+                _logger.LogError("Data import failed. Data package: {DataPath}", Path.GetFullPath(Data));
                 return 1;
             }
 
-            Console.WriteLine("Data import completed successfully.");
+            _logger.LogInformation("Data import completed successfully.");
             return 0;
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine(ex.Message);
-            Console.Error.WriteLine($"Data package: '{Path.GetFullPath(Data)}'.");
+            _logger.LogError(ex, "Data import failed");
+            _logger.LogError("Data package: {DataPath}", Path.GetFullPath(Data));
             return 1;
         }
     }
