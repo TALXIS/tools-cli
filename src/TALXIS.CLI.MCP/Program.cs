@@ -1,6 +1,5 @@
 #pragma warning disable MCPEXP001
 
-using System.Collections.Concurrent;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -15,14 +14,11 @@ using TALXIS.CLI.MCP;
 var mcpToolRegistry = new McpToolRegistry();
 RootsService? rootsService = null;
 
-// Per-task cancellation tracking for tasks/cancel support
-var taskCancellationTokens = new ConcurrentDictionary<string, CancellationTokenSource>();
-
-// Task store for long-running operations (experimental MCP feature)
-var taskStore = new InMemoryMcpTaskStore(
+// Task store with cancel propagation for long-running operations (experimental MCP feature)
+var taskStore = new CancellableTaskStore(new InMemoryMcpTaskStore(
     defaultTtl: TimeSpan.FromHours(4),
     pollInterval: TimeSpan.FromSeconds(2)
-);
+));
 
 try
 {
@@ -170,7 +166,7 @@ async ValueTask<CallToolResult> ExecuteAsTaskAsync(
 
     // Create a per-task CTS so tasks/cancel can stop the subprocess
     var taskCts = CancellationTokenSource.CreateLinkedTokenSource(CancellationToken.None);
-    taskCancellationTokens[mcpTask.TaskId] = taskCts;
+    taskStore.RegisterCancellationToken(mcpTask.TaskId, taskCts);
 
     // Fire-and-forget: run the tool in the background
     _ = Task.Run(async () =>
@@ -223,7 +219,14 @@ async ValueTask<CallToolResult> ExecuteAsTaskAsync(
         }
         catch (OperationCanceledException) when (taskCts.Token.IsCancellationRequested)
         {
-            // Task was cancelled — store handles status via tasks/cancel handler
+            // Task was cancelled via tasks/cancel — update status
+            try
+            {
+                var cancelledTask = await taskStore.UpdateTaskStatusAsync(
+                    mcpTask.TaskId, McpTaskStatus.Cancelled, "Cancelled by client", server.SessionId, CancellationToken.None);
+                await server.NotifyTaskStatusAsync(cancelledTask, CancellationToken.None);
+            }
+            catch { /* Best effort */ }
         }
         catch (Exception ex)
         {
@@ -243,7 +246,7 @@ async ValueTask<CallToolResult> ExecuteAsTaskAsync(
         }
         finally
         {
-            taskCancellationTokens.TryRemove(mcpTask.TaskId, out _);
+            taskStore.UnregisterCancellationToken(mcpTask.TaskId);
             taskCts.Dispose();
         }
     }, CancellationToken.None);
