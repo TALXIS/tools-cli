@@ -38,6 +38,9 @@ internal static class CliSubprocessRunner
         {
             TryKillProcessTree(process);
             try { await process.WaitForExitAsync(); } catch (InvalidOperationException) { }
+            // Drain stream reader tasks to avoid unobserved exceptions
+            try { await Task.WhenAll(stdoutTask, stderrTask); }
+            catch (Exception) when (true) { /* swallow IO/cancellation from killed process */ }
             throw;
         }
 
@@ -64,6 +67,9 @@ internal static class CliSubprocessRunner
         {
             TryKillProcessTree(process);
             try { await process.WaitForExitAsync(); } catch (InvalidOperationException) { }
+            // Drain stream reader tasks to avoid unobserved exceptions
+            try { await Task.WhenAll(stdoutTask, stderrTask); }
+            catch (Exception) when (true) { /* swallow IO/cancellation from killed process */ }
             throw;
         }
 

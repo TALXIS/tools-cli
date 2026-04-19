@@ -56,7 +56,7 @@ namespace TALXIS.CLI.MCP
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Error: {ex.Message}");
+                OutputWriter.WriteLine($"Error: {ex.Message}");
                 return 1;
             }
         }

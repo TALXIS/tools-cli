@@ -192,7 +192,7 @@ async ValueTask<CallToolResult> ExecuteAsTaskAsync(
 
             var mcpLoggerProvider = server.AsClientLoggerProvider();
             var mcpLogger = mcpLoggerProvider.CreateLogger($"txc.{toolName}");
-            var logForwarder = new McpLogForwarder(mcpLogger);
+            var logForwarder = new McpLogForwarder(mcpLogger, server, ctx.Params?.ProgressToken);
 
             mcpLogger.LogInformation("Starting task-augmented tool: {ToolName} (taskId: {TaskId})", toolName, mcpTask.TaskId);
 

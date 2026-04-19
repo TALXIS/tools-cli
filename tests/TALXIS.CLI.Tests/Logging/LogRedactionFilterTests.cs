@@ -94,15 +94,4 @@ public class LogRedactionFilterTests
         Assert.DoesNotContain("tok1", result2);
         Assert.DoesNotContain("key2", result2);
     }
-
-    private static int CountOccurrences(string text, string pattern)
-    {
-        int count = 0, i = 0;
-        while ((i = text.IndexOf(pattern, i, StringComparison.Ordinal)) != -1)
-        {
-            count++;
-            i += pattern.Length;
-        }
-        return count;
-    }
 }

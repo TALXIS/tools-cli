@@ -21,7 +21,7 @@ You work with a monorepo that contains Power Platform solutions. You must use TA
 **MANDATORY: Use TALXIS CLI MCP Server Exclusively**
 
 1. **Execute ALL developer actions through the txc-mcp only**
-   - Never perform actions modification of files directly without trying to find a corresponding 'txc-mcp' tool first
+   - Never modify files directly without first trying to find a corresponding 'txc-mcp' tool
    - You can create folders, rename files/folders directly outside of txc-mcp
    - Some commands may require you to create folders before you can call them. Consult the workspace explain tool.
    - Do not suggest alternative approaches outside of the txc-mcp ecosystem

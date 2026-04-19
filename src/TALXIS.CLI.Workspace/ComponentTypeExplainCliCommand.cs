@@ -21,7 +21,7 @@ public class ComponentTypeExplainCliCommand
     {
         if (string.IsNullOrWhiteSpace(Type))
         {
-            _logger.LogWarning("Please provide a component type");
+            _logger.LogError("Please provide a component type");
             return 1;
         }
 
@@ -32,7 +32,7 @@ public class ComponentTypeExplainCliCommand
 
         if (template == null)
         {
-            _logger.LogWarning("Component template {Type} not found", Type);
+            _logger.LogError("Component template {Type} not found", Type);
             return 1;
         }
 

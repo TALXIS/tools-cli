@@ -11,7 +11,11 @@ namespace TALXIS.CLI.Shared;
 /// </summary>
 public static class OutputWriter
 {
-    private static TextWriter _writer = Console.Out;
+    // Keep the redirect target scoped to the current async flow so concurrent in-process
+    // tool executions do not overwrite each other's output destination.
+    private static readonly AsyncLocal<TextWriter?> _writer = new();
+
+    private static TextWriter CurrentWriter => _writer.Value ?? Console.Out;
 
     /// <summary>
     /// Replaces the output target. Returns a scope that restores the previous writer on dispose.
@@ -19,21 +23,21 @@ public static class OutputWriter
     /// </summary>
     public static IDisposable RedirectTo(TextWriter writer)
     {
-        var previous = _writer;
-        _writer = writer;
+        var previous = _writer.Value;
+        _writer.Value = writer;
         return new RedirectScope(previous);
     }
 
-    public static void WriteLine(string message) => _writer.WriteLine(message);
+    public static void WriteLine(string message) => CurrentWriter.WriteLine(message);
 
-    public static void WriteLine() => _writer.WriteLine();
+    public static void WriteLine() => CurrentWriter.WriteLine();
 
-    public static void Write(string message) => _writer.Write(message);
+    public static void Write(string message) => CurrentWriter.Write(message);
 
     private sealed class RedirectScope : IDisposable
     {
-        private readonly TextWriter _previous;
-        public RedirectScope(TextWriter previous) => _previous = previous;
-        public void Dispose() => _writer = _previous;
+        private readonly TextWriter? _previous;
+        public RedirectScope(TextWriter? previous) => _previous = previous;
+        public void Dispose() => _writer.Value = _previous;
     }
 }
