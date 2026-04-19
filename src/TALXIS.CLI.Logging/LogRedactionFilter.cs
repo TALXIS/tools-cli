@@ -9,7 +9,7 @@ public static partial class LogRedactionFilter
 {
     private static readonly string HomePath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
-    public static string Redact(string message)
+    public static string? Redact(string? message)
     {
         if (string.IsNullOrEmpty(message))
             return message;

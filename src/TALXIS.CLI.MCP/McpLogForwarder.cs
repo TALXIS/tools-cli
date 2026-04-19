@@ -30,7 +30,7 @@ internal sealed class McpLogForwarder : ISubprocessOutputHandler
     /// <summary>
     /// The accumulated stdout content (tool result data).
     /// </summary>
-    public string StdoutContent => _stdoutBuffer.ToString().TrimEnd();
+    public string StdoutContent => _stdoutBuffer.ToString();
 
     /// <summary>
     /// The last error/critical log messages from the subprocess (for error reporting in tool results).

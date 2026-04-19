@@ -22,15 +22,20 @@ public static class TxcLoggerFactory
     private static ILoggerFactory Create()
     {
         string? logFormat = System.Environment.GetEnvironmentVariable("TXC_LOG_FORMAT");
+        string? configuredLogLevel = System.Environment.GetEnvironmentVariable("TXC_LOG_LEVEL");
         // Use JSON stderr mode when explicitly requested OR when stdout is
         // redirected (e.g. piped into an MCP stdio transport).  This prevents
         // the SimpleConsole provider from writing to stdout and corrupting the
         // JSON-RPC stream.
         bool jsonMode = logFormat == "json" || System.Console.IsOutputRedirected;
 
+        LogLevel minimumLogLevel = Enum.TryParse<LogLevel>(configuredLogLevel, ignoreCase: true, out LogLevel parsed)
+            ? parsed
+            : LogLevel.Information;
+
         return LoggerFactory.Create(builder =>
         {
-            builder.SetMinimumLevel(LogLevel.Information);
+            builder.SetMinimumLevel(minimumLogLevel);
 
             if (jsonMode)
             {

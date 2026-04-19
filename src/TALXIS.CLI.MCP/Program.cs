@@ -91,7 +91,7 @@ async ValueTask<CallToolResult> CallToolAsync(RequestContext<CallToolRequestPara
     var descriptor = mcpToolRegistry.GetDescriptor(toolName);
     if (p?.Task is { } taskMetadata && descriptor?.SupportsTaskExecution == true)
     {
-        return await ExecuteAsTaskAsync(ctx, toolName, cmdType, taskMetadata, ct);
+        return await ExecuteAsTaskAsync(ctx, toolName, taskMetadata, ct);
     }
 
     try
@@ -154,7 +154,6 @@ async ValueTask<CallToolResult> CallToolAsync(RequestContext<CallToolRequestPara
 async ValueTask<CallToolResult> ExecuteAsTaskAsync(
     RequestContext<CallToolRequestParams> ctx,
     string toolName,
-    Type cmdType,
     McpTaskMetadata taskMetadata,
     CancellationToken ct)
 {
@@ -318,7 +317,7 @@ async Task<int> ExecuteMcpSpecificToolAsync(Type commandType, IDictionary<string
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"Error executing MCP-specific tool: {ex.Message}");
+        Console.Error.WriteLine($"Error executing MCP-specific tool: {ex.Message}");
         return 1;
     }
 }
