@@ -17,6 +17,7 @@ internal sealed class McpLogForwarder : ISubprocessOutputHandler
     private readonly ILogger _mcpLogger;
     private readonly StringBuilder _stdoutBuffer = new();
     private readonly List<string> _errorMessages = new();
+    private readonly StringBuilder _fullLogBuffer = new();
     private readonly Func<ProgressNotificationValue, Task>? _sendProgress;
 
     private int _lineCount;
@@ -38,6 +39,11 @@ internal sealed class McpLogForwarder : ISubprocessOutputHandler
     public string LastErrors => _errorMessages.Count > 0
         ? string.Join(System.Environment.NewLine, _errorMessages)
         : string.Empty;
+
+    /// <summary>
+    /// The complete stderr log from the subprocess (all levels, for detailed resource exposure).
+    /// </summary>
+    public string FullLog => _fullLogBuffer.ToString();
 
     /// <summary>
     /// Number of progress notifications actually sent (for testing).
@@ -93,6 +99,8 @@ internal sealed class McpLogForwarder : ISubprocessOutputHandler
             _mcpLogger.Log(LogLevel.Warning, "{Message}", redactedMessage);
             _errorMessages.Add(redactedMessage);
         }
+
+        _fullLogBuffer.AppendLine(redactedMessage);
 
         _lineCount++;
         await TrySendProgressAsync(redactedMessage).ConfigureAwait(false);

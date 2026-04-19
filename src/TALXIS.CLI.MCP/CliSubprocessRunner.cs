@@ -208,14 +208,19 @@ internal sealed class CliSubprocessResult
         {
             Output = forwarder.StdoutContent;
             LastErrors = forwarder.LastErrors;
+            FullLog = forwarder.FullLog;
         }
         else
         {
             Output = string.Empty;
             LastErrors = string.Empty;
+            FullLog = string.Empty;
         }
     }
 
     /// <summary>Error messages captured from subprocess stderr logs.</summary>
     public string LastErrors { get; } = string.Empty;
+
+    /// <summary>Complete stderr log from the subprocess (all levels).</summary>
+    public string FullLog { get; } = string.Empty;
 }
