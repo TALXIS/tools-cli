@@ -15,7 +15,7 @@ public static partial class LogRedactionFilter
             return message;
 
         // Redact connection string values (AuthType=...;Password=...;)
-        message = ConnectionStringPasswordRegex().Replace(message, "$1***REDACTED***$2");
+        message = ConnectionStringPasswordRegex().Replace(message, "$1***REDACTED***$3");
 
         // Redact tokens/keys in query parameters (?token=xxx, &key=xxx)
         message = QueryParamSecretRegex().Replace(message, "$1***REDACTED***");
@@ -29,7 +29,7 @@ public static partial class LogRedactionFilter
         return message;
     }
 
-    [GeneratedRegex(@"((?:Password|ClientSecret|Secret|Token)\s*=\s*)(.*?)(;|$)", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"((?:Password|ClientSecret|Secret|Token)\s*=\s*)([^;&?]*)(;|$)", RegexOptions.IgnoreCase)]
     private static partial Regex ConnectionStringPasswordRegex();
 
     [GeneratedRegex(@"((?:token|key|secret|password|apikey|api_key)=)[^&\s]*", RegexOptions.IgnoreCase)]

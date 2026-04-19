@@ -270,6 +270,8 @@ public sealed class CmtImportRunner
     {
         try
         {
+            // handler.Logger is a DataMigCommon.Utility.TraceLogger.
+            // It exposes a TraceSource via the base class hierarchy.
             object? logger = handler.GetType()
                 .GetProperty("Logger", BindingFlags.Public | BindingFlags.Instance)?
                 .GetValue(handler);
@@ -281,6 +283,7 @@ public sealed class CmtImportRunner
                 return;
             }
 
+            // Try AddTraceListener(TraceListener) — available on TraceLogger.
             MethodInfo? addListener = logger.GetType()
                 .GetMethod("AddTraceListener", BindingFlags.Public | BindingFlags.Instance, null,
                     new[] { typeof(TraceListener) }, null);
