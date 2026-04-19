@@ -1,5 +1,7 @@
 using System.Net;
+using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Data.DataServer;
+using TALXIS.CLI.Logging;
 using TALXIS.CLI.Shared;
 
 namespace TALXIS.CLI.Data;
@@ -8,6 +10,7 @@ public class DataTransformationServer
 {
     private readonly HttpListener _listener;
     private readonly int _port;
+    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(DataTransformationServer));
     private bool _isRunning;
 
     public DataTransformationServer(int port)
@@ -21,7 +24,8 @@ public class DataTransformationServer
     {
         _isRunning = true;
         _listener.Start();
-        OutputWriter.WriteLine($"Data Transformation server running on http://localhost:{_port}/");
+        _logger.LogInformation("Data Transformation server running on http://localhost:{Port}/", _port);
+        OutputWriter.WriteLine($"http://localhost:{_port}/");
         while (_isRunning && !cancellationToken.IsCancellationRequested)
         {
             var context = await _listener.GetContextAsync();

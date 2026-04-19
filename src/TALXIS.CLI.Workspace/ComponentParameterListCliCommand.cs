@@ -30,7 +30,10 @@ public class ComponentParameterListCliCommand
         OutputWriter.WriteLine($"Parameters for template {ShortName}:");
 
         // Always show the mandatory output parameter first
-        OutputWriter.WriteLine("--output (Project folder path)  (text)  <required>\n    Specifies the target project folder path where the component will be created.\n    Required for both creating new projects (solution, plugin, PCF, etc.) and adding components to existing projects.\n    Format: \"src\\Solutions.DataModel\"");
+        OutputWriter.WriteLine($"--output (Project folder path)  (text)  <required>");
+        OutputWriter.WriteLine("    Specifies the target project folder path where the component will be created.");
+        OutputWriter.WriteLine("    Required for both creating new projects (solution, plugin, PCF, etc.) and adding components to existing projects.");
+        OutputWriter.WriteLine("    Format: \"src\\Solutions.DataModel\"");
 
         foreach (var p in parameters)
         {
@@ -50,8 +53,14 @@ public class ComponentParameterListCliCommand
                 sb.Append($"  choices: {list}");
             }
             if (!string.IsNullOrEmpty(p.Description))
-                sb.Append($"\n    {p.Description}");
-            OutputWriter.WriteLine(sb.ToString());
+            {
+                OutputWriter.WriteLine(sb.ToString());
+                OutputWriter.WriteLine($"    {p.Description}");
+            }
+            else
+            {
+                OutputWriter.WriteLine(sb.ToString());
+            }
         }
         return 0;
     }

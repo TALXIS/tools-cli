@@ -13,6 +13,7 @@ using TALXIS.CLI.MCP;
 // Create a single instance of McpToolRegistry
 var mcpToolRegistry = new McpToolRegistry();
 RootsService? rootsService = null;
+IHostApplicationLifetime? appLifetime = null;
 
 // Task store with cancel propagation for long-running operations (experimental MCP feature)
 var taskStore = new CancellableTaskStore(new InMemoryMcpTaskStore(
@@ -59,6 +60,8 @@ builder.Services
     var mcpServer = host.Services.GetRequiredService<McpServer>();
     var loggerFactory = host.Services.GetService<ILoggerFactory>();
     rootsService = new RootsService(mcpServer, loggerFactory?.CreateLogger<RootsService>());
+    var lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
+    appLifetime = lifetime;
     await host.RunAsync();
     return 0;
 }
@@ -164,8 +167,9 @@ async ValueTask<CallToolResult> ExecuteAsTaskAsync(
         server.SessionId,
         ct);
 
-    // Create a per-task CTS so tasks/cancel can stop the subprocess
-    var taskCts = CancellationTokenSource.CreateLinkedTokenSource(CancellationToken.None);
+    // Link to app lifetime so shutdown cancels running tasks (prevents orphaned subprocesses)
+    var stoppingToken = appLifetime?.ApplicationStopping ?? CancellationToken.None;
+    var taskCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
     taskStore.RegisterCancellationToken(mcpTask.TaskId, taskCts);
 
     // Fire-and-forget: run the tool in the background
