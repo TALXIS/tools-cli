@@ -233,10 +233,12 @@ public class DeployShowCliCommand
                 startedAtUtc = record.StartedAtUtc?.ToString("O"),
                 completedAtUtc = record.CompletedAtUtc?.ToString("O"),
                 operationId = record.OperationId,
+                correlationId = record.CorrelationId,
                 message = record.Message,
                 solutions = correlated.Select(s => new
                 {
                     id = s.Id,
+                    activityId = s.ActivityId,
                     solutionName = s.SolutionName,
                     solutionVersion = s.SolutionVersion,
                     operation = s.OperationLabel,
