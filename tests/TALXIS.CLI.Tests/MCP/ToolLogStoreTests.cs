@@ -68,4 +68,12 @@ public class ToolLogStoreTests
 
         Assert.NotEqual(uri1, uri2);
     }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void Constructor_ThrowsForNonPositiveMaxEntries(int maxEntries)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ToolLogStore(maxEntries));
+    }
 }

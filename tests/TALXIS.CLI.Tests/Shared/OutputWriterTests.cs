@@ -80,4 +80,10 @@ public class OutputWriterTests
 
         Assert.Equal(System.Environment.NewLine, sw.ToString());
     }
+
+    [Fact]
+    public void RedirectTo_ThrowsForNullWriter()
+    {
+        Assert.Throws<ArgumentNullException>(() => OutputWriter.RedirectTo(null!));
+    }
 }

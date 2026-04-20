@@ -17,6 +17,7 @@ internal sealed class ToolLogStore
 
     public ToolLogStore(int maxEntries = 50)
     {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxEntries);
         _maxEntries = maxEntries;
     }
 

@@ -23,6 +23,7 @@ public static class OutputWriter
     /// </summary>
     public static IDisposable RedirectTo(TextWriter writer)
     {
+        ArgumentNullException.ThrowIfNull(writer);
         var previous = _writer.Value;
         _writer.Value = writer;
         return new RedirectScope(previous);

@@ -28,6 +28,7 @@ var taskStore = new CancellableTaskStore(new InMemoryMcpTaskStore(
 try
 {
     var builder = new HostApplicationBuilder(args);
+    builder.Logging.ClearProviders();
     builder.Logging.AddConsole(consoleLogOptions =>
     {
         // Configure all logs to go to stderr
@@ -74,7 +75,7 @@ builder.Services
 }
 catch (Exception ex)
 {
-    Console.Error.WriteLine($"Fatal error starting MCP server: {ex}");
+    Console.Error.WriteLine($"Fatal error starting MCP server: {LogRedactionFilter.Redact(ex.ToString())}");
     return 1;
 }
 
@@ -316,7 +317,7 @@ async Task<int> ExecuteMcpSpecificToolAsync(Type commandType, IDictionary<string
     }
     catch (Exception ex)
     {
-        Console.Error.WriteLine($"Error executing MCP-specific tool: {ex.Message}");
+        Console.Error.WriteLine($"Error executing MCP-specific tool: {LogRedactionFilter.Redact(ex.Message)}");
         return 1;
     }
 }
