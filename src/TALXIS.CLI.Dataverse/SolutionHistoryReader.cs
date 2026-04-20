@@ -74,14 +74,17 @@ public sealed class SolutionHistoryReader
             ColumnSet = Columns,
             Criteria = new FilterExpression(LogicalOperator.And),
         };
+        q.AddOrder("msdyn_starttime", OrderType.Descending);
+        // msdyn_starttime is a virtual/denormalised column on this table and does not reliably
+        // support server-side datetime conditions; filtering is applied client-side instead.
+        q.TopCount = sinceUtc is not null ? 2000 : (problemsOnly ? Math.Max(count * 4, 50) : count);
+        var res = await _service.RetrieveMultipleAsync(q, ct).ConfigureAwait(false);
+        IEnumerable<SolutionHistoryRecord> records = res.Entities.Select(ToRecord);
         if (sinceUtc is { } since)
         {
-            q.Criteria.AddCondition("msdyn_starttime", ConditionOperator.OnOrAfter, DataverseDateTime.EnsureUtc(since));
+            var floor = DataverseDateTime.EnsureUtc(since);
+            records = records.Where(r => r.StartedAtUtc is null || r.StartedAtUtc >= floor);
         }
-        q.AddOrder("msdyn_starttime", OrderType.Descending);
-        q.TopCount = problemsOnly ? Math.Max(count * 4, 50) : count;
-        var res = await _service.RetrieveMultipleAsync(q, ct).ConfigureAwait(false);
-        var records = res.Entities.Select(ToRecord);
         if (problemsOnly)
         {
             records = records.Where(r =>
@@ -140,17 +143,13 @@ public sealed class SolutionHistoryReader
     public async Task<SolutionHistoryRecord?> GetLatestByNameAsync(string solutionName, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(solutionName);
-        var q = new QueryExpression(EntityName)
-        {
-            ColumnSet = Columns,
-            Criteria = new FilterExpression(LogicalOperator.Or),
-            TopCount = 1,
-        };
-        q.Criteria.AddCondition("msdyn_uniquename", ConditionOperator.Equal, solutionName);
-        q.Criteria.AddCondition("msdyn_name", ConditionOperator.Equal, solutionName);
+        // msdyn_solutionhistory is a virtual entity; its plugin rejects arbitrary server-side
+        // conditions. Fetch a large window and match client-side.
+        var q = new QueryExpression(EntityName) { ColumnSet = Columns, TopCount = 500 };
         q.AddOrder("msdyn_starttime", OrderType.Descending);
         var res = await _service.RetrieveMultipleAsync(q, ct).ConfigureAwait(false);
-        return res.Entities.Count == 0 ? null : ToRecord(res.Entities[0]);
+        return res.Entities.Select(ToRecord)
+            .FirstOrDefault(r => (r.SolutionName ?? "").Equals(solutionName, StringComparison.OrdinalIgnoreCase));
     }
 
     public async Task<IReadOnlyList<SolutionHistoryRecord>> GetByImportJobIdAsync(Guid importJobId, CancellationToken ct = default)
@@ -171,17 +170,16 @@ public sealed class SolutionHistoryReader
         var start = DataverseDateTime.EnsureUtc(windowStartUtc);
         var end = DataverseDateTime.EnsureUtc(windowEndUtc);
 
-        var q = new QueryExpression(EntityName)
-        {
-            ColumnSet = Columns,
-            Criteria = new FilterExpression(LogicalOperator.And),
-        };
-        q.Criteria.AddCondition("msdyn_starttime", ConditionOperator.OnOrAfter, start);
-        q.Criteria.AddCondition("msdyn_starttime", ConditionOperator.OnOrBefore, end);
-        q.AddOrder("msdyn_starttime", OrderType.Ascending);
+        // msdyn_solutionhistory is a virtual entity; its plugin rejects arbitrary server-side
+        // conditions — fetch a large window ordered by starttime and filter client-side.
+        var q = new QueryExpression(EntityName) { ColumnSet = Columns, TopCount = 500 };
+        q.AddOrder("msdyn_starttime", OrderType.Descending);
 
         var res = await _service.RetrieveMultipleAsync(q, ct).ConfigureAwait(false);
-        return res.Entities.Select(ToRecord).ToList();
+        return res.Entities.Select(ToRecord)
+            .Where(r => r.StartedAtUtc >= start && r.StartedAtUtc <= end)
+            .OrderBy(r => r.StartedAtUtc)
+            .ToList();
     }
 
     internal static SolutionHistoryRecord ToRecord(Entity e)

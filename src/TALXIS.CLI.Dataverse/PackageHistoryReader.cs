@@ -94,7 +94,7 @@ public sealed class PackageHistoryReader
         var q = BuildBaseQuery();
         if (sinceUtc is { } since)
         {
-            q.Criteria.AddCondition("createdon", ConditionOperator.OnOrAfter, DataverseDateTime.EnsureUtc(since));
+            q.Criteria.AddCondition("createdon", ConditionOperator.GreaterEqual, DataverseDateTime.EnsureUtc(since));
         }
         q.AddOrder("createdon", OrderType.Descending);
         q.TopCount = problemsOnly ? Math.Max(count * 4, 50) : count;

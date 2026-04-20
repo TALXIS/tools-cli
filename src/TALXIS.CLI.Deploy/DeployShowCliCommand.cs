@@ -153,11 +153,12 @@ public class DeployShowCliCommand
             }
             case DeployIdSelectorKind.Name:
             {
-                var pkg = await pkgReader.GetLatestAsync(selector.Text).ConfigureAwait(false);
-                if (pkg is not null) return new Hit(pkg, null);
-                var sol = await solReader.GetLatestByNameAsync(selector.Text).ConfigureAwait(false);
-                if (sol is not null) return new Hit(null, sol);
-                return null;
+                var pkgTask = pkgReader.GetLatestAsync(selector.Text);
+                var solTask = solReader.GetLatestByNameAsync(selector.Text);
+                await Task.WhenAll(pkgTask, solTask).ConfigureAwait(false);
+                var pkg = await pkgTask.ConfigureAwait(false);
+                var sol = await solTask.ConfigureAwait(false);
+                return PickNewest(pkg, sol);
             }
         }
         return null;
