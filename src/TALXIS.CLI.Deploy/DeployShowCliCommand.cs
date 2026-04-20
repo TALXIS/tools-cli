@@ -345,8 +345,12 @@ public class DeployShowCliCommand
         if (!completed && record.Stage is not null)
         {
             Console.WriteLine($"  stage:           {record.Stage}");
-        }        Console.WriteLine($"  started (UTC):   {FormatUtc(record.StartedAtUtc)}");
-        Console.WriteLine($"  completed (UTC): {FormatUtc(record.CompletedAtUtc)}");
+        }
+        Console.WriteLine($"  started (UTC):   {FormatUtc(record.StartedAtUtc)}");
+        if (record.CompletedAtUtc is not null)
+        {
+            Console.WriteLine($"  completed (UTC): {FormatUtc(record.CompletedAtUtc)}");
+        }
         if (record.StartedAtUtc is { } s && record.CompletedAtUtc is { } e)
         {
             Console.WriteLine($"  duration:        {FormatDuration(e - s)}");

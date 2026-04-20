@@ -183,7 +183,12 @@ public sealed class PackageHistoryReader
             ? DataverseDateTime.EnsureUtc(e.GetAttributeValue<DateTime>("createdon"))
             : null;
 
-        DateTime? end = e.Contains("modifiedon")
+        // packagehistory has no dedicated end-time field — modifiedon is the only proxy.
+        // Only treat it as a completion time when the record is terminal (Completed or Failed).
+        // For InProcess records modifiedon reflects the last interim write, not a real end time.
+        string? statusLabel = StatusLabel();
+        bool isTerminal = !string.Equals(statusLabel, "In Process", StringComparison.OrdinalIgnoreCase);
+        DateTime? end = isTerminal && e.Contains("modifiedon")
             ? DataverseDateTime.EnsureUtc(e.GetAttributeValue<DateTime>("modifiedon"))
             : null;
 
@@ -204,7 +209,7 @@ public sealed class PackageHistoryReader
         return new PackageHistoryRecord(
             Id: e.Id,
             Name: e.GetAttributeValue<string>("uniquename") ?? e.GetAttributeValue<string>("executionname"),
-            Status: StatusLabel(),
+            Status: statusLabel,
             Stage: StageLabel(),
             StartedAtUtc: start,
             CompletedAtUtc: end,
