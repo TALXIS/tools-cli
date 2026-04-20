@@ -18,8 +18,13 @@ namespace TALXIS.CLI.Deploy;
 )]
 public class DeployShowCliCommand
 {
-    // 15-minute window around a package run used to correlate solution-history rows. Not user-tunable.
-    private static readonly TimeSpan CorrelationWindow = TimeSpan.FromMinutes(15);
+    // Small tail buffer added after package completion to catch async solution imports that
+    // finish slightly after the package deployer signals done. No pre-start buffer — a solution
+    // cannot belong to a package run that hasn't started yet.
+    // There is no FK between packagehistory and msdyn_solutionhistory (msdyn_packagename is never
+    // populated by Package Deployer; msdyn_correlationid is zero for custom PD runs). Time window
+    // is the only available correlation mechanism.
+    private static readonly TimeSpan CorrelationTailBuffer = TimeSpan.FromMinutes(2);
 
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(DeployShowCliCommand));
 
@@ -180,8 +185,8 @@ public class DeployShowCliCommand
         IReadOnlyList<SolutionHistoryRecord> correlated = Array.Empty<SolutionHistoryRecord>();
         if (record.StartedAtUtc is { } startedAt)
         {
-            var windowEnd = (record.CompletedAtUtc ?? startedAt) + CorrelationWindow;
-            var windowStart = startedAt - CorrelationWindow;
+            var windowEnd = (record.CompletedAtUtc ?? startedAt) + CorrelationTailBuffer;
+            var windowStart = startedAt;
             try
             {
                 correlated = await historyReader.GetInTimeWindowAsync(windowStart, windowEnd).ConfigureAwait(false);
@@ -248,11 +253,11 @@ public class DeployShowCliCommand
             try
             {
                 var pkgReader = new PackageHistoryReader(client, _logger);
-                var nearby = await pkgReader.GetRecentAsync(50, startedAt - CorrelationWindow, problemsOnly: false).ConfigureAwait(false);
+                var nearby = await pkgReader.GetRecentAsync(50, startedAt - CorrelationTailBuffer, problemsOnly: false).ConfigureAwait(false);
                 parentPackage = nearby.FirstOrDefault(p =>
                     p.StartedAtUtc is { } ps
                     && ps <= startedAt
-                    && ((p.CompletedAtUtc ?? ps + CorrelationWindow) + CorrelationWindow) >= startedAt);
+                    && ((p.CompletedAtUtc ?? ps) + CorrelationTailBuffer) >= startedAt);
             }
             catch (Exception ex)
             {
@@ -268,8 +273,8 @@ public class DeployShowCliCommand
                 var importReader = new ImportJobReader(client, _logger);
                 if (record.StartedAtUtc is { } startedAt2)
                 {
-                    var windowStart = startedAt2 - CorrelationWindow;
-                    var windowEnd = (record.CompletedAtUtc ?? startedAt2) + CorrelationWindow;
+                    var windowStart = startedAt2;
+                    var windowEnd = (record.CompletedAtUtc ?? startedAt2) + CorrelationTailBuffer;
                     var jobs = await importReader.GetInTimeWindowAsync(windowStart, windowEnd).ConfigureAwait(false);
                     var match = jobs.FirstOrDefault(j =>
                         record.SolutionName is not null
@@ -361,7 +366,7 @@ public class DeployShowCliCommand
         }
 
         Console.WriteLine();
-        Console.WriteLine($"Solutions in +/- 15 min window: {correlated.Count}");
+        Console.WriteLine($"Solutions within package run window: {correlated.Count}");
         if (correlated.Count == 0)
         {
             return;
