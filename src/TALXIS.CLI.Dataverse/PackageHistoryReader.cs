@@ -17,7 +17,13 @@ public sealed record PackageHistoryRecord(
     DateTime? StartedAtUtc,
     DateTime? CompletedAtUtc,
     Guid? OperationId,
-    string? Message);
+    string? Message,
+    /// <summary>
+    /// PD's per-run correlation GUID. Set as <c>x-ms-client-session-id</c> on every SDK call,
+    /// so Dataverse records it as <c>asyncoperation.correlationid</c> for each import job.
+    /// Use with <see cref="SolutionHistoryReader.GetByCorrelationIdAsync"/> for exact join.
+    /// </summary>
+    Guid? CorrelationId = null);
 
 /// <summary>
 /// Reader for the <c>packagehistory</c> table (Package Deployer run records).
@@ -34,6 +40,7 @@ public sealed class PackageHistoryReader
         "statuscode",
         "stagevalue",
         "operationid",
+        "correlationid",
         "statusmessage",
         "createdon",
         "modifiedon");
@@ -206,6 +213,20 @@ public sealed class PackageHistoryReader
             }
         }
 
+        Guid? correlationId = null;
+        if (e.Contains("correlationid"))
+        {
+            var raw = e["correlationid"];
+            if (raw is Guid g)
+            {
+                correlationId = g;
+            }
+            else if (raw is string s && Guid.TryParse(s, out var parsed))
+            {
+                correlationId = parsed;
+            }
+        }
+
         return new PackageHistoryRecord(
             Id: e.Id,
             Name: e.GetAttributeValue<string>("uniquename") ?? e.GetAttributeValue<string>("executionname"),
@@ -214,6 +235,7 @@ public sealed class PackageHistoryReader
             StartedAtUtc: start,
             CompletedAtUtc: end,
             OperationId: operationId,
-            Message: e.GetAttributeValue<string>("statusmessage"));
+            Message: e.GetAttributeValue<string>("statusmessage"),
+            CorrelationId: correlationId);
     }
 }

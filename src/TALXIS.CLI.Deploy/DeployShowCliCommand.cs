@@ -18,13 +18,16 @@ namespace TALXIS.CLI.Deploy;
 )]
 public class DeployShowCliCommand
 {
-    // Small tail buffer added after package completion to catch async solution imports that
-    // finish slightly after the package deployer signals done. No pre-start buffer — a solution
-    // cannot belong to a package run that hasn't started yet.
-    // There is no FK between packagehistory and msdyn_solutionhistory (msdyn_packagename is never
-    // populated by Package Deployer; msdyn_correlationid is zero for custom PD runs). Time window
-    // is the only available correlation mechanism.
-    private static readonly TimeSpan CorrelationTailBuffer = TimeSpan.FromMinutes(2);
+    // Tail buffer added after package completion to catch async solution imports that finish
+    // slightly after Package Deployer signals done.
+    //
+    // Preferred correlation path (for recent deployments, up to ~30 days):
+    //   packagehistory.correlationid → asyncoperation.correlationid → asyncoperation.asyncoperationid
+    //   → msdyn_solutionhistory.msdyn_activityid  (exact, handles concurrent imports correctly)
+    //
+    // Time window is used as fallback when asyncoperation records have been cleaned up by
+    // Dataverse's async job retention policy.
+    private static readonly TimeSpan CorrelationTailBuffer = TimeSpan.FromSeconds(30);
 
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(DeployShowCliCommand));
 
@@ -185,11 +188,21 @@ public class DeployShowCliCommand
         IReadOnlyList<SolutionHistoryRecord> correlated = Array.Empty<SolutionHistoryRecord>();
         if (record.StartedAtUtc is { } startedAt)
         {
-            var windowEnd = (record.CompletedAtUtc ?? startedAt) + CorrelationTailBuffer;
-            var windowStart = startedAt;
             try
             {
-                correlated = await historyReader.GetInTimeWindowAsync(windowStart, windowEnd).ConfigureAwait(false);
+                // Preferred path: exact join via asyncoperation.correlationid.
+                // Works for deployments within Dataverse's async job retention window (~30 days).
+                if (record.CorrelationId is { } corrId && corrId != Guid.Empty)
+                {
+                    correlated = await historyReader.GetByCorrelationIdAsync(corrId).ConfigureAwait(false);
+                }
+
+                // Fallback: time window when asyncoperation records have been cleaned up.
+                if (correlated.Count == 0)
+                {
+                    var windowEnd = (record.CompletedAtUtc ?? startedAt) + CorrelationTailBuffer;
+                    correlated = await historyReader.GetInTimeWindowAsync(startedAt, windowEnd).ConfigureAwait(false);
+                }
             }
             catch (Exception ex)
             {

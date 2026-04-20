@@ -21,7 +21,13 @@ public sealed record SolutionHistoryRecord(
     bool? OverwriteUnmanagedCustomizations,
     DateTime? StartedAtUtc,
     DateTime? CompletedAtUtc,
-    string? Result);
+    string? Result,
+    /// <summary>
+    /// Value of <c>msdyn_activityid</c> — the <c>asyncoperation.asyncoperationid</c> of the
+    /// platform's internal import job. Used for exact correlation with <c>packagehistory</c> via
+    /// <see cref="SolutionHistoryReader.GetByCorrelationIdAsync"/>.
+    /// </summary>
+    Guid? ActivityId = null);
 
 /// <summary>
 /// Reader for <c>msdyn_solutionhistory</c>. The table has no hard FK to
@@ -46,7 +52,8 @@ public sealed class SolutionHistoryReader
         "msdyn_starttime",
         "msdyn_endtime",
         "msdyn_status",
-        "msdyn_solutionhistorydescription");
+        "msdyn_solutionhistorydescription",
+        "msdyn_activityid");
 
     private readonly IOrganizationServiceAsync2 _service;
     private readonly ILogger? _logger;
@@ -156,10 +163,57 @@ public sealed class SolutionHistoryReader
     {
         // msdyn_solutionhistory has no reliable FK to importjob on all stamps.
         // This method is intentionally left as a no-op fallback — callers should use
-        // GetInTimeWindowAsync for correlation when no direct FK is available.
+        // GetByCorrelationIdAsync or GetInTimeWindowAsync for correlation.
         _ = importJobId;
         await Task.CompletedTask.ConfigureAwait(false);
         return Array.Empty<SolutionHistoryRecord>();
+    }
+
+    /// <summary>
+    /// Returns solution history rows correlated to a package run via the <c>asyncoperation</c> entity.
+    /// <para>
+    /// Package Deployer sets <c>x-ms-client-session-id</c> = <paramref name="correlationId"/> on every SDK call.
+    /// Dataverse records this as <c>asyncoperation.correlationid</c> for each import async job.
+    /// <c>msdyn_solutionhistory.msdyn_activityid</c> holds the <c>asyncoperation.asyncoperationid</c>
+    /// of the platform's internal import job, providing an exact join.
+    /// </para>
+    /// <para>
+    /// Returns empty when <c>asyncoperation</c> records have been cleaned up by Dataverse's
+    /// async job retention policy (typically ~30 days). Callers should fall back to
+    /// <see cref="GetInTimeWindowAsync"/> in that case.
+    /// </para>
+    /// </summary>
+    public async Task<IReadOnlyList<SolutionHistoryRecord>> GetByCorrelationIdAsync(
+        Guid correlationId,
+        CancellationToken ct = default)
+    {
+        // Step 1: resolve asyncoperation IDs for this package run.
+        // asyncoperation is a standard table so server-side conditions work fine.
+        var asyncOpQuery = new QueryExpression("asyncoperation")
+        {
+            ColumnSet = new ColumnSet("asyncoperationid"),
+            Criteria = new FilterExpression(LogicalOperator.And),
+            TopCount = 200,
+        };
+        asyncOpQuery.Criteria.AddCondition("correlationid", ConditionOperator.Equal, correlationId);
+        var asyncOps = await _service.RetrieveMultipleAsync(asyncOpQuery, ct).ConfigureAwait(false);
+        if (asyncOps.Entities.Count == 0)
+        {
+            _logger?.LogDebug("No asyncoperation rows found for correlationid {CorrelationId}; async jobs may have been cleaned up.", correlationId);
+            return Array.Empty<SolutionHistoryRecord>();
+        }
+
+        var asyncOpIds = asyncOps.Entities.Select(e => e.Id).ToHashSet();
+        _logger?.LogDebug("Found {Count} asyncoperation rows for correlationid {CorrelationId}.", asyncOpIds.Count, correlationId);
+
+        // Step 2: fetch solution history and filter client-side by msdyn_activityid.
+        var q = new QueryExpression(EntityName) { ColumnSet = Columns, TopCount = 500 };
+        q.AddOrder("msdyn_starttime", OrderType.Descending);
+        var res = await _service.RetrieveMultipleAsync(q, ct).ConfigureAwait(false);
+        return res.Entities.Select(ToRecord)
+            .Where(r => r.ActivityId is { } id && asyncOpIds.Contains(id))
+            .OrderBy(r => r.StartedAtUtc)
+            .ToList();
     }
 
     public async Task<IReadOnlyList<SolutionHistoryRecord>> GetInTimeWindowAsync(
@@ -218,6 +272,14 @@ public sealed class SolutionHistoryReader
 
         var description = e.GetAttributeValue<string>("msdyn_solutionhistorydescription");
 
+        Guid? activityId = null;
+        if (e.Contains("msdyn_activityid"))
+        {
+            var raw = e.GetAttributeValue<string>("msdyn_activityid");
+            if (Guid.TryParse(raw, out var parsed))
+                activityId = parsed;
+        }
+
         return new SolutionHistoryRecord(
             Id: e.Id,
             SolutionName: e.GetAttributeValue<string>("msdyn_uniquename") ?? e.GetAttributeValue<string>("msdyn_name"),
@@ -230,6 +292,7 @@ public sealed class SolutionHistoryReader
             OverwriteUnmanagedCustomizations: overwrite,
             StartedAtUtc: start,
             CompletedAtUtc: end,
-            Result: status ?? description);
+            Result: status ?? description,
+            ActivityId: activityId);
     }
 }
