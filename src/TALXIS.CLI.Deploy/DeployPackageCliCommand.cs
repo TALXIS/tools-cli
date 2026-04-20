@@ -4,16 +4,16 @@ using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Logging;
 using TALXIS.CLI.XrmTools;
 
-namespace TALXIS.CLI.Environment;
+namespace TALXIS.CLI.Deploy;
 
 [CliCommand(
-    Name = "deploy",
+    Name = "package",
     Description = "Deploys a Dataverse package using Package Deployer. Accepts a NuGet package name, a local .pdpkg.zip file, or a package DLL."
 )]
-public class EnvironmentDeployCliCommand
+public class DeployPackageCliCommand
 {
     private readonly NuGetPackageInstallerService _packageInstaller = new();
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EnvironmentDeployCliCommand));
+    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(DeployPackageCliCommand));
 
     [CliArgument(Description = "NuGet package name, or path to a local .pdpkg.zip / package DLL")]
     public required string Package { get; set; }

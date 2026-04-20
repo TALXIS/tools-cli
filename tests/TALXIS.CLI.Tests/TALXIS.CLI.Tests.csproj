@@ -19,5 +19,7 @@
     <ProjectReference Include="../../src/TALXIS.CLI.Shared/TALXIS.CLI.Shared.csproj" />
     <ProjectReference Include="../../src/TALXIS.CLI.Logging/TALXIS.CLI.Logging.csproj" />
     <ProjectReference Include="../../src/TALXIS.CLI.MCP/TALXIS.CLI.MCP.csproj" />
+    <ProjectReference Include="../../src/TALXIS.CLI.Dataverse/TALXIS.CLI.Dataverse.csproj" />
+    <ProjectReference Include="../../src/TALXIS.CLI.Deploy/TALXIS.CLI.Deploy.csproj" />
   </ItemGroup>
 </Project>

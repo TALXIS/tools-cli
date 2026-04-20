@@ -57,9 +57,67 @@ After installation, use the CLI via the `txc` command in any terminal.
 
 **Download and deploy a Dataverse package from NuGet:**
 ```sh
-txc environment deploy TALXIS.Controls.FileExplorer.Package \
+txc deploy package TALXIS.Controls.FileExplorer.Package \
   --version 0.0.0.10 \
   --environment "https://contoso.crm.dynamics.com"
+```
+
+### Deploying packages and solutions
+
+The `txc deploy` group covers both execution and inspection of deployments against a Dataverse environment:
+
+- `txc deploy package` — runs a Package Deployer package (NuGet name or local `.pdpkg.zip`).
+- `txc deploy solution` — imports a single solution zip using the modern `Microsoft.PowerPlatform.Dataverse.Client` SDK; supports install, update, and single-step managed upgrade (`--stage-and-upgrade`).
+- `txc deploy list` — lists recent runs across both package and solution streams with status and duration.
+- `txc deploy show <id>` — shows details and findings for a single run, resolved by `latest`, an 8+ character GUID prefix, a full GUID, or a unique/solution name.
+
+> [!IMPORTANT]
+> `txc deploy solution`, `txc deploy list`, and `txc deploy show` run on the modern `Microsoft.PowerPlatform.Dataverse.Client` SDK, so they work natively on **Linux and macOS** as well as Windows — no Windows-only .NET Framework tooling required.
+
+**Deploy a package from NuGet:**
+```sh
+txc deploy package TALXIS.Controls.FileExplorer.Package --environment https://org.crm.dynamics.com
+```
+
+**Import a single solution zip:**
+```sh
+txc deploy solution ./Solutions/MySolution_managed.zip --environment https://org.crm.dynamics.com
+```
+
+**List the 20 most recent runs:**
+```sh
+txc deploy list --environment https://org.crm.dynamics.com
+```
+
+**List problems from the last 7 days:**
+```sh
+txc deploy list --environment https://org.crm.dynamics.com --since 7d --problems
+```
+
+### Inspecting a deployment
+
+`txc deploy show <id>` accepts a compact `<id>`:
+
+- `latest` — the most recent run across both streams.
+- An 8+ character GUID prefix (e.g. `9de18071`) — resolved against packages first, then solutions.
+- A full GUID — for unambiguous lookup.
+- A unique/solution name — falls back to the latest matching run.
+
+Output is a compact summary by default, plus **findings** (remediation guidance such as overwrite-customizations warnings, install+upgrade pattern detection, stale `In Process` status, and slowest-solution hints). Pass `--full` to include every correlated solution and the formatted import log. Pass `--json` for a machine-readable payload.
+
+**Show the latest run:**
+```sh
+txc deploy show latest --environment https://org.crm.dynamics.com
+```
+
+**Show a specific run by GUID prefix:**
+```sh
+txc deploy show 9de18071 --environment https://org.crm.dynamics.com
+```
+
+**Show a standalone solution import by name (with formatted log):**
+```sh
+txc deploy show MySolution --environment https://org.crm.dynamics.com --full
 ```
 
 **Import a CMT data folder into Dataverse:**

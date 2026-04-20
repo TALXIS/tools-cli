@@ -103,7 +103,7 @@ public class McpToolRegistryTests
     {
         var tools = _registry.ListTools();
 
-        var deployTool = tools.First(t => t.Name == "environment_deploy");
+        var deployTool = tools.First(t => t.Name == "deploy_package");
         Assert.NotNull(deployTool.Execution);
         Assert.NotNull(deployTool.Execution.TaskSupport);
 
@@ -129,7 +129,7 @@ public class McpToolRegistryTests
     [Fact]
     public void GetDescriptor_ReturnsTaskSupportMetadata()
     {
-        var deployDescriptor = _registry.GetDescriptor("environment_deploy");
+        var deployDescriptor = _registry.GetDescriptor("deploy_package");
         Assert.NotNull(deployDescriptor);
         Assert.True(deployDescriptor.SupportsTaskExecution);
 

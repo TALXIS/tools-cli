@@ -1,4 +1,4 @@
-namespace TALXIS.CLI.Environment;
+namespace TALXIS.CLI.Deploy;
 
 public sealed record EnvironmentInstallOptions(
     string PackageName,

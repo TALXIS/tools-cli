@@ -13,7 +13,10 @@ public class CliTests
     [InlineData("workspace component type list")]
     [InlineData("workspace component type explain pp-entity")]
     [InlineData("workspace component parameter list pp-entity")]
-    [InlineData("environment deploy --help")]
+    [InlineData("deploy package --help")]
+    [InlineData("deploy solution --help")]
+    [InlineData("deploy logs --help")]
+    [InlineData("deploy --help")]
     public async Task Command_ExecutesSuccessfully(string command)
     {
         var output = await CliRunner.RunAsync(command);

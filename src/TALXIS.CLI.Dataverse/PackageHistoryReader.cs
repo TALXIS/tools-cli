@@ -1,0 +1,214 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.PowerPlatform.Dataverse.Client;
+using Microsoft.Xrm.Sdk;
+using Microsoft.Xrm.Sdk.Query;
+
+namespace TALXIS.CLI.Dataverse;
+
+/// <summary>
+/// Structured view of a row in the <c>packagehistory</c> table.
+/// All <see cref="DateTime"/> values are UTC.
+/// </summary>
+public sealed record PackageHistoryRecord(
+    Guid Id,
+    string? Name,
+    string? Status,
+    string? Stage,
+    DateTime? StartedAtUtc,
+    DateTime? CompletedAtUtc,
+    Guid? OperationId,
+    string? Message);
+
+/// <summary>
+/// Reader for the <c>packagehistory</c> table (Package Deployer run records).
+/// Note: <c>packagehistory</c> does not use the <c>msdyn_</c> attribute prefix.
+/// Primary name attribute is <c>executionname</c>.
+/// </summary>
+public sealed class PackageHistoryReader
+{
+    private const string EntityName = "packagehistory";
+    private static readonly ColumnSet Columns = new(
+        "packagehistoryid",
+        "uniquename",
+        "executionname",
+        "statuscode",
+        "stagevalue",
+        "operationid",
+        "statusmessage",
+        "createdon",
+        "modifiedon");
+
+    private readonly IOrganizationServiceAsync2 _service;
+    private readonly ILogger? _logger;
+
+    public PackageHistoryReader(IOrganizationServiceAsync2 service, ILogger? logger = null)
+    {
+        _service = service ?? throw new ArgumentNullException(nameof(service));
+        _logger = logger;
+    }
+
+    public async Task<PackageHistoryRecord?> GetByIdAsync(Guid id, CancellationToken ct = default)
+    {
+        var entity = await _service.RetrieveAsync(EntityName, id, Columns, ct).ConfigureAwait(false);
+        return entity is null ? null : ToRecord(entity);
+    }
+
+    public async Task<PackageHistoryRecord?> GetByOperationIdAsync(Guid operationId, CancellationToken ct = default)
+    {
+        var q = BuildBaseQuery();
+        q.Criteria.AddCondition("operationid", ConditionOperator.Equal, operationId);
+        q.TopCount = 1;
+        var res = await _service.RetrieveMultipleAsync(q, ct).ConfigureAwait(false);
+        return res.Entities.Count == 0 ? null : ToRecord(res.Entities[0]);
+    }
+
+    /// <summary>
+    /// Returns the most recent <paramref name="count"/> package-history rows ordered by
+    /// <c>createdon</c> descending.
+    /// </summary>
+    public async Task<IReadOnlyList<PackageHistoryRecord>> GetRecentAsync(int count = 10, CancellationToken ct = default)
+    {
+        if (count <= 0) throw new ArgumentOutOfRangeException(nameof(count), "count must be > 0.");
+        return await GetRecentAsync(count, sinceUtc: null, problemsOnly: false, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Returns recent package-history rows, optionally constrained by a <paramref name="sinceUtc"/>
+    /// lower bound on <c>createdon</c> and/or filtered to rows whose <c>statuscode</c> is neither
+    /// the Success (30) nor the terminal-In-Progress (5) Dataverse system codes.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="problemsOnly"/> is implemented client-side against the formatted status label
+    /// because <c>statuscode</c> option-set values on <c>packagehistory</c> vary across stamps.
+    /// The filter accepts rows whose label is not one of: <c>Success</c>, <c>Completed</c>.
+    /// Stuck "In Process" rows older than 1h are kept because they are the target of the
+    /// <c>StaleInProcess</c> finding.
+    /// </remarks>
+    public async Task<IReadOnlyList<PackageHistoryRecord>> GetRecentAsync(
+        int count,
+        DateTime? sinceUtc,
+        bool problemsOnly,
+        CancellationToken ct = default)
+    {
+        if (count <= 0) throw new ArgumentOutOfRangeException(nameof(count), "count must be > 0.");
+        var q = BuildBaseQuery();
+        if (sinceUtc is { } since)
+        {
+            q.Criteria.AddCondition("createdon", ConditionOperator.OnOrAfter, DataverseDateTime.EnsureUtc(since));
+        }
+        q.AddOrder("createdon", OrderType.Descending);
+        q.TopCount = problemsOnly ? Math.Max(count * 4, 50) : count;
+        var res = await _service.RetrieveMultipleAsync(q, ct).ConfigureAwait(false);
+        var records = res.Entities.Select(ToRecord);
+        if (problemsOnly)
+        {
+            records = records.Where(r => !IsHealthyStatus(r.Status));
+        }
+        return records.Take(count).ToList();
+    }
+
+    private static bool IsHealthyStatus(string? status) =>
+        !string.IsNullOrWhiteSpace(status) &&
+        (status.Equals("Success", StringComparison.OrdinalIgnoreCase)
+            || status.Equals("Completed", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Returns candidate rows whose <c>packagehistoryid</c> (hex form, dashes stripped) starts
+    /// with <paramref name="hexPrefix"/>. Prefix match runs client-side against the last 200 rows.
+    /// </summary>
+    public async Task<IReadOnlyList<PackageHistoryRecord>> GetByIdPrefixAsync(string hexPrefix, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(hexPrefix);
+        var q = BuildBaseQuery();
+        q.AddOrder("createdon", OrderType.Descending);
+        q.TopCount = 500;
+        var res = await _service.RetrieveMultipleAsync(q, ct).ConfigureAwait(false);
+        var lower = hexPrefix.ToLowerInvariant();
+        return res.Entities
+            .Select(ToRecord)
+            .Where(r => r.Id.ToString("N").StartsWith(lower, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Latest package-history row whose <c>uniquename</c> matches <paramref name="name"/>
+    /// (case-insensitive). Pass <c>null</c> to return the latest overall.
+    /// </summary>
+    public async Task<PackageHistoryRecord?> GetLatestAsync(string? name = null, CancellationToken ct = default)
+    {
+        var q = BuildBaseQuery();
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            q.Criteria.AddCondition("uniquename", ConditionOperator.Equal, name);
+        }
+        q.AddOrder("createdon", OrderType.Descending);
+        q.TopCount = 1;
+        var res = await _service.RetrieveMultipleAsync(q, ct).ConfigureAwait(false);
+        return res.Entities.Count == 0 ? null : ToRecord(res.Entities[0]);
+    }
+
+    private static QueryExpression BuildBaseQuery() => new(EntityName)
+    {
+        ColumnSet = Columns,
+        Criteria = new FilterExpression(LogicalOperator.And),
+    };
+
+    private static PackageHistoryRecord ToRecord(Entity e)
+    {
+        string? StatusLabel()
+        {
+            if (e.FormattedValues.TryGetValue("statuscode", out var formatted) && !string.IsNullOrWhiteSpace(formatted))
+            {
+                return formatted;
+            }
+            return e.GetAttributeValue<OptionSetValue>("statuscode")?.Value.ToString();
+        }
+
+        string? StageLabel()
+        {
+            if (e.FormattedValues.TryGetValue("stagevalue", out var formatted) && !string.IsNullOrWhiteSpace(formatted))
+            {
+                return formatted;
+            }
+            var raw = e.GetAttributeValue<object>("stagevalue");
+            return raw switch
+            {
+                OptionSetValue osv => osv.Value.ToString(),
+                string s => s,
+                _ => raw?.ToString(),
+            };
+        }
+
+        DateTime? start = e.Contains("createdon")
+            ? DataverseDateTime.EnsureUtc(e.GetAttributeValue<DateTime>("createdon"))
+            : null;
+
+        DateTime? end = e.Contains("modifiedon")
+            ? DataverseDateTime.EnsureUtc(e.GetAttributeValue<DateTime>("modifiedon"))
+            : null;
+
+        Guid? operationId = null;
+        if (e.Contains("operationid"))
+        {
+            var raw = e["operationid"];
+            if (raw is Guid g)
+            {
+                operationId = g;
+            }
+            else if (raw is string s && Guid.TryParse(s, out var parsed))
+            {
+                operationId = parsed;
+            }
+        }
+
+        return new PackageHistoryRecord(
+            Id: e.Id,
+            Name: e.GetAttributeValue<string>("uniquename") ?? e.GetAttributeValue<string>("executionname"),
+            Status: StatusLabel(),
+            Stage: StageLabel(),
+            StartedAtUtc: start,
+            CompletedAtUtc: end,
+            OperationId: operationId,
+            Message: e.GetAttributeValue<string>("statusmessage"));
+    }
+}

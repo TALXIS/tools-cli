@@ -38,6 +38,8 @@ public sealed class PackageDeployerRunner
         private readonly Dictionary<string, Assembly> _assemblyMap;
         private readonly HashSet<string> _unresolvedAssemblies = new(StringComparer.OrdinalIgnoreCase);
         private readonly ManualResetEventSlim _workComplete = new();
+        private readonly List<string> _failureDetails = [];
+        private readonly object _failureDetailsLock = new();
 
         private string? _errorMessage;
         private string? _effectiveLogFilePath;
@@ -660,6 +662,7 @@ public sealed class PackageDeployerRunner
         {
             if (!string.IsNullOrWhiteSpace(e.StatusMessage))
             {
+                RecordFailureDetail(e.StatusMessage);
                 _logger.LogInformation("{StatusMessage}", e.StatusMessage);
             }
 
@@ -672,7 +675,9 @@ public sealed class PackageDeployerRunner
 
             if (!e.isCompleted)
             {
-                _errorMessage = e.StatusMessage ?? "Package Deployer failed while parsing import configuration.";
+                _errorMessage = ChooseFailureMessage(
+                    e.StatusMessage,
+                    "Package Deployer configuration read failed.");
                 _workComplete.Set();
                 return;
             }
@@ -708,6 +713,11 @@ public sealed class PackageDeployerRunner
 
         private void Import_ImportStatusUpdate(object? sender, ImportProgressStatus e)
         {
+            if (LooksLikeFailureStatus(e.StatusMessage))
+            {
+                RecordFailureDetail(e.StatusMessage);
+            }
+
             if (_request.Verbose && !string.IsNullOrWhiteSpace(e.StatusMessage))
             {
                 _logger.LogInformation("IMP_STATUS > {StatusMessage}", e.StatusMessage);
@@ -718,9 +728,9 @@ public sealed class PackageDeployerRunner
         {
             if (!e.isCompleted)
             {
-                _errorMessage = string.IsNullOrWhiteSpace(e.StatusMessage)
-                    ? _errorMessage ?? "Package Deployer reported failure."
-                    : e.StatusMessage;
+                _errorMessage = ChooseFailureMessage(
+                    e.StatusMessage,
+                    "Package Deployer reported failure.");
             }
 
             if (_import is not null)
@@ -739,8 +749,7 @@ public sealed class PackageDeployerRunner
             if (e.progressItem?.ItemStatus == ProgressPanelItemStatus.Failed &&
                 !string.IsNullOrWhiteSpace(e.progressItem.ItemText))
             {
-                _errorMessage ??= e.progressItem.ItemText;
-                _workComplete.Set();
+                RecordFailureDetail(e.progressItem.ItemText);
             }
         }
 
@@ -753,6 +762,7 @@ public sealed class PackageDeployerRunner
                     _logger.LogInformation("{Message} - {Status}", message, e.progressItem.ItemStatus);
                     break;
                 case ProgressPanelItemStatus.Failed:
+                    RecordFailureDetail(message);
                     _logger.LogError("{Message}", message);
                     break;
                 case ProgressPanelItemStatus.Warning:
@@ -778,6 +788,139 @@ public sealed class PackageDeployerRunner
             Span<byte> header = stackalloc byte[4];
             stream.ReadExactly(header);
             return header[0] == (byte)'P' && header[1] == (byte)'K';
+        }
+
+        private void RecordFailureDetail(string? detail)
+        {
+            if (string.IsNullOrWhiteSpace(detail))
+            {
+                return;
+            }
+
+            string normalized = detail.Trim();
+            lock (_failureDetailsLock)
+            {
+                if (_failureDetails.Count == 0 || !string.Equals(_failureDetails[^1], normalized, StringComparison.Ordinal))
+                {
+                    _failureDetails.Add(normalized);
+                }
+            }
+        }
+
+        private string ChooseFailureMessage(string? statusMessage, string fallback)
+        {
+            return FirstNonEmpty(
+                GetLatestTraceLoggerFailureDetail(),
+                GetLatestFailureDetail(),
+                statusMessage,
+                _errorMessage,
+                fallback)!;
+        }
+
+        private string? GetLatestFailureDetail()
+        {
+            lock (_failureDetailsLock)
+            {
+                return _failureDetails.Count > 0 ? _failureDetails[^1] : null;
+            }
+        }
+
+        private static bool LooksLikeFailureStatus(string? statusMessage)
+        {
+            return !string.IsNullOrWhiteSpace(statusMessage) &&
+                (statusMessage.Contains("fail", StringComparison.OrdinalIgnoreCase) ||
+                 statusMessage.Contains("error", StringComparison.OrdinalIgnoreCase) ||
+                 statusMessage.Contains("exception", StringComparison.OrdinalIgnoreCase));
+        }
+
+        private string? GetLatestTraceLoggerFailureDetail()
+        {
+            try
+            {
+                object? logger = _coreObjects?.GetType()
+                    .GetProperty("Logger", BindingFlags.Instance | BindingFlags.Public)?
+                    .GetValue(_coreObjects);
+
+                object? logsValue = logger?.GetType()
+                    .GetProperty("Logs", BindingFlags.Instance | BindingFlags.Public)?
+                    .GetValue(logger);
+
+                if (logsValue is not System.Collections.IEnumerable logs)
+                {
+                    return null;
+                }
+
+                string? latestError = null;
+                string? latestFailure = null;
+
+                foreach (object? entry in logs)
+                {
+                    string? line = entry?.ToString();
+                    if (string.IsNullOrWhiteSpace(line))
+                    {
+                        continue;
+                    }
+
+                    string message = ExtractTraceLoggerMessage(line);
+                    if (string.IsNullOrWhiteSpace(message))
+                    {
+                        continue;
+                    }
+
+                    if (line.Contains(" Error:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        latestError = message;
+                    }
+                    else if (LooksLikeFailureStatus(message))
+                    {
+                        latestFailure = message;
+                    }
+                }
+
+                return FirstNonEmpty(latestError, latestFailure);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static string ExtractTraceLoggerMessage(string line)
+        {
+            const string marker = "Message:";
+            int index = line.LastIndexOf(marker, StringComparison.OrdinalIgnoreCase);
+            string message = index >= 0
+                ? line[(index + marker.Length)..].Trim()
+                : line.Trim();
+
+            // TraceLogger.Logs entries come from Tuple<DateTime, string>.ToString(),
+            // which wraps the original log line in parentheses. If we extracted the
+            // trailing message from such a tuple string, strip only the tuple's final
+            // closing parenthesis while preserving legitimate message content.
+            if (index >= 0 &&
+                line.Length > 0 &&
+                line[0] == '(' &&
+                line[^1] == ')' &&
+                message.Length > 0 &&
+                message[^1] == ')')
+            {
+                message = message[..^1].TrimEnd();
+            }
+
+            return message;
+        }
+
+        private static string? FirstNonEmpty(params string?[] values)
+        {
+            foreach (string? value in values)
+            {
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    return value;
+                }
+            }
+
+            return null;
         }
 
         public void Dispose()
