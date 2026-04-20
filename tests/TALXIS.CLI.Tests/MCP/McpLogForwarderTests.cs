@@ -40,6 +40,10 @@ public class McpLogForwarderTests
         Assert.Single(logger.LogEntries);
         Assert.Equal(LogLevel.Information, logger.LogEntries[0].Level);
         Assert.Contains("Hello from subprocess", logger.LogEntries[0].Message);
+        Assert.Contains("2024-01-15T10:30:45Z", forwarder.FullLog);
+        Assert.Contains("[Information]", forwarder.FullLog);
+        Assert.Contains("[TestCat]", forwarder.FullLog);
+        Assert.Contains("Hello from subprocess", forwarder.FullLog);
     }
 
     [Fact]
@@ -53,6 +57,7 @@ public class McpLogForwarderTests
         Assert.Single(logger.LogEntries);
         Assert.Equal(LogLevel.Warning, logger.LogEntries[0].Level);
         Assert.Contains("This is plain text stderr output", logger.LogEntries[0].Message);
+        Assert.Contains("This is plain text stderr output", forwarder.FullLog);
     }
 
     [Fact]

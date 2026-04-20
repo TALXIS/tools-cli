@@ -21,18 +21,20 @@ internal sealed class RootsService
 
     public async ValueTask<string?> GetWorkingDirectoryAsync(CancellationToken cancellationToken)
     {
-        if (_resolved)
-            return _cachedWorkingDirectory;
+        if (System.Threading.Volatile.Read(ref _resolved))
+            return System.Threading.Volatile.Read(ref _cachedWorkingDirectory);
 
         await _semaphore.WaitAsync(cancellationToken);
         try
         {
-            if (_resolved)
-                return _cachedWorkingDirectory;
+            if (System.Threading.Volatile.Read(ref _resolved))
+                return System.Threading.Volatile.Read(ref _cachedWorkingDirectory);
 
-            _cachedWorkingDirectory = await ResolveWorkingDirectoryAsync(cancellationToken);
-            _resolved = true;
-            return _cachedWorkingDirectory;
+            System.Threading.Volatile.Write(ref _cachedWorkingDirectory, await ResolveWorkingDirectoryAsync(cancellationToken));
+            // Publish completion with release semantics so readers that observe
+            // _resolved == true also observe the cached working directory.
+            System.Threading.Volatile.Write(ref _resolved, true);
+            return System.Threading.Volatile.Read(ref _cachedWorkingDirectory);
         }
         finally
         {

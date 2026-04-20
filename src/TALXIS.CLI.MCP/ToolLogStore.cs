@@ -1,5 +1,3 @@
-using System.Collections.Concurrent;
-
 namespace TALXIS.CLI.MCP;
 
 /// <summary>
@@ -8,8 +6,9 @@ namespace TALXIS.CLI.MCP;
 /// </summary>
 internal sealed class ToolLogStore
 {
-    private readonly ConcurrentDictionary<string, LogEntry> _logs = new();
-    private readonly ConcurrentQueue<string> _order = new();
+    private readonly object _sync = new();
+    private readonly Dictionary<string, LogEntry> _logs = [];
+    private readonly Queue<string> _order = [];
     private readonly int _maxEntries;
 
     /// <summary>URI scheme prefix for tool log resources.</summary>
@@ -30,13 +29,16 @@ internal sealed class ToolLogStore
         var uri = $"{UriScheme}{toolName}/{runId}";
         var entry = new LogEntry(toolName, fullLog, errorSummary, isError, DateTimeOffset.UtcNow);
 
-        _logs[uri] = entry;
-        _order.Enqueue(uri);
-
-        // Evict oldest entries
-        while (_order.Count > _maxEntries && _order.TryDequeue(out var oldUri))
+        lock (_sync)
         {
-            _logs.TryRemove(oldUri, out _);
+            _logs[uri] = entry;
+            _order.Enqueue(uri);
+
+            while (_order.Count > _maxEntries)
+            {
+                var oldUri = _order.Dequeue();
+                _logs.Remove(oldUri);
+            }
         }
 
         return uri;
@@ -47,7 +49,10 @@ internal sealed class ToolLogStore
     /// </summary>
     public bool TryGet(string uri, out LogEntry? entry)
     {
-        return _logs.TryGetValue(uri, out entry);
+        lock (_sync)
+        {
+            return _logs.TryGetValue(uri, out entry);
+        }
     }
 
     /// <summary>
@@ -55,7 +60,10 @@ internal sealed class ToolLogStore
     /// </summary>
     public IReadOnlyList<(string Uri, LogEntry Entry)> ListAll()
     {
-        return _logs.Select(kv => (kv.Key, kv.Value)).ToList();
+        lock (_sync)
+        {
+            return _logs.Select(kv => (kv.Key, kv.Value)).ToList();
+        }
     }
 
     internal sealed record LogEntry(

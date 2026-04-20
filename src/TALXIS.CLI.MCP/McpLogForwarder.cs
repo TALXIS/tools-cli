@@ -85,10 +85,11 @@ internal sealed class McpLogForwarder : ISubprocessOutputHandler
             return;
 
         string? redactedMessage = null;
+        string? fullLogLine = null;
         var logLine = JsonLogLine.TryDeserialize(line);
         if (logLine != null)
         {
-            redactedMessage = ForwardStructuredLog(logLine);
+            (redactedMessage, fullLogLine) = ForwardStructuredLog(logLine);
         }
         else
         {
@@ -98,9 +99,10 @@ internal sealed class McpLogForwarder : ISubprocessOutputHandler
             redactedMessage = LogRedactionFilter.Redact(line);
             _mcpLogger.Log(LogLevel.Warning, "{Message}", redactedMessage);
             _errorMessages.Add(redactedMessage);
+            fullLogLine = redactedMessage;
         }
 
-        _fullLogBuffer.AppendLine(redactedMessage);
+        _fullLogBuffer.AppendLine(fullLogLine);
 
         _lineCount++;
         await TrySendProgressAsync(redactedMessage).ConfigureAwait(false);
@@ -116,7 +118,7 @@ internal sealed class McpLogForwarder : ISubprocessOutputHandler
         return Task.CompletedTask;
     }
 
-    private string ForwardStructuredLog(JsonLogLine logLine)
+    private (string Message, string FullLogLine) ForwardStructuredLog(JsonLogLine logLine)
     {
         var level = ParseLogLevel(logLine.Level);
         string redactedMessage = LogRedactionFilter.Redact(logLine.Message);
@@ -127,7 +129,8 @@ internal sealed class McpLogForwarder : ISubprocessOutputHandler
             _errorMessages.Add(redactedMessage);
         }
 
-        return redactedMessage;
+        var fullLogLine = $"{logLine.Timestamp} [{logLine.Level}] [{logLine.Category}] {redactedMessage}";
+        return (redactedMessage, fullLogLine);
     }
 
     private async Task TrySendProgressAsync(string? message)
