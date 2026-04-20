@@ -96,12 +96,11 @@ txc deploy list --environment https://org.crm.dynamics.com --since 7d --problems
 
 ### Inspecting a deployment
 
-`txc deploy show <id>` accepts a compact `<id>`:
+`txc deploy show <id>` accepts:
 
 - `latest` — the most recent run across both streams.
-- An 8+ character GUID prefix (e.g. `9de18071`) — resolved against packages first, then solutions.
-- A full GUID — for unambiguous lookup.
-- A unique/solution name — falls back to the latest matching run.
+- A full GUID — for unambiguous lookup of a specific historical run.
+- A unique/solution name — resolves to the latest matching run.
 
 Output is a compact summary by default, plus **findings** (remediation guidance such as overwrite-customizations warnings, install+upgrade pattern detection, stale `In Process` status, and slowest-solution hints). Pass `--full` to include every correlated solution and the formatted import log. Pass `--json` for a machine-readable payload.
 
@@ -110,9 +109,9 @@ Output is a compact summary by default, plus **findings** (remediation guidance 
 txc deploy show latest --environment https://org.crm.dynamics.com
 ```
 
-**Show a specific run by GUID prefix:**
+**Show a specific package run by name:**
 ```sh
-txc deploy show 9de18071 --environment https://org.crm.dynamics.com
+txc deploy show TALXIS.Controls.FileExplorer.Package --environment https://org.crm.dynamics.com
 ```
 
 **Show a standalone solution import by name (with formatted log):**

@@ -184,21 +184,20 @@ public class DeployListCliCommand
         int nameWidth = Math.Clamp(rows.Max(r => (r.Name ?? "").Length), 12, 40);
         int statusWidth = Math.Max(8, rows.Max(r => r.Status.Length));
 
-        string header = $"Kind | {"Id8",-8} | {"Name".PadRight(nameWidth)} | {"Status".PadRight(statusWidth)} | {"Started (UTC)",-19} | Duration";
+        string header = $"Kind | {"Name".PadRight(nameWidth)} | {"Status".PadRight(statusWidth)} | {"Started (UTC)",-19} | Duration";
         Console.WriteLine(header);
         Console.WriteLine(new string('-', header.Length));
         foreach (var r in rows)
         {
-            string id8 = r.Id.ToString("N")[..8];
             string name = (r.Name ?? "(unknown)");
             if (name.Length > nameWidth) name = name[..(nameWidth - 1)] + ".";
             string started = r.StartedAtUtc?.ToString("yyyy-MM-dd HH:mm:ss") ?? "(unknown)";
             string duration = FormatDuration(r.StartedAtUtc, r.CompletedAtUtc);
-            Console.WriteLine($"{r.Kind,-4} | {id8} | {name.PadRight(nameWidth)} | {r.Status.PadRight(statusWidth)} | {started,-19} | {duration}");
+            Console.WriteLine($"{r.Kind,-4} | {name.PadRight(nameWidth)} | {r.Status.PadRight(statusWidth)} | {started,-19} | {duration}");
         }
 
         Console.WriteLine();
-        Console.WriteLine("Use: txc deploy show <id8|latest> for details.");
+        Console.WriteLine("Use: txc deploy show <name|latest|guid> for details.");
     }
 
     private static string FormatDuration(DateTime? start, DateTime? end)

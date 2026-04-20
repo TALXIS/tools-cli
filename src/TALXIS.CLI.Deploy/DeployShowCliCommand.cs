@@ -9,12 +9,12 @@ namespace TALXIS.CLI.Deploy;
 
 /// <summary>
 /// Shows details for a single deployment (package or solution run), resolved by a compact
-/// <c>&lt;id&gt;</c> selector: <c>latest</c>, an 8+ character GUID hex prefix, a full GUID,
-/// or a unique/solution name. Emits findings derived from <see cref="DeployFindingsAnalyzer"/>.
+/// <c>&lt;id&gt;</c> selector: <c>latest</c>, a full GUID, or a unique/solution name.
+/// Emits findings derived from <see cref="DeployFindingsAnalyzer"/>.
 /// </summary>
 [CliCommand(
     Name = "show",
-    Description = "Show details and findings for a single deployment. <id> accepts: latest, an 8+ character GUID prefix, a full GUID, or a unique/solution name."
+    Description = "Show details and findings for a single deployment. <id> accepts: latest, a full GUID, or a unique/solution name."
 )]
 public class DeployShowCliCommand
 {
@@ -23,7 +23,7 @@ public class DeployShowCliCommand
 
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(DeployShowCliCommand));
 
-    [CliArgument(Description = "Identifier: latest, an 8+ character GUID prefix, a full GUID, or a unique/solution name.")]
+    [CliArgument(Description = "Identifier: latest, a full GUID, or a unique/solution name.")]
     public required string Id { get; set; }
 
     [CliOption(Name = "--connection-string", Description = "Dataverse connection string. If omitted, txc checks DATAVERSE_CONNECTION_STRING and TXC_DATAVERSE_CONNECTION_STRING.", Required = false)]
