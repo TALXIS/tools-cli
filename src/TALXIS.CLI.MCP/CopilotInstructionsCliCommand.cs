@@ -1,11 +1,14 @@
 using DotMake.CommandLine;
 using System.ComponentModel;
+using TALXIS.CLI.Shared;
 
 namespace TALXIS.CLI.MCP
 {
     /// <summary>
     /// CLI command for managing Copilot instructions in user projects.
-    /// This command creates or updates .github/copilot-instructions.md with TALXIS CLI specific instructions.
+    /// This command runs in-process inside the MCP server where OutputWriter
+    /// is redirected by ExecuteMcpSpecificToolWithCapturedOutputAsync to capture
+    /// the result data as the tool response.
     /// </summary>
     [CliCommand(
         Name = "copilot-instructions",
@@ -39,13 +42,13 @@ namespace TALXIS.CLI.MCP
                 switch (result)
                 {
                     case CopilotInstructionsResult.Created:
-                        Console.WriteLine($"✅ Created .github/copilot-instructions.md with TALXIS CLI instructions in {TargetDirectory}");
+                        OutputWriter.WriteLine($"Created .github/copilot-instructions.md with TALXIS CLI instructions in {TargetDirectory}");
                         break;
                     case CopilotInstructionsResult.Updated:
-                        Console.WriteLine($"✅ Updated TALXIS CLI instructions in .github/copilot-instructions.md in {TargetDirectory}");
+                        OutputWriter.WriteLine($"Updated TALXIS CLI instructions in .github/copilot-instructions.md in {TargetDirectory}");
                         break;
                     case CopilotInstructionsResult.UpToDate:
-                        Console.WriteLine($"✅ TALXIS CLI instructions are already up-to-date in {TargetDirectory}");
+                        OutputWriter.WriteLine($"TALXIS CLI instructions are already up-to-date in {TargetDirectory}");
                         break;
                 }
 
@@ -53,7 +56,7 @@ namespace TALXIS.CLI.MCP
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Error: {ex.Message}");
+                OutputWriter.WriteLine($"Error: {ex.Message}");
                 return 1;
             }
         }

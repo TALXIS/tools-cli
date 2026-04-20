@@ -2,11 +2,13 @@ using System.Diagnostics;
 using System.IO.Compression;
 using System.Reflection;
 using System.Runtime.Loader;
+using Microsoft.Extensions.Logging;
 using Microsoft.Xrm.Tooling.Connector;
 using Microsoft.Xrm.Tooling.CrmConnectControl.Utility;
 using Microsoft.Xrm.Tooling.PackageDeployment.CrmPackageCore.ImportCode;
 using Microsoft.Xrm.Tooling.PackageDeployment.CrmPackageCore.Models;
 using Microsoft.Xrm.Tooling.PackageDeployment.CrmPackageExtentionBase;
+using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.XrmTools;
 
@@ -32,6 +34,7 @@ public sealed class PackageDeployerRunner
     private sealed class ManagedPackageDeployerHost : IDisposable
     {
         private readonly PackageDeployerRequest _request;
+        private readonly ILogger _logger;
         private readonly Dictionary<string, Assembly> _assemblyMap;
         private readonly HashSet<string> _unresolvedAssemblies = new(StringComparer.OrdinalIgnoreCase);
         private readonly ManualResetEventSlim _workComplete = new();
@@ -51,6 +54,7 @@ public sealed class PackageDeployerRunner
         public ManagedPackageDeployerHost(PackageDeployerRequest request)
         {
             _request = request;
+            _logger = TxcLoggerFactory.CreateLogger(nameof(PackageDeployerRunner));
 
             // Instance map starts as a copy of the static map — the instance
             // resolver adds extracted-directory probing and unresolved tracking.
@@ -106,9 +110,9 @@ public sealed class PackageDeployerRunner
 
                 if (_request.Verbose)
                 {
-                    Console.WriteLine($"[txc] Connected to: {crmServiceClient.ConnectedOrgUriActual}");
-                    Console.WriteLine($"[txc] Organization version: {crmServiceClient.ConnectedOrgVersion}");
-                    Console.WriteLine($"[txc] Organization ID: {crmServiceClient.ConnectedOrgId}");
+                    _logger.LogInformation("Connected to: {Url}", crmServiceClient.ConnectedOrgUriActual);
+                    _logger.LogInformation("Organization version: {Version}", crmServiceClient.ConnectedOrgVersion);
+                    _logger.LogInformation("Organization ID: {OrgId}", crmServiceClient.ConnectedOrgId);
                 }
 
                 _coreObjects = new CoreObjects(
@@ -202,9 +206,9 @@ public sealed class PackageDeployerRunner
                 // Dump captured first-chance exceptions if verbose
                 if (capturedExceptions.Count > 0)
                 {
-                    Console.Error.WriteLine($"\n[txc] {capturedExceptions.Count} first-chance exception(s) during deploy:");
+                    _logger.LogWarning("{Count} first-chance exception(s) during deploy", capturedExceptions.Count);
                     foreach (var msg in capturedExceptions)
-                        Console.Error.WriteLine($"  {msg}");
+                        _logger.LogWarning("  {Exception}", msg);
                 }
 
                 TryPersistCmtLog();
@@ -490,7 +494,7 @@ public sealed class PackageDeployerRunner
                                  itemStr.Contains("error", StringComparison.OrdinalIgnoreCase) ||
                                  itemStr.Contains("exception", StringComparison.OrdinalIgnoreCase)))
                             {
-                                Console.Error.WriteLine($"[CMT ImportLog] {prop.Name}: {itemStr}");
+                                _logger.LogError("[CMT ImportLog] {Property}: {Content}", prop.Name, itemStr);
                             }
                         }
                     }
@@ -510,9 +514,9 @@ public sealed class PackageDeployerRunner
                     object? lastEx = lastExProp?.GetValue(parserLogger);
 
                     if (!string.IsNullOrWhiteSpace(lastError))
-                        Console.Error.WriteLine($"[CMT Logger.LastError] {lastError}");
+                        _logger.LogError("[CMT Logger.LastError] {Error}", lastError);
                     if (lastEx is not null)
-                        Console.Error.WriteLine($"[CMT Logger.LastException] {lastEx}");
+                        _logger.LogError("[CMT Logger.LastException] {Exception}", lastEx);
                 }
             }
             catch (Exception ex)
@@ -553,7 +557,7 @@ public sealed class PackageDeployerRunner
 
                     if (_request.Verbose)
                     {
-                        Console.WriteLine("[txc] CMT console logging wired successfully.");
+                        _logger.LogDebug("CMT console logging wired successfully");
                     }
                 }
             }
@@ -585,7 +589,7 @@ public sealed class PackageDeployerRunner
 
             if (_unresolvedAssemblies.Add(requestedAssembly) && _request.Verbose)
             {
-                Console.WriteLine($"[txc] unresolved assembly requested: {requestedAssembly}");
+                _logger.LogDebug("Unresolved assembly requested: {Assembly}", requestedAssembly);
             }
 
             return null;
@@ -656,8 +660,7 @@ public sealed class PackageDeployerRunner
         {
             if (!string.IsNullOrWhiteSpace(e.StatusMessage))
             {
-                Console.WriteLine(e.StatusMessage);
-                Console.WriteLine();
+                _logger.LogInformation("{StatusMessage}", e.StatusMessage);
             }
 
             if (sender is PackageImportConfigurationParser parser)
@@ -707,7 +710,7 @@ public sealed class PackageDeployerRunner
         {
             if (_request.Verbose && !string.IsNullOrWhiteSpace(e.StatusMessage))
             {
-                Console.WriteLine($"IMP_STATUS > {e.StatusMessage}");
+                _logger.LogInformation("IMP_STATUS > {StatusMessage}", e.StatusMessage);
             }
         }
 
@@ -741,24 +744,24 @@ public sealed class PackageDeployerRunner
             }
         }
 
-        private static void WriteProgressStatus(ProdgressDataItemEventArgs e)
+        private void WriteProgressStatus(ProdgressDataItemEventArgs e)
         {
             string message = e.progressItem?.ItemText ?? string.Empty;
             switch (e.progressItem?.ItemStatus)
             {
                 case ProgressPanelItemStatus.Complete:
-                    Console.WriteLine($"{message} - {e.progressItem.ItemStatus}");
+                    _logger.LogInformation("{Message} - {Status}", message, e.progressItem.ItemStatus);
                     break;
                 case ProgressPanelItemStatus.Failed:
-                    Console.Error.WriteLine(message);
+                    _logger.LogError("{Message}", message);
                     break;
                 case ProgressPanelItemStatus.Warning:
-                    Console.Error.WriteLine($"Warning: {message}");
+                    _logger.LogWarning("{Message}", message);
                     break;
                 default:
                     if (!string.IsNullOrWhiteSpace(message))
                     {
-                        Console.WriteLine(message);
+                        _logger.LogInformation("{Message}", message);
                     }
                     break;
             }

@@ -1,5 +1,7 @@
+using System.Text;
 using DotMake.CommandLine;
 using Microsoft.TemplateEngine.Abstractions;
+using TALXIS.CLI.Shared;
 using TALXIS.CLI.Workspace.TemplateEngine;
 
 namespace TALXIS.CLI.Workspace;
@@ -22,37 +24,43 @@ public class ComponentParameterListCliCommand
         var parameters = scaffolder.ListParametersForTemplateAsync(ShortName).GetAwaiter().GetResult();
         if (parameters == null || parameters.Count == 0)
         {
-            Console.WriteLine($"No parameters found for template '{ShortName}'.");
+            OutputWriter.WriteLine($"No parameters found for template {ShortName}");
             return 0;
         }
-        Console.WriteLine($"Parameters for template '{ShortName}':");
+        OutputWriter.WriteLine($"Parameters for template {ShortName}:");
 
         // Always show the mandatory output parameter first
-        Console.WriteLine("--output (Project folder path)  (text)  <required>");
-        Console.WriteLine("    Specifies the target project folder path where the component will be created.");
-        Console.WriteLine("    Required for both creating new projects (solution, plugin, PCF, etc.) and adding components to existing projects.");
-        Console.WriteLine("    Format: \"src\\Solutions.DataModel\"");
+        OutputWriter.WriteLine($"--output (Project folder path)  (text)  <required>");
+        OutputWriter.WriteLine("    Specifies the target project folder path where the component will be created.");
+        OutputWriter.WriteLine("    Required for both creating new projects (solution, plugin, PCF, etc.) and adding components to existing projects.");
+        OutputWriter.WriteLine("    Format: \"src\\Solutions.DataModel\"");
 
         foreach (var p in parameters)
         {
-            Console.Write($"--{p.Name}");
+            var sb = new StringBuilder();
+            sb.Append($"--{p.Name}");
             if (!string.IsNullOrEmpty(p.DisplayName))
-                Console.Write($" ({p.DisplayName})");
-            Console.Write($"  ({p.DataType})");
+                sb.Append($" ({p.DisplayName})");
+            sb.Append($"  ({p.DataType})");
             if (!string.IsNullOrEmpty(p.DefaultValue?.ToString()))
-                Console.Write($"  [default: {p.DefaultValue}]");
-            // Check if parameter is required
+                sb.Append($"  [default: {p.DefaultValue}]");
             if (p.Precedence.IsRequired ||
                 p.Precedence.PrecedenceDefinition == Microsoft.TemplateEngine.Abstractions.PrecedenceDefinition.Required)
-                Console.Write("  <required>");
+                sb.Append("  <required>");
             if (p.Choices != null && p.Choices.Count > 0)
             {
                 var list = string.Join(", ", p.Choices.Keys);
-                Console.Write($"  choices: {list}");
+                sb.Append($"  choices: {list}");
             }
-            Console.WriteLine();
             if (!string.IsNullOrEmpty(p.Description))
-                Console.WriteLine($"    {p.Description}");
+            {
+                OutputWriter.WriteLine(sb.ToString());
+                OutputWriter.WriteLine($"    {p.Description}");
+            }
+            else
+            {
+                OutputWriter.WriteLine(sb.ToString());
+            }
         }
         return 0;
     }

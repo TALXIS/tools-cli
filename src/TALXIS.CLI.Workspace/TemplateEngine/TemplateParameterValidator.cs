@@ -1,4 +1,6 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.TemplateEngine.Abstractions;
+using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Workspace.TemplateEngine
 {
@@ -7,6 +9,7 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
     /// </summary>
     public class TemplateParameterValidator
     {
+        private static readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(TemplateParameterValidator));
         public void ValidateParameters(ITemplateInfo template, IDictionary<string, string> userParameters)
         {
             var errors = new List<string>();
@@ -91,7 +94,7 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
 
                 default:
                     // For unknown data types, just log a warning but don't fail validation
-                    Console.WriteLine($"Warning: Unknown data type '{templateParam.DataType}' for parameter '{paramName}'. Skipping validation.");
+                    _logger.LogWarning("Unknown data type {DataType} for parameter {ParamName}. Skipping validation.", templateParam.DataType, paramName);
                     break;
             }
         }

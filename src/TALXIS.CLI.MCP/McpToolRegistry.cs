@@ -1,3 +1,5 @@
+#pragma warning disable MCPEXP001
+
 using ModelContextProtocol.Protocol;
 
 namespace TALXIS.CLI.MCP;
@@ -9,6 +11,15 @@ public class McpToolRegistry
 {
     private readonly McpToolDescriptorProvider _descriptorProvider = new();
     private readonly CliCommandLookupService _commandLookup = new();
+
+    /// <summary>
+    /// CLI command types that represent long-running operations and support task-augmented execution.
+    /// </summary>
+    private static readonly HashSet<Type> _longRunningCommandTypes = new()
+    {
+        typeof(TALXIS.CLI.Data.DataPackageImportCliCommand),
+        typeof(TALXIS.CLI.Environment.EnvironmentDeployCliCommand),
+    };
 
     /// <summary>
     /// Initializes a new instance of the <see cref="McpToolRegistry"/> class and registers all CLI tools.
@@ -26,7 +37,8 @@ public class McpToolRegistry
         var rootType = typeof(TxcCliCommand);
         foreach (var descriptor in _commandLookup.EnumerateAllCommands(rootType))
         {
-            _descriptorProvider.AddDescriptor(descriptor.Name, descriptor.Description, descriptor.CliCommandClass);
+            descriptor.SupportsTaskExecution = _longRunningCommandTypes.Contains(descriptor.CliCommandClass);
+            _descriptorProvider.AddDescriptor(descriptor);
         }
 
         // Register MCP-specific tools that are not part of the main CLI command tree
@@ -39,11 +51,13 @@ public class McpToolRegistry
     /// </summary>
     private void RegisterMcpSpecificTools()
     {
-        _descriptorProvider.AddDescriptor(
-            "copilot-instructions",
-            "Creates or updates .github/copilot-instructions.md file with TALXIS CLI instructions in the target project",
-            typeof(CopilotInstructionsCliCommand)
-        );
+        _descriptorProvider.AddDescriptor(new McpToolDescriptor
+        {
+            Name = "copilot-instructions",
+            Description = "Creates or updates .github/copilot-instructions.md file with TALXIS CLI instructions in the target project",
+            CliCommandClass = typeof(CopilotInstructionsCliCommand),
+            SupportsTaskExecution = false
+        });
     }
 
     /// <summary>
@@ -55,15 +69,27 @@ public class McpToolRegistry
         var toolDefinitions = new List<Tool>();
         foreach (var descriptor in _descriptorProvider.GetAllDescriptors())
         {
-            toolDefinitions.Add(new Tool
+            var tool = new Tool
             {
                 Name = descriptor.Name,
                 Description = descriptor.Description,
                 InputSchema = new CliCommandAdapter().BuildInputSchema(descriptor.CliCommandClass)
-            });
+            };
+
+            if (descriptor.SupportsTaskExecution)
+            {
+                tool.Execution = new ToolExecution { TaskSupport = new ToolTaskSupport() };
+            }
+
+            toolDefinitions.Add(tool);
         }
         return toolDefinitions;
     }
+
+    /// <summary>
+    /// Returns the descriptor for a tool by name, or null if not found.
+    /// </summary>
+    public McpToolDescriptor? GetDescriptor(string toolName) => _descriptorProvider.GetDescriptor(toolName);
 
     /// <summary>
     /// Finds the command type for a given MCP tool name.

@@ -1,6 +1,8 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Identity.Client;
 using Microsoft.Identity.Client.Extensions.Msal;
 using Microsoft.Xrm.Tooling.Connector;
+using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.XrmTools;
 
@@ -17,6 +19,7 @@ public sealed class DataverseInteractiveAuthHook : IOverrideAuthHookWrapper, IDi
     private static readonly Uri PacRedirectUri = new("http://localhost");
     private static readonly TimeSpan RefreshSkew = TimeSpan.FromMinutes(5);
 
+    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(DataverseInteractiveAuthHook));
     private readonly IPublicClientApplication _publicClientApplication;
     private readonly SemaphoreSlim _tokenLock = new(1, 1);
     private readonly bool _deviceCode;
@@ -133,10 +136,10 @@ public sealed class DataverseInteractiveAuthHook : IOverrideAuthHookWrapper, IDi
 
     private Task OnDeviceCodeReceivedAsync(DeviceCodeResult deviceCodeResult)
     {
-        Console.WriteLine(deviceCodeResult.Message);
+        _logger.LogInformation("{DeviceCodeMessage}", deviceCodeResult.Message);
         if (_verbose)
         {
-            Console.WriteLine("[txc] waiting for device code authentication to complete...");
+            _logger.LogInformation("Waiting for device code authentication to complete...");
         }
 
         return Task.CompletedTask;

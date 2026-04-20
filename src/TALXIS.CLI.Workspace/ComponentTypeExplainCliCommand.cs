@@ -1,4 +1,7 @@
 using DotMake.CommandLine;
+using Microsoft.Extensions.Logging;
+using TALXIS.CLI.Logging;
+using TALXIS.CLI.Shared;
 using TALXIS.CLI.Workspace.TemplateEngine;
 
 namespace TALXIS.CLI.Workspace;
@@ -9,6 +12,8 @@ namespace TALXIS.CLI.Workspace;
 )]
 public class ComponentTypeExplainCliCommand
 {
+    private static readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ComponentTypeExplainCliCommand));
+
     [CliArgument(Description = "Type of the component to explain")]
     public required string Type { get; set; }
 
@@ -16,7 +21,7 @@ public class ComponentTypeExplainCliCommand
     {
         if (string.IsNullOrWhiteSpace(Type))
         {
-            Console.WriteLine("Please provide a component type");
+            _logger.LogError("Please provide a component type");
             return 1;
         }
 
@@ -27,12 +32,12 @@ public class ComponentTypeExplainCliCommand
 
         if (template == null)
         {
-            Console.WriteLine($"Component template '{Type}' not found.");
+            _logger.LogError("Component template {Type} not found", Type);
             return 1;
         }
 
-        Console.WriteLine($"Type: {template.ShortNameList.FirstOrDefault()}");
-        Console.WriteLine($"Description: {template.Description}");
+        OutputWriter.WriteLine($"Type: {template.ShortNameList.FirstOrDefault()}");
+        OutputWriter.WriteLine($"Description: {template.Description}");
         return 0;
     }
 }

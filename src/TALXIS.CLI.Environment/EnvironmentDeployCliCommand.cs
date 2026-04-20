@@ -1,5 +1,7 @@
 using System.ComponentModel;
 using DotMake.CommandLine;
+using Microsoft.Extensions.Logging;
+using TALXIS.CLI.Logging;
 using TALXIS.CLI.XrmTools;
 
 namespace TALXIS.CLI.Environment;
@@ -11,6 +13,7 @@ namespace TALXIS.CLI.Environment;
 public class EnvironmentDeployCliCommand
 {
     private readonly NuGetPackageInstallerService _packageInstaller = new();
+    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EnvironmentDeployCliCommand));
 
     [CliArgument(Description = "NuGet package name, or path to a local .pdpkg.zip / package DLL")]
     public required string Package { get; set; }
@@ -53,7 +56,7 @@ public class EnvironmentDeployCliCommand
     {
         if (string.IsNullOrWhiteSpace(Package))
         {
-            Console.Error.WriteLine("A NuGet package name or local package path must be provided.");
+            _logger.LogError("A NuGet package name or local package path must be provided.");
             return 1;
         }
 
@@ -69,12 +72,12 @@ public class EnvironmentDeployCliCommand
         {
             if (!File.Exists(Package))
             {
-                Console.Error.WriteLine($"Package file not found: '{Package}'");
+                _logger.LogError("Package file not found: {PackagePath}", Package);
                 return 1;
             }
 
             packagePath = Path.GetFullPath(Package);
-            Console.WriteLine($"Using local package: '{packagePath}'");
+            _logger.LogInformation("Using local package: {PackagePath}", packagePath);
         }
         else
         {
@@ -95,8 +98,8 @@ public class EnvironmentDeployCliCommand
 
             NuGetPackageInstallResult installResult = await _packageInstaller.InstallAsync(options);
 
-            Console.WriteLine($"Resolved '{installResult.PackageName}' version '{installResult.ResolvedVersion}'.");
-            Console.WriteLine($"Deployable package extracted to '{installResult.DeployablePackagePath}'.");
+            _logger.LogInformation("Resolved {PackageName} version {Version}", installResult.PackageName, installResult.ResolvedVersion);
+            _logger.LogInformation("Deployable package extracted to {Path}", installResult.DeployablePackagePath);
 
             if (DownloadOnly)
             {
@@ -122,9 +125,8 @@ public class EnvironmentDeployCliCommand
 
         if (string.IsNullOrWhiteSpace(resolvedConnectionString) && string.IsNullOrWhiteSpace(resolvedEnvironmentUrl))
         {
-            Console.Error.WriteLine(
-                "Dataverse authentication is required to run Package Deployer. Pass --connection-string, pass --environment for interactive sign-in, or set DATAVERSE_CONNECTION_STRING / TXC_DATAVERSE_CONNECTION_STRING / DATAVERSE_ENVIRONMENT_URL / TXC_DATAVERSE_ENVIRONMENT_URL.");
-            Console.Error.WriteLine($"Package located at '{packagePath}'.");
+            _logger.LogError("Dataverse authentication is required to run Package Deployer. Pass --connection-string, pass --environment for interactive sign-in, or set DATAVERSE_CONNECTION_STRING / TXC_DATAVERSE_CONNECTION_STRING / DATAVERSE_ENVIRONMENT_URL / TXC_DATAVERSE_ENVIRONMENT_URL.");
+            _logger.LogError("Package located at {PackagePath}", packagePath);
             return 1;
         }
 
@@ -146,41 +148,41 @@ public class EnvironmentDeployCliCommand
             {
                 if (!string.IsNullOrWhiteSpace(deployResult.ErrorMessage))
                 {
-                    Console.Error.WriteLine(deployResult.ErrorMessage);
+                    _logger.LogError("{ErrorMessage}", deployResult.ErrorMessage);
                 }
 
                 if (!string.IsNullOrWhiteSpace(LogFile) && !string.IsNullOrWhiteSpace(deployResult.LogFilePath))
                 {
-                    Console.Error.WriteLine($"Detailed Package Deployer log: '{deployResult.LogFilePath}'.");
+                    _logger.LogError("Detailed Package Deployer log: {LogPath}", deployResult.LogFilePath);
                 }
 
                 if (!string.IsNullOrWhiteSpace(LogFile) && !string.IsNullOrWhiteSpace(deployResult.CmtLogFilePath))
                 {
-                    Console.Error.WriteLine($"Detailed CMT import log: '{deployResult.CmtLogFilePath}'.");
+                    _logger.LogError("Detailed CMT import log: {LogPath}", deployResult.CmtLogFilePath);
                 }
                 else if (string.IsNullOrWhiteSpace(LogFile) &&
                     (!string.IsNullOrWhiteSpace(deployResult.LogFilePath) || !string.IsNullOrWhiteSpace(deployResult.CmtLogFilePath)))
                 {
-                    Console.Error.WriteLine("Detailed temporary logs were cleaned up. Pass --log-file to preserve them.");
+                    _logger.LogWarning("Detailed temporary logs were cleaned up. Pass --log-file to preserve them.");
                 }
 
-                Console.Error.WriteLine($"Package deploy failed. Package located at '{packagePath}'.");
+                _logger.LogError("Package deploy failed. Package located at {PackagePath}", packagePath);
                 return 1;
             }
 
-            Console.WriteLine("Package deploy completed successfully.");
+            _logger.LogInformation("Package deploy completed successfully.");
 
             if (!string.IsNullOrWhiteSpace(LogFile))
             {
-                Console.WriteLine($"Package Deployer log: '{Path.GetFullPath(LogFile)}'.");
+                _logger.LogInformation("Package Deployer log: {LogPath}", Path.GetFullPath(LogFile));
             }
 
             return 0;
         }
         catch (InvalidOperationException ex)
         {
-            Console.Error.WriteLine(ex.Message);
-            Console.Error.WriteLine($"Package located at '{packagePath}'.");
+            _logger.LogError(ex, "Package deploy failed");
+            _logger.LogError("Package located at {PackagePath}", packagePath);
             return 1;
         }
         finally

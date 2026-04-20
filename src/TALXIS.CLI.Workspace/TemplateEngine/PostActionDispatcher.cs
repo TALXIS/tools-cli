@@ -1,12 +1,15 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.TemplateEngine.Abstractions;
 using Microsoft.TemplateEngine.Core.Contracts;
 using Microsoft.TemplateEngine.Edge.Template;
+using TALXIS.CLI.Logging;
 
 
 namespace TALXIS.CLI.Workspace.TemplateEngine
 {
     public class PostActionDispatcher
     {
+        private static readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(PostActionDispatcher));
         private readonly Dictionary<Guid, IPostActionProcessor> _processors;
         private readonly IEngineEnvironmentSettings _environment;
         private readonly Func<ScriptPermission, IPostAction, bool> _allowScripts;
@@ -35,7 +38,7 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
             {
                 if (!_processors.TryGetValue(action.ActionId, out var processor))
                 {
-                    Console.Error.WriteLine($"Post-action {action.ActionId} not supported. Please run manually:");
+                    _logger.LogError("Post-action {ActionId} not supported. Please run manually:", action.ActionId);
                     ShowManualInstructions(action);
                     result |= PostActionResult.Failure;
                     failedActions.Add(action);
@@ -44,7 +47,7 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
 
                 if (processor is RunScriptPostActionProcessor && !_allowScripts(scriptPermission, action))
                 {
-                    Console.WriteLine($"Skipping script post-action {action.Description} due to script policy.");
+                    _logger.LogInformation("Skipping script post-action {Description} due to script policy", action.Description);
                     continue;
                 }
 
@@ -80,7 +83,7 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
 
         private void ShowManualInstructions(IPostAction action)
         {
-            Console.WriteLine(action.ManualInstructions ?? "No manual instructions provided.");
+            _logger.LogInformation("{Instructions}", action.ManualInstructions ?? "No manual instructions provided.");
         }
     }
 

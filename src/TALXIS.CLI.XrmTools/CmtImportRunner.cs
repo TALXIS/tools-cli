@@ -2,9 +2,11 @@ using System.Diagnostics;
 using System.IO.Compression;
 using System.Reflection;
 using System.Runtime.Loader;
+using Microsoft.Extensions.Logging;
 using Microsoft.Xrm.Tooling.Connector;
 using Microsoft.Xrm.Tooling.Dmt.DataMigCommon.Utility;
 using Microsoft.Xrm.Tooling.Dmt.ImportProcessor.DataInteraction;
+using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.XrmTools;
 
@@ -29,6 +31,7 @@ public sealed class CmtImportRunner
     /// </summary>
     private readonly Dictionary<string, Assembly> _assemblyMap;
     private readonly HashSet<string> _unresolvedAssemblies = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(CmtImportRunner));
 
     /// <summary>
     /// Tracks the number of failed stages reported by CMT progress events.
@@ -94,7 +97,7 @@ public sealed class CmtImportRunner
                         $"Folder '{workingFolder}' does not contain required CMT files (data.xml and data_schema.xml).");
                 }
 
-                Console.WriteLine($"Using data folder: '{workingFolder}'");
+                _logger.LogInformation("Using data folder: {Folder}", workingFolder);
             }
             else
             {
@@ -106,7 +109,7 @@ public sealed class CmtImportRunner
 
                 Directory.CreateDirectory(workingFolder);
                 ownsWorkingFolder = true;
-                Console.WriteLine($"Extracting data package to '{workingFolder}'...");
+                _logger.LogInformation("Extracting data package to {Folder}...", workingFolder);
                 ZipFile.ExtractToDirectory(request.DataPath, workingFolder, overwriteFiles: true);
             }
 
@@ -139,8 +142,8 @@ public sealed class CmtImportRunner
 
             if (request.Verbose)
             {
-                Console.WriteLine($"[txc] Connected to: {crmServiceClient.ConnectedOrgUriActual}");
-                Console.WriteLine($"[txc] Organization version: {crmServiceClient.ConnectedOrgVersion}");
+                _logger.LogInformation("Connected to: {Url}", crmServiceClient.ConnectedOrgUriActual);
+                _logger.LogInformation("Organization version: {Version}", crmServiceClient.ConnectedOrgVersion);
             }
 
             // 3. Create ImportCrmDataHandler and set connection via reflection.
@@ -188,7 +191,7 @@ public sealed class CmtImportRunner
                     {
                         if (request.Verbose)
                         {
-                            Console.WriteLine($"[txc] Warning: Failed to create clone connection {i + 1}: {ex.Message}");
+                            _logger.LogWarning("Failed to create clone connection {Index}: {Error}", i + 1, ex.Message);
                         }
                     }
                 }
@@ -198,7 +201,7 @@ public sealed class CmtImportRunner
                     // Set ImportConnections via reflection (same type mismatch as CrmConnection).
                     var importConnProp = handler.GetType().GetProperty("ImportConnections");
                     importConnProp?.SetValue(handler, clones);
-                    Console.WriteLine($"[txc] Using {clones.Count + 1} parallel connections for import.");
+                    _logger.LogInformation("Using {Count} parallel connections for import", clones.Count + 1);
                 }
             }
 
@@ -206,7 +209,7 @@ public sealed class CmtImportRunner
             TryWireCmtConsoleLogging(handler, request.Verbose);
 
             // 7. Validate schema.
-            Console.WriteLine("Running Schema Validation...");
+            _logger.LogInformation("Running Schema Validation...");
             bool schemaValid = handler.ValidateSchemaFile(workingFolder);
 
             if (!schemaValid)
@@ -214,10 +217,10 @@ public sealed class CmtImportRunner
                 return new CmtImportResult(false, "Schema validation failed. Check the data package schema against the target environment.");
             }
 
-            Console.WriteLine("Schema Validation Complete.");
+            _logger.LogInformation("Schema Validation Complete.");
 
             // 8. Import data (synchronous — blocks via internal WaitOne).
-            Console.WriteLine("Starting data import...");
+            _logger.LogInformation("Starting data import...");
             await Task.Run(() => handler.ImportDataToCrm(workingFolder, deleteBeforeAdd: false));
 
             // CMT often swallows exceptions internally and only reports
@@ -229,7 +232,7 @@ public sealed class CmtImportRunner
                     $"Data import completed with {_failedStageCount} failed stage(s). See console output above for details.");
             }
 
-            Console.WriteLine("Data import completed successfully.");
+            _logger.LogInformation("Data import completed successfully.");
             return new CmtImportResult(true, null);
         }
         catch (Exception ex)
@@ -253,7 +256,7 @@ public sealed class CmtImportRunner
 
             if (_unresolvedAssemblies.Count > 0 && request.Verbose)
             {
-                Console.WriteLine($"[txc] Unresolved assemblies during CMT import: {string.Join(", ", _unresolvedAssemblies)}");
+                _logger.LogDebug("Unresolved assemblies during CMT import: {Assemblies}", string.Join(", ", _unresolvedAssemblies));
             }
         }
     }
@@ -263,7 +266,7 @@ public sealed class CmtImportRunner
     /// TraceSource so that import progress and errors are visible in
     /// the console output in real time.
     /// </summary>
-    private static void TryWireCmtConsoleLogging(ImportCrmDataHandler handler, bool verbose)
+    private void TryWireCmtConsoleLogging(ImportCrmDataHandler handler, bool verbose)
     {
         try
         {
@@ -276,7 +279,7 @@ public sealed class CmtImportRunner
             if (logger is null)
             {
                 if (verbose)
-                    Console.WriteLine("[txc] CMT Logger property not found — console logging skipped.");
+                    _logger.LogDebug("CMT Logger property not found — console logging skipped");
                 return;
             }
 
@@ -289,11 +292,11 @@ public sealed class CmtImportRunner
             {
                 addListener.Invoke(logger, new object[] { new ConsoleTraceListener() });
                 if (verbose)
-                    Console.WriteLine("[txc] CMT console trace listener wired.");
+                    _logger.LogDebug("CMT console trace listener wired");
             }
             else if (verbose)
             {
-                Console.WriteLine("[txc] AddTraceListener method not found on CMT Logger.");
+                _logger.LogDebug("AddTraceListener method not found on CMT Logger");
             }
         }
         catch (Exception ex)
@@ -316,17 +319,17 @@ public sealed class CmtImportRunner
         switch (e.progressItem.ItemStatus)
         {
             case ProgressItemStatus.Complete:
-                Console.WriteLine($"{message} - Complete");
+                _logger.LogInformation("{Message} - Complete", message);
                 break;
             case ProgressItemStatus.Failed:
                 Interlocked.Increment(ref _failedStageCount);
-                Console.Error.WriteLine($"{message} - Stage Failed");
+                _logger.LogError("{Message} - Stage Failed", message);
                 break;
             case ProgressItemStatus.Warning:
-                Console.Error.WriteLine($"Warning: {message}");
+                _logger.LogWarning("{Message}", message);
                 break;
             default:
-                Console.WriteLine(message);
+                _logger.LogInformation("{Message}", message);
                 break;
         }
     }

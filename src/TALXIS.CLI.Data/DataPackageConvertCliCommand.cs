@@ -1,4 +1,5 @@
 using DotMake.CommandLine;
+using TALXIS.CLI.Shared;
 
 namespace TALXIS.CLI.Data;
 
@@ -111,7 +112,7 @@ public class DataPackageConvertCliCommand
 
         var xdoc = new System.Xml.Linq.XDocument(xEntities);
         xdoc.Save(OutputPath);
-        Console.WriteLine($"Converted '{InputPath}' to '{OutputPath}'.");
+        OutputWriter.WriteLine($"Converted {InputPath} to {OutputPath}");
         return 0;
     }
 

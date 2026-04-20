@@ -2,6 +2,16 @@
 
 This project provides a Model Context Protocol (MCP) server for the TALXIS CLI, enabling dynamic discovery and invocation of CLI tools via the MCP stdio transport. The MCP server is distributed as a global .NET tool and can be easily integrated with GitHub Copilot and other MCP-compatible tools.
 
+## Features
+
+- **Tool Discovery & Execution** — Dynamically discovers and exposes all TALXIS CLI commands as MCP tools with typed input schemas
+- **Task-Augmented Execution** — Long-running tools (deploy, import) support the MCP tasks protocol for async "call-now, fetch-later" execution with cancellation support
+- **Structured Logging** — Streams real-time log output from CLI subprocesses to MCP clients via `notifications/message`
+- **Progress Notifications** — Emits `notifications/progress` during long-running tool calls when the client provides a `progressToken`, with rate-limiting to avoid flooding
+- **Workspace Roots** — Requests the client's workspace roots via `roots/list` and uses the primary root as the subprocess working directory
+- **Log Redaction** — Automatically redacts passwords, tokens, and filesystem paths from log output before forwarding to clients
+- **Copilot Instructions** — Manages `.github/copilot-instructions.md` files to guide AI assistants working with TALXIS repositories
+
 ## Installation
 
 **Install the MCP server as a global .NET tool (this will add the `txc-mcp` alias):**
@@ -99,6 +109,18 @@ dotnet run --project src/TALXIS.CLI.MCP
 
 # 3. Call a specific tool (example)
 {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "tool-name", "arguments": {}}}
+
+# 4. Call a tool with progress tracking
+{"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "environment_deploy", "arguments": {"Package": "MyPackage"}, "_meta": {"progressToken": "my-progress-1"}}}
+
+# 5. Call a long-running tool as a task (returns immediately with task ID)
+{"jsonrpc": "2.0", "id": 5, "method": "tools/call", "params": {"name": "environment_deploy", "arguments": {"Package": "MyPackage"}, "task": {}}}
+
+# 6. Poll task status
+{"jsonrpc": "2.0", "id": 6, "method": "tasks/get", "params": {"taskId": "<task-id-from-step-5>"}}
+
+# 7. Get task result (blocks until complete)
+{"jsonrpc": "2.0", "id": 7, "method": "tasks/result", "params": {"taskId": "<task-id-from-step-5>"}}
 ```
 
 

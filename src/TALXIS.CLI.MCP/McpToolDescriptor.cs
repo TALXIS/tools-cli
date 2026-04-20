@@ -19,5 +19,11 @@ namespace TALXIS.CLI.MCP
         /// The <see cref="Type"/> that implements the CLI command.
         /// </summary>
         public required Type CliCommandClass { get; set; }
+
+        /// <summary>
+        /// Whether this tool supports task-augmented execution for long-running operations.
+        /// When true, clients can request async "call-now, fetch-later" execution.
+        /// </summary>
+        public bool SupportsTaskExecution { get; set; }
     }
 }

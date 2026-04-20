@@ -1,4 +1,5 @@
 using DotMake.CommandLine;
+using TALXIS.CLI.Shared;
 
 namespace TALXIS.CLI.Workspace;
 
@@ -19,9 +20,7 @@ public class ConfigCliCommand
     {
         public void Run(CliContext context)
         {
-            Console.WriteLine(
-      @"Hello"
-            );
+            OutputWriter.WriteLine("Hello");
         }
     }
 }
