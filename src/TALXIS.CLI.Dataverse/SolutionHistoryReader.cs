@@ -187,6 +187,14 @@ public sealed class SolutionHistoryReader
         int? operation = e.GetAttributeValue<OptionSetValue>("msdyn_operation")?.Value;
         int? suboperation = e.GetAttributeValue<OptionSetValue>("msdyn_suboperation")?.Value;
 
+        // Prefer Dataverse's own formatted values; fall back to our hardcoded map.
+        string operationLabel = e.FormattedValues.TryGetValue("msdyn_operation", out var opFmt) && !string.IsNullOrWhiteSpace(opFmt)
+            ? opFmt
+            : SolutionHistoryMappings.MapOperation(operation);
+        string suboperationLabel = e.FormattedValues.TryGetValue("msdyn_suboperation", out var subFmt) && !string.IsNullOrWhiteSpace(subFmt)
+            ? subFmt
+            : SolutionHistoryMappings.MapSuboperation(suboperation);
+
         DateTime? start = e.Contains("msdyn_starttime")
             ? DataverseDateTime.EnsureUtc(e.GetAttributeValue<DateTime>("msdyn_starttime"))
             : null;
@@ -216,9 +224,9 @@ public sealed class SolutionHistoryReader
             SolutionVersion: e.GetAttributeValue<string>("msdyn_solutionversion"),
             PackageName: e.GetAttributeValue<string>("msdyn_packagename"),
             OperationCode: operation,
-            OperationLabel: SolutionHistoryMappings.MapOperation(operation),
+            OperationLabel: operationLabel,
             SuboperationCode: suboperation,
-            SuboperationLabel: SolutionHistoryMappings.MapSuboperation(suboperation),
+            SuboperationLabel: suboperationLabel,
             OverwriteUnmanagedCustomizations: overwrite,
             StartedAtUtc: start,
             CompletedAtUtc: end,
