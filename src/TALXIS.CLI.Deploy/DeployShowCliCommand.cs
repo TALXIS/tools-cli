@@ -340,8 +340,12 @@ public class DeployShowCliCommand
         Console.WriteLine($"Package: {record.Name ?? "(unknown)"}");
         Console.WriteLine($"  id:              {record.Id}");
         Console.WriteLine($"  status:          {record.Status ?? "(unknown)"}");
-        Console.WriteLine($"  stage:           {record.Stage ?? "(unknown)"}");
-        Console.WriteLine($"  started (UTC):   {FormatUtc(record.StartedAtUtc)}");
+        // Only show stage when the package didn't complete — it indicates where the failure occurred.
+        bool completed = string.Equals(record.Status, "Completed", StringComparison.OrdinalIgnoreCase);
+        if (!completed && record.Stage is not null)
+        {
+            Console.WriteLine($"  stage:           {record.Stage}");
+        }        Console.WriteLine($"  started (UTC):   {FormatUtc(record.StartedAtUtc)}");
         Console.WriteLine($"  completed (UTC): {FormatUtc(record.CompletedAtUtc)}");
         if (record.StartedAtUtc is { } s && record.CompletedAtUtc is { } e)
         {
