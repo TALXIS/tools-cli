@@ -110,60 +110,51 @@ public class DeployShowCliCommand
             selector = new DeployIdSelector(DeployIdSelectorKind.Guid, guid, null);
         }
 
-        string? connectionString = ServiceClientFactory.ResolveConnectionString(ConnectionString);
-        string? environmentUrl = ServiceClientFactory.ResolveEnvironmentUrl(EnvironmentUrl);
-
-        if (string.IsNullOrWhiteSpace(connectionString) && string.IsNullOrWhiteSpace(environmentUrl))
-        {
-            _logger.LogError("Dataverse authentication is required. Pass --connection-string, pass --environment for interactive sign-in, or set DATAVERSE_CONNECTION_STRING / TXC_DATAVERSE_CONNECTION_STRING / DATAVERSE_ENVIRONMENT_URL / TXC_DATAVERSE_ENVIRONMENT_URL.");
-            return 1;
-        }
-
-        ServiceClient? client = null;
-        DataverseAuthTokenProvider? tokenProvider = null;
+        DataverseConnection conn;
         try
         {
-            client = ServiceClientFactory.Create(
-                connectionString,
-                environmentUrl,
-                DeviceCode,
-                Verbose,
-                _logger,
-                out tokenProvider);
-
-            var pkgReader = new PackageHistoryReader(client, _logger);
-            var solReader = new SolutionHistoryReader(client, _logger);
-
-            var hit = await ResolveAsync(selector, pkgReader, solReader).ConfigureAwait(false);
-            if (hit is null)
-            {
-                // If the GUID didn't resolve to a history record it may be an asyncOperationId
-                // for an import that is still running or just completed (race with history write).
-                if (selector.Kind == DeployIdSelectorKind.Guid)
-                {
-                    int? asyncResult = await TryShowAsyncOperationAsync(client, selector.Guid).ConfigureAwait(false);
-                    if (asyncResult.HasValue) return asyncResult.Value;
-                }
-                string missingId = Id ?? PackageName ?? SolutionName ?? "(latest)";
-                _logger.LogError("No deployment matched '{Id}'.", missingId);
-                return 1;
-            }
-
-            if (hit.Value.Package is { } pkg)
-            {
-                return await RenderPackageAsync(client, pkg).ConfigureAwait(false);
-            }
-            return await RenderSolutionAsync(client, hit.Value.Solution!).ConfigureAwait(false);
+            conn = ServiceClientFactory.Connect(ConnectionString, EnvironmentUrl, DeviceCode, Verbose, _logger);
         }
-        catch (Exception ex)
+        catch (InvalidOperationException ex)
         {
-            _logger.LogError(ex, "deploy show failed");
+            _logger.LogError("{Error}", ex.Message);
             return 1;
         }
-        finally
+
+        using (conn)
         {
-            client?.Dispose();
-            tokenProvider?.Dispose();
+            var client = conn.Client;
+            try
+            {
+                var pkgReader = new PackageHistoryReader(client, _logger);
+                var solReader = new SolutionHistoryReader(client, _logger);
+
+                var hit = await ResolveAsync(selector, pkgReader, solReader).ConfigureAwait(false);
+                if (hit is null)
+                {
+                    // If the GUID didn't resolve to a history record it may be an asyncOperationId
+                    // for an import that is still running or just completed (race with history write).
+                    if (selector.Kind == DeployIdSelectorKind.Guid)
+                    {
+                        int? asyncResult = await TryShowAsyncOperationAsync(client, selector.Guid).ConfigureAwait(false);
+                        if (asyncResult.HasValue) return asyncResult.Value;
+                    }
+                    string missingId = Id ?? PackageName ?? SolutionName ?? "(latest)";
+                    _logger.LogError("No deployment matched '{Id}'.", missingId);
+                    return 1;
+                }
+
+                if (hit.Value.Package is { } pkg)
+                {
+                    return await RenderPackageAsync(client, pkg).ConfigureAwait(false);
+                }
+                return await RenderSolutionAsync(client, hit.Value.Solution!).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "deploy show failed");
+                return 1;
+            }
         }
     }
 
@@ -402,7 +393,7 @@ public class DeployShowCliCommand
         try
         {
             entity = await client.RetrieveAsync(
-                "asyncoperation",
+                DataverseSchema.AsyncOperation.EntityName,
                 asyncOpId,
                 new Microsoft.Xrm.Sdk.Query.ColumnSet(
                     "statecode", "statuscode", "message", "friendlymessage", "createdon", "completedon"),

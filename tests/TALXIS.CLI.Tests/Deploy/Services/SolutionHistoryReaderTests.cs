@@ -1,9 +1,10 @@
 using System;
 using Microsoft.Xrm.Sdk;
 using TALXIS.CLI.Dataverse;
+using TALXIS.CLI.Deploy;
 using Xunit;
 
-namespace TALXIS.CLI.Tests.Dataverse;
+namespace TALXIS.CLI.Tests.Deploy.Services;
 
 /// <summary>
 /// Unit tests for <see cref="SolutionHistoryReader"/> helper logic.

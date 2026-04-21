@@ -83,56 +83,46 @@ public class DeployListCliCommand
             defaultCount = 200;
         }
 
-        string? connectionString = ServiceClientFactory.ResolveConnectionString(ConnectionString);
-        string? environmentUrl = ServiceClientFactory.ResolveEnvironmentUrl(EnvironmentUrl);
-
-        if (string.IsNullOrWhiteSpace(connectionString) && string.IsNullOrWhiteSpace(environmentUrl))
-        {
-            _logger.LogError("Dataverse authentication is required. Pass --connection-string, pass --environment for interactive sign-in, or set DATAVERSE_CONNECTION_STRING / TXC_DATAVERSE_CONNECTION_STRING / DATAVERSE_ENVIRONMENT_URL / TXC_DATAVERSE_ENVIRONMENT_URL.");
-            return 1;
-        }
-
-        ServiceClient? client = null;
-        DataverseAuthTokenProvider? tokenProvider = null;
+        DataverseConnection conn;
         try
         {
-            client = ServiceClientFactory.Create(
-                connectionString,
-                environmentUrl,
-                DeviceCode,
-                Verbose,
-                _logger,
-                out tokenProvider);
-
-            var pkgReader = new PackageHistoryReader(client, _logger);
-            var solReader = new SolutionHistoryReader(client, _logger);
-
-            var pkgTask = pkgReader.GetRecentAsync(defaultCount, sinceUtc, Problems);
-            var solTask = solReader.GetRecentAsync(defaultCount, sinceUtc, Problems);
-            await Task.WhenAll(pkgTask, solTask).ConfigureAwait(false);
-
-            var rows = BuildRows(await pkgTask.ConfigureAwait(false), await solTask.ConfigureAwait(false));
-            int max = sinceUtc is null ? 20 : rows.Count;
-            var trimmed = rows.Take(max).ToList();
-
-            if (Json)
-            {
-                Console.WriteLine(JsonSerializer.Serialize(trimmed, JsonOptions));
-                return 0;
-            }
-
-            PrintRunsTable(trimmed);
-            return 0;
+            conn = ServiceClientFactory.Connect(ConnectionString, EnvironmentUrl, DeviceCode, Verbose, _logger);
         }
-        catch (Exception ex)
+        catch (InvalidOperationException ex)
         {
-            _logger.LogError(ex, "deploy list --resource runs failed");
+            _logger.LogError("{Error}", ex.Message);
             return 1;
         }
-        finally
+
+        using (conn)
         {
-            client?.Dispose();
-            tokenProvider?.Dispose();
+            try
+            {
+                var pkgReader = new PackageHistoryReader(conn.Client, _logger);
+                var solReader = new SolutionHistoryReader(conn.Client, _logger);
+
+                var pkgTask = pkgReader.GetRecentAsync(defaultCount, sinceUtc, Problems);
+                var solTask = solReader.GetRecentAsync(defaultCount, sinceUtc, Problems);
+                await Task.WhenAll(pkgTask, solTask).ConfigureAwait(false);
+
+                var rows = BuildRows(await pkgTask.ConfigureAwait(false), await solTask.ConfigureAwait(false));
+                int max = sinceUtc is null ? 20 : rows.Count;
+                var trimmed = rows.Take(max).ToList();
+
+                if (Json)
+                {
+                    Console.WriteLine(JsonSerializer.Serialize(trimmed, JsonOptions));
+                    return 0;
+                }
+
+                PrintRunsTable(trimmed);
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "deploy list --resource runs failed");
+                return 1;
+            }
         }
     }
 
@@ -155,48 +145,38 @@ public class DeployListCliCommand
             managedFilter = parsedManaged;
         }
 
-        string? connectionString = ServiceClientFactory.ResolveConnectionString(ConnectionString);
-        string? environmentUrl = ServiceClientFactory.ResolveEnvironmentUrl(EnvironmentUrl);
-
-        if (string.IsNullOrWhiteSpace(connectionString) && string.IsNullOrWhiteSpace(environmentUrl))
-        {
-            _logger.LogError("Dataverse authentication is required. Pass --connection-string, pass --environment for interactive sign-in, or set DATAVERSE_CONNECTION_STRING / TXC_DATAVERSE_CONNECTION_STRING / DATAVERSE_ENVIRONMENT_URL / TXC_DATAVERSE_ENVIRONMENT_URL.");
-            return 1;
-        }
-
-        ServiceClient? client = null;
-        DataverseAuthTokenProvider? tokenProvider = null;
+        DataverseConnection conn;
         try
         {
-            client = ServiceClientFactory.Create(
-                connectionString,
-                environmentUrl,
-                DeviceCode,
-                Verbose,
-                _logger,
-                out tokenProvider);
-
-            var reader = new SolutionInventoryReader(client);
-            var rows = await reader.ListAsync(managedFilter).ConfigureAwait(false);
-
-            if (Json)
-            {
-                Console.WriteLine(JsonSerializer.Serialize(rows, JsonOptions));
-                return 0;
-            }
-
-            PrintSolutionsTable(rows);
-            return 0;
+            conn = ServiceClientFactory.Connect(ConnectionString, EnvironmentUrl, DeviceCode, Verbose, _logger);
         }
-        catch (Exception ex)
+        catch (InvalidOperationException ex)
         {
-            _logger.LogError(ex, "deploy list --resource solutions failed");
+            _logger.LogError("{Error}", ex.Message);
             return 1;
         }
-        finally
+
+        using (conn)
         {
-            client?.Dispose();
-            tokenProvider?.Dispose();
+            try
+            {
+                var reader = new SolutionInventoryReader(conn.Client);
+                var rows = await reader.ListAsync(managedFilter).ConfigureAwait(false);
+
+                if (Json)
+                {
+                    Console.WriteLine(JsonSerializer.Serialize(rows, JsonOptions));
+                    return 0;
+                }
+
+                PrintSolutionsTable(rows);
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "deploy list --resource solutions failed");
+                return 1;
+            }
         }
     }
 

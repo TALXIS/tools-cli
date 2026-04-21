@@ -1,4 +1,4 @@
-namespace TALXIS.CLI.Dataverse;
+namespace TALXIS.CLI.Deploy;
 
 /// <summary>
 /// Kinds of user-supplied identifier accepted by <c>txc deploy show</c>.

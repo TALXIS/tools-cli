@@ -6,8 +6,9 @@ using Microsoft.PowerPlatform.Dataverse.Client;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Messages;
 using Microsoft.Xrm.Sdk.Query;
+using TALXIS.CLI.Dataverse;
 
-namespace TALXIS.CLI.Dataverse;
+namespace TALXIS.CLI.Deploy;
 
 /// <summary>
 /// Information about a Dataverse solution's identity extracted from its ZIP manifest
@@ -138,7 +139,7 @@ public sealed class SolutionImporter
 
     public async Task<SolutionInfo?> GetExistingSolutionAsync(string uniqueName, CancellationToken cancellationToken = default)
     {
-        var query = new QueryExpression("solution")
+        var query = new QueryExpression(DataverseSchema.Solution.EntityName)
         {
             ColumnSet = new ColumnSet("uniquename", "version", "ismanaged"),
             Criteria = new FilterExpression(LogicalOperator.And)
@@ -174,14 +175,15 @@ public sealed class SolutionImporter
 
         if (options.SkipLowerVersion && existing is not null && source.Version <= existing.Version)
         {
+            var skippedAtUtc = DateTime.UtcNow;
             return new SolutionImportResult(
                 SolutionImportPath.Update,
                 source,
                 existing,
                 Guid.Empty,
                 null,
-                DateTime.UtcNow,
-                DateTime.UtcNow,
+                skippedAtUtc,
+                skippedAtUtc,
                 SmartDiffExpected: false,
                 Status: "Skipped (source version not higher than target; --skip-lower-version).");
         }
@@ -281,7 +283,7 @@ public sealed class SolutionImporter
         while (!cancellationToken.IsCancellationRequested)
         {
             var entity = await _service.RetrieveAsync(
-                "asyncoperation",
+                DataverseSchema.AsyncOperation.EntityName,
                 asyncOperationId,
                 new ColumnSet("statecode", "statuscode", "message", "friendlymessage"),
                 cancellationToken).ConfigureAwait(false);

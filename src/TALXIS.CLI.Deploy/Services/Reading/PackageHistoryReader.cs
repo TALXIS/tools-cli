@@ -1,9 +1,10 @@
+using TALXIS.CLI.Dataverse;
 using Microsoft.Extensions.Logging;
 using Microsoft.PowerPlatform.Dataverse.Client;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Query;
 
-namespace TALXIS.CLI.Dataverse;
+namespace TALXIS.CLI.Deploy;
 
 /// <summary>
 /// Structured view of a row in the <c>packagehistory</c> table.
@@ -32,7 +33,7 @@ public sealed record PackageHistoryRecord(
 /// </summary>
 public sealed class PackageHistoryReader
 {
-    private const string EntityName = "packagehistory";
+    private const string EntityName = DeploySchema.PackageHistory.EntityName;
     private static readonly ColumnSet Columns = new(
         "packagehistoryid",
         "uniquename",
@@ -56,8 +57,12 @@ public sealed class PackageHistoryReader
 
     public async Task<PackageHistoryRecord?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
-        var entity = await _service.RetrieveAsync(EntityName, id, Columns, ct).ConfigureAwait(false);
-        return entity is null ? null : ToRecord(entity);
+        var q = BuildBaseQuery();
+        q.Criteria.AddCondition("packagehistoryid", ConditionOperator.Equal, id);
+        q.TopCount = 1;
+
+        var res = await _service.RetrieveMultipleAsync(q, ct).ConfigureAwait(false);
+        return res.Entities.Count == 0 ? null : ToRecord(res.Entities[0]);
     }
 
     /// <summary>
@@ -211,4 +216,5 @@ public sealed class PackageHistoryReader
             Message: e.GetAttributeValue<string>("statusmessage"),
             CorrelationId: correlationId);
     }
+
 }

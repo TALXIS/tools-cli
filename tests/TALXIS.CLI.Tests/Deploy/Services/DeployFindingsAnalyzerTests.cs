@@ -1,9 +1,10 @@
 using System;
 using System.Collections.Generic;
 using TALXIS.CLI.Dataverse;
+using TALXIS.CLI.Deploy;
 using Xunit;
 
-namespace TALXIS.CLI.Tests.Dataverse;
+namespace TALXIS.CLI.Tests.Deploy.Services;
 
 public class DeployFindingsAnalyzerTests
 {

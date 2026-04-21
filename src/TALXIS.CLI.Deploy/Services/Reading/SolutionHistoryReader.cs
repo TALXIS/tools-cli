@@ -1,9 +1,10 @@
+using TALXIS.CLI.Dataverse;
 using Microsoft.Extensions.Logging;
 using Microsoft.PowerPlatform.Dataverse.Client;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Query;
 
-namespace TALXIS.CLI.Dataverse;
+namespace TALXIS.CLI.Deploy;
 
 /// <summary>
 /// Structured view of a row in <c>msdyn_solutionhistory</c>. Operation / suboperation codes
@@ -35,7 +36,7 @@ public sealed record SolutionHistoryRecord(
 /// </summary>
 public sealed class SolutionHistoryReader
 {
-    private const string EntityName = "msdyn_solutionhistory";
+    private const string EntityName = DeploySchema.SolutionHistory.EntityName;
     private static readonly ColumnSet Columns = new(
         "msdyn_solutionhistoryid",
         "msdyn_name",
@@ -108,6 +109,26 @@ public sealed class SolutionHistoryReader
     /// </summary>
     public async Task<SolutionHistoryRecord?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
+        try
+        {
+            var q = new QueryExpression(EntityName)
+            {
+                ColumnSet = Columns,
+                TopCount = 1,
+                Criteria = new FilterExpression(LogicalOperator.And),
+            };
+            q.Criteria.AddCondition("msdyn_solutionhistoryid", ConditionOperator.Equal, id);
+            var res = await _service.RetrieveMultipleAsync(q, ct).ConfigureAwait(false);
+            if (res.Entities.Count > 0)
+            {
+                return ToRecord(res.Entities[0]);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogDebug(ex, "Solution history query-by-id failed. Falling back to direct retrieve.");
+        }
+
         try
         {
             var entity = await _service.RetrieveAsync(EntityName, id, Columns, ct).ConfigureAwait(false);
@@ -191,7 +212,7 @@ public sealed class SolutionHistoryReader
     {
         // Step 1: resolve asyncoperation IDs for this package run.
         // asyncoperation is a standard table so server-side conditions work fine.
-        var asyncOpQuery = new QueryExpression("asyncoperation")
+        var asyncOpQuery = new QueryExpression(DataverseSchema.AsyncOperation.EntityName)
         {
             ColumnSet = new ColumnSet("asyncoperationid"),
             Criteria = new FilterExpression(LogicalOperator.And),

@@ -4,6 +4,28 @@ using Microsoft.PowerPlatform.Dataverse.Client;
 namespace TALXIS.CLI.Dataverse;
 
 /// <summary>
+/// Disposable wrapper around a <see cref="ServiceClient"/> plus its optional
+/// <see cref="DataverseAuthTokenProvider"/>. Disposing releases both.
+/// </summary>
+public sealed class DataverseConnection : IDisposable
+{
+    public ServiceClient Client { get; }
+    public DataverseAuthTokenProvider? TokenProvider { get; }
+
+    internal DataverseConnection(ServiceClient client, DataverseAuthTokenProvider? tokenProvider)
+    {
+        Client = client;
+        TokenProvider = tokenProvider;
+    }
+
+    public void Dispose()
+    {
+        Client.Dispose();
+        TokenProvider?.Dispose();
+    }
+}
+
+/// <summary>
 /// Centralised construction of <see cref="ServiceClient"/> instances from either an
 /// explicit connection string or an environment URL combined with the PAC-style MSAL
 /// auth flow surfaced by <see cref="DataverseAuthTokenProvider"/>. Honours the
@@ -107,5 +129,32 @@ public static class ServiceClientFactory
             throw new InvalidOperationException(
                 $"Failed to establish Dataverse connection: {message}");
         }
+    }
+
+    /// <summary>
+    /// One-call resolve-and-connect. Handles env-var fallbacks, validates that auth
+    /// is configured, and returns a disposable wrapper owning both the
+    /// <see cref="ServiceClient"/> and optional token provider.
+    /// Throws <see cref="InvalidOperationException"/> when neither a connection
+    /// string nor an environment URL can be resolved.
+    /// </summary>
+    public static DataverseConnection Connect(
+        string? connectionStringOption,
+        string? environmentUrlOption,
+        bool deviceCode,
+        bool verbose,
+        ILogger? logger)
+    {
+        string? resolvedConnectionString = ResolveConnectionString(connectionStringOption);
+        string? resolvedEnvironmentUrl = ResolveEnvironmentUrl(environmentUrlOption);
+
+        if (string.IsNullOrWhiteSpace(resolvedConnectionString) && string.IsNullOrWhiteSpace(resolvedEnvironmentUrl))
+        {
+            throw new InvalidOperationException(
+                "Dataverse authentication is required. Pass --connection-string, pass --environment for interactive sign-in, or set DATAVERSE_CONNECTION_STRING / TXC_DATAVERSE_CONNECTION_STRING / DATAVERSE_ENVIRONMENT_URL / TXC_DATAVERSE_ENVIRONMENT_URL.");
+        }
+
+        var client = Create(resolvedConnectionString, resolvedEnvironmentUrl, deviceCode, verbose, logger, out var tokenProvider);
+        return new DataverseConnection(client, tokenProvider);
     }
 }

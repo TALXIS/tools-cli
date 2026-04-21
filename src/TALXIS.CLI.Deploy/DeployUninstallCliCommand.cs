@@ -22,13 +22,22 @@ public class DeployUninstallCliCommand
     [CliOption(Name = "--package-name", Description = "Uninstall all correlated solutions from a package deployment run.", Required = false)]
     public string? PackageName { get; set; }
 
+    [CliOption(Name = "--package-source", Description = "Package source used to derive uninstall order from ImportConfig. Accepts NuGet package name, local .pdpkg.zip/.pdpkg file, or an extracted package folder.", Required = false)]
+    public string? PackageSource { get; set; }
+
     [CliOption(Name = "--package-run-id", Description = "Specific packagehistory id to use for package uninstall mode.", Required = false)]
     public string? PackageRunId { get; set; }
 
     [CliOption(Name = "--latest", Description = "Use the latest run for --package-name. Ignored when --package-run-id is provided.", Required = false)]
     public bool Latest { get; set; }
 
-    [CliOption(Name = "--yes", Description = "Confirm destructive uninstall actions.", Required = false)]
+    [CliOption(Name = "--version", Description = "NuGet package version for --package-source when source is a NuGet package name. Defaults to 'latest'.", Required = false)]
+    public string PackageVersion { get; set; } = "latest";
+
+    [CliOption(Name = "--output", Aliases = ["-o"], Description = "Directory for temporary/downloaded package assets when resolving --package-source from NuGet.", Required = false)]
+    public string? OutputDirectory { get; set; }
+
+    [CliOption(Name = "--force", Aliases = ["--yes"], Description = "Confirm destructive uninstall actions.", Required = false)]
     public bool Yes { get; set; }
 
     [CliOption(Name = "--connection-string", Description = "Dataverse connection string. If omitted, txc checks DATAVERSE_CONNECTION_STRING and TXC_DATAVERSE_CONNECTION_STRING.", Required = false)]
@@ -50,20 +59,22 @@ public class DeployUninstallCliCommand
     {
         if (!Yes)
         {
-            _logger.LogError("Uninstall is destructive. Pass --yes to confirm.");
+            _logger.LogError("Uninstall is destructive. Pass --force to confirm.");
             return 1;
         }
 
-        int selectors = (string.IsNullOrWhiteSpace(SolutionName) ? 0 : 1) + (string.IsNullOrWhiteSpace(PackageName) ? 0 : 1);
+        bool hasSolutionSelector = !string.IsNullOrWhiteSpace(SolutionName);
+        bool hasPackageSelector = !string.IsNullOrWhiteSpace(PackageName) || !string.IsNullOrWhiteSpace(PackageSource);
+        int selectors = (hasSolutionSelector ? 1 : 0) + (hasPackageSelector ? 1 : 0);
         if (selectors != 1)
         {
-            _logger.LogError("Specify exactly one selector: --solution-name or --package-name.");
+            _logger.LogError("Specify exactly one selector: --solution-name OR package mode (--package-name or --package-source).");
             return 1;
         }
 
-        if (!string.IsNullOrWhiteSpace(SolutionName) && (!string.IsNullOrWhiteSpace(PackageRunId) || Latest))
+        if (hasSolutionSelector && (!string.IsNullOrWhiteSpace(PackageRunId) || Latest || !string.IsNullOrWhiteSpace(PackageSource) || !string.IsNullOrWhiteSpace(OutputDirectory) || !string.Equals(PackageVersion, "latest", StringComparison.OrdinalIgnoreCase)))
         {
-            _logger.LogError("--package-run-id and --latest are only valid with --package-name.");
+            _logger.LogError("Package-only options (--package-name/--package-source/--package-run-id/--latest/--version/--output) cannot be used with --solution-name.");
             return 1;
         }
 
@@ -73,49 +84,58 @@ public class DeployUninstallCliCommand
             return 1;
         }
 
-        string? connectionString = ServiceClientFactory.ResolveConnectionString(ConnectionString);
-        string? environmentUrl = ServiceClientFactory.ResolveEnvironmentUrl(EnvironmentUrl);
-        if (string.IsNullOrWhiteSpace(connectionString) && string.IsNullOrWhiteSpace(environmentUrl))
+        if (!string.IsNullOrWhiteSpace(PackageRunId) && string.IsNullOrWhiteSpace(PackageName))
         {
-            _logger.LogError("Dataverse authentication is required. Pass --connection-string, pass --environment for interactive sign-in, or set DATAVERSE_CONNECTION_STRING / TXC_DATAVERSE_CONNECTION_STRING / DATAVERSE_ENVIRONMENT_URL / TXC_DATAVERSE_ENVIRONMENT_URL.");
+            _logger.LogError("--package-run-id requires --package-name.");
             return 1;
         }
 
-        ServiceClient? client = null;
-        DataverseAuthTokenProvider? tokenProvider = null;
+        if (!string.IsNullOrWhiteSpace(PackageSource) && (!string.IsNullOrWhiteSpace(PackageRunId) || Latest))
+        {
+            _logger.LogError("--package-run-id and --latest are not valid with --package-source. Source mode derives uninstall order from ImportConfig.");
+            return 1;
+        }
+
+        DataverseConnection conn;
         try
         {
-            client = ServiceClientFactory.Create(
-                connectionString,
-                environmentUrl,
-                DeviceCode,
-                Verbose,
-                _logger,
-                out tokenProvider);
-
-            var uninstaller = new SolutionUninstaller(client, _logger);
-            if (!string.IsNullOrWhiteSpace(SolutionName))
-            {
-                var outcome = await uninstaller.UninstallByUniqueNameAsync(SolutionName).ConfigureAwait(false);
-                return RenderSingle(outcome);
-            }
-
-            return await RunPackageUninstallAsync(client, uninstaller).ConfigureAwait(false);
+            conn = ServiceClientFactory.Connect(ConnectionString, EnvironmentUrl, DeviceCode, Verbose, _logger);
         }
-        catch (Exception ex)
+        catch (InvalidOperationException ex)
         {
-            _logger.LogError(ex, "deploy uninstall failed");
+            _logger.LogError("{Error}", ex.Message);
             return 1;
         }
-        finally
+
+        using (conn)
         {
-            client?.Dispose();
-            tokenProvider?.Dispose();
+            var client = conn.Client;
+            try
+            {
+                var uninstaller = new SolutionUninstaller(client, _logger);
+                if (!string.IsNullOrWhiteSpace(SolutionName))
+                {
+                    var outcome = await uninstaller.UninstallByUniqueNameAsync(SolutionName).ConfigureAwait(false);
+                    return RenderSingle(outcome);
+                }
+
+                return await RunPackageUninstallAsync(client, uninstaller).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "deploy uninstall failed");
+                return 1;
+            }
         }
     }
 
     private async Task<int> RunPackageUninstallAsync(ServiceClient client, SolutionUninstaller uninstaller)
     {
+        if (!string.IsNullOrWhiteSpace(PackageSource))
+        {
+            return await RunPackageUninstallBySourceAsync(client, uninstaller).ConfigureAwait(false);
+        }
+
         var packageReader = new PackageHistoryReader(client, _logger);
         var historyReader = new SolutionHistoryReader(client, _logger);
 
@@ -162,12 +182,7 @@ public class DeployUninstallCliCommand
             }
         }
 
-        var solutionNames = correlated
-            .Select(s => s.SolutionName)
-            .Where(n => !string.IsNullOrWhiteSpace(n))
-            .Select(n => n!)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        var solutionNames = BuildReverseUninstallOrder(correlated);
 
         if (solutionNames.Count == 0)
         {
@@ -175,7 +190,14 @@ public class DeployUninstallCliCommand
             return 1;
         }
 
-        var outcomes = await uninstaller.UninstallByUniqueNamesAsync(solutionNames).ConfigureAwait(false);
+        var outcomes = await ExecutePackageUninstallAsync(
+                client,
+                uninstaller,
+                solutionNames,
+                packageDisplayName: packageRun.Name,
+                packageRunLabel: packageRun.Name ?? "(unknown)")
+            .ConfigureAwait(false);
+
         if (Json)
         {
             Console.WriteLine(JsonSerializer.Serialize(new
@@ -193,6 +215,11 @@ public class DeployUninstallCliCommand
             Console.WriteLine($"Package run: {packageRun.Name ?? "(unknown)"}");
             Console.WriteLine($"  id: {packageRun.Id}");
             Console.WriteLine($"Correlated solutions: {solutionNames.Count}");
+            Console.WriteLine("Uninstall order (reverse import):");
+            foreach (var name in solutionNames)
+            {
+                Console.WriteLine($"  - {name}");
+            }
             foreach (var outcome in outcomes)
             {
                 Console.WriteLine($"- {outcome.SolutionName}: {outcome.Status} ({outcome.Message})");
@@ -200,6 +227,132 @@ public class DeployUninstallCliCommand
         }
 
         return outcomes.All(o => o.Status == SolutionUninstallStatus.Success) ? 0 : 1;
+    }
+
+    private async Task<int> RunPackageUninstallBySourceAsync(ServiceClient client, SolutionUninstaller uninstaller)
+    {
+        var sourceReader = new PackageImportConfigReader(_logger);
+        var importOrder = await sourceReader.ReadSolutionUniqueNamesInImportOrderAsync(
+                PackageSource!,
+                PackageVersion,
+                OutputDirectory)
+            .ConfigureAwait(false);
+
+        var solutionNames = BuildReverseUninstallOrderFromImportConfig(importOrder);
+        if (solutionNames.Count == 0)
+        {
+            _logger.LogError("No uninstallable solutions were resolved from package source '{Source}'.", PackageSource);
+            return 1;
+        }
+
+        var packageDisplayName = !string.IsNullOrWhiteSpace(PackageName)
+            ? PackageName
+            : InferPackageDisplayNameFromSource(PackageSource!);
+        var outcomes = await ExecutePackageUninstallAsync(
+                client,
+                uninstaller,
+                solutionNames,
+                packageDisplayName,
+                packageRunLabel: PackageSource!)
+            .ConfigureAwait(false);
+
+        if (Json)
+        {
+            Console.WriteLine(JsonSerializer.Serialize(new
+            {
+                mode = "package-source",
+                packageSource = PackageSource,
+                packageName = PackageName,
+                solutionCount = solutionNames.Count,
+                uninstallOrder = solutionNames,
+                outcomes,
+            }, JsonOptions));
+        }
+        else
+        {
+            Console.WriteLine($"Package source: {PackageSource}");
+            if (!string.IsNullOrWhiteSpace(PackageName))
+            {
+                Console.WriteLine($"Package name: {PackageName}");
+            }
+            Console.WriteLine($"Resolved solutions: {solutionNames.Count}");
+            Console.WriteLine("Uninstall order (reverse ImportConfig):");
+            foreach (var name in solutionNames)
+            {
+                Console.WriteLine($"  - {name}");
+            }
+            foreach (var outcome in outcomes)
+            {
+                Console.WriteLine($"- {outcome.SolutionName}: {outcome.Status} ({outcome.Message})");
+            }
+        }
+
+        return outcomes.All(o => o.Status == SolutionUninstallStatus.Success) ? 0 : 1;
+    }
+
+    private async Task<IReadOnlyList<SolutionUninstallOutcome>> ExecutePackageUninstallAsync(
+        ServiceClient? client,
+        SolutionUninstaller uninstaller,
+        IReadOnlyList<string> solutionNames,
+        string? packageDisplayName,
+        string packageRunLabel)
+    {
+        Guid? historyId = null;
+        int? successState = null;
+        int? successStatus = null;
+        int? failedState = null;
+        int? failedStatus = null;
+        if (client is not null)
+        {
+            var historyWriter = new PackageHistoryWriter(client, _logger);
+            var statusCodes = await historyWriter.ResolveStatusCodesAsync().ConfigureAwait(false);
+            successState = statusCodes.SuccessState;
+            successStatus = statusCodes.SuccessStatus;
+            failedState = statusCodes.FailedState;
+            failedStatus = statusCodes.FailedStatus;
+
+            var created = await historyWriter.TryCreateUninstallRunAsync(
+                    uniqueName: packageDisplayName ?? packageRunLabel,
+                    executionName: $"txc uninstall {packageRunLabel}",
+                    statusCode: statusCodes.InProcessStatus,
+                    message: $"Package uninstall started. {solutionNames.Count} solution(s) in reverse order.")
+                .ConfigureAwait(false);
+            historyId = created?.Id;
+        }
+
+        var outcomes = new List<SolutionUninstallOutcome>(solutionNames.Count);
+        for (int i = 0; i < solutionNames.Count; i++)
+        {
+            var name = solutionNames[i];
+            _logger.LogInformation("[{Current}/{Total}] Uninstalling solution {SolutionName}...", i + 1, solutionNames.Count, name);
+            var outcome = await uninstaller.UninstallByUniqueNameAsync(name).ConfigureAwait(false);
+            outcomes.Add(outcome);
+
+            if (outcome.Status == SolutionUninstallStatus.Success)
+            {
+                _logger.LogInformation("[{Current}/{Total}] {SolutionName}: {Status}", i + 1, solutionNames.Count, outcome.SolutionName, outcome.Status);
+            }
+            else
+            {
+                _logger.LogWarning("[{Current}/{Total}] {SolutionName}: {Status} ({Message})", i + 1, solutionNames.Count, outcome.SolutionName, outcome.Status, outcome.Message);
+            }
+        }
+
+        if (client is not null && historyId is { } id)
+        {
+            var historyWriter = new PackageHistoryWriter(client, _logger);
+            bool allSuccess = outcomes.All(o => o.Status == SolutionUninstallStatus.Success);
+            await historyWriter.TryUpdateStatusAsync(
+                    id,
+                    allSuccess ? successState : failedState,
+                    allSuccess ? successStatus : failedStatus,
+                    allSuccess
+                        ? $"Package uninstall completed. {outcomes.Count} solution(s) uninstalled."
+                        : $"Package uninstall completed with failures. {outcomes.Count(o => o.Status == SolutionUninstallStatus.Success)}/{outcomes.Count} succeeded.")
+                .ConfigureAwait(false);
+        }
+
+        return outcomes;
     }
 
     private int RenderSingle(SolutionUninstallOutcome outcome)
@@ -230,4 +383,81 @@ public class DeployUninstallCliCommand
     {
         WriteIndented = true,
     };
+
+    public static IReadOnlyList<string> BuildReverseUninstallOrder(IReadOnlyList<SolutionHistoryRecord> correlated)
+    {
+        ArgumentNullException.ThrowIfNull(correlated);
+
+        // Import order is chronological by solution-history start time.
+        // Uninstall must execute in reverse import order to satisfy dependencies.
+        var ordered = correlated
+            .Select((row, index) => new
+            {
+                Name = row.SolutionName?.Trim(),
+                row.StartedAtUtc,
+                Index = index
+            })
+            .Where(x => !string.IsNullOrWhiteSpace(x.Name))
+            .GroupBy(x => x.Name!, StringComparer.OrdinalIgnoreCase)
+            .Select(g =>
+            {
+                var first = g
+                    .OrderBy(x => x.StartedAtUtc ?? DateTime.MaxValue)
+                    .ThenBy(x => x.Index)
+                    .First();
+                return new
+                {
+                    Name = g.Key,
+                    first.StartedAtUtc,
+                    first.Index
+                };
+            })
+            .OrderBy(x => x.StartedAtUtc ?? DateTime.MaxValue)
+            .ThenBy(x => x.Index)
+            .Select(x => x.Name)
+            .ToList();
+
+        ordered.Reverse();
+        return ordered;
+    }
+
+    public static IReadOnlyList<string> BuildReverseUninstallOrderFromImportConfig(IReadOnlyList<string> importOrderSolutionNames)
+    {
+        ArgumentNullException.ThrowIfNull(importOrderSolutionNames);
+
+        var ordered = importOrderSolutionNames
+            .Where(n => !string.IsNullOrWhiteSpace(n))
+            .Select(n => n.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        ordered.Reverse();
+        return ordered;
+    }
+
+    private static string InferPackageDisplayNameFromSource(string packageSource)
+    {
+        if (string.IsNullOrWhiteSpace(packageSource))
+        {
+            return "(unknown)";
+        }
+
+        if (Directory.Exists(packageSource) || File.Exists(packageSource))
+        {
+            var name = Path.GetFileName(packageSource.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            if (name.EndsWith(".pdpkg.zip", StringComparison.OrdinalIgnoreCase))
+            {
+                return name[..^".pdpkg.zip".Length];
+            }
+
+            if (name.EndsWith(".pdpkg", StringComparison.OrdinalIgnoreCase))
+            {
+                return name[..^".pdpkg".Length];
+            }
+
+            return string.IsNullOrWhiteSpace(name) ? "(unknown)" : name;
+        }
+
+        return packageSource.Trim();
+    }
 }

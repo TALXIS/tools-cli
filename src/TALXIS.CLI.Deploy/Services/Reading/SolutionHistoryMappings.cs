@@ -1,4 +1,4 @@
-namespace TALXIS.CLI.Dataverse;
+namespace TALXIS.CLI.Deploy;
 
 /// <summary>
 /// Static mappings for Dataverse option-set codes that appear in solution-history / import-job

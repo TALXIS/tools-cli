@@ -1,7 +1,11 @@
 using System.ComponentModel;
+using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
+using Microsoft.PowerPlatform.Dataverse.Client;
+using TALXIS.CLI.Dataverse;
 using TALXIS.CLI.Logging;
+using TALXIS.CLI.XrmTools;
 
 namespace TALXIS.CLI.Deploy;
 
@@ -11,6 +15,7 @@ namespace TALXIS.CLI.Deploy;
 )]
 public class DeployRunCliCommand
 {
+    private readonly NuGetPackageInstallerService _packageInstaller = new();
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(DeployRunCliCommand));
 
     [CliOption(Name = "--type", Description = "Deployment type: package or solution.", Required = true)]
@@ -35,9 +40,6 @@ public class DeployRunCliCommand
     [CliOption(Name = "--version", Description = "NuGet package version. Only for --type package.", Required = false)]
     [DefaultValue("latest")]
     public string PackageVersion { get; set; } = "latest";
-
-    [CliOption(Name = "--deployable-package", Description = "Deployable package file name inside a NuGet package. Only for --type package.", Required = false)]
-    public string? DeployablePackageName { get; set; }
 
     [CliOption(Name = "--output", Aliases = ["-o"], Description = "Download/extract output directory. Only for --type package.", Required = false)]
     public string? OutputDirectory { get; set; }
@@ -108,49 +110,276 @@ public class DeployRunCliCommand
             return 1;
         }
 
-        var cmd = new DeployPackageCliCommand
+        // Determine whether the argument is a local file or a NuGet package name.
+        bool isLocalFile = File.Exists(Source)
+            || Source.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)
+            || Source.EndsWith(".dll", StringComparison.OrdinalIgnoreCase);
+
+        string packagePath;
+        string? tempWorkingDirectory = null;
+        string? nugetPackageName = null;
+        string? nugetPackageVersion = null;
+
+        if (isLocalFile)
         {
-            Package = Source,
-            PackageVersion = PackageVersion,
-            DeployablePackageName = DeployablePackageName,
-            OutputDirectory = OutputDirectory,
-            DownloadOnly = DownloadOnly,
-            ConnectionString = ConnectionString,
-            EnvironmentUrl = EnvironmentUrl,
-            DeviceCode = DeviceCode,
-            Settings = Settings,
-            LogFile = LogFile,
-            LogConsole = LogConsole,
-            Verbose = Verbose,
-        };
-        return await cmd.RunAsync().ConfigureAwait(false);
+            if (!File.Exists(Source))
+            {
+                _logger.LogError("Package file not found: {PackagePath}", Source);
+                return 1;
+            }
+
+            packagePath = Path.GetFullPath(Source);
+            _logger.LogInformation("Using local package: {PackagePath}", packagePath);
+        }
+        else
+        {
+            NuGetPackageInstallOptions options = new(
+                Source,
+                PackageVersion,
+                OutputDirectory);
+
+            NuGetPackageInstallResult installResult = await _packageInstaller.InstallAsync(options);
+
+            _logger.LogInformation("Resolved {PackageName} version {Version}", installResult.PackageName, installResult.ResolvedVersion);
+            _logger.LogInformation("Deployable package extracted to {Path}", installResult.DeployablePackagePath);
+
+            nugetPackageName = installResult.PackageName;
+            nugetPackageVersion = installResult.ResolvedVersion;
+
+            if (DownloadOnly)
+            {
+                return 0;
+            }
+
+            packagePath = installResult.DeployablePackagePath;
+
+            if (installResult.UsesTemporaryWorkingDirectory)
+            {
+                tempWorkingDirectory = installResult.WorkingDirectory;
+            }
+        }
+
+        string? resolvedConnectionString = ServiceClientFactory.ResolveConnectionString(ConnectionString);
+        string? resolvedEnvironmentUrl = ServiceClientFactory.ResolveEnvironmentUrl(EnvironmentUrl);
+        PackageDeployerResult? deployResult = null;
+        string packageDeployerArtifactsDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "txc",
+            "package-deployer-host",
+            Guid.NewGuid().ToString("N"));
+
+        if (string.IsNullOrWhiteSpace(resolvedConnectionString) && string.IsNullOrWhiteSpace(resolvedEnvironmentUrl))
+        {
+            _logger.LogError("Dataverse authentication is required to run Package Deployer. Pass --connection-string, pass --environment for interactive sign-in, or set DATAVERSE_CONNECTION_STRING / TXC_DATAVERSE_CONNECTION_STRING / DATAVERSE_ENVIRONMENT_URL / TXC_DATAVERSE_ENVIRONMENT_URL.");
+            _logger.LogError("Package located at {PackagePath}", packagePath);
+            return 1;
+        }
+
+        try
+        {
+            deployResult = await PackageDeployerSubprocess.RunAsync(new PackageDeployerRequest(
+                packagePath,
+                resolvedConnectionString,
+                resolvedEnvironmentUrl,
+                DeviceCode,
+                Settings,
+                LogFile,
+                LogConsole,
+                Verbose,
+                packageDeployerArtifactsDirectory,
+                System.Environment.ProcessId,
+                NuGetPackageName: nugetPackageName,
+                NuGetPackageVersion: nugetPackageVersion));
+
+            if (!deployResult.Succeeded)
+            {
+                if (!string.IsNullOrWhiteSpace(deployResult.ErrorMessage))
+                {
+                    _logger.LogError("{ErrorMessage}", deployResult.ErrorMessage);
+                }
+
+                if (!string.IsNullOrWhiteSpace(LogFile) && !string.IsNullOrWhiteSpace(deployResult.LogFilePath))
+                {
+                    _logger.LogError("Detailed Package Deployer log: {LogPath}", deployResult.LogFilePath);
+                }
+
+                if (!string.IsNullOrWhiteSpace(LogFile) && !string.IsNullOrWhiteSpace(deployResult.CmtLogFilePath))
+                {
+                    _logger.LogError("Detailed CMT import log: {LogPath}", deployResult.CmtLogFilePath);
+                }
+                else if (string.IsNullOrWhiteSpace(LogFile) &&
+                    (!string.IsNullOrWhiteSpace(deployResult.LogFilePath) || !string.IsNullOrWhiteSpace(deployResult.CmtLogFilePath)))
+                {
+                    _logger.LogWarning("Detailed temporary logs were cleaned up. Pass --log-file to preserve them.");
+                }
+
+                _logger.LogError("Package deploy failed. Package located at {PackagePath}", packagePath);
+                return 1;
+            }
+
+            _logger.LogInformation("Package deploy completed successfully.");
+
+            if (!string.IsNullOrWhiteSpace(LogFile))
+            {
+                _logger.LogInformation("Package Deployer log: {LogPath}", Path.GetFullPath(LogFile));
+            }
+
+            return 0;
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogError(ex, "Package deploy failed");
+            _logger.LogError("Package located at {PackagePath}", packagePath);
+            return 1;
+        }
+        finally
+        {
+            PackageDeployerSubprocess.TryDeleteDirectory(packageDeployerArtifactsDirectory);
+
+            if (!string.IsNullOrWhiteSpace(tempWorkingDirectory))
+            {
+                PackageDeployerSubprocess.TryDeleteDirectory(tempWorkingDirectory);
+            }
+        }
     }
 
     private async Task<int> RunSolutionAsync()
     {
-        if (DownloadOnly || !string.IsNullOrWhiteSpace(DeployablePackageName) || !string.IsNullOrWhiteSpace(OutputDirectory) || !string.IsNullOrWhiteSpace(Settings) || !string.IsNullOrWhiteSpace(LogFile) || LogConsole)
+        if (DownloadOnly || !string.IsNullOrWhiteSpace(OutputDirectory) || !string.IsNullOrWhiteSpace(Settings) || !string.IsNullOrWhiteSpace(LogFile) || LogConsole)
         {
-            _logger.LogError("Package-only options were provided with --type solution. Remove package flags (--download-only/--deployable-package/--output/--settings/--log-file/--log-console).");
+            _logger.LogError("Package-only options were provided with --type solution. Remove package flags (--download-only/--output/--settings/--log-file/--log-console).");
             return 1;
         }
 
-        var cmd = new DeploySolutionCliCommand
+        string solutionPath = Path.GetFullPath(Source);
+        if (!File.Exists(solutionPath))
         {
-            SolutionZip = Source,
-            ConnectionString = ConnectionString,
-            EnvironmentUrl = EnvironmentUrl,
-            DeviceCode = DeviceCode,
-            StageAndUpgrade = StageAndUpgrade,
-            ForceOverwrite = ForceOverwrite,
-            PublishWorkflows = PublishWorkflows,
-            SkipDependencyCheck = SkipDependencyCheck,
-            SkipLowerVersion = SkipLowerVersion,
-            Wait = Wait,
-            Json = Json,
-            Verbose = Verbose,
-        };
-        return await cmd.RunAsync().ConfigureAwait(false);
+            _logger.LogError("Solution file not found: {Path}", solutionPath);
+            return 1;
+        }
+
+        string? resolvedConnectionString = ServiceClientFactory.ResolveConnectionString(ConnectionString);
+        string? resolvedEnvironmentUrl = ServiceClientFactory.ResolveEnvironmentUrl(EnvironmentUrl);
+
+        if (string.IsNullOrWhiteSpace(resolvedConnectionString) && string.IsNullOrWhiteSpace(resolvedEnvironmentUrl))
+        {
+            _logger.LogError("Dataverse authentication is required. Pass --connection-string, pass --environment for interactive sign-in, or set DATAVERSE_CONNECTION_STRING / TXC_DATAVERSE_CONNECTION_STRING / DATAVERSE_ENVIRONMENT_URL / TXC_DATAVERSE_ENVIRONMENT_URL.");
+            return 1;
+        }
+
+        SolutionInfo source;
+        try
+        {
+            source = SolutionImporter.ReadSolutionInfo(solutionPath);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or FileNotFoundException)
+        {
+            _logger.LogError(ex, "Unable to read solution metadata from {Path}", solutionPath);
+            return 1;
+        }
+
+        _logger.LogInformation("Source solution: {UniqueName} {Version} ({Managed})",
+            source.UniqueName, source.Version, source.Managed ? "managed" : "unmanaged");
+
+        DataverseConnection conn;
+        try
+        {
+            conn = ServiceClientFactory.Connect(ConnectionString, EnvironmentUrl, DeviceCode, Verbose, _logger);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogError("{Error}", ex.Message);
+            return 1;
+        }
+
+        using (conn)
+        {
+            var client = conn.Client;
+            try
+            {
+                var importer = new SolutionImporter(client, _logger);
+                var existing = await importer.GetExistingSolutionAsync(source.UniqueName).ConfigureAwait(false);
+                var plannedPath = SolutionImporter.SelectImportPath(source, existing, StageAndUpgrade);
+                bool smartDiffExpected = SolutionImporter.SmartDiffExpected(plannedPath, ForceOverwrite);
+
+                _logger.LogInformation("Planned import path: {Path}", FormatPath(plannedPath));
+                _logger.LogInformation("SmartDiff expected: {SmartDiff}", smartDiffExpected ? "yes" : "no");
+
+                EmitWarnings(plannedPath, ForceOverwrite);
+
+                var options = new SolutionImportOptions(
+                    StageAndUpgrade: StageAndUpgrade,
+                    ForceOverwrite: ForceOverwrite,
+                    PublishWorkflows: PublishWorkflows,
+                    SkipDependencyCheck: SkipDependencyCheck,
+                    SkipLowerVersion: SkipLowerVersion,
+                    Async: !Wait);
+
+                var result = await importer.ImportAsync(solutionPath, options).ConfigureAwait(false);
+
+                if (Json)
+                {
+                    var payload = new
+                    {
+                        path = FormatPath(result.Path),
+                        uniqueName = result.Source.UniqueName,
+                        sourceVersion = result.Source.Version.ToString(),
+                        sourceManaged = result.Source.Managed,
+                        existingVersion = result.ExistingTarget?.Version.ToString(),
+                        existingManaged = result.ExistingTarget?.Managed,
+                        importJobId = result.ImportJobId,
+                        asyncOperationId = result.AsyncOperationId,
+                        startedAtUtc = result.StartedAtUtc.ToString("O"),
+                        completedAtUtc = result.CompletedAtUtc?.ToString("O"),
+                        smartDiffExpected = result.SmartDiffExpected,
+                        status = result.Status,
+                    };
+                    Console.WriteLine(JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }));
+                }
+
+                _logger.LogInformation("Import path: {Path}", FormatPath(result.Path));
+                _logger.LogInformation("Status: {Status}", result.Status);
+                _logger.LogInformation("ImportJobId: {ImportJobId}", result.ImportJobId);
+                if (result.AsyncOperationId is { } asyncId)
+                {
+                    _logger.LogInformation("AsyncOperationId: {AsyncOperationId}", asyncId);
+                }
+                _logger.LogInformation("Started (UTC): {Start}", result.StartedAtUtc.ToString("O"));
+                if (result.CompletedAtUtc is { } completed)
+                {
+                    _logger.LogInformation("Completed (UTC): {End}", completed.ToString("O"));
+                }
+
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Solution import failed");
+                return 1;
+            }
+        }
     }
+
+    private void EmitWarnings(SolutionImportPath plannedPath, bool forceOverwrite)
+    {
+        if (forceOverwrite && plannedPath == SolutionImportPath.Upgrade)
+        {
+            _logger.LogWarning("--force-overwrite disables SmartDiff; expect a full re-import.");
+        }
+
+        if (plannedPath == SolutionImportPath.Update)
+        {
+            _logger.LogWarning("Plain update does not delete components removed from the source solution.");
+        }
+    }
+
+    private static string FormatPath(SolutionImportPath path) => path switch
+    {
+        SolutionImportPath.Install => "install",
+        SolutionImportPath.Update => "update",
+        SolutionImportPath.Upgrade => "single-step upgrade",
+        _ => path.ToString()
+    };
 
     private int InvalidType()
     {

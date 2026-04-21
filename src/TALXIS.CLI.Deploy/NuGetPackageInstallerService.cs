@@ -16,7 +16,7 @@ public sealed class NuGetPackageInstallerService
         _httpClient = httpClient ?? SharedHttpClient;
     }
 
-    public async Task<NuGetPackageInstallResult> InstallAsync(EnvironmentInstallOptions options, CancellationToken cancellationToken = default)
+    public async Task<NuGetPackageInstallResult> InstallAsync(NuGetPackageInstallOptions options, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(options);
 
@@ -37,7 +37,7 @@ public sealed class NuGetPackageInstallerService
         Directory.CreateDirectory(extractedPackageDirectory);
         ZipFile.ExtractToDirectory(downloadedPackagePath, extractedPackageDirectory, overwriteFiles: true);
 
-        string deployablePackagePath = ResolveDeployablePackagePath(extractedPackageDirectory, options.DeployablePackageName);
+        string deployablePackagePath = ResolveDeployablePackagePath(extractedPackageDirectory);
         string stagedDeployablePackagePath = Path.Combine(workingDirectory, Path.GetFileName(deployablePackagePath));
 
         if (!string.Equals(deployablePackagePath, stagedDeployablePackagePath, StringComparison.OrdinalIgnoreCase))
@@ -55,7 +55,7 @@ public sealed class NuGetPackageInstallerService
             string.IsNullOrWhiteSpace(options.OutputDirectory));
     }
 
-    public static string ResolveDeployablePackagePath(string extractedPackageDirectory, string? deployablePackageName)
+    public static string ResolveDeployablePackagePath(string extractedPackageDirectory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(extractedPackageDirectory);
 
@@ -76,25 +76,10 @@ public sealed class NuGetPackageInstallerService
                 $"No deployable package was found under '{extractedPackageDirectory}'. Expected a file ending with '.pdpkg.zip' or '.pdpkg'.");
         }
 
-        if (!string.IsNullOrWhiteSpace(deployablePackageName))
-        {
-            string requestedName = NormalizeRequestedDeployablePackageName(deployablePackageName);
-            string? exactMatch = candidates.FirstOrDefault(candidate =>
-                string.Equals(Path.GetFileName(candidate), requestedName, StringComparison.OrdinalIgnoreCase));
-
-            if (exactMatch is not null)
-            {
-                return exactMatch;
-            }
-
-            throw new InvalidOperationException(
-                $"The deployable package '{deployablePackageName}' was not found. Available deployable packages: {string.Join(", ", candidates.Select(Path.GetFileName))}.");
-        }
-
         if (candidates.Count > 1)
         {
             throw new InvalidOperationException(
-                $"Multiple deployable packages were found. Specify --deployable-package to disambiguate: {string.Join(", ", candidates.Select(Path.GetFileName))}.");
+                $"Expected exactly one deployable package, but found {candidates.Count}: {string.Join(", ", candidates.Select(Path.GetFileName))}.");
         }
 
         return candidates[0];
@@ -105,17 +90,6 @@ public sealed class NuGetPackageInstallerService
         string fileName = Path.GetFileName(path);
         return fileName.EndsWith(".pdpkg.zip", StringComparison.OrdinalIgnoreCase)
             || fileName.EndsWith(".pdpkg", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string NormalizeRequestedDeployablePackageName(string deployablePackageName)
-    {
-        string fileName = Path.GetFileName(deployablePackageName.Trim());
-        if (fileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) || fileName.EndsWith(".pdpkg", StringComparison.OrdinalIgnoreCase))
-        {
-            return fileName;
-        }
-
-        return $"{fileName}.pdpkg.zip";
     }
 
     private static string CreateWorkingDirectory(string packageName, string? outputDirectory)

@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace TALXIS.CLI.Dataverse;
+namespace TALXIS.CLI.Deploy;
 
 /// <summary>
 /// Parses compact relative-time tokens used by <c>txc deploy list --since</c>.

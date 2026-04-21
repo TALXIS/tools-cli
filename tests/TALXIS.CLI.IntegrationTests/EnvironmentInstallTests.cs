@@ -38,19 +38,10 @@ public class EnvironmentInstallTests : IDisposable
         }));
 
         NuGetPackageInstallerService service = new(client);
-        EnvironmentInstallOptions options = new(
+        NuGetPackageInstallOptions options = new(
             "TALXIS.Controls.FileExplorer.Package",
             "latest",
-            null,
-            Path.Combine(_tempDirectory, "output"),
-            true,
-            null,
-            null,
-            false,
-            null,
-            null,
-            false,
-            false);
+            Path.Combine(_tempDirectory, "output"));
 
         NuGetPackageInstallResult result = await service.InstallAsync(options);
 
@@ -60,7 +51,7 @@ public class EnvironmentInstallTests : IDisposable
     }
 
     [Fact]
-    public void ResolveDeployablePackagePath_ThrowsWhenMultiplePackagesExistWithoutOverride()
+    public void ResolveDeployablePackagePath_ThrowsWhenMultiplePackagesExist()
     {
         string extractedDirectory = Path.Combine(_tempDirectory, "expanded");
         Directory.CreateDirectory(extractedDirectory);
@@ -68,9 +59,9 @@ public class EnvironmentInstallTests : IDisposable
         File.WriteAllText(Path.Combine(extractedDirectory, "b.pdpkg.zip"), "b");
 
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
-            NuGetPackageInstallerService.ResolveDeployablePackagePath(extractedDirectory, null));
+            NuGetPackageInstallerService.ResolveDeployablePackagePath(extractedDirectory));
 
-        Assert.Contains("--deployable-package", exception.Message);
+        Assert.Contains("Expected exactly one deployable package", exception.Message);
     }
 
     public void Dispose()

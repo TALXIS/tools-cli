@@ -1,10 +1,11 @@
 using Microsoft.Extensions.Logging;
+using TALXIS.CLI.Dataverse;
 using Microsoft.PowerPlatform.Dataverse.Client;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Messages;
 using Microsoft.Xrm.Sdk.Query;
 
-namespace TALXIS.CLI.Dataverse;
+namespace TALXIS.CLI.Deploy;
 
 public enum SolutionUninstallStatus
 {
@@ -26,7 +27,7 @@ public sealed record SolutionUninstallOutcome(
 /// </summary>
 public sealed class SolutionUninstaller
 {
-    private const string EntityName = "solution";
+    private const string EntityName = DataverseSchema.Solution.EntityName;
     private static readonly ColumnSet Columns = new(
         "solutionid",
         "uniquename",

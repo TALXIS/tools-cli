@@ -1,8 +1,9 @@
 using Microsoft.PowerPlatform.Dataverse.Client;
+using TALXIS.CLI.Dataverse;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Query;
 
-namespace TALXIS.CLI.Dataverse;
+namespace TALXIS.CLI.Deploy;
 
 /// <summary>
 /// Lightweight inventory row for an installed Dataverse solution.
@@ -19,7 +20,7 @@ public sealed record InstalledSolutionRecord(
 /// </summary>
 public sealed class SolutionInventoryReader
 {
-    private const string EntityName = "solution";
+    private const string EntityName = DataverseSchema.Solution.EntityName;
     private static readonly ColumnSet Columns = new(
         "solutionid",
         "uniquename",

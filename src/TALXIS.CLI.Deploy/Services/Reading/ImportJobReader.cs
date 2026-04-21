@@ -1,10 +1,11 @@
+using TALXIS.CLI.Dataverse;
 using Microsoft.Crm.Sdk.Messages;
 using Microsoft.Extensions.Logging;
 using Microsoft.PowerPlatform.Dataverse.Client;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Query;
 
-namespace TALXIS.CLI.Dataverse;
+namespace TALXIS.CLI.Deploy;
 
 /// <summary>
 /// Structured view of a row in the <c>importjob</c> table. All <see cref="DateTime"/> values are UTC.
@@ -23,7 +24,7 @@ public sealed record ImportJobRecord(
 /// </summary>
 public sealed class ImportJobReader
 {
-    private const string EntityName = "importjob";
+    private const string EntityName = DataverseSchema.ImportJob.EntityName;
     private static readonly ColumnSet Columns = new(
         "importjobid",
         "solutionname",
