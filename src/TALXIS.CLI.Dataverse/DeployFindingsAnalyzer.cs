@@ -42,6 +42,7 @@ public static class DeployFindingsAnalyzer
     private const string InstallUpdateFinding = "One or more solutions were installed and then updated within the same deployment window — this may indicate redundant imports or overlapping deployments.";
     private const string SmartDiffAbsentFinding = "SmartDiff did not apply on upgrade path. Check settings or component churn.";
     private const string StaleInProcessFinding = "Package history status is still 'In Process' — the deployment host may have been interrupted before recording the final status. Verify all correlated solutions completed successfully.";
+    private const string NoSolutionsDetectedFinding = "No solution imports were detected for this package run — all solutions were likely already at the required version and skipped by Package Deployer.";
 
     public static IReadOnlyList<string> Analyze(DeployFindingsInput input)
     {
@@ -49,6 +50,7 @@ public static class DeployFindingsAnalyzer
         var findings = new List<string>();
 
         TryEmitStaleInProcess(input, findings);
+        TryEmitNoSolutionsDetected(input, findings);
         bool overwriteFired = TryEmitOverwrite(input, findings);
         TryEmitInstallUpgradePattern(input, findings);
         TryEmitSmartDiffAbsent(input, overwriteFired, findings);
@@ -79,6 +81,30 @@ public static class DeployFindingsAnalyzer
         }
 
         findings.Add(StaleInProcessFinding);
+    }
+
+    private static void TryEmitNoSolutionsDetected(DeployFindingsInput input, List<string> findings)
+    {
+        // Only meaningful in package mode when we actively requested solution correlation.
+        // If no solution-history records were found AND the package completed, it is very likely
+        // PD determined all solutions were already at the required version and skipped imports.
+        if (!input.IsPackageMode || !input.IncludeSolutions)
+        {
+            return;
+        }
+
+        if (input.Solutions.Count != 0)
+        {
+            return;
+        }
+
+        // Only emit when the package actually completed — stale "In Process" already has its own finding.
+        if (input.PackageStatus is null || !input.PackageStatus.Contains("Completed", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        findings.Add(NoSolutionsDetectedFinding);
     }
 
     private static bool TryEmitOverwrite(DeployFindingsInput input, List<string> findings)

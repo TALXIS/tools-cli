@@ -315,4 +315,68 @@ public class DeployFindingsAnalyzerTests
         Assert.Contains(result, f => f.Contains("single-step upgrade"));
         Assert.Contains(result, f => f.Contains(InstallUpdateString));
     }
+
+    [Fact]
+    public void NoSolutionsDetected_FiresWhenPackageCompletedWithNoSolutions()
+    {
+        var input = new DeployFindingsInput
+        {
+            Solutions = Array.Empty<SolutionHistoryRecord>(),
+            IsPackageMode = true,
+            IncludeSolutions = true,
+            PackageStatus = "Completed",
+        };
+
+        var result = DeployFindingsAnalyzer.Analyze(input);
+
+        Assert.Contains(result, f => f.Contains("already at the required version"));
+    }
+
+    [Fact]
+    public void NoSolutionsDetected_DoesNotFireWhenPackageIsInProcess()
+    {
+        var input = new DeployFindingsInput
+        {
+            Solutions = Array.Empty<SolutionHistoryRecord>(),
+            IsPackageMode = true,
+            IncludeSolutions = true,
+            PackageStatus = "In Process",
+        };
+
+        var result = DeployFindingsAnalyzer.Analyze(input);
+
+        Assert.DoesNotContain(result, f => f.Contains("already at the required version"));
+    }
+
+    [Fact]
+    public void NoSolutionsDetected_DoesNotFireWhenSolutionsArePresent()
+    {
+        var input = new DeployFindingsInput
+        {
+            Solutions = new[] { MakeRecord() },
+            IsPackageMode = true,
+            IncludeSolutions = true,
+            PackageStatus = "Completed",
+        };
+
+        var result = DeployFindingsAnalyzer.Analyze(input);
+
+        Assert.DoesNotContain(result, f => f.Contains("already at the required version"));
+    }
+
+    [Fact]
+    public void NoSolutionsDetected_DoesNotFireInSolutionMode()
+    {
+        var input = new DeployFindingsInput
+        {
+            Solutions = Array.Empty<SolutionHistoryRecord>(),
+            IsPackageMode = false,
+            IncludeSolutions = false,
+            PackageStatus = "Completed",
+        };
+
+        var result = DeployFindingsAnalyzer.Analyze(input);
+
+        Assert.DoesNotContain(result, f => f.Contains("already at the required version"));
+    }
 }
