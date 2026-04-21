@@ -11,8 +11,18 @@ public enum DeployIdSelectorKind
     /// <summary>Full 32-hex-digit GUID.</summary>
     Guid,
 
-    /// <summary>Free-text name fallback — matched against <c>uniquename</c> / <c>solutionname</c>.</summary>
+    /// <summary>
+    /// Free-text name fallback — matched against <c>uniquename</c> / <c>solutionname</c>.
+    /// Kept for backward compatibility with <see cref="DeployIdSelector.Parse"/>; prefer
+    /// <see cref="PackageName"/> or <see cref="SolutionName"/> for new code paths.
+    /// </summary>
     Name,
+
+    /// <summary>NuGet package name — matched against <c>packagehistory.uniquename</c> only.</summary>
+    PackageName,
+
+    /// <summary>Solution unique name — matched against <c>msdyn_solutionhistory.msdyn_uniquename</c> only.</summary>
+    SolutionName,
 }
 
 /// <summary>

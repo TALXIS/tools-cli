@@ -67,6 +67,8 @@ public class DeployPackageCliCommand
 
         string packagePath;
         string? tempWorkingDirectory = null;
+        string? nugetPackageName = null;
+        string? nugetPackageVersion = null;
 
         if (isLocalFile)
         {
@@ -100,6 +102,9 @@ public class DeployPackageCliCommand
 
             _logger.LogInformation("Resolved {PackageName} version {Version}", installResult.PackageName, installResult.ResolvedVersion);
             _logger.LogInformation("Deployable package extracted to {Path}", installResult.DeployablePackagePath);
+
+            nugetPackageName = installResult.PackageName;
+            nugetPackageVersion = installResult.ResolvedVersion;
 
             if (DownloadOnly)
             {
@@ -142,7 +147,9 @@ public class DeployPackageCliCommand
                 LogConsole,
                 Verbose,
                 packageDeployerArtifactsDirectory,
-                System.Environment.ProcessId));
+                System.Environment.ProcessId,
+                NuGetPackageName: nugetPackageName,
+                NuGetPackageVersion: nugetPackageVersion));
 
             if (!deployResult.Succeeded)
             {

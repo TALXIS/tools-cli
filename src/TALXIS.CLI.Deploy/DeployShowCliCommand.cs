@@ -35,8 +35,11 @@ public class DeployShowCliCommand
     [CliOption(Name = "--id", Description = "Full GUID of a deployment record (msdyn_solutionhistoryid, packagehistory id) or the asyncOperationId returned by a queued solution import.", Required = false)]
     public string? Id { get; set; }
 
-    [CliOption(Name = "--name", Description = "Unique name of the package or solution — returns the most recent run matching this name.", Required = false)]
-    public string? Name { get; set; }
+    [CliOption(Name = "--package-name", Description = "NuGet package name — returns the most recent run in packagehistory matching this name (only reliable for packages deployed via txc).", Required = false)]
+    public string? PackageName { get; set; }
+
+    [CliOption(Name = "--solution-name", Description = "Solution unique name — returns the most recent standalone solution import matching this name.", Required = false)]
+    public string? SolutionName { get; set; }
 
     [CliOption(Name = "--latest", Description = "Show the most recent deployment across packages and solutions.", Required = false)]
     public bool Latest { get; set; }
@@ -62,15 +65,15 @@ public class DeployShowCliCommand
     public async Task<int> RunAsync()
     {
         DeployIdSelector selector;
-        int specified = (Id is not null ? 1 : 0) + (Name is not null ? 1 : 0) + (Latest ? 1 : 0);
+        int specified = (Id is not null ? 1 : 0) + (PackageName is not null ? 1 : 0) + (SolutionName is not null ? 1 : 0) + (Latest ? 1 : 0);
         if (specified == 0)
         {
-            _logger.LogError("Specify exactly one of --id, --name, or --latest.");
+            _logger.LogError("Specify exactly one of --id, --package-name, --solution-name, or --latest.");
             return 1;
         }
         if (specified > 1)
         {
-            _logger.LogError("--id, --name, and --latest are mutually exclusive. Specify only one.");
+            _logger.LogError("--id, --package-name, --solution-name, and --latest are mutually exclusive. Specify only one.");
             return 1;
         }
 
@@ -78,10 +81,23 @@ public class DeployShowCliCommand
         {
             selector = DeployIdSelector.Parse("latest");
         }
-        else if (Name is { } nameVal)
+        else if (PackageName is { } pkgName)
         {
-            try { selector = DeployIdSelector.Parse(nameVal); }
-            catch (ArgumentException ex) { _logger.LogError("{Message}", ex.Message); return 1; }
+            if (string.IsNullOrWhiteSpace(pkgName))
+            {
+                _logger.LogError("--package-name must not be empty.");
+                return 1;
+            }
+            selector = new DeployIdSelector(DeployIdSelectorKind.PackageName, Guid.Empty, pkgName);
+        }
+        else if (SolutionName is { } solName)
+        {
+            if (string.IsNullOrWhiteSpace(solName))
+            {
+                _logger.LogError("--solution-name must not be empty.");
+                return 1;
+            }
+            selector = new DeployIdSelector(DeployIdSelectorKind.SolutionName, Guid.Empty, solName);
         }
         else
         {
@@ -128,7 +144,8 @@ public class DeployShowCliCommand
                     int? asyncResult = await TryShowAsyncOperationAsync(client, selector.Guid).ConfigureAwait(false);
                     if (asyncResult.HasValue) return asyncResult.Value;
                 }
-                _logger.LogError("No deployment matched '{Id}'.", Id);
+                string missingId = Id ?? PackageName ?? SolutionName ?? "(latest)";
+                _logger.LogError("No deployment matched '{Id}'.", missingId);
                 return 1;
             }
 
@@ -176,12 +193,25 @@ public class DeployShowCliCommand
             }
             case DeployIdSelectorKind.Name:
             {
+                // Legacy fallback: search both streams and pick newest.
                 var pkgTask = pkgReader.GetLatestAsync(selector.Text);
                 var solTask = solReader.GetLatestByNameAsync(selector.Text);
                 await Task.WhenAll(pkgTask, solTask).ConfigureAwait(false);
                 var pkg = await pkgTask.ConfigureAwait(false);
                 var sol = await solTask.ConfigureAwait(false);
                 return PickNewest(pkg, sol);
+            }
+            case DeployIdSelectorKind.PackageName:
+            {
+                // Search packagehistory.uniquename only (reliable for NuGet deploys via txc).
+                var pkg = await pkgReader.GetLatestAsync(selector.Text).ConfigureAwait(false);
+                return pkg is not null ? new Hit(pkg, null) : null;
+            }
+            case DeployIdSelectorKind.SolutionName:
+            {
+                // Search msdyn_solutionhistory by solution unique name only.
+                var sol = await solReader.GetLatestByNameAsync(selector.Text).ConfigureAwait(false);
+                return sol is not null ? new Hit(null, sol) : null;
             }
         }
         return null;

@@ -69,7 +69,7 @@ The `txc deploy` group covers both execution and inspection of deployments again
 - `txc deploy package` — runs a Package Deployer package (NuGet name or local `.pdpkg.zip`).
 - `txc deploy solution` — queues an async solution import (returns `asyncOperationId` immediately by default; use `--wait` to block until completion).
 - `txc deploy list` — lists recent runs across both package and solution streams with status and duration.
-- `txc deploy show` — shows details and findings for a single run; specify the target with `--id`, `--name`, or `--latest`.
+- `txc deploy show` — shows details and findings for a single run; specify the target with `--id`, `--package-name`, `--solution-name`, or `--latest`.
 
 > [!IMPORTANT]
 > `txc deploy solution`, `txc deploy list`, and `txc deploy show` run on the modern `Microsoft.PowerPlatform.Dataverse.Client` SDK, so they work natively on **Linux and macOS** as well as Windows — no Windows-only .NET Framework tooling required.
@@ -104,7 +104,8 @@ txc deploy list --environment https://org.crm.dynamics.com --since 7d --problems
 
 - `--latest` — the most recent run across both streams.
 - `--id <guid>` — a deployment record GUID or the `asyncOperationId` returned by a queued solution import. If the operation is still in progress, live status is shown.
-- `--name <string>` — resolves to the latest run matching this package or solution name.
+- `--package-name <name>` — the NuGet package name used to deploy (e.g. `TALXIS.Controls.FileExplorer.Package`). Reliable for packages deployed via `txc deploy package`.
+- `--solution-name <name>` — the solution unique name for a standalone solution import.
 
 Output is a compact summary by default, plus **findings** (remediation guidance such as overwrite-customizations warnings, install+upgrade pattern detection, stale `In Process` status, and slowest-solution hints). Pass `--full` to include every correlated solution and the formatted import log. Pass `--json` for a machine-readable payload.
 
@@ -118,14 +119,14 @@ txc deploy show --latest --environment https://org.crm.dynamics.com
 txc deploy show --id xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx --environment https://org.crm.dynamics.com
 ```
 
-**Show a specific package run by name:**
+**Show a specific package run by NuGet name:**
 ```sh
-txc deploy show --name TALXIS.Controls.FileExplorer.Package --environment https://org.crm.dynamics.com
+txc deploy show --package-name TALXIS.Controls.FileExplorer.Package --environment https://org.crm.dynamics.com
 ```
 
 **Show a standalone solution import by name (with formatted log):**
 ```sh
-txc deploy show --name MySolution --environment https://org.crm.dynamics.com --full
+txc deploy show --solution-name MySolution --environment https://org.crm.dynamics.com --full
 ```
 
 **Import a CMT data folder into Dataverse:**

@@ -122,7 +122,7 @@ public sealed class PackageDeployerRunner
                     sourcePackageAssemblyPath: _packagePathForCoreObjects,
                     allowPackageCodeExecution: true,
                     forceSyncExecution: false,
-                    packageInfo: null,
+                    packageInfo: BuildPackageInfo(_request),
                     logger: traceLogger,
                     allowAsyncRibbonProcessing: false,
                     correlationId: Guid.NewGuid());
@@ -788,6 +788,31 @@ public sealed class PackageDeployerRunner
             Span<byte> header = stackalloc byte[4];
             stream.ReadExactly(header);
             return header[0] == (byte)'P' && header[1] == (byte)'K';
+        }
+
+        /// <summary>
+        /// Builds a <see cref="PackageInfo"/> from the NuGet metadata on the request so that
+        /// Package Deployer writes the NuGet package name into <c>packagehistory.uniquename</c>,
+        /// enabling reliable lookup via <c>txc deploy show --package-name</c>.
+        /// Returns <see langword="null"/> when the request has no NuGet identity (local-file deploys).
+        /// </summary>
+        private static PackageInfo? BuildPackageInfo(PackageDeployerRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(request.NuGetPackageName))
+            {
+                return null;
+            }
+
+            return new PackageInfo(
+                packageUniqueName: request.NuGetPackageName,
+                packageVersion: string.IsNullOrWhiteSpace(request.NuGetPackageVersion) ? "0.0.0.0" : request.NuGetPackageVersion,
+                applicationId: Guid.Empty,
+                applicationName: request.NuGetPackageName,
+                publisherId: Guid.Empty,
+                publisherName: string.Empty,
+                tpsPackageId: Guid.Empty,
+                packageInstanceId: Guid.NewGuid(),
+                packageInstanceOperationId: Guid.NewGuid());
         }
 
         private void RecordFailureDetail(string? detail)
