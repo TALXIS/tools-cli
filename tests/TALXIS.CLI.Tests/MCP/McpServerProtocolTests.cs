@@ -165,7 +165,7 @@ public class McpServerProtocolTests : IAsyncDisposable
     {
         var tools = _registry.ListTools();
 
-        var deployTool = tools.FirstOrDefault(t => t.Name == "deploy_package");
+        var deployTool = tools.FirstOrDefault(t => t.Name == "deploy_run");
         Assert.NotNull(deployTool);
         Assert.NotNull(deployTool.Execution);
         Assert.NotNull(deployTool.Execution.TaskSupport);

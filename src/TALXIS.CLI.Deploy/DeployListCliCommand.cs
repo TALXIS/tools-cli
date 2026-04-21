@@ -8,17 +8,18 @@ using TALXIS.CLI.Logging;
 namespace TALXIS.CLI.Deploy;
 
 /// <summary>
-/// Lists recent Dataverse deployments across both streams:
-/// <c>packagehistory</c> (Package Deployer runs) and <c>msdyn_solutionhistory</c>
-/// (solution imports, including standalone). Output is interleaved by start time.
+/// Lists deployment-related resources from Dataverse.
 /// </summary>
 [CliCommand(
     Name = "list",
-    Description = "List recent deployments (packages and solutions) against a Dataverse environment."
+    Description = "List deployment resources. Use --resource runs or --resource solutions."
 )]
 public class DeployListCliCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(DeployListCliCommand));
+
+    [CliOption(Name = "--resource", Description = "Resource to list: runs or solutions.", Required = true)]
+    public required string Resource { get; set; }
 
     [CliOption(Name = "--connection-string", Description = "Dataverse connection string. If omitted, txc checks DATAVERSE_CONNECTION_STRING and TXC_DATAVERSE_CONNECTION_STRING.", Required = false)]
     public string? ConnectionString { get; set; }
@@ -29,11 +30,14 @@ public class DeployListCliCommand
     [CliOption(Name = "--device-code", Description = "Use Microsoft Entra device code flow instead of opening a browser for interactive sign-in.", Required = false)]
     public bool DeviceCode { get; set; }
 
-    [CliOption(Name = "--since", Description = "Relative time window, e.g. 30m, 24h, 7d, 2w. When omitted, the last 20 rows across both streams are returned.", Required = false)]
+    [CliOption(Name = "--since", Description = "Relative time window for --resource runs, e.g. 30m, 24h, 7d, 2w.", Required = false)]
     public string? Since { get; set; }
 
-    [CliOption(Name = "--problems", Description = "Only rows that are not Success/Completed (includes in-progress, failed, and stuck).", Required = false)]
+    [CliOption(Name = "--problems", Description = "Only rows that are not Success/Completed. Only valid with --resource runs.", Required = false)]
     public bool Problems { get; set; }
+
+    [CliOption(Name = "--managed", Description = "Filter installed solutions by managed status (true/false). Only valid with --resource solutions.", Required = false)]
+    public string? Managed { get; set; }
 
     [CliOption(Name = "--json", Description = "Emit the list as indented JSON instead of a text table.", Required = false)]
     public bool Json { get; set; }
@@ -43,9 +47,31 @@ public class DeployListCliCommand
 
     public async Task<int> RunAsync()
     {
+        if (string.IsNullOrWhiteSpace(Resource))
+        {
+            _logger.LogError("--resource is required (runs|solutions).");
+            return 1;
+        }
+
+        var resource = Resource.Trim().ToLowerInvariant();
+        return resource switch
+        {
+            "runs" => await ListRunsAsync().ConfigureAwait(false),
+            "solutions" => await ListSolutionsAsync().ConfigureAwait(false),
+            _ => InvalidResource(),
+        };
+    }
+
+    private async Task<int> ListRunsAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(Managed))
+        {
+            _logger.LogError("--managed is only valid with --resource solutions.");
+            return 1;
+        }
+
         DateTime? sinceUtc = null;
         int defaultCount = 20;
-
         if (!string.IsNullOrWhiteSpace(Since))
         {
             if (!DeployRelativeTimeParser.TryParse(Since, out var window))
@@ -95,12 +121,76 @@ public class DeployListCliCommand
                 return 0;
             }
 
-            PrintTable(trimmed);
+            PrintRunsTable(trimmed);
             return 0;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "deploy list failed");
+            _logger.LogError(ex, "deploy list --resource runs failed");
+            return 1;
+        }
+        finally
+        {
+            client?.Dispose();
+            tokenProvider?.Dispose();
+        }
+    }
+
+    private async Task<int> ListSolutionsAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(Since) || Problems)
+        {
+            _logger.LogError("--since and --problems are only valid with --resource runs.");
+            return 1;
+        }
+
+        bool? managedFilter = null;
+        if (!string.IsNullOrWhiteSpace(Managed))
+        {
+            if (!bool.TryParse(Managed, out var parsedManaged))
+            {
+                _logger.LogError("Invalid --managed value '{Value}'. Use true or false.", Managed);
+                return 1;
+            }
+            managedFilter = parsedManaged;
+        }
+
+        string? connectionString = ServiceClientFactory.ResolveConnectionString(ConnectionString);
+        string? environmentUrl = ServiceClientFactory.ResolveEnvironmentUrl(EnvironmentUrl);
+
+        if (string.IsNullOrWhiteSpace(connectionString) && string.IsNullOrWhiteSpace(environmentUrl))
+        {
+            _logger.LogError("Dataverse authentication is required. Pass --connection-string, pass --environment for interactive sign-in, or set DATAVERSE_CONNECTION_STRING / TXC_DATAVERSE_CONNECTION_STRING / DATAVERSE_ENVIRONMENT_URL / TXC_DATAVERSE_ENVIRONMENT_URL.");
+            return 1;
+        }
+
+        ServiceClient? client = null;
+        DataverseAuthTokenProvider? tokenProvider = null;
+        try
+        {
+            client = ServiceClientFactory.Create(
+                connectionString,
+                environmentUrl,
+                DeviceCode,
+                Verbose,
+                _logger,
+                out tokenProvider);
+
+            var reader = new SolutionInventoryReader(client);
+            var rows = await reader.ListAsync(managedFilter).ConfigureAwait(false);
+
+            if (Json)
+            {
+                Console.WriteLine(JsonSerializer.Serialize(rows, JsonOptions));
+                return 0;
+            }
+
+            PrintSolutionsTable(rows);
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "deploy list --resource solutions failed");
             return 1;
         }
         finally
@@ -111,8 +201,7 @@ public class DeployListCliCommand
     }
 
     /// <summary>
-    /// Normalizes and merges both streams into a single list sorted by start time desc.
-    /// Exposed for unit tests.
+    /// Normalizes and merges both run streams into a single list sorted by start time desc.
     /// </summary>
     public static IReadOnlyList<DeployListRow> BuildRows(
         IReadOnlyList<PackageHistoryRecord> packages,
@@ -173,11 +262,11 @@ public class DeployListCliCommand
         return r.Length > 20 ? r[..20].ToUpperInvariant() : r.ToUpperInvariant();
     }
 
-    private static void PrintTable(IReadOnlyList<DeployListRow> rows)
+    private static void PrintRunsTable(IReadOnlyList<DeployListRow> rows)
     {
         if (rows.Count == 0)
         {
-            Console.WriteLine("No deployments found.");
+            Console.WriteLine("No deployment runs found.");
             return;
         }
 
@@ -195,9 +284,32 @@ public class DeployListCliCommand
             string duration = FormatDuration(r.StartedAtUtc, r.CompletedAtUtc);
             Console.WriteLine($"{r.Kind,-4} | {name.PadRight(nameWidth)} | {r.Status.PadRight(statusWidth)} | {started,-19} | {duration}");
         }
+    }
 
-        Console.WriteLine();
-        Console.WriteLine("Use: txc deploy show <name|latest|guid> for details.");
+    private static void PrintSolutionsTable(IReadOnlyList<InstalledSolutionRecord> rows)
+    {
+        if (rows.Count == 0)
+        {
+            Console.WriteLine("No installed solutions found.");
+            return;
+        }
+
+        int nameWidth = Math.Clamp(rows.Max(r => r.UniqueName.Length), 20, 48);
+        int versionWidth = Math.Clamp(rows.Max(r => (r.Version ?? "").Length), 7, 20);
+        int managedWidth = 7;
+
+        string header = $"{"Unique Name".PadRight(nameWidth)} | {"Version".PadRight(versionWidth)} | {"Managed".PadRight(managedWidth)} | Friendly Name";
+        Console.WriteLine(header);
+        Console.WriteLine(new string('-', header.Length));
+        foreach (var r in rows)
+        {
+            string uniqueName = r.UniqueName.Length > nameWidth
+                ? r.UniqueName[..(nameWidth - 1)] + "."
+                : r.UniqueName;
+            string version = string.IsNullOrWhiteSpace(r.Version) ? "(unknown)" : r.Version;
+            string friendly = string.IsNullOrWhiteSpace(r.FriendlyName) ? "(none)" : r.FriendlyName;
+            Console.WriteLine($"{uniqueName.PadRight(nameWidth)} | {version.PadRight(versionWidth)} | {(r.Managed ? "true" : "false").PadRight(managedWidth)} | {friendly}");
+        }
     }
 
     private static string FormatDuration(DateTime? start, DateTime? end)
@@ -210,6 +322,12 @@ public class DeployListCliCommand
             : $"{(int)span.TotalMinutes}m {span.Seconds}s";
     }
 
+    private int InvalidResource()
+    {
+        _logger.LogError("Invalid --resource '{Resource}'. Expected 'runs' or 'solutions'.", Resource);
+        return 1;
+    }
+
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         WriteIndented = true,
@@ -217,7 +335,8 @@ public class DeployListCliCommand
 }
 
 /// <summary>
-/// Unified row shape emitted by <c>txc deploy list</c>. Same contract in text and JSON.
+/// Unified row shape emitted by <c>txc deploy list --resource runs</c>.
+/// Same contract in text and JSON.
 /// </summary>
 public sealed record DeployListRow(
     string Kind,

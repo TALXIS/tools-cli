@@ -15,7 +15,7 @@ namespace TALXIS.CLI.Deploy;
 /// </summary>
 [CliCommand(
     Name = "show",
-    Description = "Show details and findings for a single deployment (package or solution run). Specify exactly one of --id, --name, or --latest."
+    Description = "Show details and findings for a single deployment (package or solution run). Specify exactly one of --id, --package-name, --solution-name, or --latest."
 )]
 public class DeployShowCliCommand
 {
@@ -186,7 +186,7 @@ public class DeployShowCliCommand
                 if (pkg is not null) return new Hit(pkg, null);
                 var sol = await solReader.GetByIdAsync(selector.Guid).ConfigureAwait(false);
                 if (sol is not null) return new Hit(null, sol);
-                // The GUID might be an asyncOperationId (from --async deploy solution).
+                // The GUID might be an asyncOperationId (from deploy run --type solution).
                 var solByActivity = await solReader.GetByActivityIdAsync(selector.Guid).ConfigureAwait(false);
                 if (solByActivity is not null) return new Hit(null, solByActivity);
                 return null;

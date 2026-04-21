@@ -8,10 +8,9 @@ using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Deploy;
 
-[CliCommand(
-    Name = "solution",
-    Description = "Imports a single Dataverse solution (.zip) using the modern ServiceClient. Chooses install / update / single-step upgrade automatically."
-)]
+/// <summary>
+/// Internal solution import runner used by <c>deploy run --type solution</c>.
+/// </summary>
 public class DeploySolutionCliCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(DeploySolutionCliCommand));

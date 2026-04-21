@@ -18,8 +18,8 @@ public class McpToolRegistry
     private static readonly HashSet<Type> _longRunningCommandTypes = new()
     {
         typeof(TALXIS.CLI.Data.DataPackageImportCliCommand),
-        typeof(TALXIS.CLI.Deploy.DeployPackageCliCommand),
-        typeof(TALXIS.CLI.Deploy.DeploySolutionCliCommand),
+        typeof(TALXIS.CLI.Deploy.DeployRunCliCommand),
+        typeof(TALXIS.CLI.Deploy.DeployUninstallCliCommand),
     };
 
     /// <summary>

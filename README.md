@@ -55,47 +55,52 @@ After installation, use the CLI via the `txc` command in any terminal.
 > [!IMPORTANT]
 > `txc` runs both **Dataverse Package Deployer** and **Configuration Migration Tool (CMT)** on **modern .NET**, including **Linux** and **macOS**. This makes it possible to run deployment and data import flows outside the traditional Windows-only .NET Framework tooling.
 
-**Download and deploy a Dataverse package from NuGet:**
+**Run a package deployment from NuGet:**
 ```sh
-txc deploy package TALXIS.Controls.FileExplorer.Package \
+txc deploy run --type package --source TALXIS.Controls.FileExplorer.Package \
   --version 0.0.0.10 \
   --environment "https://contoso.crm.dynamics.com"
 ```
 
 ### Deploying packages and solutions
 
-The `txc deploy` group covers both execution and inspection of deployments against a Dataverse environment:
+The `txc deploy` group uses one verb per action:
 
-- `txc deploy package` — runs a Package Deployer package (NuGet name or local `.pdpkg.zip`).
-- `txc deploy solution` — queues an async solution import (returns `asyncOperationId` immediately by default; use `--wait` to block until completion).
-- `txc deploy list` — lists recent runs across both package and solution streams with status and duration.
+- `txc deploy run` — runs a package or solution deployment (`--type package|solution`).
+- `txc deploy list` — lists either deployment runs or installed solutions (`--resource runs|solutions`).
 - `txc deploy show` — shows details and findings for a single run; specify the target with `--id`, `--package-name`, `--solution-name`, or `--latest`.
+- `txc deploy uninstall` — uninstalls a single solution or all correlated solutions from a package run.
 
 > [!IMPORTANT]
-> `txc deploy solution`, `txc deploy list`, and `txc deploy show` run on the modern `Microsoft.PowerPlatform.Dataverse.Client` SDK, so they work natively on **Linux and macOS** as well as Windows — no Windows-only .NET Framework tooling required.
+> `txc deploy run --type solution`, `txc deploy list`, `txc deploy show`, and `txc deploy uninstall` run on the modern `Microsoft.PowerPlatform.Dataverse.Client` SDK, so they work natively on **Linux and macOS** as well as Windows — no Windows-only .NET Framework tooling required.
 
-**Deploy a package from NuGet:**
+**Run a package deployment from NuGet:**
 ```sh
-txc deploy package TALXIS.Controls.FileExplorer.Package --environment https://org.crm.dynamics.com
+txc deploy run --type package --source TALXIS.Controls.FileExplorer.Package --environment https://org.crm.dynamics.com
 ```
 
-**Import a single solution zip (async, returns immediately):**
+**Run a solution import (async, returns immediately):**
 ```sh
-txc deploy solution ./Solutions/MySolution_managed.zip --environment https://org.crm.dynamics.com
+txc deploy run --type solution --source ./Solutions/MySolution_managed.zip --environment https://org.crm.dynamics.com
 # → AsyncOperationId: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 
 # Block until import completes:
-txc deploy solution ./Solutions/MySolution_managed.zip --wait --environment https://org.crm.dynamics.com
+txc deploy run --type solution --source ./Solutions/MySolution_managed.zip --wait --environment https://org.crm.dynamics.com
 ```
 
-**List the 20 most recent runs:**
+**List the 20 most recent deployment runs:**
 ```sh
-txc deploy list --environment https://org.crm.dynamics.com
+txc deploy list --resource runs --environment https://org.crm.dynamics.com
 ```
 
 **List problems from the last 7 days:**
 ```sh
-txc deploy list --environment https://org.crm.dynamics.com --since 7d --problems
+txc deploy list --resource runs --environment https://org.crm.dynamics.com --since 7d --problems
+```
+
+**List installed solutions and versions:**
+```sh
+txc deploy list --resource solutions --environment https://org.crm.dynamics.com
 ```
 
 ### Inspecting a deployment
@@ -104,7 +109,7 @@ txc deploy list --environment https://org.crm.dynamics.com --since 7d --problems
 
 - `--latest` — the most recent run across both streams.
 - `--id <guid>` — a deployment record GUID or the `asyncOperationId` returned by a queued solution import. If the operation is still in progress, live status is shown.
-- `--package-name <name>` — the NuGet package name used to deploy (e.g. `TALXIS.Controls.FileExplorer.Package`). Reliable for packages deployed via `txc deploy package`.
+- `--package-name <name>` — the NuGet package name used to deploy (e.g. `TALXIS.Controls.FileExplorer.Package`). Reliable for packages deployed via `txc deploy run --type package`.
 - `--solution-name <name>` — the solution unique name for a standalone solution import.
 
 Output is a compact summary by default, plus **findings** (remediation guidance such as overwrite-customizations warnings, install+upgrade pattern detection, stale `In Process` status, and slowest-solution hints). Pass `--full` to include every correlated solution and the formatted import log. Pass `--json` for a machine-readable payload.
@@ -127,6 +132,18 @@ txc deploy show --package-name TALXIS.Controls.FileExplorer.Package --environmen
 **Show a standalone solution import by name (with formatted log):**
 ```sh
 txc deploy show --solution-name MySolution --environment https://org.crm.dynamics.com --full
+```
+
+### Uninstalling solutions
+
+**Uninstall a single solution:**
+```sh
+txc deploy uninstall --solution-name MySolution --yes --environment https://org.crm.dynamics.com
+```
+
+**Uninstall all solutions correlated to the latest package run:**
+```sh
+txc deploy uninstall --package-name TALXIS.Controls.FileExplorer.Package --latest --yes --environment https://org.crm.dynamics.com
 ```
 
 **Import a CMT data folder into Dataverse:**

@@ -6,10 +6,6 @@ using TALXIS.CLI.XrmTools;
 
 namespace TALXIS.CLI.Deploy;
 
-[CliCommand(
-    Name = "package",
-    Description = "Deploys a Dataverse package using Package Deployer. Accepts a NuGet package name, a local .pdpkg.zip file, or a package DLL."
-)]
 public class DeployPackageCliCommand
 {
     private readonly NuGetPackageInstallerService _packageInstaller = new();
