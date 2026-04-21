@@ -15,7 +15,8 @@ public class CliTests
     [InlineData("workspace component parameter list pp-entity")]
     [InlineData("deploy package --help")]
     [InlineData("deploy solution --help")]
-    [InlineData("deploy logs --help")]
+    [InlineData("deploy list --help")]
+    [InlineData("deploy show --help")]
     [InlineData("deploy --help")]
     public async Task Command_ExecutesSuccessfully(string command)
     {

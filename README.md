@@ -69,7 +69,7 @@ The `txc deploy` group covers both execution and inspection of deployments again
 - `txc deploy package` — runs a Package Deployer package (NuGet name or local `.pdpkg.zip`).
 - `txc deploy solution` — imports a single solution zip using the modern `Microsoft.PowerPlatform.Dataverse.Client` SDK; supports install, update, and single-step managed upgrade (`--stage-and-upgrade`).
 - `txc deploy list` — lists recent runs across both package and solution streams with status and duration.
-- `txc deploy show <id>` — shows details and findings for a single run, resolved by `latest`, an 8+ character GUID prefix, a full GUID, or a unique/solution name.
+- `txc deploy show <id>` — shows details and findings for a single run, resolved by `latest`, a full GUID, or a unique/solution name.
 
 > [!IMPORTANT]
 > `txc deploy solution`, `txc deploy list`, and `txc deploy show` run on the modern `Microsoft.PowerPlatform.Dataverse.Client` SDK, so they work natively on **Linux and macOS** as well as Windows — no Windows-only .NET Framework tooling required.

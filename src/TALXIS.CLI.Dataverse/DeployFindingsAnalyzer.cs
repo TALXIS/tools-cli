@@ -32,7 +32,7 @@ public sealed record DeployFindingsInput
 
 /// <summary>
 /// Pure analyzer that turns already-fetched deployment records into actionable
-/// finding strings ("what happened / why / what to change") for <c>txc deploy logs</c>.
+/// finding strings ("what happened / why / what to change") for <c>txc deploy show</c>.
 /// The exact phrasing of every string is locked in by the plan.
 /// </summary>
 public static class DeployFindingsAnalyzer

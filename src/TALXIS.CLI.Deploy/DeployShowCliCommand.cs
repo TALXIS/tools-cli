@@ -135,30 +135,6 @@ public class DeployShowCliCommand
                 if (sol is not null) return new Hit(null, sol);
                 return null;
             }
-            case DeployIdSelectorKind.HexPrefix:
-            {
-                var pkgMatches = await pkgReader.GetByIdPrefixAsync(selector.Text).ConfigureAwait(false);
-                if (pkgMatches.Count > 1)
-                {
-                    _logger.LogError("Prefix '{Prefix}' matches {Count} package rows. Use a longer prefix.", selector.Text, pkgMatches.Count);
-                    return null;
-                }
-                if (pkgMatches.Count == 1)
-                {
-                    return new Hit(pkgMatches[0], null);
-                }
-                var solMatches = await solReader.GetByIdPrefixAsync(selector.Text).ConfigureAwait(false);
-                if (solMatches.Count > 1)
-                {
-                    _logger.LogError("Prefix '{Prefix}' matches {Count} solution rows. Use a longer prefix.", selector.Text, solMatches.Count);
-                    return null;
-                }
-                if (solMatches.Count == 1)
-                {
-                    return new Hit(null, solMatches[0]);
-                }
-                return null;
-            }
             case DeployIdSelectorKind.Name:
             {
                 var pkgTask = pkgReader.GetLatestAsync(selector.Text);

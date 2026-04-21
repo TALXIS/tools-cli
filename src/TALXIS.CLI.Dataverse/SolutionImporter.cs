@@ -175,7 +175,7 @@ public sealed class SolutionImporter
         if (options.SkipLowerVersion && existing is not null && source.Version <= existing.Version)
         {
             return new SolutionImportResult(
-                existing.Managed ? SolutionImportPath.Update : SolutionImportPath.Update,
+                SolutionImportPath.Update,
                 source,
                 existing,
                 Guid.Empty,
