@@ -2,6 +2,7 @@ using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using Microsoft.PowerPlatform.Dataverse.Client;
+using Microsoft.Xrm.Sdk;
 using TALXIS.CLI.Dataverse;
 using TALXIS.CLI.Logging;
 
@@ -92,6 +93,13 @@ public class DeployShowCliCommand
             var hit = await ResolveAsync(selector, pkgReader, solReader).ConfigureAwait(false);
             if (hit is null)
             {
+                // If the GUID didn't resolve to a history record it may be an asyncOperationId
+                // for an import that is still running or just completed (race with history write).
+                if (selector.Kind == DeployIdSelectorKind.Guid)
+                {
+                    int? asyncResult = await TryShowAsyncOperationAsync(client, selector.Guid).ConfigureAwait(false);
+                    if (asyncResult.HasValue) return asyncResult.Value;
+                }
                 _logger.LogError("No deployment matched '{Id}'.", Id);
                 return 1;
             }
@@ -133,6 +141,9 @@ public class DeployShowCliCommand
                 if (pkg is not null) return new Hit(pkg, null);
                 var sol = await solReader.GetByIdAsync(selector.Guid).ConfigureAwait(false);
                 if (sol is not null) return new Hit(null, sol);
+                // The GUID might be an asyncOperationId (from --async deploy solution).
+                var solByActivity = await solReader.GetByActivityIdAsync(selector.Guid).ConfigureAwait(false);
+                if (solByActivity is not null) return new Hit(null, solByActivity);
                 return null;
             }
             case DeployIdSelectorKind.Name:
@@ -329,6 +340,141 @@ public class DeployShowCliCommand
         }
         WriteFindings(Console.Out, findings);
         return 0;
+    }
+
+    /// <summary>
+    /// Attempts to resolve and display status for an <c>asyncoperation</c> row directly.
+    /// Returns the exit code (0 = success, 1 = import failed) when the GUID is a known async
+    /// operation ID, or <c>null</c> when the GUID does not correspond to any async operation
+    /// (caller should fall through to "No deployment matched").
+    /// </summary>
+    private async Task<int?> TryShowAsyncOperationAsync(ServiceClient client, Guid asyncOpId)
+    {
+        Entity entity;
+        try
+        {
+            entity = await client.RetrieveAsync(
+                "asyncoperation",
+                asyncOpId,
+                new Microsoft.Xrm.Sdk.Query.ColumnSet(
+                    "statecode", "statuscode", "message", "friendlymessage", "createdon", "completedon"),
+                default).ConfigureAwait(false);        }
+        catch (Exception ex) when (IsNotFoundError(ex))
+        {
+            return null; // Not an asyncoperation GUID at all — caller continues to error.
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to retrieve asyncoperation {Id}.", asyncOpId);
+            return null;
+        }
+
+        var statecode = entity.GetAttributeValue<OptionSetValue>("statecode")?.Value ?? 0;
+        var statuscode = entity.GetAttributeValue<OptionSetValue>("statuscode")?.Value ?? 0;
+
+        // Not yet completed — show live status.
+        if (statecode != 3)
+        {
+            string stateLabel = statecode switch
+            {
+                0 => "Ready",
+                1 => "Suspended",
+                2 => "In Progress",
+                _ => $"State {statecode}",
+            };
+
+            if (Json)
+            {
+                Console.WriteLine(JsonSerializer.Serialize(new
+                {
+                    kind = "asyncoperation",
+                    id = asyncOpId,
+                    state = stateLabel,
+                    statecode,
+                    statuscode,
+                    completed = false,
+                }, JsonOptions));
+            }
+            else
+            {
+                Console.WriteLine($"Import in progress: {stateLabel}");
+                Console.WriteLine($"  asyncOperationId: {asyncOpId}");
+                Console.WriteLine($"  Run again to refresh or use `txc deploy show {asyncOpId}` when done.");
+            }
+            return 0;
+        }
+
+        // Completed — try to fetch solution history. When the operation finished very recently
+        // the history record may not be written yet; retry briefly before giving up.
+        bool succeededOp = statuscode == 30;
+        DateTime? completedOn = entity.Contains("completedon")
+            ? entity.GetAttributeValue<DateTime>("completedon")
+            : null;
+        DateTime? createdOn = entity.Contains("createdon")
+            ? entity.GetAttributeValue<DateTime>("createdon")
+            : null;
+
+        var historyReader = new SolutionHistoryReader(client, _logger);
+        DateTime pivot = completedOn ?? createdOn ?? DateTime.UtcNow;
+        SolutionHistoryRecord? sol = null;
+
+        bool veryRecent = (DateTime.UtcNow - pivot).TotalSeconds < 60;
+        int attempts = veryRecent ? 3 : 1;
+        for (int i = 0; i < attempts; i++)
+        {
+            if (i > 0)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+            }
+            sol = await historyReader.GetByActivityIdAsync(asyncOpId, nearUtc: pivot).ConfigureAwait(false);
+            if (sol is not null) break;
+        }
+
+        if (sol is not null)
+        {
+            return await RenderSolutionAsync(client, sol).ConfigureAwait(false);
+        }
+
+        // Fallback: history record unavailable — surface raw async op status.
+        string? message = entity.GetAttributeValue<string>("friendlymessage")
+            ?? entity.GetAttributeValue<string>("message");
+
+        if (Json)
+        {
+            Console.WriteLine(JsonSerializer.Serialize(new
+            {
+                kind = "asyncoperation",
+                id = asyncOpId,
+                state = "Completed",
+                statecode,
+                statuscode,
+                completed = true,
+                succeeded = succeededOp,
+                message,
+            }, JsonOptions));
+        }
+        else
+        {
+            Console.WriteLine($"Async operation {asyncOpId}");
+            Console.WriteLine($"  state:   Completed");
+            Console.WriteLine($"  result:  {(succeededOp ? "Succeeded" : $"Failed (status {statuscode})")}");
+            if (!string.IsNullOrWhiteSpace(message))
+            {
+                Console.WriteLine($"  message: {message}");
+            }
+            Console.WriteLine("  (Solution history record not yet available — re-run shortly to get full details.)");
+        }
+
+        return succeededOp ? 0 : 1;
+    }
+
+    private static bool IsNotFoundError(Exception ex)
+    {
+        // ServiceClient throws various exception types for 404. Check message as fallback.
+        if (ex.Message.Contains("0x80040217", StringComparison.OrdinalIgnoreCase)) return true;
+        if (ex.Message.Contains("Does Not Exist", StringComparison.OrdinalIgnoreCase)) return true;
+        if (ex.Message.Contains("ObjectDoesNotExist", StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
     }
 
     private static void PrintPackage(PackageHistoryRecord record, IReadOnlyList<SolutionHistoryRecord> correlated)

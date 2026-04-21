@@ -170,6 +170,42 @@ public sealed class SolutionHistoryReader
     }
 
     /// <summary>
+    /// Returns the <c>msdyn_solutionhistory</c> row whose <c>msdyn_activityid</c> matches
+    /// <paramref name="asyncOperationId"/> — the <c>asyncoperation.asyncoperationid</c> returned
+    /// by <c>ImportSolutionAsyncRequest</c> / <c>StageAndUpgradeAsyncRequest</c>.
+    /// <para>
+    /// Uses a time-bounded fetch when <paramref name="nearUtc"/> is provided, otherwise falls
+    /// back to fetching the 2 000 most-recent rows ordered by <c>msdyn_starttime</c> descending.
+    /// The virtual entity rejects arbitrary server-side conditions, so matching is client-side.
+    /// </para>
+    /// </summary>
+    public async Task<SolutionHistoryRecord?> GetByActivityIdAsync(
+        Guid asyncOperationId,
+        DateTime? nearUtc = null,
+        CancellationToken ct = default)
+    {
+        IEnumerable<SolutionHistoryRecord> records;
+
+        if (nearUtc is { } pivot)
+        {
+            // Narrow to a ±10-minute window around the known operation time so we don't
+            // scan the entire history on busy environments.
+            var windowStart = pivot - TimeSpan.FromMinutes(10);
+            var windowEnd = pivot + TimeSpan.FromMinutes(10);
+            records = await GetInTimeWindowAsync(windowStart, windowEnd, ct).ConfigureAwait(false);
+        }
+        else
+        {
+            var q = new QueryExpression(EntityName) { ColumnSet = Columns, TopCount = 2000 };
+            q.AddOrder("msdyn_starttime", OrderType.Descending);
+            var res = await _service.RetrieveMultipleAsync(q, ct).ConfigureAwait(false);
+            records = res.Entities.Select(ToRecord);
+        }
+
+        return records.FirstOrDefault(r => r.ActivityId == asyncOperationId);
+    }
+
+    /// <summary>
     /// Returns solution history rows correlated to a package run via the <c>asyncoperation</c> entity.
     /// <para>
     /// Package Deployer sets <c>x-ms-client-session-id</c> = <paramref name="correlationId"/> on every SDK call.
