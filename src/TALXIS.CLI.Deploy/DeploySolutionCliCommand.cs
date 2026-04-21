@@ -47,8 +47,8 @@ public class DeploySolutionCliCommand
     [CliOption(Name = "--skip-lower-version", Description = "If the source solution version is not higher than the one already installed, skip the import.", Required = false)]
     public bool SkipLowerVersion { get; set; }
 
-    [CliOption(Name = "--async", Description = "Queue the import and return the asyncOperationId immediately without waiting for completion. Use `txc deploy show <asyncOperationId>` to check status.", Required = false)]
-    public bool Async { get; set; }
+    [CliOption(Name = "--wait", Description = "Wait for the import to complete before returning. By default the import is queued and the asyncOperationId is returned immediately.", Required = false)]
+    public bool Wait { get; set; }
 
     [CliOption(Name = "--json", Description = "Emit the import result as a JSON object on stdout.", Required = false)]
     public bool Json { get; set; }
@@ -124,7 +124,7 @@ public class DeploySolutionCliCommand
                 PublishWorkflows: PublishWorkflows,
                 SkipDependencyCheck: SkipDependencyCheck,
                 SkipLowerVersion: SkipLowerVersion,
-                Async: Async);
+                Async: !Wait);
 
             var result = await importer.ImportAsync(solutionPath, options).ConfigureAwait(false);
 
@@ -154,10 +154,6 @@ public class DeploySolutionCliCommand
             if (result.AsyncOperationId is { } asyncId)
             {
                 _logger.LogInformation("AsyncOperationId: {AsyncOperationId}", asyncId);
-                if (Async)
-                {
-                    _logger.LogInformation("Track progress: txc deploy show {AsyncOperationId}", asyncId);
-                }
             }
             _logger.LogInformation("Started (UTC): {Start}", result.StartedAtUtc.ToString("O"));
             if (result.CompletedAtUtc is { } completed)

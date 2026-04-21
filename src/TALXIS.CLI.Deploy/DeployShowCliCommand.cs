@@ -15,7 +15,7 @@ namespace TALXIS.CLI.Deploy;
 /// </summary>
 [CliCommand(
     Name = "show",
-    Description = "Show details and findings for a single deployment. <id> accepts: latest, a full GUID, or a unique/solution name."
+    Description = "Show details and findings for a single deployment (package or solution run). Specify exactly one of --id, --name, or --latest."
 )]
 public class DeployShowCliCommand
 {
@@ -32,8 +32,14 @@ public class DeployShowCliCommand
 
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(DeployShowCliCommand));
 
-    [CliArgument(Description = "Identifier: latest, a full GUID, or a unique/solution name.")]
-    public required string Id { get; set; }
+    [CliOption(Name = "--id", Description = "Full GUID of a deployment record (msdyn_solutionhistoryid, packagehistory id) or the asyncOperationId returned by a queued solution import.", Required = false)]
+    public string? Id { get; set; }
+
+    [CliOption(Name = "--name", Description = "Unique name of the package or solution — returns the most recent run matching this name.", Required = false)]
+    public string? Name { get; set; }
+
+    [CliOption(Name = "--latest", Description = "Show the most recent deployment across packages and solutions.", Required = false)]
+    public bool Latest { get; set; }
 
     [CliOption(Name = "--connection-string", Description = "Dataverse connection string. If omitted, txc checks DATAVERSE_CONNECTION_STRING and TXC_DATAVERSE_CONNECTION_STRING.", Required = false)]
     public string? ConnectionString { get; set; }
@@ -56,14 +62,36 @@ public class DeployShowCliCommand
     public async Task<int> RunAsync()
     {
         DeployIdSelector selector;
-        try
+        int specified = (Id is not null ? 1 : 0) + (Name is not null ? 1 : 0) + (Latest ? 1 : 0);
+        if (specified == 0)
         {
-            selector = DeployIdSelector.Parse(Id);
-        }
-        catch (ArgumentException ex)
-        {
-            _logger.LogError("{Message}", ex.Message);
+            _logger.LogError("Specify exactly one of --id, --name, or --latest.");
             return 1;
+        }
+        if (specified > 1)
+        {
+            _logger.LogError("--id, --name, and --latest are mutually exclusive. Specify only one.");
+            return 1;
+        }
+
+        if (Latest)
+        {
+            selector = DeployIdSelector.Parse("latest");
+        }
+        else if (Name is { } nameVal)
+        {
+            try { selector = DeployIdSelector.Parse(nameVal); }
+            catch (ArgumentException ex) { _logger.LogError("{Message}", ex.Message); return 1; }
+        }
+        else
+        {
+            // --id: must be a full GUID (or asyncOperationId)
+            if (!Guid.TryParse(Id, out var guid))
+            {
+                _logger.LogError("--id must be a full GUID (e.g. the asyncOperationId returned by a queued import or a deployment record id).");
+                return 1;
+            }
+            selector = new DeployIdSelector(DeployIdSelectorKind.Guid, guid, null);
         }
 
         string? connectionString = ServiceClientFactory.ResolveConnectionString(ConnectionString);
