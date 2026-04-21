@@ -32,23 +32,20 @@ public class DeployIdSelectorTests
     [InlineData("MySolution")]
     [InlineData("PCT21011-StrongerCalendar")]
     [InlineData("publisher_MyApp")]
-    [InlineData("9de18071")]       // hex-like strings are no longer a special case; treated as names
+    [InlineData("9de18071")]
     [InlineData("9DE18071")]
     [InlineData("9de18071-2838")]
-    public void Parse_FreeText_ReturnsName(string input)
+    public void Parse_FreeText_ThrowsFormatException(string input)
     {
-        var s = DeployIdSelector.Parse(input);
-        Assert.Equal(DeployIdSelectorKind.Name, s.Kind);
-        Assert.Equal(input, s.Text);
+        Assert.Throws<FormatException>(() => DeployIdSelector.Parse(input));
     }
 
     [Theory]
     [InlineData("abc")]
     [InlineData("xyz1")]
-    public void Parse_ShortOrNonHex_ReturnsName(string input)
+    public void Parse_ShortOrNonHex_ThrowsFormatException(string input)
     {
-        var s = DeployIdSelector.Parse(input);
-        Assert.Equal(DeployIdSelectorKind.Name, s.Kind);
+        Assert.Throws<FormatException>(() => DeployIdSelector.Parse(input));
     }
 
     [Fact]

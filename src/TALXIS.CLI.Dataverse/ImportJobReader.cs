@@ -41,34 +41,6 @@ public sealed class ImportJobReader
         _logger = logger;
     }
 
-    public async Task<ImportJobRecord?> GetByIdAsync(Guid id, CancellationToken ct = default)
-    {
-        var entity = await _service.RetrieveAsync(EntityName, id, Columns, ct).ConfigureAwait(false);
-        return entity is null ? null : ToRecord(entity);
-    }
-
-    /// <summary>
-    /// Latest import job for <paramref name="solutionName"/>, or overall when <c>null</c>.
-    /// Ordered by <c>startedon</c> descending with <c>completedon</c> as a tiebreaker.
-    /// </summary>
-    public async Task<ImportJobRecord?> GetLatestAsync(string? solutionName = null, CancellationToken ct = default)
-    {
-        var q = new QueryExpression(EntityName)
-        {
-            ColumnSet = Columns,
-            Criteria = new FilterExpression(LogicalOperator.And),
-            TopCount = 1,
-        };
-        if (!string.IsNullOrWhiteSpace(solutionName))
-        {
-            q.Criteria.AddCondition("solutionname", ConditionOperator.Equal, solutionName);
-        }
-        q.AddOrder("startedon", OrderType.Descending);
-        q.AddOrder("completedon", OrderType.Descending);
-        var res = await _service.RetrieveMultipleAsync(q, ct).ConfigureAwait(false);
-        return res.Entities.Count == 0 ? null : ToRecord(res.Entities[0]);
-    }
-
     /// <summary>
     /// Import jobs whose <c>startedon</c> falls within <paramref name="windowStartUtc"/>..<paramref name="windowEndUtc"/>.
     /// Used for package→solution correlation when no FK is available.

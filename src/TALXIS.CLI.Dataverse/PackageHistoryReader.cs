@@ -60,15 +60,6 @@ public sealed class PackageHistoryReader
         return entity is null ? null : ToRecord(entity);
     }
 
-    public async Task<PackageHistoryRecord?> GetByOperationIdAsync(Guid operationId, CancellationToken ct = default)
-    {
-        var q = BuildBaseQuery();
-        q.Criteria.AddCondition("operationid", ConditionOperator.Equal, operationId);
-        q.TopCount = 1;
-        var res = await _service.RetrieveMultipleAsync(q, ct).ConfigureAwait(false);
-        return res.Entities.Count == 0 ? null : ToRecord(res.Entities[0]);
-    }
-
     /// <summary>
     /// Returns the most recent <paramref name="count"/> package-history rows ordered by
     /// <c>createdon</c> descending.
@@ -118,24 +109,6 @@ public sealed class PackageHistoryReader
         !string.IsNullOrWhiteSpace(status) &&
         (status.Equals("Success", StringComparison.OrdinalIgnoreCase)
             || status.Equals("Completed", StringComparison.OrdinalIgnoreCase));
-
-    /// <summary>
-    /// Returns candidate rows whose <c>packagehistoryid</c> (hex form, dashes stripped) starts
-    /// with <paramref name="hexPrefix"/>. Prefix match runs client-side against the last 200 rows.
-    /// </summary>
-    public async Task<IReadOnlyList<PackageHistoryRecord>> GetByIdPrefixAsync(string hexPrefix, CancellationToken ct = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(hexPrefix);
-        var q = BuildBaseQuery();
-        q.AddOrder("createdon", OrderType.Descending);
-        q.TopCount = 500;
-        var res = await _service.RetrieveMultipleAsync(q, ct).ConfigureAwait(false);
-        var lower = hexPrefix.ToLowerInvariant();
-        return res.Entities
-            .Select(ToRecord)
-            .Where(r => r.Id.ToString("N").StartsWith(lower, StringComparison.OrdinalIgnoreCase))
-            .ToList();
-    }
 
     /// <summary>
     /// Latest package-history row whose <c>uniquename</c> matches <paramref name="name"/>

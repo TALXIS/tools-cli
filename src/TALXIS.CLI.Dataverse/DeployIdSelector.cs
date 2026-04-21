@@ -1,22 +1,15 @@
 namespace TALXIS.CLI.Dataverse;
 
 /// <summary>
-/// Kinds of user-supplied <c>&lt;id&gt;</c> input accepted by <c>txc deploy show</c>.
+/// Kinds of user-supplied identifier accepted by <c>txc deploy show</c>.
 /// </summary>
 public enum DeployIdSelectorKind
 {
     /// <summary><c>latest</c> keyword — pick the most recent row across both streams.</summary>
     Latest,
 
-    /// <summary>Full 32-hex-digit GUID.</summary>
+    /// <summary>Full 32-hex-digit GUID (packagehistory id, msdyn_solutionhistoryid, or asyncOperationId).</summary>
     Guid,
-
-    /// <summary>
-    /// Free-text name fallback — matched against <c>uniquename</c> / <c>solutionname</c>.
-    /// Kept for backward compatibility with <see cref="DeployIdSelector.Parse"/>; prefer
-    /// <see cref="PackageName"/> or <see cref="SolutionName"/> for new code paths.
-    /// </summary>
-    Name,
 
     /// <summary>NuGet package name — matched against <c>packagehistory.uniquename</c> only.</summary>
     PackageName,
@@ -27,16 +20,17 @@ public enum DeployIdSelectorKind
 
 /// <summary>
 /// Result of <see cref="DeployIdSelector.Parse"/>. For <see cref="DeployIdSelectorKind.Guid"/>
-/// the <see cref="Guid"/> property is populated; for <see cref="DeployIdSelectorKind.Name"/>
-/// the <see cref="Text"/> property holds the raw value.
+/// the <see cref="Guid"/> property is populated; for name-based kinds the <see cref="Text"/>
+/// property holds the raw value.
 /// </summary>
 public sealed record DeployIdSelector(DeployIdSelectorKind Kind, Guid Guid, string Text)
 {
     /// <summary>
-    /// Classifies <paramref name="input"/> into one of the supported selector kinds.
-    /// Throws <see cref="ArgumentException"/> when <paramref name="input"/> is empty or whitespace.
-    /// Falls back to <see cref="DeployIdSelectorKind.Name"/> for arbitrary strings that are not
-    /// <c>latest</c> and not a full GUID.
+    /// Parses <paramref name="input"/> as a <c>latest</c> keyword or a full GUID.
+    /// Throws <see cref="ArgumentException"/> when <paramref name="input"/> is empty or whitespace,
+    /// and <see cref="FormatException"/> when it is neither <c>latest</c> nor a valid GUID.
+    /// Use <see cref="DeployIdSelectorKind.PackageName"/> or <see cref="DeployIdSelectorKind.SolutionName"/>
+    /// directly for name-based lookups.
     /// </summary>
     public static DeployIdSelector Parse(string input)
     {
@@ -58,6 +52,6 @@ public sealed record DeployIdSelector(DeployIdSelectorKind Kind, Guid Guid, stri
             return new DeployIdSelector(DeployIdSelectorKind.Guid, fullGuid, trimmed);
         }
 
-        return new DeployIdSelector(DeployIdSelectorKind.Name, System.Guid.Empty, trimmed);
+        throw new FormatException($"'{trimmed}' is not a valid GUID. Use --latest, --package-name, or --solution-name for non-GUID lookups.");
     }
 }

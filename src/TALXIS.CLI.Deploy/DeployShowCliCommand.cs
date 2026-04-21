@@ -191,16 +191,6 @@ public class DeployShowCliCommand
                 if (solByActivity is not null) return new Hit(null, solByActivity);
                 return null;
             }
-            case DeployIdSelectorKind.Name:
-            {
-                // Legacy fallback: search both streams and pick newest.
-                var pkgTask = pkgReader.GetLatestAsync(selector.Text);
-                var solTask = solReader.GetLatestByNameAsync(selector.Text);
-                await Task.WhenAll(pkgTask, solTask).ConfigureAwait(false);
-                var pkg = await pkgTask.ConfigureAwait(false);
-                var sol = await solTask.ConfigureAwait(false);
-                return PickNewest(pkg, sol);
-            }
             case DeployIdSelectorKind.PackageName:
             {
                 // Search packagehistory.uniquename only (reliable for NuGet deploys via txc).

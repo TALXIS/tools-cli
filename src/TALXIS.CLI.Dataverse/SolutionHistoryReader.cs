@@ -30,10 +30,8 @@ public sealed record SolutionHistoryRecord(
     Guid? ActivityId = null);
 
 /// <summary>
-/// Reader for <c>msdyn_solutionhistory</c>. The table has no hard FK to
-/// <c>importjob</c> across all stamps; callers can correlate either via
-/// <see cref="GetByImportJobIdAsync"/> (when <c>msdyn_importjobid</c> is populated)
-/// or <see cref="GetInTimeWindowAsync"/> as a fallback.
+/// Reader for <c>msdyn_solutionhistory</c>. The virtual entity rejects arbitrary
+/// server-side filter conditions; name and activity-id lookups are matched client-side.
 /// </summary>
 public sealed class SolutionHistoryReader
 {
@@ -122,28 +120,6 @@ public sealed class SolutionHistoryReader
     }
 
     /// <summary>
-    /// Returns candidate rows whose <c>msdyn_solutionhistoryid</c> (hex form, dashes stripped)
-    /// starts with <paramref name="hexPrefix"/>. Prefix match runs client-side against the last 200 rows.
-    /// </summary>
-    public async Task<IReadOnlyList<SolutionHistoryRecord>> GetByIdPrefixAsync(string hexPrefix, CancellationToken ct = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(hexPrefix);
-        var q = new QueryExpression(EntityName)
-        {
-            ColumnSet = Columns,
-            Criteria = new FilterExpression(LogicalOperator.And),
-        };
-        q.AddOrder("msdyn_starttime", OrderType.Descending);
-        q.TopCount = 500;
-        var res = await _service.RetrieveMultipleAsync(q, ct).ConfigureAwait(false);
-        var lower = hexPrefix.ToLowerInvariant();
-        return res.Entities
-            .Select(ToRecord)
-            .Where(r => r.Id.ToString("N").StartsWith(lower, StringComparison.OrdinalIgnoreCase))
-            .ToList();
-    }
-
-    /// <summary>
     /// Returns the latest <c>msdyn_solutionhistory</c> row whose unique name matches
     /// <paramref name="solutionName"/> (case-insensitive). Returns <c>null</c> when no match.
     /// </summary>
@@ -157,16 +133,6 @@ public sealed class SolutionHistoryReader
         var res = await _service.RetrieveMultipleAsync(q, ct).ConfigureAwait(false);
         return res.Entities.Select(ToRecord)
             .FirstOrDefault(r => (r.SolutionName ?? "").Equals(solutionName, StringComparison.OrdinalIgnoreCase));
-    }
-
-    public async Task<IReadOnlyList<SolutionHistoryRecord>> GetByImportJobIdAsync(Guid importJobId, CancellationToken ct = default)
-    {
-        // msdyn_solutionhistory has no reliable FK to importjob on all stamps.
-        // This method is intentionally left as a no-op fallback — callers should use
-        // GetByCorrelationIdAsync or GetInTimeWindowAsync for correlation.
-        _ = importJobId;
-        await Task.CompletedTask.ConfigureAwait(false);
-        return Array.Empty<SolutionHistoryRecord>();
     }
 
     /// <summary>
