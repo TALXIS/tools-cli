@@ -22,6 +22,7 @@ namespace TALXIS.CLI.Workspace.Metamodel;
 [CliCommand(
     Description = "Reserved — not yet implemented.",
     Name = "metamodel",
+    Alias = "mm",
     Children = new[]
     {
         typeof(MetamodelDescribeCliCommand),

@@ -110,6 +110,30 @@ Short-flag aliases (`-v`, `-y`, etc.) are out of scope until there is a concrete
 
 ---
 
+## Command aliases
+
+Long, explicit names are the canonical form, but **group** commands (the ones that hold children, not leaves) carry an `Alias` so day-to-day typing and README snippets stay short. Current aliases:
+
+| Canonical          | Alias   |
+| ------------------ | ------- |
+| `environment`      | `env`   |
+| `env deployment`   | `deploy`|
+| `env package`      | `pkg`   |
+| `env solution`     | `sln`   |
+| `data package`     | `pkg`   |
+| `workspace`        | `ws`    |
+| `workspace component` | `c`  |
+| `workspace project`   | `p`  |
+
+Rules:
+
+- **Aliases are for groups, not leaf verbs.** `import`, `list`, `show`, `uninstall`, `create`, `convert` etc. stay spelled out — they're already short and a single letter would be ambiguous.
+- **Canonical names drive everything machine-readable.** MCP tool names, help anchors, the SDK surface — all built from `Name`. Aliases are a typing shortcut for humans; they never leak into tool IDs.
+- **One alias per command.** If you find yourself reaching for a second alias, rename the canonical instead.
+- **Prefer README and docs to use the alias** in example snippets — that's what the alias is for. Use the canonical name in reference tables, help output, and anywhere a reader needs to scan the full taxonomy.
+
+---
+
 ## Output conventions
 
 - **`OutputWriter` for command result data on stdout.** Anything a script might parse or a user might pipe.

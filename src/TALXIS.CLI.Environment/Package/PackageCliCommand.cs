@@ -4,6 +4,7 @@ namespace TALXIS.CLI.Environment.Package;
 
 [CliCommand(
     Name = "package",
+    Alias = "pkg",
     Description = "Manage deployable packages in the target environment.",
     Children = new[] { typeof(PackageImportCliCommand), typeof(PackageUninstallCliCommand) }
 )]
