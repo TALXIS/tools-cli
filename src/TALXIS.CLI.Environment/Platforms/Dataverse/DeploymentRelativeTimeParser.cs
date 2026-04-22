@@ -7,7 +7,7 @@ namespace TALXIS.CLI.Environment.Platforms.Dataverse;
 /// Accepted suffixes: <c>m</c> (minutes), <c>h</c> (hours), <c>d</c> (days), <c>w</c> (weeks).
 /// The numeric portion must be a positive integer.
 /// </summary>
-public static class DeployRelativeTimeParser
+public static class DeploymentRelativeTimeParser
 {
     /// <summary>
     /// Parses <paramref name="value"/> into a <see cref="TimeSpan"/>. Returns <c>false</c>

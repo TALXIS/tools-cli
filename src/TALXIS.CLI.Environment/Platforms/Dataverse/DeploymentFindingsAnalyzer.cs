@@ -3,10 +3,10 @@ using System.Text.RegularExpressions;
 namespace TALXIS.CLI.Environment.Platforms.Dataverse;
 
 /// <summary>
-/// Input to <see cref="DeployFindingsAnalyzer"/>. Carries only structured records already
+/// Input to <see cref="DeploymentFindingsAnalyzer"/>. Carries only structured records already
 /// fetched by the readers; the analyzer never calls Dataverse.
 /// </summary>
-public sealed record DeployFindingsInput
+public sealed record DeploymentFindingsInput
 {
     /// <summary>Raw <c>importjob.data</c> XML for the run under inspection (solution mode). Null in package mode.</summary>
     public string? ImportJobData { get; init; }
@@ -35,7 +35,7 @@ public sealed record DeployFindingsInput
 /// finding strings ("what happened / why / what to change") for <c>txc environment deployment show</c>.
 /// The exact phrasing of every string is locked in by the plan.
 /// </summary>
-public static class DeployFindingsAnalyzer
+public static class DeploymentFindingsAnalyzer
 {
     private const string OverwriteFinding = "Overwrite customizations was enabled — SmartDiff was skipped. Re-run without --force-overwrite to cut import time.";
     private const string InstallUpgradeFinding = "Run used install + upgrade pattern instead of a single-step upgrade. Use --stage-and-upgrade to keep the upgrade atomic.";
@@ -44,7 +44,7 @@ public static class DeployFindingsAnalyzer
     private const string StaleInProcessFinding = "Package history status is still 'In Process' — the deployment host may have been interrupted before recording the final status. Verify all correlated solutions completed successfully.";
     private const string NoSolutionsDetectedFinding = "No solution imports were detected for this package run — all solutions were likely already at the required version and skipped by Package Deployer.";
 
-    public static IReadOnlyList<string> Analyze(DeployFindingsInput input)
+    public static IReadOnlyList<string> Analyze(DeploymentFindingsInput input)
     {
         ArgumentNullException.ThrowIfNull(input);
         var findings = new List<string>();
@@ -59,7 +59,7 @@ public static class DeployFindingsAnalyzer
         return findings;
     }
 
-    private static void TryEmitStaleInProcess(DeployFindingsInput input, List<string> findings)
+    private static void TryEmitStaleInProcess(DeploymentFindingsInput input, List<string> findings)
     {
         // Only applies in package mode where we have a packagehistory row.
         // If the status string contains "In Process" (case-insensitive) and the record is older
@@ -83,7 +83,7 @@ public static class DeployFindingsAnalyzer
         findings.Add(StaleInProcessFinding);
     }
 
-    private static void TryEmitNoSolutionsDetected(DeployFindingsInput input, List<string> findings)
+    private static void TryEmitNoSolutionsDetected(DeploymentFindingsInput input, List<string> findings)
     {
         // Only meaningful in package mode when we actively requested solution correlation.
         // If no solution-history records were found AND the package completed, it is very likely
@@ -109,7 +109,7 @@ public static class DeployFindingsAnalyzer
         findings.Add(NoSolutionsDetectedFinding);
     }
 
-    private static bool TryEmitOverwrite(DeployFindingsInput input, List<string> findings)
+    private static bool TryEmitOverwrite(DeploymentFindingsInput input, List<string> findings)
     {
         // Evidence: explicit boolean on the solution-history row, or the overwriteunmanagedcustomizations
         // attribute in the importjob.data XML (stamped when --force-overwrite is passed).
@@ -137,7 +137,7 @@ public static class DeployFindingsAnalyzer
         return true;
     }
 
-    private static void TryEmitInstallUpgradePattern(DeployFindingsInput input, List<string> findings)
+    private static void TryEmitInstallUpgradePattern(DeploymentFindingsInput input, List<string> findings)
     {
         if (input.Solutions.Count < 2)
         {
@@ -180,7 +180,7 @@ public static class DeployFindingsAnalyzer
         }
     }
 
-    private static void TryEmitSmartDiffAbsent(DeployFindingsInput input, bool overwriteFired, List<string> findings)
+    private static void TryEmitSmartDiffAbsent(DeploymentFindingsInput input, bool overwriteFired, List<string> findings)
     {
         if (overwriteFired)
         {
@@ -206,7 +206,7 @@ public static class DeployFindingsAnalyzer
         findings.Add(SmartDiffAbsentFinding);
     }
 
-    private static void TryEmitSlowestImports(DeployFindingsInput input, List<string> findings)
+    private static void TryEmitSlowestImports(DeploymentFindingsInput input, List<string> findings)
     {
         if (!input.IsPackageMode || !input.IncludeSolutions)
         {

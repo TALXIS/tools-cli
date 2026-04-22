@@ -67,7 +67,7 @@ public class DeploymentListCliCommand
         int defaultCount = 20;
         if (!string.IsNullOrWhiteSpace(Since))
         {
-            if (!DeployRelativeTimeParser.TryParse(Since, out var window))
+            if (!DeploymentRelativeTimeParser.TryParse(Since, out var window))
             {
                 _logger.LogError("Invalid --since value '{Value}'. Use NNNm, NNNh, NNNd, or NNNw.", Since);
                 return 1;

@@ -13,7 +13,7 @@ namespace TALXIS.CLI.Environment.Deployment;
 /// <summary>
 /// Shows details for a single deployment run (package or solution). Resolution is driven by
 /// typed selectors — each selector maps to exactly one platform entity, with no cross-entity
-/// probing. Emits findings derived from <see cref="DeployFindingsAnalyzer"/>.
+/// probing. Emits findings derived from <see cref="DeploymentFindingsAnalyzer"/>.
 /// </summary>
 [CliCommand(
     Name = "show",
@@ -240,7 +240,7 @@ public class DeploymentShowCliCommand
             }
         }
 
-        var findings = DeployFindingsAnalyzer.Analyze(new DeployFindingsInput
+        var findings = DeploymentFindingsAnalyzer.Analyze(new DeploymentFindingsInput
         {
             ImportJobData = null,
             Primary = null,
@@ -337,7 +337,7 @@ public class DeploymentShowCliCommand
             }
         }
 
-        var findings = DeployFindingsAnalyzer.Analyze(new DeployFindingsInput
+        var findings = DeploymentFindingsAnalyzer.Analyze(new DeploymentFindingsInput
         {
             ImportJobData = importJobMatch?.Data,
             Primary = record,

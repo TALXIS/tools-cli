@@ -5,7 +5,7 @@ using Xunit;
 
 namespace TALXIS.CLI.Tests.Environment.Platforms.Dataverse;
 
-public class DeployRelativeTimeParserTests
+public class DeploymentRelativeTimeParserTests
 {
     [Theory]
     [InlineData("30m", 30, 0, 0)]
@@ -16,7 +16,7 @@ public class DeployRelativeTimeParserTests
     [InlineData(" 15m ", 15, 0, 0)]
     public void TryParse_ReturnsExpectedSpan(string input, int minutes, int hours, int days)
     {
-        Assert.True(DeployRelativeTimeParser.TryParse(input, out var result));
+        Assert.True(DeploymentRelativeTimeParser.TryParse(input, out var result));
         var expected = TimeSpan.FromMinutes(minutes) + TimeSpan.FromHours(hours) + TimeSpan.FromDays(days);
         Assert.Equal(expected, result);
     }
@@ -33,6 +33,6 @@ public class DeployRelativeTimeParserTests
     [InlineData("h")]
     public void TryParse_RejectsInvalidInput(string? input)
     {
-        Assert.False(DeployRelativeTimeParser.TryParse(input, out _));
+        Assert.False(DeploymentRelativeTimeParser.TryParse(input, out _));
     }
 }

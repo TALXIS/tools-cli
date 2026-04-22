@@ -7,7 +7,7 @@ using Xunit;
 
 namespace TALXIS.CLI.Tests.Environment.Platforms.Dataverse;
 
-public class DeployFindingsAnalyzerTests
+public class DeploymentFindingsAnalyzerTests
 {
     private const string OverwriteString = "Overwrite customizations was enabled — SmartDiff was skipped. Re-run without --force-overwrite to cut import time.";
     private const string InstallUpgradeString = "Run used install + upgrade pattern instead of a single-step upgrade. Use --stage-and-upgrade to keep the upgrade atomic.";
@@ -37,13 +37,13 @@ public class DeployFindingsAnalyzerTests
     [Fact]
     public void Overwrite_FiresOnUpgradeWithOverwriteFlagFromRecord()
     {
-        var input = new DeployFindingsInput
+        var input = new DeploymentFindingsInput
         {
             Primary = MakeRecord(suboperation: 5, overwrite: true),
             Solutions = new[] { MakeRecord(suboperation: 5, overwrite: true) },
         };
 
-        var result = DeployFindingsAnalyzer.Analyze(input);
+        var result = DeploymentFindingsAnalyzer.Analyze(input);
 
         Assert.Contains(OverwriteString, result);
     }
@@ -52,14 +52,14 @@ public class DeployFindingsAnalyzerTests
     public void Overwrite_FiresOnUpdateManagedWithXmlEvidence()
     {
         const string xml = "<ImportExportXml overwriteunmanagedcustomizations=\"true\"><SolutionManifest Managed=\"1\"/></ImportExportXml>";
-        var input = new DeployFindingsInput
+        var input = new DeploymentFindingsInput
         {
             ImportJobData = xml,
             Primary = MakeRecord(suboperation: 3),
             Solutions = new[] { MakeRecord(suboperation: 3) },
         };
 
-        var result = DeployFindingsAnalyzer.Analyze(input);
+        var result = DeploymentFindingsAnalyzer.Analyze(input);
 
         Assert.Contains(OverwriteString, result);
     }
@@ -67,13 +67,13 @@ public class DeployFindingsAnalyzerTests
     [Fact]
     public void Overwrite_DoesNotFireOnInstall()
     {
-        var input = new DeployFindingsInput
+        var input = new DeploymentFindingsInput
         {
             Primary = MakeRecord(suboperation: 1, overwrite: true),
             Solutions = new[] { MakeRecord(suboperation: 1, overwrite: true) },
         };
 
-        var result = DeployFindingsAnalyzer.Analyze(input);
+        var result = DeploymentFindingsAnalyzer.Analyze(input);
 
         Assert.DoesNotContain(OverwriteString, result);
     }
@@ -81,7 +81,7 @@ public class DeployFindingsAnalyzerTests
     [Fact]
     public void InstallUpgrade_FiresWhenInstallAndUpgradeShareSolutionName()
     {
-        var input = new DeployFindingsInput
+        var input = new DeploymentFindingsInput
         {
             Solutions = new[]
             {
@@ -92,7 +92,7 @@ public class DeployFindingsAnalyzerTests
             IncludeSolutions = true,
         };
 
-        var result = DeployFindingsAnalyzer.Analyze(input);
+        var result = DeploymentFindingsAnalyzer.Analyze(input);
 
         Assert.Contains(InstallUpgradeString, result);
     }
@@ -100,7 +100,7 @@ public class DeployFindingsAnalyzerTests
     [Fact]
     public void InstallUpgrade_DoesNotFireForDifferentSolutions()
     {
-        var input = new DeployFindingsInput
+        var input = new DeploymentFindingsInput
         {
             Solutions = new[]
             {
@@ -109,7 +109,7 @@ public class DeployFindingsAnalyzerTests
             },
         };
 
-        var result = DeployFindingsAnalyzer.Analyze(input);
+        var result = DeploymentFindingsAnalyzer.Analyze(input);
 
         Assert.DoesNotContain(InstallUpgradeString, result);
     }
@@ -118,13 +118,13 @@ public class DeployFindingsAnalyzerTests
     public void SmartDiffAbsent_FiresOnUpgradeWhenXmlHasNoIndicator()
     {
         const string xml = "<ImportExportXml><SolutionManifest/></ImportExportXml>";
-        var input = new DeployFindingsInput
+        var input = new DeploymentFindingsInput
         {
             ImportJobData = xml,
             Primary = MakeRecord(suboperation: 5),
         };
 
-        var result = DeployFindingsAnalyzer.Analyze(input);
+        var result = DeploymentFindingsAnalyzer.Analyze(input);
 
         Assert.Contains(SmartDiffAbsentString, result);
     }
@@ -133,13 +133,13 @@ public class DeployFindingsAnalyzerTests
     public void SmartDiffAbsent_DoesNotFireWhenIndicatorPresent()
     {
         const string xml = "<ImportExportXml><SmartDiff applied=\"true\"/></ImportExportXml>";
-        var input = new DeployFindingsInput
+        var input = new DeploymentFindingsInput
         {
             ImportJobData = xml,
             Primary = MakeRecord(suboperation: 5),
         };
 
-        var result = DeployFindingsAnalyzer.Analyze(input);
+        var result = DeploymentFindingsAnalyzer.Analyze(input);
 
         Assert.DoesNotContain(SmartDiffAbsentString, result);
     }
@@ -148,13 +148,13 @@ public class DeployFindingsAnalyzerTests
     public void SmartDiffAbsent_SuppressedWhenOverwriteFired()
     {
         const string xml = "<ImportExportXml overwriteunmanagedcustomizations=\"true\"><SolutionManifest Managed=\"1\"/></ImportExportXml>";
-        var input = new DeployFindingsInput
+        var input = new DeploymentFindingsInput
         {
             ImportJobData = xml,
             Primary = MakeRecord(suboperation: 5, overwrite: true),
         };
 
-        var result = DeployFindingsAnalyzer.Analyze(input);
+        var result = DeploymentFindingsAnalyzer.Analyze(input);
 
         Assert.Contains(OverwriteString, result);
         Assert.DoesNotContain(SmartDiffAbsentString, result);
@@ -164,7 +164,7 @@ public class DeployFindingsAnalyzerTests
     public void SlowestImports_FiresWithTopTwoByDuration()
     {
         var start = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-        var input = new DeployFindingsInput
+        var input = new DeploymentFindingsInput
         {
             IsPackageMode = true,
             IncludeSolutions = true,
@@ -176,7 +176,7 @@ public class DeployFindingsAnalyzerTests
             },
         };
 
-        var result = DeployFindingsAnalyzer.Analyze(input);
+        var result = DeploymentFindingsAnalyzer.Analyze(input);
 
         Assert.Contains(result, f => f.StartsWith("Slowest imports: slow, medium"));
     }
@@ -185,14 +185,14 @@ public class DeployFindingsAnalyzerTests
     public void SlowestImports_NotEmittedForSingleSolution()
     {
         var start = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-        var input = new DeployFindingsInput
+        var input = new DeploymentFindingsInput
         {
             IsPackageMode = true,
             IncludeSolutions = true,
             Solutions = new[] { MakeRecord(solutionName: "only", suboperation: 1, start: start, end: start.AddSeconds(10)) },
         };
 
-        var result = DeployFindingsAnalyzer.Analyze(input);
+        var result = DeploymentFindingsAnalyzer.Analyze(input);
 
         Assert.DoesNotContain(result, f => f.StartsWith("Slowest imports:"));
     }
@@ -203,14 +203,14 @@ public class DeployFindingsAnalyzerTests
     [Fact]
     public void StaleInProcess_FiresWhenPackageStatusIsInProcessAndOlderThan1Hour()
     {
-        var input = new DeployFindingsInput
+        var input = new DeploymentFindingsInput
         {
             IsPackageMode = true,
             PackageStatus = "In Process",
             PackageStartedAtUtc = DateTime.UtcNow.AddHours(-2),
         };
 
-        var result = DeployFindingsAnalyzer.Analyze(input);
+        var result = DeploymentFindingsAnalyzer.Analyze(input);
 
         Assert.Contains(result, f => f.Contains(StaleInProcessString));
     }
@@ -218,14 +218,14 @@ public class DeployFindingsAnalyzerTests
     [Fact]
     public void StaleInProcess_DoesNotFireWhenRecentPackageIsInProcess()
     {
-        var input = new DeployFindingsInput
+        var input = new DeploymentFindingsInput
         {
             IsPackageMode = true,
             PackageStatus = "In Process",
             PackageStartedAtUtc = DateTime.UtcNow.AddMinutes(-5),
         };
 
-        var result = DeployFindingsAnalyzer.Analyze(input);
+        var result = DeploymentFindingsAnalyzer.Analyze(input);
 
         Assert.DoesNotContain(result, f => f.Contains(StaleInProcessString));
     }
@@ -233,14 +233,14 @@ public class DeployFindingsAnalyzerTests
     [Fact]
     public void StaleInProcess_DoesNotFireWhenStatusIsCompleted()
     {
-        var input = new DeployFindingsInput
+        var input = new DeploymentFindingsInput
         {
             IsPackageMode = true,
             PackageStatus = "Completed",
             PackageStartedAtUtc = DateTime.UtcNow.AddHours(-2),
         };
 
-        var result = DeployFindingsAnalyzer.Analyze(input);
+        var result = DeploymentFindingsAnalyzer.Analyze(input);
 
         Assert.DoesNotContain(result, f => f.Contains(StaleInProcessString));
     }
@@ -248,14 +248,14 @@ public class DeployFindingsAnalyzerTests
     [Fact]
     public void StaleInProcess_DoesNotFireInSolutionMode()
     {
-        var input = new DeployFindingsInput
+        var input = new DeploymentFindingsInput
         {
             IsPackageMode = false,
             PackageStatus = "In Process",
             PackageStartedAtUtc = DateTime.UtcNow.AddHours(-2),
         };
 
-        var result = DeployFindingsAnalyzer.Analyze(input);
+        var result = DeploymentFindingsAnalyzer.Analyze(input);
 
         Assert.DoesNotContain(result, f => f.Contains(StaleInProcessString));
     }
@@ -263,7 +263,7 @@ public class DeployFindingsAnalyzerTests
     [Fact]
     public void InstallUpdate_FiresWhenInstallAndUpdateShareSolutionName()
     {
-        var input = new DeployFindingsInput
+        var input = new DeploymentFindingsInput
         {
             Solutions = new[]
             {
@@ -274,7 +274,7 @@ public class DeployFindingsAnalyzerTests
             IncludeSolutions = true,
         };
 
-        var result = DeployFindingsAnalyzer.Analyze(input);
+        var result = DeploymentFindingsAnalyzer.Analyze(input);
 
         Assert.Contains(result, f => f.Contains(InstallUpdateString));
     }
@@ -282,7 +282,7 @@ public class DeployFindingsAnalyzerTests
     [Fact]
     public void InstallUpdate_DoesNotFireForDifferentSolutions()
     {
-        var input = new DeployFindingsInput
+        var input = new DeploymentFindingsInput
         {
             Solutions = new[]
             {
@@ -291,7 +291,7 @@ public class DeployFindingsAnalyzerTests
             },
         };
 
-        var result = DeployFindingsAnalyzer.Analyze(input);
+        var result = DeploymentFindingsAnalyzer.Analyze(input);
 
         Assert.DoesNotContain(result, f => f.Contains(InstallUpdateString));
     }
@@ -299,7 +299,7 @@ public class DeployFindingsAnalyzerTests
     [Fact]
     public void InstallUpgrade_AndInstallUpdate_CanBothFireInSameRun()
     {
-        var input = new DeployFindingsInput
+        var input = new DeploymentFindingsInput
         {
             Solutions = new[]
             {
@@ -312,7 +312,7 @@ public class DeployFindingsAnalyzerTests
             IncludeSolutions = true,
         };
 
-        var result = DeployFindingsAnalyzer.Analyze(input);
+        var result = DeploymentFindingsAnalyzer.Analyze(input);
 
         Assert.Contains(result, f => f.Contains("single-step upgrade"));
         Assert.Contains(result, f => f.Contains(InstallUpdateString));
@@ -321,7 +321,7 @@ public class DeployFindingsAnalyzerTests
     [Fact]
     public void NoSolutionsDetected_FiresWhenPackageCompletedWithNoSolutions()
     {
-        var input = new DeployFindingsInput
+        var input = new DeploymentFindingsInput
         {
             Solutions = Array.Empty<SolutionHistoryRecord>(),
             IsPackageMode = true,
@@ -329,7 +329,7 @@ public class DeployFindingsAnalyzerTests
             PackageStatus = "Completed",
         };
 
-        var result = DeployFindingsAnalyzer.Analyze(input);
+        var result = DeploymentFindingsAnalyzer.Analyze(input);
 
         Assert.Contains(result, f => f.Contains("already at the required version"));
     }
@@ -337,7 +337,7 @@ public class DeployFindingsAnalyzerTests
     [Fact]
     public void NoSolutionsDetected_DoesNotFireWhenPackageIsInProcess()
     {
-        var input = new DeployFindingsInput
+        var input = new DeploymentFindingsInput
         {
             Solutions = Array.Empty<SolutionHistoryRecord>(),
             IsPackageMode = true,
@@ -345,7 +345,7 @@ public class DeployFindingsAnalyzerTests
             PackageStatus = "In Process",
         };
 
-        var result = DeployFindingsAnalyzer.Analyze(input);
+        var result = DeploymentFindingsAnalyzer.Analyze(input);
 
         Assert.DoesNotContain(result, f => f.Contains("already at the required version"));
     }
@@ -353,7 +353,7 @@ public class DeployFindingsAnalyzerTests
     [Fact]
     public void NoSolutionsDetected_DoesNotFireWhenSolutionsArePresent()
     {
-        var input = new DeployFindingsInput
+        var input = new DeploymentFindingsInput
         {
             Solutions = new[] { MakeRecord() },
             IsPackageMode = true,
@@ -361,7 +361,7 @@ public class DeployFindingsAnalyzerTests
             PackageStatus = "Completed",
         };
 
-        var result = DeployFindingsAnalyzer.Analyze(input);
+        var result = DeploymentFindingsAnalyzer.Analyze(input);
 
         Assert.DoesNotContain(result, f => f.Contains("already at the required version"));
     }
@@ -369,7 +369,7 @@ public class DeployFindingsAnalyzerTests
     [Fact]
     public void NoSolutionsDetected_DoesNotFireInSolutionMode()
     {
-        var input = new DeployFindingsInput
+        var input = new DeploymentFindingsInput
         {
             Solutions = Array.Empty<SolutionHistoryRecord>(),
             IsPackageMode = false,
@@ -377,7 +377,7 @@ public class DeployFindingsAnalyzerTests
             PackageStatus = "Completed",
         };
 
-        var result = DeployFindingsAnalyzer.Analyze(input);
+        var result = DeploymentFindingsAnalyzer.Analyze(input);
 
         Assert.DoesNotContain(result, f => f.Contains("already at the required version"));
     }
