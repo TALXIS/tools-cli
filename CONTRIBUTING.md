@@ -8,17 +8,32 @@ If you want to add a command, change a command's shape, or introduce a new surfa
 
 ## Top-level taxonomy
 
-The CLI has four top-level groups, in this order, by design:
+The CLI has five top-level groups, in this order, by design:
 
 ```
 txc
-├── profile       # identity the CLI acts as (deferred)
+├── config        # identity the CLI acts as (profiles, connections, credentials, settings)
 ├── workspace     # the local code repository (scaffold, build, validate, language-server, metamodel)
 ├── environment   # the live target runtime footprint the workspace deploys to
-└── data          # data migration, transformation, imports
+├── data          # data migration, transformation, imports
+└── docs          # knowledge base for TALXIS CLI
 ```
 
-These four groups are deliberately small. Adding a fifth top-level group requires a strong justification — if a new piece of functionality fits under an existing noun, put it there.
+These five groups are deliberately small. Adding a sixth top-level group requires a strong justification — if a new piece of functionality fits under an existing noun, put it there.
+
+### `config` sub-nouns
+
+The `config` group has four sub-nouns, each owning one aspect of the resolution pipeline:
+
+```
+txc config
+├── auth         # credentials (OAuth tokens, service principals) stored in the OS vault
+├── connection   # service endpoint metadata (Dataverse environments, etc.)
+├── profile      # named binding of one auth × one connection — the "context" users switch between
+└── setting      # tool-wide preferences (log.level, log.format, telemetry.enabled)
+```
+
+The separation is deliberate. Connections are *where*, credentials are *who*, profiles are the *context* mapping them, and settings are tool-level knobs unrelated to any identity. Do not collapse them or teach one sub-noun to write into another's store.
 
 ---
 
@@ -114,16 +129,18 @@ Short-flag aliases (`-v`, `-y`, etc.) are out of scope until there is a concrete
 
 Long, explicit names are the canonical form, but **group** commands (the ones that hold children, not leaves) carry an `Alias` so day-to-day typing and README snippets stay short. Current aliases:
 
-| Canonical          | Alias   |
-| ------------------ | ------- |
-| `environment`      | `env`   |
-| `env deployment`   | `deploy`|
-| `env package`      | `pkg`   |
-| `env solution`     | `sln`   |
-| `data package`     | `pkg`   |
-| `workspace`        | `ws`    |
-| `workspace component` | `c`  |
-| `workspace project`   | `p`  |
+| Canonical             | Alias   |
+| --------------------- | ------- |
+| `config`              | `c`     |
+| `config profile`      | `p`     |
+| `environment`         | `env`   |
+| `env deployment`      | `deploy`|
+| `env package`         | `pkg`   |
+| `env solution`        | `sln`   |
+| `data package`        | `pkg`   |
+| `workspace`           | `ws`    |
+| `workspace component` | `c`     |
+| `workspace project`   | `p`     |
 
 Rules:
 
@@ -131,6 +148,7 @@ Rules:
 - **Canonical names drive everything machine-readable.** MCP tool names, help anchors, the SDK surface — all built from `Name`. Aliases are a typing shortcut for humans; they never leak into tool IDs.
 - **One alias per command.** If you find yourself reaching for a second alias, rename the canonical instead.
 - **Prefer README and docs to use the alias** in example snippets — that's what the alias is for. Use the canonical name in reference tables, help output, and anywhere a reader needs to scan the full taxonomy.
+- **Short-alias exception for `--profile`.** Because `config profile select` is the single most frequently typed command on a dev laptop, the `--profile` flag on every auth-requiring leaf command exposes the short form `-p`. This is the only flag-level short alias in the CLI.
 
 ---
 
