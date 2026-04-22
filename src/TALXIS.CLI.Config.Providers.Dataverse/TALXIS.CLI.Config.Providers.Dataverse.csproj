@@ -4,19 +4,21 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <RootNamespace>TALXIS.CLI.Config</RootNamespace>
+    <RootNamespace>TALXIS.CLI.Config.Providers.Dataverse</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.5" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.5" />
     <PackageReference Include="Microsoft.Identity.Client" Version="4.83.3" />
-    <PackageReference Include="Microsoft.Identity.Client.Extensions.Msal" Version="4.74.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TALXIS.CLI.Config\TALXIS.CLI.Config.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="TALXIS.CLI.Tests" />
-    <InternalsVisibleTo Include="TALXIS.CLI.Config.Providers.Dataverse" />
   </ItemGroup>
 
 </Project>
