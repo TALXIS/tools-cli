@@ -44,7 +44,7 @@ public class ProfileCreateCliCommand
     [CliOption(Name = "--description", Description = "Free-form label shown in 'config profile list'.", Required = false)]
     public string? Description { get; set; }
 
-    public async Task<int> RunAsync(CancellationToken ct = default)
+    public async Task<int> RunAsync()
     {
         var name = Name?.Trim();
         if (string.IsNullOrEmpty(name))
@@ -60,14 +60,14 @@ public class ProfileCreateCliCommand
             var credentialStore = TxcServices.Get<ICredentialStore>();
             var globalConfig = TxcServices.Get<IGlobalConfigStore>();
 
-            var credential = await credentialStore.GetAsync(Auth, ct).ConfigureAwait(false);
+            var credential = await credentialStore.GetAsync(Auth, CancellationToken.None).ConfigureAwait(false);
             if (credential is null)
             {
                 _logger.LogError("Credential '{Alias}' not found. Run 'txc config auth list'.", Auth);
                 return 2;
             }
 
-            var connection = await connectionStore.GetAsync(Connection, ct).ConfigureAwait(false);
+            var connection = await connectionStore.GetAsync(Connection, CancellationToken.None).ConfigureAwait(false);
             if (connection is null)
             {
                 _logger.LogError("Connection '{Name}' not found. Run 'txc config connection list'.", Connection);
@@ -82,16 +82,16 @@ public class ProfileCreateCliCommand
                 Description = Description,
             };
 
-            await profileStore.UpsertAsync(profile, ct).ConfigureAwait(false);
+            await profileStore.UpsertAsync(profile, CancellationToken.None).ConfigureAwait(false);
 
             // Auto-promote the very first profile to active so users don't need a
             // separate `profile select` right after their first `create`.
-            var global = await globalConfig.LoadAsync(ct).ConfigureAwait(false);
+            var global = await globalConfig.LoadAsync(CancellationToken.None).ConfigureAwait(false);
             var promoted = false;
             if (string.IsNullOrWhiteSpace(global.ActiveProfile))
             {
                 global.ActiveProfile = profile.Id;
-                await globalConfig.SaveAsync(global, ct).ConfigureAwait(false);
+                await globalConfig.SaveAsync(global, CancellationToken.None).ConfigureAwait(false);
                 promoted = true;
                 _logger.LogInformation("Profile '{Id}' is now the active profile.", profile.Id);
             }

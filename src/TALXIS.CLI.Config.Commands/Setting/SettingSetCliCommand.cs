@@ -26,7 +26,7 @@ public class SettingSetCliCommand
     [CliArgument(Description = "New value. Run 'txc config setting list' to see allowed values per key.")]
     public required string Value { get; set; }
 
-    public async Task<int> RunAsync(CancellationToken ct = default)
+    public async Task<int> RunAsync()
     {
         if (string.IsNullOrWhiteSpace(Key))
         {
@@ -58,9 +58,9 @@ public class SettingSetCliCommand
         try
         {
             var store = TxcServices.Get<IGlobalConfigStore>();
-            var config = await store.LoadAsync(ct).ConfigureAwait(false);
+            var config = await store.LoadAsync(CancellationToken.None).ConfigureAwait(false);
             descriptor.Write(config, normalized);
-            await store.SaveAsync(config, ct).ConfigureAwait(false);
+            await store.SaveAsync(config, CancellationToken.None).ConfigureAwait(false);
 
             _logger.LogInformation("Setting '{Key}' updated to '{Value}'.", descriptor.Key, normalized);
             return 0;

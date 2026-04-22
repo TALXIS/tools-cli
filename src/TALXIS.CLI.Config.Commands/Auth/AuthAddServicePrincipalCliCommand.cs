@@ -46,7 +46,7 @@ public class AuthAddServicePrincipalCliCommand
     [CliOption(Name = "--secret-from-env", Description = "Name of an environment variable holding the client secret.", Required = false)]
     public string? SecretFromEnv { get; set; }
 
-    public async Task<int> RunAsync(CancellationToken ct = default)
+    public async Task<int> RunAsync()
     {
         try
         {
@@ -67,7 +67,7 @@ public class AuthAddServicePrincipalCliCommand
             var vault = TxcServices.Get<ICredentialVault>();
 
             var secretRef = SecretRef.Create(alias, "client-secret");
-            await vault.SetSecretAsync(secretRef, secret, ct).ConfigureAwait(false);
+            await vault.SetSecretAsync(secretRef, secret, CancellationToken.None).ConfigureAwait(false);
 
             var credential = new Credential
             {
@@ -79,7 +79,7 @@ public class AuthAddServicePrincipalCliCommand
                 Description = Description,
                 SecretRef = secretRef,
             };
-            await store.UpsertAsync(credential, ct).ConfigureAwait(false);
+            await store.UpsertAsync(credential, CancellationToken.None).ConfigureAwait(false);
 
             _logger.LogInformation("Saved service-principal credential '{Alias}' (app {AppId}, tenant {Tenant}).",
                 alias, credential.ApplicationId, credential.TenantId);

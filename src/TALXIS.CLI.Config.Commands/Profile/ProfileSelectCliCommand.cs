@@ -24,7 +24,7 @@ public class ProfileSelectCliCommand
     [CliArgument(Description = "Profile name to set as active.")]
     public required string Name { get; set; }
 
-    public async Task<int> RunAsync(CancellationToken ct = default)
+    public async Task<int> RunAsync()
     {
         if (string.IsNullOrWhiteSpace(Name))
         {
@@ -37,16 +37,16 @@ public class ProfileSelectCliCommand
             var profileStore = TxcServices.Get<IProfileStore>();
             var globalConfig = TxcServices.Get<IGlobalConfigStore>();
 
-            var profile = await profileStore.GetAsync(Name, ct).ConfigureAwait(false);
+            var profile = await profileStore.GetAsync(Name, CancellationToken.None).ConfigureAwait(false);
             if (profile is null)
             {
                 _logger.LogError("Profile '{Name}' not found.", Name);
                 return 2;
             }
 
-            var global = await globalConfig.LoadAsync(ct).ConfigureAwait(false);
+            var global = await globalConfig.LoadAsync(CancellationToken.None).ConfigureAwait(false);
             global.ActiveProfile = profile.Id;
-            await globalConfig.SaveAsync(global, ct).ConfigureAwait(false);
+            await globalConfig.SaveAsync(global, CancellationToken.None).ConfigureAwait(false);
 
             _logger.LogInformation("Active profile set to '{Id}'.", profile.Id);
             return 0;

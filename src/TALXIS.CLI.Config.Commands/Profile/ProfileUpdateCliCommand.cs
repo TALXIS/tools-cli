@@ -36,7 +36,7 @@ public class ProfileUpdateCliCommand
     [CliOption(Name = "--description", Description = "New description. Pass an empty string to clear.", Required = false)]
     public string? Description { get; set; }
 
-    public async Task<int> RunAsync(CancellationToken ct = default)
+    public async Task<int> RunAsync()
     {
         if (string.IsNullOrWhiteSpace(Name))
         {
@@ -56,7 +56,7 @@ public class ProfileUpdateCliCommand
             var connectionStore = TxcServices.Get<IConnectionStore>();
             var credentialStore = TxcServices.Get<ICredentialStore>();
 
-            var existing = await profileStore.GetAsync(Name, ct).ConfigureAwait(false);
+            var existing = await profileStore.GetAsync(Name, CancellationToken.None).ConfigureAwait(false);
             if (existing is null)
             {
                 _logger.LogError("Profile '{Name}' not found.", Name);
@@ -65,7 +65,7 @@ public class ProfileUpdateCliCommand
 
             if (Auth is not null)
             {
-                var cred = await credentialStore.GetAsync(Auth, ct).ConfigureAwait(false);
+                var cred = await credentialStore.GetAsync(Auth, CancellationToken.None).ConfigureAwait(false);
                 if (cred is null)
                 {
                     _logger.LogError("Credential '{Alias}' not found.", Auth);
@@ -76,7 +76,7 @@ public class ProfileUpdateCliCommand
 
             if (Connection is not null)
             {
-                var conn = await connectionStore.GetAsync(Connection, ct).ConfigureAwait(false);
+                var conn = await connectionStore.GetAsync(Connection, CancellationToken.None).ConfigureAwait(false);
                 if (conn is null)
                 {
                     _logger.LogError("Connection '{Name}' not found.", Connection);
@@ -90,7 +90,7 @@ public class ProfileUpdateCliCommand
                 existing.Description = string.IsNullOrEmpty(Description) ? null : Description;
             }
 
-            await profileStore.UpsertAsync(existing, ct).ConfigureAwait(false);
+            await profileStore.UpsertAsync(existing, CancellationToken.None).ConfigureAwait(false);
             _logger.LogInformation("Profile '{Id}' updated.", existing.Id);
 
             OutputWriter.WriteLine(JsonSerializer.Serialize(existing, TxcJsonOptions.Default));

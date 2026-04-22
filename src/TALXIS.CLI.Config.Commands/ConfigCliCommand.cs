@@ -3,15 +3,14 @@ using DotMake.CommandLine;
 namespace TALXIS.CLI.Config.Commands;
 
 /// <summary>
-/// Root <c>config</c> command group. Not yet wired into
-/// <c>TxcCliCommand.Children</c> — that's the <c>wire-toplevel</c>
-/// milestone (CONTRIBUTING taxonomy update must land first). Pinned in
-/// the codebase as "invisible scaffolding" so the design is visible to
-/// contributors and Children wiring still composes correctly when
-/// wire-toplevel flips the switch.
+/// Root <c>config</c> command group — wired into
+/// <c>TxcCliCommand.Children</c> so <c>txc config …</c> is invocable and
+/// MCP discovers <c>config_*</c> tools. Alias <c>c</c> keeps day-to-day
+/// typing short (e.g. <c>txc c p select customer-a-dev</c>).
 /// </summary>
 [CliCommand(
     Name = "config",
+    Aliases = new[] { "c" },
     Description = "Manage txc profiles, connections, credentials, and settings.",
     Children = new[]
     {

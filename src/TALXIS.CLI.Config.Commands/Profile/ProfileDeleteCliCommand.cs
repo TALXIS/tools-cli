@@ -32,7 +32,7 @@ public class ProfileDeleteCliCommand
     [CliOption(Name = "--cascade", Description = "Also delete the linked auth + connection (only if no other profile uses them).", Required = false)]
     public bool Cascade { get; set; }
 
-    public async Task<int> RunAsync(CancellationToken ct = default)
+    public async Task<int> RunAsync()
     {
         if (string.IsNullOrWhiteSpace(Name))
         {
@@ -48,14 +48,14 @@ public class ProfileDeleteCliCommand
             var globalConfig = TxcServices.Get<IGlobalConfigStore>();
             var vault = TxcServices.Get<ICredentialVault>();
 
-            var existing = await profileStore.GetAsync(Name, ct).ConfigureAwait(false);
+            var existing = await profileStore.GetAsync(Name, CancellationToken.None).ConfigureAwait(false);
             if (existing is null)
             {
                 _logger.LogError("Profile '{Name}' not found.", Name);
                 return 2;
             }
 
-            var removed = await profileStore.DeleteAsync(existing.Id, ct).ConfigureAwait(false);
+            var removed = await profileStore.DeleteAsync(existing.Id, CancellationToken.None).ConfigureAwait(false);
             if (!removed)
             {
                 _logger.LogError("Profile '{Id}' disappeared during delete.", existing.Id);
@@ -64,26 +64,26 @@ public class ProfileDeleteCliCommand
 
             // Clear active pointer if we just removed the active profile — we never
             // want leaf commands to resolve to a non-existent profile name.
-            var global = await globalConfig.LoadAsync(ct).ConfigureAwait(false);
+            var global = await globalConfig.LoadAsync(CancellationToken.None).ConfigureAwait(false);
             if (string.Equals(global.ActiveProfile, existing.Id, StringComparison.OrdinalIgnoreCase))
             {
                 global.ActiveProfile = null;
-                await globalConfig.SaveAsync(global, ct).ConfigureAwait(false);
+                await globalConfig.SaveAsync(global, CancellationToken.None).ConfigureAwait(false);
                 _logger.LogWarning("Active profile pointer cleared (was '{Id}'). Run 'txc config profile select <name>'.", existing.Id);
             }
 
             if (Cascade)
             {
-                var remaining = await profileStore.ListAsync(ct).ConfigureAwait(false);
+                var remaining = await profileStore.ListAsync(CancellationToken.None).ConfigureAwait(false);
 
                 var credStillUsed = remaining.Any(p =>
                     string.Equals(p.CredentialRef, existing.CredentialRef, StringComparison.OrdinalIgnoreCase));
                 if (!credStillUsed)
                 {
-                    var cred = await credentialStore.GetAsync(existing.CredentialRef, ct).ConfigureAwait(false);
+                    var cred = await credentialStore.GetAsync(existing.CredentialRef, CancellationToken.None).ConfigureAwait(false);
                     if (cred is { SecretRef: { } secretRef })
                     {
-                        try { await vault.DeleteSecretAsync(secretRef, ct).ConfigureAwait(false); }
+                        try { await vault.DeleteSecretAsync(secretRef, CancellationToken.None).ConfigureAwait(false); }
                         catch (Exception ex)
                         {
                             _logger.LogWarning(ex,
@@ -91,7 +91,7 @@ public class ProfileDeleteCliCommand
                                 existing.CredentialRef);
                         }
                     }
-                    await credentialStore.DeleteAsync(existing.CredentialRef, ct).ConfigureAwait(false);
+                    await credentialStore.DeleteAsync(existing.CredentialRef, CancellationToken.None).ConfigureAwait(false);
                     _logger.LogInformation("Credential '{Alias}' deleted (cascade).", existing.CredentialRef);
                 }
                 else
@@ -105,7 +105,7 @@ public class ProfileDeleteCliCommand
                     string.Equals(p.ConnectionRef, existing.ConnectionRef, StringComparison.OrdinalIgnoreCase));
                 if (!connStillUsed)
                 {
-                    await connectionStore.DeleteAsync(existing.ConnectionRef, ct).ConfigureAwait(false);
+                    await connectionStore.DeleteAsync(existing.ConnectionRef, CancellationToken.None).ConfigureAwait(false);
                     _logger.LogInformation("Connection '{Name}' deleted (cascade).", existing.ConnectionRef);
                 }
                 else

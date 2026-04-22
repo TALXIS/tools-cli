@@ -21,7 +21,7 @@ public class ProfileUnpinCliCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ProfileUnpinCliCommand));
 
-    public Task<int> RunAsync(CancellationToken ct = default)
+    public Task<int> RunAsync()
     {
         try
         {

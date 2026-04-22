@@ -24,7 +24,7 @@ public class AuthShowCliCommand
     [CliArgument(Description = "Credential alias (id).")]
     public required string Alias { get; set; }
 
-    public async Task<int> RunAsync(CancellationToken ct = default)
+    public async Task<int> RunAsync()
     {
         if (string.IsNullOrWhiteSpace(Alias))
         {
@@ -35,7 +35,7 @@ public class AuthShowCliCommand
         try
         {
             var store = TxcServices.Get<ICredentialStore>();
-            var cred = await store.GetAsync(Alias, ct).ConfigureAwait(false);
+            var cred = await store.GetAsync(Alias, CancellationToken.None).ConfigureAwait(false);
             if (cred is null)
             {
                 _logger.LogError("Credential '{Alias}' not found.", Alias);

@@ -36,7 +36,7 @@ public class ProfilePinCliCommand
     [CliArgument(Description = "Profile name to pin. Defaults to the global active profile.", Required = false)]
     public string? Name { get; set; }
 
-    public async Task<int> RunAsync(CancellationToken ct = default)
+    public async Task<int> RunAsync()
     {
         try
         {
@@ -47,7 +47,7 @@ public class ProfilePinCliCommand
             string? target = Name;
             if (string.IsNullOrWhiteSpace(target))
             {
-                var global = await globalConfig.LoadAsync(ct).ConfigureAwait(false);
+                var global = await globalConfig.LoadAsync(CancellationToken.None).ConfigureAwait(false);
                 target = global.ActiveProfile;
                 if (string.IsNullOrWhiteSpace(target))
                 {
@@ -56,7 +56,7 @@ public class ProfilePinCliCommand
                 }
             }
 
-            var profile = await profileStore.GetAsync(target!, ct).ConfigureAwait(false);
+            var profile = await profileStore.GetAsync(target!, CancellationToken.None).ConfigureAwait(false);
             if (profile is null)
             {
                 _logger.LogError("Profile '{Name}' not found.", target);
@@ -68,7 +68,7 @@ public class ProfilePinCliCommand
             var workspaceFile = Path.Combine(workspaceDir, WorkspaceDiscovery.FileName);
 
             var config = new WorkspaceConfig { DefaultProfile = profile.Id };
-            await WriteWorkspaceConfigAsync(workspaceFile, config, ct).ConfigureAwait(false);
+            await WriteWorkspaceConfigAsync(workspaceFile, config, CancellationToken.None).ConfigureAwait(false);
 
             _logger.LogInformation("Pinned profile '{Id}' to '{Path}'.", profile.Id, workspaceFile);
 
@@ -93,8 +93,8 @@ public class ProfilePinCliCommand
         var tmp = path + ".tmp";
         await using (var stream = File.Create(tmp))
         {
-            await JsonSerializer.SerializeAsync(stream, config, TxcJsonOptions.Default, ct).ConfigureAwait(false);
-            await stream.FlushAsync(ct).ConfigureAwait(false);
+            await JsonSerializer.SerializeAsync(stream, config, TxcJsonOptions.Default, CancellationToken.None).ConfigureAwait(false);
+            await stream.FlushAsync(CancellationToken.None).ConfigureAwait(false);
         }
         if (File.Exists(path))
             File.Replace(tmp, path, destinationBackupFileName: null, ignoreMetadataErrors: true);

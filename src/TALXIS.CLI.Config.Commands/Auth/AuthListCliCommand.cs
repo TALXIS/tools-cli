@@ -22,12 +22,12 @@ public class AuthListCliCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(AuthListCliCommand));
 
-    public async Task<int> RunAsync(CancellationToken ct = default)
+    public async Task<int> RunAsync()
     {
         try
         {
             var store = TxcServices.Get<ICredentialStore>();
-            IReadOnlyList<Credential> creds = await store.ListAsync(ct).ConfigureAwait(false);
+            IReadOnlyList<Credential> creds = await store.ListAsync(CancellationToken.None).ConfigureAwait(false);
 
             // Project to a deterministic shape: id, kind, tenantId, applicationId, cloud, description.
             // SecretRef is implied by kind — the secret itself never leaves the vault.

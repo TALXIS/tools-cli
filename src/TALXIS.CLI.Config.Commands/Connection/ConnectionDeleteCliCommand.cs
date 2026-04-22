@@ -29,7 +29,7 @@ public class ConnectionDeleteCliCommand
     [CliOption(Name = "--force-orphan-profiles", Description = "Delete even if profiles reference this connection; leaves them orphaned.", Required = false)]
     public bool ForceOrphanProfiles { get; set; }
 
-    public async Task<int> RunAsync(CancellationToken ct = default)
+    public async Task<int> RunAsync()
     {
         if (string.IsNullOrWhiteSpace(Name))
         {
@@ -42,14 +42,14 @@ public class ConnectionDeleteCliCommand
             var connStore = TxcServices.Get<IConnectionStore>();
             var profileStore = TxcServices.Get<IProfileStore>();
 
-            var existing = await connStore.GetAsync(Name, ct).ConfigureAwait(false);
+            var existing = await connStore.GetAsync(Name, CancellationToken.None).ConfigureAwait(false);
             if (existing is null)
             {
                 _logger.LogError("Connection '{Name}' not found.", Name);
                 return 2;
             }
 
-            var profiles = await profileStore.ListAsync(ct).ConfigureAwait(false);
+            var profiles = await profileStore.ListAsync(CancellationToken.None).ConfigureAwait(false);
             var referencing = profiles
                 .Where(p => string.Equals(p.ConnectionRef, Name, StringComparison.OrdinalIgnoreCase))
                 .ToList();
@@ -71,7 +71,7 @@ public class ConnectionDeleteCliCommand
                     p.Id, Name);
             }
 
-            var removed = await connStore.DeleteAsync(Name, ct).ConfigureAwait(false);
+            var removed = await connStore.DeleteAsync(Name, CancellationToken.None).ConfigureAwait(false);
             if (!removed)
             {
                 _logger.LogError("Connection '{Name}' disappeared during delete.", Name);

@@ -27,7 +27,7 @@ public class ProfileShowCliCommand
     [CliArgument(Description = "Profile name. If omitted, shows the active profile.", Required = false)]
     public string? Name { get; set; }
 
-    public async Task<int> RunAsync(CancellationToken ct = default)
+    public async Task<int> RunAsync()
     {
         try
         {
@@ -39,7 +39,7 @@ public class ProfileShowCliCommand
             string? target = Name;
             if (string.IsNullOrWhiteSpace(target))
             {
-                var global = await globalConfig.LoadAsync(ct).ConfigureAwait(false);
+                var global = await globalConfig.LoadAsync(CancellationToken.None).ConfigureAwait(false);
                 target = global.ActiveProfile;
                 if (string.IsNullOrWhiteSpace(target))
                 {
@@ -48,7 +48,7 @@ public class ProfileShowCliCommand
                 }
             }
 
-            var profile = await profileStore.GetAsync(target!, ct).ConfigureAwait(false);
+            var profile = await profileStore.GetAsync(target!, CancellationToken.None).ConfigureAwait(false);
             if (profile is null)
             {
                 _logger.LogError("Profile '{Name}' not found.", target);
@@ -57,9 +57,9 @@ public class ProfileShowCliCommand
 
             // Expand refs so a single `show` gives callers the full picture.
             // Missing refs are surfaced as null rather than erroring — `validate` is the command for integrity checks.
-            var connection = await connectionStore.GetAsync(profile.ConnectionRef, ct).ConfigureAwait(false);
-            var credential = await credentialStore.GetAsync(profile.CredentialRef, ct).ConfigureAwait(false);
-            var activeName = (await globalConfig.LoadAsync(ct).ConfigureAwait(false)).ActiveProfile;
+            var connection = await connectionStore.GetAsync(profile.ConnectionRef, CancellationToken.None).ConfigureAwait(false);
+            var credential = await credentialStore.GetAsync(profile.CredentialRef, CancellationToken.None).ConfigureAwait(false);
+            var activeName = (await globalConfig.LoadAsync(CancellationToken.None).ConfigureAwait(false)).ActiveProfile;
 
             OutputWriter.WriteLine(JsonSerializer.Serialize(
                 new

@@ -37,7 +37,7 @@ public class AuthLoginCliCommand
     [CliOption(Name = "--cloud", Description = "Sovereign cloud. Default: public.", Required = false)]
     public CloudInstance? Cloud { get; set; }
 
-    public async Task<int> RunAsync(CancellationToken ct = default)
+    public async Task<int> RunAsync()
     {
         try
         {
@@ -49,10 +49,10 @@ public class AuthLoginCliCommand
             var cloud = Cloud ?? CloudInstance.Public;
 
             _logger.LogInformation("Starting interactive sign-in...");
-            var result = await login.LoginAsync(Tenant, cloud, ct).ConfigureAwait(false);
+            var result = await login.LoginAsync(Tenant, cloud, CancellationToken.None).ConfigureAwait(false);
 
             var alias = string.IsNullOrWhiteSpace(Alias)
-                ? await ResolveDefaultAliasAsync(store, result.Upn, ct).ConfigureAwait(false)
+                ? await ResolveDefaultAliasAsync(store, result.Upn, CancellationToken.None).ConfigureAwait(false)
                 : Alias.Trim();
 
             var credential = new Credential
@@ -63,7 +63,7 @@ public class AuthLoginCliCommand
                 Cloud = cloud,
                 Description = $"Interactive sign-in ({result.Upn})",
             };
-            await store.UpsertAsync(credential, ct).ConfigureAwait(false);
+            await store.UpsertAsync(credential, CancellationToken.None).ConfigureAwait(false);
 
             _logger.LogInformation("Signed in as {Upn} (tenant {Tenant}). Credential '{Alias}' saved.",
                 result.Upn, result.TenantId, alias);
@@ -103,14 +103,14 @@ public class AuthLoginCliCommand
         ICredentialStore store, string upn, CancellationToken ct)
     {
         var slug = upn.Trim().ToLowerInvariant();
-        if (await store.GetAsync(slug, ct).ConfigureAwait(false) is null)
+        if (await store.GetAsync(slug, CancellationToken.None).ConfigureAwait(false) is null)
             return slug;
 
         var shortName = ExtractTenantShortName(upn);
         if (!string.IsNullOrEmpty(shortName))
         {
             var combined = $"{slug}-{shortName}";
-            if (await store.GetAsync(combined, ct).ConfigureAwait(false) is null)
+            if (await store.GetAsync(combined, CancellationToken.None).ConfigureAwait(false) is null)
                 return combined;
         }
 
@@ -118,7 +118,7 @@ public class AuthLoginCliCommand
         for (var i = 2; i < 100; i++)
         {
             var candidate = $"{slug}-{i}";
-            if (await store.GetAsync(candidate, ct).ConfigureAwait(false) is null)
+            if (await store.GetAsync(candidate, CancellationToken.None).ConfigureAwait(false) is null)
                 return candidate;
         }
 

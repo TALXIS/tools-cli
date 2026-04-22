@@ -28,7 +28,7 @@ public class AuthDeleteCliCommand
     [CliArgument(Description = "Credential alias (id) to delete.")]
     public required string Alias { get; set; }
 
-    public async Task<int> RunAsync(CancellationToken ct = default)
+    public async Task<int> RunAsync()
     {
         if (string.IsNullOrWhiteSpace(Alias))
         {
@@ -42,7 +42,7 @@ public class AuthDeleteCliCommand
             var profileStore = TxcServices.Get<IProfileStore>();
             var vault = TxcServices.Get<ICredentialVault>();
 
-            var existing = await credStore.GetAsync(Alias, ct).ConfigureAwait(false);
+            var existing = await credStore.GetAsync(Alias, CancellationToken.None).ConfigureAwait(false);
             if (existing is null)
             {
                 _logger.LogError("Credential '{Alias}' not found.", Alias);
@@ -51,7 +51,7 @@ public class AuthDeleteCliCommand
 
             // Surface any profile that would be orphaned. Iterate profiles first
             // so the user sees the warning even if the vault delete below fails.
-            var profiles = await profileStore.ListAsync(ct).ConfigureAwait(false);
+            var profiles = await profileStore.ListAsync(CancellationToken.None).ConfigureAwait(false);
             foreach (var p in profiles.Where(p =>
                 string.Equals(p.CredentialRef, Alias, StringComparison.OrdinalIgnoreCase)))
             {
@@ -66,7 +66,7 @@ public class AuthDeleteCliCommand
             {
                 try
                 {
-                    await vault.DeleteSecretAsync(secretRef, ct).ConfigureAwait(false);
+                    await vault.DeleteSecretAsync(secretRef, CancellationToken.None).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
@@ -77,7 +77,7 @@ public class AuthDeleteCliCommand
                 }
             }
 
-            var removed = await credStore.DeleteAsync(Alias, ct).ConfigureAwait(false);
+            var removed = await credStore.DeleteAsync(Alias, CancellationToken.None).ConfigureAwait(false);
             if (!removed)
             {
                 _logger.LogError("Credential '{Alias}' disappeared during delete.", Alias);

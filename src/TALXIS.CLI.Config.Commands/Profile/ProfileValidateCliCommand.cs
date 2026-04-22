@@ -37,7 +37,7 @@ public class ProfileValidateCliCommand
     [CliOption(Description = "Skip the live authenticated round-trip (WhoAmI); run structural checks only.")]
     public bool SkipLive { get; set; }
 
-    public async Task<int> RunAsync(CancellationToken ct = default)
+    public async Task<int> RunAsync()
     {
         try
         {
@@ -50,7 +50,7 @@ public class ProfileValidateCliCommand
             var target = Name;
             if (string.IsNullOrWhiteSpace(target))
             {
-                var gc = await globalConfig.LoadAsync(ct).ConfigureAwait(false);
+                var gc = await globalConfig.LoadAsync(CancellationToken.None).ConfigureAwait(false);
                 target = gc.ActiveProfile;
                 if (string.IsNullOrWhiteSpace(target))
                 {
@@ -59,21 +59,21 @@ public class ProfileValidateCliCommand
                 }
             }
 
-            var profile = await profileStore.GetAsync(target!, ct).ConfigureAwait(false);
+            var profile = await profileStore.GetAsync(target!, CancellationToken.None).ConfigureAwait(false);
             if (profile is null)
             {
                 _logger.LogError("Profile '{Name}' not found.", target);
                 return 2;
             }
 
-            var connection = await connectionStore.GetAsync(profile.ConnectionRef, ct).ConfigureAwait(false);
+            var connection = await connectionStore.GetAsync(profile.ConnectionRef, CancellationToken.None).ConfigureAwait(false);
             if (connection is null)
             {
                 _logger.LogError("Profile '{Profile}' references missing connection '{Connection}'.", profile.Id, profile.ConnectionRef);
                 return 2;
             }
 
-            var credential = await credentialStore.GetAsync(profile.CredentialRef, ct).ConfigureAwait(false);
+            var credential = await credentialStore.GetAsync(profile.CredentialRef, CancellationToken.None).ConfigureAwait(false);
             if (credential is null)
             {
                 _logger.LogError("Profile '{Profile}' references missing credential '{Credential}'.", profile.Id, profile.CredentialRef);
@@ -90,7 +90,7 @@ public class ProfileValidateCliCommand
             var mode = SkipLive ? ValidationMode.Structural : ValidationMode.Live;
             try
             {
-                await provider.ValidateAsync(connection, credential, mode, ct).ConfigureAwait(false);
+                await provider.ValidateAsync(connection, credential, mode, CancellationToken.None).ConfigureAwait(false);
             }
             catch (Exception ex)
             {

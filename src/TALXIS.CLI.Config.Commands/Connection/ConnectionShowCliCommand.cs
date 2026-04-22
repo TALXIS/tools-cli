@@ -25,7 +25,7 @@ public class ConnectionShowCliCommand
     [CliArgument(Description = "Connection name.")]
     public required string Name { get; set; }
 
-    public async Task<int> RunAsync(CancellationToken ct = default)
+    public async Task<int> RunAsync()
     {
         if (string.IsNullOrWhiteSpace(Name))
         {
@@ -36,7 +36,7 @@ public class ConnectionShowCliCommand
         try
         {
             var store = TxcServices.Get<IConnectionStore>();
-            var connection = await store.GetAsync(Name, ct).ConfigureAwait(false);
+            var connection = await store.GetAsync(Name, CancellationToken.None).ConfigureAwait(false);
             if (connection is null)
             {
                 _logger.LogError("Connection '{Name}' not found.", Name);

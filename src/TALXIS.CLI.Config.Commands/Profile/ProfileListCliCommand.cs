@@ -22,15 +22,15 @@ public class ProfileListCliCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ProfileListCliCommand));
 
-    public async Task<int> RunAsync(CancellationToken ct = default)
+    public async Task<int> RunAsync()
     {
         try
         {
             var profileStore = TxcServices.Get<IProfileStore>();
             var globalConfig = TxcServices.Get<IGlobalConfigStore>();
 
-            var profiles = await profileStore.ListAsync(ct).ConfigureAwait(false);
-            var global = await globalConfig.LoadAsync(ct).ConfigureAwait(false);
+            var profiles = await profileStore.ListAsync(CancellationToken.None).ConfigureAwait(false);
+            var global = await globalConfig.LoadAsync(CancellationToken.None).ConfigureAwait(false);
             var active = global.ActiveProfile;
 
             var projected = profiles.Select(p => new

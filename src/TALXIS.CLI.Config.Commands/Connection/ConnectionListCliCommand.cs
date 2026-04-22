@@ -20,12 +20,12 @@ public class ConnectionListCliCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ConnectionListCliCommand));
 
-    public async Task<int> RunAsync(CancellationToken ct = default)
+    public async Task<int> RunAsync()
     {
         try
         {
             var store = TxcServices.Get<IConnectionStore>();
-            var connections = await store.ListAsync(ct).ConfigureAwait(false);
+            var connections = await store.ListAsync(CancellationToken.None).ConfigureAwait(false);
             OutputWriter.WriteLine(JsonSerializer.Serialize(connections, TxcJsonOptions.Default));
             return 0;
         }

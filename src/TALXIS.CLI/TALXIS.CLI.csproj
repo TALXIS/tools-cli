@@ -9,6 +9,9 @@
     <ProjectReference Include="..\TALXIS.CLI.Docs\TALXIS.CLI.Docs.csproj" />
     <ProjectReference Include="..\TALXIS.CLI.Logging\TALXIS.CLI.Logging.csproj" />
     <ProjectReference Include="..\TALXIS.CLI.Workspace\TALXIS.CLI.Workspace.csproj" />
+    <ProjectReference Include="..\TALXIS.CLI.Config\TALXIS.CLI.Config.csproj" />
+    <ProjectReference Include="..\TALXIS.CLI.Config.Commands\TALXIS.CLI.Config.Commands.csproj" />
+    <ProjectReference Include="..\TALXIS.CLI.Config.Providers.Dataverse\TALXIS.CLI.Config.Providers.Dataverse.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -23,12 +23,12 @@ public class SettingListCliCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(SettingListCliCommand));
 
-    public async Task<int> RunAsync(CancellationToken ct = default)
+    public async Task<int> RunAsync()
     {
         try
         {
             var store = TxcServices.Get<IGlobalConfigStore>();
-            var config = await store.LoadAsync(ct).ConfigureAwait(false);
+            var config = await store.LoadAsync(CancellationToken.None).ConfigureAwait(false);
 
             var projected = SettingRegistry.All.Select(d => new
             {

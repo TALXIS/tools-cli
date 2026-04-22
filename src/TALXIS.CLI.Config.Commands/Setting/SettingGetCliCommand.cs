@@ -24,7 +24,7 @@ public class SettingGetCliCommand
     [CliArgument(Description = "Setting key (e.g. log.level).")]
     public required string Key { get; set; }
 
-    public async Task<int> RunAsync(CancellationToken ct = default)
+    public async Task<int> RunAsync()
     {
         if (string.IsNullOrWhiteSpace(Key))
         {
@@ -45,7 +45,7 @@ public class SettingGetCliCommand
         try
         {
             var store = TxcServices.Get<IGlobalConfigStore>();
-            var config = await store.LoadAsync(ct).ConfigureAwait(false);
+            var config = await store.LoadAsync(CancellationToken.None).ConfigureAwait(false);
             OutputWriter.WriteLine(descriptor.Read(config));
             return 0;
         }

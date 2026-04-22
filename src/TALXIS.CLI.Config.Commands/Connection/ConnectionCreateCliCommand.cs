@@ -45,7 +45,7 @@ public class ConnectionCreateCliCommand
     [CliOption(Name = "--description", Description = "Free-form label shown in 'config connection list'.", Required = false)]
     public string? Description { get; set; }
 
-    public async Task<int> RunAsync(CancellationToken ct = default)
+    public async Task<int> RunAsync()
     {
         try
         {
@@ -93,7 +93,7 @@ public class ConnectionCreateCliCommand
                 OrganizationId = OrganizationId,
                 TenantId = TenantId,
             };
-            await store.UpsertAsync(connection, ct).ConfigureAwait(false);
+            await store.UpsertAsync(connection, CancellationToken.None).ConfigureAwait(false);
 
             _logger.LogInformation("Connection '{Name}' saved ({Provider} -> {Env}).",
                 name, Provider, connection.EnvironmentUrl);
