@@ -25,11 +25,13 @@ public sealed class McpTestClient : IAsyncDisposable
 
     private static async Task<McpTestClient> CreateInstanceAsync()
     {
+        using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+
         var mcpProjectPath = GetMcpProjectPath();
-        
+
         // Build the MCP project first to ensure it's available
-        await BuildMcpProjectAsync(mcpProjectPath);
-        
+        await BuildMcpProjectAsync(mcpProjectPath, cts.Token);
+
         var transport = new StdioClientTransport(new StdioClientTransportOptions
         {
             Name = "TALXIS CLI MCP Test Client",
@@ -37,7 +39,7 @@ public sealed class McpTestClient : IAsyncDisposable
             Arguments = ["run", "--project", mcpProjectPath]
         });
 
-        var client = await McpClient.CreateAsync(transport);
+        var client = await McpClient.CreateAsync(transport, cancellationToken: cts.Token);
         return new McpTestClient(client);
     }
 
@@ -75,7 +77,7 @@ public sealed class McpTestClient : IAsyncDisposable
     /// Builds the MCP project to ensure it's available for testing.
     /// This is especially important in CI environments where --no-build might not work reliably.
     /// </summary>
-    private static async Task BuildMcpProjectAsync(string projectPath)
+    private static async Task BuildMcpProjectAsync(string projectPath, CancellationToken cancellationToken)
     {
         var processInfo = new ProcessStartInfo
         {
@@ -91,12 +93,12 @@ public sealed class McpTestClient : IAsyncDisposable
         if (process == null)
             throw new InvalidOperationException("Failed to start dotnet build process");
 
-        await process.WaitForExitAsync();
-        
+        await process.WaitForExitAsync(cancellationToken);
+
         if (process.ExitCode != 0)
         {
-            var stdout = await process.StandardOutput.ReadToEndAsync();
-            var stderr = await process.StandardError.ReadToEndAsync();
+            var stdout = await process.StandardOutput.ReadToEndAsync(cancellationToken);
+            var stderr = await process.StandardError.ReadToEndAsync(cancellationToken);
             throw new InvalidOperationException($"Failed to build MCP project. Exit code: {process.ExitCode}. Output: {stdout}. Error: {stderr}");
         }
     }
