@@ -67,9 +67,9 @@ txc deploy show --package-name TALXIS.Controls.FileExplorer.Package \
   --environment https://org.crm.dynamics.com
 ```
 
-**Uninstall the latest deployed package by package name:**
+**Uninstall a package from its source artifact:**
 ```sh
-txc deploy uninstall --package-name TALXIS.Controls.FileExplorer.Package \
+txc deploy uninstall --package-source TALXIS.Controls.FileExplorer.Package \
   --force \
   --environment https://org.crm.dynamics.com
 ```
@@ -122,13 +122,6 @@ txc workspace component create pp-entity \
   --param DisplayName=Location \
   --param DisplayNamePlural=Locations \
   --param SolutionRootPath=Declarations
-```
-
-**Advanced: uninstall using package source order from ImportConfig:**
-```sh
-txc deploy uninstall --package-source TALXIS.Controls.FileExplorer.Package \
-  --force \
-  --environment https://org.crm.dynamics.com
 ```
 
 > [!NOTE]

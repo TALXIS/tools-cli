@@ -83,25 +83,13 @@ public class DeployCommandValidationTests
     }
 
     [Fact]
-    public async Task DeployUninstall_InvalidPackageRunId_ReturnsError()
+    public async Task DeployUninstall_SolutionWithPackageOptions_ReturnsError()
     {
         var cmd = new DeployUninstallCliCommand
         {
-            PackageName = "pkg",
-            PackageRunId = "not-a-guid",
-            Yes = true,
-        };
-
-        var exitCode = await cmd.RunAsync();
-        Assert.Equal(1, exitCode);
-    }
-
-    [Fact]
-    public async Task DeployUninstall_PackageRunIdWithoutPackageName_ReturnsError()
-    {
-        var cmd = new DeployUninstallCliCommand
-        {
-            PackageRunId = Guid.NewGuid().ToString(),
+            SolutionName = "MySolution",
+            PackageSource = "TALXIS.Controls.FileExplorer.Package",
+            PackageVersion = "1.2.3",
             Yes = true,
         };
 
