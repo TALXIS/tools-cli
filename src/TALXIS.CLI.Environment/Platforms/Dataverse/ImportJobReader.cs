@@ -5,7 +5,7 @@ using Microsoft.PowerPlatform.Dataverse.Client;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Query;
 
-namespace TALXIS.CLI.Deploy;
+namespace TALXIS.CLI.Environment.Platforms.Dataverse;
 
 /// <summary>
 /// Structured view of a row in the <c>importjob</c> table. All <see cref="DateTime"/> values are UTC.

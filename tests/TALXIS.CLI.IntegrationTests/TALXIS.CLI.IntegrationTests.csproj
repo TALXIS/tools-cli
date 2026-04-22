@@ -22,7 +22,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/TALXIS.CLI/TALXIS.CLI.csproj" />
     <ProjectReference Include="../../src/TALXIS.CLI.Dataverse/TALXIS.CLI.Dataverse.csproj" />
-    <ProjectReference Include="../../src/TALXIS.CLI.Deploy/TALXIS.CLI.Deploy.csproj" />
+    <ProjectReference Include="../../src/TALXIS.CLI.Environment/TALXIS.CLI.Environment.csproj" />
     <ProjectReference Include="../../src/TALXIS.CLI.MCP/TALXIS.CLI.MCP.csproj" />
   </ItemGroup>
 </Project>

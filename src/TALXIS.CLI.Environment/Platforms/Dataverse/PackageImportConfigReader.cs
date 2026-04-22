@@ -2,7 +2,7 @@ using System.IO.Compression;
 using System.Xml.Linq;
 using Microsoft.Extensions.Logging;
 
-namespace TALXIS.CLI.Deploy;
+namespace TALXIS.CLI.Environment.Platforms.Dataverse;
 
 /// <summary>
 /// Reads package ImportConfig.xml and resolves solution unique names in import order.

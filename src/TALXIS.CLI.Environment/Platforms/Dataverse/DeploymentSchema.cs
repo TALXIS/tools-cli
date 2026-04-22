@@ -1,10 +1,10 @@
-namespace TALXIS.CLI.Deploy;
+namespace TALXIS.CLI.Environment.Platforms.Dataverse;
 
 /// <summary>
 /// Logical names of Dataverse entities used by the deployment domain
 /// (Deployment Controller solution history and Package Deployer run history).
 /// </summary>
-public static class DeploySchema
+public static class DeploymentSchema
 {
     public static class SolutionHistory
     {

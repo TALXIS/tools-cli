@@ -1,7 +1,8 @@
 using System;
 using Microsoft.Xrm.Sdk;
 using TALXIS.CLI.Dataverse;
-using TALXIS.CLI.Deploy;
+using TALXIS.CLI.Environment;
+using TALXIS.CLI.Environment.Platforms.Dataverse;
 using Xunit;
 
 namespace TALXIS.CLI.Tests.Deploy.Services;

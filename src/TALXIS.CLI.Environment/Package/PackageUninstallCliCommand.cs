@@ -3,32 +3,30 @@ using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using Microsoft.PowerPlatform.Dataverse.Client;
 using TALXIS.CLI.Dataverse;
+using TALXIS.CLI.Environment.Platforms.Dataverse;
 using TALXIS.CLI.Logging;
 using TALXIS.CLI.Shared;
 
-namespace TALXIS.CLI.Deploy;
+namespace TALXIS.CLI.Environment.Package;
 
 [CliCommand(
     Name = "uninstall",
-    Description = "Uninstall solutions from the target environment by solution name or by package source."
+    Description = "Uninstall all solutions belonging to a package from the target environment, in reverse import order."
 )]
-public class DeployUninstallCliCommand
+public class PackageUninstallCliCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(DeployUninstallCliCommand));
+    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(PackageUninstallCliCommand));
 
-    [CliOption(Name = "--solution-name", Description = "Uninstall a single solution by unique name.", Required = false)]
-    public string? SolutionName { get; set; }
+    [CliArgument(Name = "package", Description = "NuGet package name, local .pdpkg.zip/.pdpkg/.zip archive path, or extracted package folder path.", Required = true)]
+    public required string Package { get; set; }
 
-    [CliOption(Name = "--package-source", Description = "Package source used to derive uninstall order from ImportConfig. Accepts NuGet package name, local .pdpkg.zip/.pdpkg file, or an extracted package folder.", Required = false)]
-    public string? PackageSource { get; set; }
-
-    [CliOption(Name = "--version", Description = "NuGet package version for --package-source when source is a NuGet package name. Defaults to 'latest'.", Required = false)]
+    [CliOption(Name = "--version", Description = "NuGet package version when 'package' is a NuGet name. Defaults to 'latest'.", Required = false)]
     public string PackageVersion { get; set; } = "latest";
 
-    [CliOption(Name = "--output", Aliases = ["-o"], Description = "Directory for temporary/downloaded package assets when resolving --package-source from NuGet.", Required = false)]
+    [CliOption(Name = "--output", Aliases = ["-o"], Description = "Directory for temporary/downloaded package assets when resolving from NuGet.", Required = false)]
     public string? OutputDirectory { get; set; }
 
-    [CliOption(Name = "--force", Aliases = ["--yes"], Description = "Confirm destructive uninstall actions.", Required = false)]
+    [CliOption(Name = "--yes", Description = "Confirm destructive uninstall actions.", Required = false)]
     public bool Yes { get; set; }
 
     [CliOption(Name = "--connection-string", Description = "Dataverse connection string. If omitted, txc checks DATAVERSE_CONNECTION_STRING and TXC_DATAVERSE_CONNECTION_STRING.", Required = false)]
@@ -50,22 +48,13 @@ public class DeployUninstallCliCommand
     {
         if (!Yes)
         {
-            _logger.LogError("Uninstall is destructive. Pass --force to confirm.");
+            _logger.LogError("Uninstall is destructive. Pass --yes to confirm.");
             return 1;
         }
 
-        bool hasSolutionSelector = !string.IsNullOrWhiteSpace(SolutionName);
-        bool hasPackageSelector = !string.IsNullOrWhiteSpace(PackageSource);
-        int selectors = (hasSolutionSelector ? 1 : 0) + (hasPackageSelector ? 1 : 0);
-        if (selectors != 1)
+        if (string.IsNullOrWhiteSpace(Package))
         {
-            _logger.LogError("Specify exactly one selector: --solution-name OR --package-source.");
-            return 1;
-        }
-
-        if (hasSolutionSelector && (!string.IsNullOrWhiteSpace(PackageSource) || !string.IsNullOrWhiteSpace(OutputDirectory) || !string.Equals(PackageVersion, "latest", StringComparison.OrdinalIgnoreCase)))
-        {
-            _logger.LogError("Package-only options (--package-source/--version/--output) cannot be used with --solution-name.");
+            _logger.LogError("'package' argument is required.");
             return 1;
         }
 
@@ -86,17 +75,11 @@ public class DeployUninstallCliCommand
             try
             {
                 var uninstaller = new SolutionUninstaller(client, _logger);
-                if (!string.IsNullOrWhiteSpace(SolutionName))
-                {
-                    var outcome = await uninstaller.UninstallByUniqueNameAsync(SolutionName).ConfigureAwait(false);
-                    return RenderSingle(outcome);
-                }
-
                 return await RunPackageUninstallAsync(client, uninstaller).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "deploy uninstall failed");
+                _logger.LogError(ex, "environment package uninstall failed");
                 return 1;
             }
         }
@@ -106,7 +89,7 @@ public class DeployUninstallCliCommand
     {
         var sourceReader = new PackageImportConfigReader(_logger);
         var importOrder = await sourceReader.ReadSolutionUniqueNamesInImportOrderAsync(
-                PackageSource!,
+                Package,
                 PackageVersion,
                 OutputDirectory)
             .ConfigureAwait(false);
@@ -114,17 +97,17 @@ public class DeployUninstallCliCommand
         var solutionNames = BuildReverseUninstallOrderFromImportConfig(importOrder);
         if (solutionNames.Count == 0)
         {
-            _logger.LogError("No uninstallable solutions were resolved from package source '{Source}'.", PackageSource);
+            _logger.LogError("No uninstallable solutions were resolved from package '{Source}'.", Package);
             return 1;
         }
 
-        var packageDisplayName = InferPackageDisplayNameFromSource(PackageSource!);
+        var packageDisplayName = InferPackageDisplayNameFromSource(Package);
         var outcomes = await ExecutePackageUninstallAsync(
                 client,
                 uninstaller,
                 solutionNames,
                 packageDisplayName,
-                packageRunLabel: PackageSource!)
+                packageRunLabel: Package)
             .ConfigureAwait(false);
 
         if (Json)
@@ -132,7 +115,7 @@ public class DeployUninstallCliCommand
             OutputWriter.WriteLine(JsonSerializer.Serialize(new
             {
                 mode = "package",
-                packageSource = PackageSource,
+                package = Package,
                 packageName = packageDisplayName,
                 solutionCount = solutionNames.Count,
                 uninstallOrder = solutionNames,
@@ -142,7 +125,7 @@ public class DeployUninstallCliCommand
         else
         {
             OutputWriter.WriteLine($"Package: {packageDisplayName}");
-            OutputWriter.WriteLine($"Package source: {PackageSource}");
+            OutputWriter.WriteLine($"Source: {Package}");
             OutputWriter.WriteLine($"Resolved solutions: {solutionNames.Count}");
             OutputWriter.WriteLine("Uninstall order (reverse ImportConfig):");
             foreach (var name in solutionNames)
@@ -221,30 +204,6 @@ public class DeployUninstallCliCommand
         }
 
         return outcomes;
-    }
-
-    private int RenderSingle(SolutionUninstallOutcome outcome)
-    {
-        if (Json)
-        {
-            OutputWriter.WriteLine(JsonSerializer.Serialize(new
-            {
-                mode = "solution",
-                outcome,
-            }, JsonOptions));
-        }
-        else
-        {
-            OutputWriter.WriteLine($"Solution: {outcome.SolutionName}");
-            OutputWriter.WriteLine($"  status: {outcome.Status}");
-            if (outcome.SolutionId is { } id)
-            {
-                OutputWriter.WriteLine($"  id: {id}");
-            }
-            OutputWriter.WriteLine($"  message: {outcome.Message}");
-        }
-
-        return outcome.Status == SolutionUninstallStatus.Success ? 0 : 1;
     }
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)

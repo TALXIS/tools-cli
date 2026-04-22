@@ -4,7 +4,7 @@ using Microsoft.PowerPlatform.Dataverse.Client;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Query;
 
-namespace TALXIS.CLI.Deploy;
+namespace TALXIS.CLI.Environment.Platforms.Dataverse;
 
 /// <summary>
 /// Structured view of a row in the <c>packagehistory</c> table.
@@ -33,7 +33,7 @@ public sealed record PackageHistoryRecord(
 /// </summary>
 public sealed class PackageHistoryReader
 {
-    private const string EntityName = DeploySchema.PackageHistory.EntityName;
+    private const string EntityName = DeploymentSchema.PackageHistory.EntityName;
     private static readonly ColumnSet Columns = new(
         "packagehistoryid",
         "uniquename",

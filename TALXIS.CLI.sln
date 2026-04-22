@@ -31,7 +31,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TALXIS.CLI.Tests", "tests\T
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TALXIS.CLI.Dataverse", "src\TALXIS.CLI.Dataverse\TALXIS.CLI.Dataverse.csproj", "{409EE26E-EF1C-4C20-883D-A3EA6A0FD709}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TALXIS.CLI.Deploy", "src\TALXIS.CLI.Deploy\TALXIS.CLI.Deploy.csproj", "{ED036063-8EE3-43BB-8380-3A114CE515FD}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TALXIS.CLI.Environment", "src\TALXIS.CLI.Environment\TALXIS.CLI.Environment.csproj", "{ED036063-8EE3-43BB-8380-3A114CE515FD}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

@@ -3,7 +3,7 @@ using TALXIS.CLI.Dataverse;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Query;
 
-namespace TALXIS.CLI.Deploy;
+namespace TALXIS.CLI.Environment.Platforms.Dataverse;
 
 /// <summary>
 /// Lightweight inventory row for an installed Dataverse solution.

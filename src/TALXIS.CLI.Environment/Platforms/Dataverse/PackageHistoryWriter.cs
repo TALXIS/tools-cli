@@ -6,7 +6,7 @@ using Microsoft.Xrm.Sdk.Messages;
 using Microsoft.Xrm.Sdk.Metadata;
 using Microsoft.Xrm.Sdk.Query;
 
-namespace TALXIS.CLI.Deploy;
+namespace TALXIS.CLI.Environment.Platforms.Dataverse;
 
 public sealed record PackageHistoryStatusCodes(
     int? InProcessStatus,
@@ -22,7 +22,7 @@ public sealed record PackageHistoryStatusCodes(
 /// </summary>
 public sealed class PackageHistoryWriter
 {
-    private const string EntityName = DeploySchema.PackageHistory.EntityName;
+    private const string EntityName = DeploymentSchema.PackageHistory.EntityName;
     private readonly IOrganizationServiceAsync2 _service;
     private readonly ILogger? _logger;
 

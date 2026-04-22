@@ -2,7 +2,7 @@ using System.IO.Compression;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 
-namespace TALXIS.CLI.Deploy;
+namespace TALXIS.CLI.Environment.Platforms.Dataverse;
 
 public sealed class NuGetPackageInstallerService
 {

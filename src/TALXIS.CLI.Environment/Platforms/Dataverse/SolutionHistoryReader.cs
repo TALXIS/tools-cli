@@ -4,7 +4,7 @@ using Microsoft.PowerPlatform.Dataverse.Client;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Query;
 
-namespace TALXIS.CLI.Deploy;
+namespace TALXIS.CLI.Environment.Platforms.Dataverse;
 
 /// <summary>
 /// Structured view of a row in <c>msdyn_solutionhistory</c>. Operation / suboperation codes
@@ -36,7 +36,7 @@ public sealed record SolutionHistoryRecord(
 /// </summary>
 public sealed class SolutionHistoryReader
 {
-    private const string EntityName = DeploySchema.SolutionHistory.EntityName;
+    private const string EntityName = DeploymentSchema.SolutionHistory.EntityName;
     private static readonly ColumnSet Columns = new(
         "msdyn_solutionhistoryid",
         "msdyn_name",

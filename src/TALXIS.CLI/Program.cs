@@ -1,5 +1,5 @@
 ﻿using DotMake.CommandLine;
-using TALXIS.CLI.Deploy;
+using TALXIS.CLI.Environment.Platforms.Dataverse;
 
 namespace TALXIS.CLI
 {
