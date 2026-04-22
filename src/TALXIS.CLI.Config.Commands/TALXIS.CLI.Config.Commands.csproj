@@ -7,6 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="TALXIS.CLI.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="DotMake.CommandLine" Version="2.6.7" />
   </ItemGroup>
 

@@ -7,6 +7,7 @@ using Xunit;
 
 namespace TALXIS.CLI.Tests.Config.Commands.Auth;
 
+[Collection("TxcServicesSerial")]
 public sealed class AuthCrudCommandsTests
 {
     private static async Task SeedAsync(ICredentialStore store, params Credential[] creds)

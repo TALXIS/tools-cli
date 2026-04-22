@@ -34,6 +34,7 @@ public static class DataverseProviderServiceCollectionExtensions
         });
 
         services.AddSingleton<IConnectionProvider, DataverseConnectionProvider>();
+        services.AddSingleton<IInteractiveLoginService, DataverseInteractiveLoginService>();
         return services;
     }
 }

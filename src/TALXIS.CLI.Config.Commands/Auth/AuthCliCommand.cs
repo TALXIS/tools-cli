@@ -14,6 +14,7 @@ namespace TALXIS.CLI.Config.Commands.Auth;
     Description = "Manage Entra / Dataverse credentials stored in the OS vault.",
     Children = new[]
     {
+        typeof(AuthLoginCliCommand),
         typeof(AuthListCliCommand),
         typeof(AuthShowCliCommand),
         typeof(AuthDeleteCliCommand),

@@ -76,6 +76,25 @@ public sealed class DataverseMsalClientFactory
     }
 
     /// <summary>
+    /// Builds a public-client application for <c>config auth login</c>, when
+    /// we don't yet have a <see cref="Connection"/>. <paramref name="tenantId"/>
+    /// of <c>null</c> resolves to <c>organizations</c> — MSAL then infers the
+    /// tenant from whatever account the user picks in the browser. We
+    /// deliberately avoid <c>/common</c> because personal MS accounts can
+    /// never hold a Dataverse license.
+    /// </summary>
+    public IPublicClientApplication BuildPublicClientForLogin(string? tenantId, CloudInstance cloud = CloudInstance.Public)
+    {
+        var authority = DataverseCloudMap.BuildAuthorityUri(cloud, tenantId);
+
+        return PublicClientApplicationBuilder
+            .Create(PublicClientId)
+            .WithRedirectUri(PublicRedirectUri)
+            .WithAuthority(authority.AbsoluteUri, validateAuthority: false)
+            .Build();
+    }
+
+    /// <summary>
     /// Builds a confidential-client application. One of
     /// <see cref="ConfidentialClientMaterial.ClientSecret"/>,
     /// <see cref="ConfidentialClientMaterial.Certificate"/>, or
