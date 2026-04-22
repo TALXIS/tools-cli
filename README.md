@@ -52,24 +52,29 @@ After installation, use the CLI via the `txc` command in any terminal.
 
 ## Example Usage
 
-`txc` focuses on deployment, data operations, and workspace scaffolding.
+> [!IMPORTANT]
+> `txc` runs both **Dataverse Package Deployer** and **Configuration Migration Tool (CMT)** on **modern .NET**, including **macOS** and **Linux**. The goal is a better developer experience: cross-platform automation, simpler happy-path commands, and better visibility into what happened during deploys.
 
-**Noteworthy capabilities**
-- Package and solution deployment (`txc deploy run`)
-- Deployment inspection and troubleshooting findings (`txc deploy list/show`)
-- Solution/package uninstall, including source-based package uninstall (`txc deploy uninstall`)
-- Dataverse data package import/convert (`txc data package import|convert`)
-- Dataverse model export/convert (`txc data model convert`)
-- Power Platform workspace scaffolding (`txc workspace component ...`)
-
-**Sample: deploy package from NuGet**
+**Deploy the latest package from NuGet:**
 ```sh
 txc deploy run --type package --source TALXIS.Controls.FileExplorer.Package \
-  --version 0.0.0.10 \
   --environment https://org.crm.dynamics.com
 ```
 
-**Sample: import solution and track async operation**
+**Inspect the latest package deployment with findings:**
+```sh
+txc deploy show --package-name TALXIS.Controls.FileExplorer.Package \
+  --environment https://org.crm.dynamics.com
+```
+
+**Uninstall the latest deployed package by package name:**
+```sh
+txc deploy uninstall --package-name TALXIS.Controls.FileExplorer.Package \
+  --force \
+  --environment https://org.crm.dynamics.com
+```
+
+**Import a solution and follow the async operation when needed:**
 ```sh
 txc deploy run --type solution --source ./Solutions/MySolution_managed.zip \
   --environment https://org.crm.dynamics.com
@@ -77,20 +82,18 @@ txc deploy run --type solution --source ./Solutions/MySolution_managed.zip \
 txc deploy show --id <asyncOperationId> --environment https://org.crm.dynamics.com
 ```
 
-**Sample: uninstall package in reverse import order from source**
+**Import a CMT data folder into Dataverse:**
 ```sh
-txc deploy uninstall --package-source TALXIS.Controls.FileExplorer.Package \
-  --version 0.0.0.10 \
-  --force \
+txc data package import ./data-package \
   --environment https://org.crm.dynamics.com
 ```
 
-**Sample: import CMT data package**
+**Convert Excel to CMT XML:**
 ```sh
-txc data package import ./data-package --environment https://org.crm.dynamics.com
+txc data package convert --input export.xlsx --output data.xml
 ```
 
-**Sample: list available workspace components**
+**List available workspace components:**
 ```sh
 txc workspace component type list
 ```
@@ -98,7 +101,17 @@ txc workspace component type list
 > [!IMPORTANT]
 > Component scaffolding in this CLI relies on the [TALXIS/tools-devkit-templates](https://github.com/TALXIS/tools-devkit-templates) repository, where all component types, metadata, and definitions are maintained.
 
-**Sample: scaffold a Dataverse entity component**
+**Show details about a component:**
+```sh
+txc workspace component explain pp-entity
+```
+
+**List parameters required for a specific component template:**
+```sh
+txc workspace component parameter list pp-entity
+```
+
+**Scaffold a Dataverse entity component:**
 ```sh
 txc workspace component create pp-entity \
   --output "/Users/tomasprokop/Desktop/mcp-test/test" \
@@ -111,8 +124,15 @@ txc workspace component create pp-entity \
   --param SolutionRootPath=Declarations
 ```
 
+**Advanced: uninstall using package source order from ImportConfig:**
+```sh
+txc deploy uninstall --package-source TALXIS.Controls.FileExplorer.Package \
+  --force \
+  --environment https://org.crm.dynamics.com
+```
+
 > [!NOTE]
-> Run `txc --help` or `txc <command> --help` for full command reference.
+> Run `txc --help` or `txc <command> --help` for the full command reference.
 
 ---
 
