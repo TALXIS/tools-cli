@@ -15,7 +15,7 @@ public record CliResult(int ExitCode, string Output, string Error);
 /// </summary>
 public static class CliRunner
 {
-    private static readonly string CliProject = GetCliProjectPath();
+    private static readonly string CliProject = TestExecutionContext.GetProjectPath("src", "TALXIS.CLI", "TALXIS.CLI.csproj");
 
     /// <summary>
     /// Runs a CLI command, splitting the command string by spaces.
@@ -59,24 +59,7 @@ public static class CliRunner
     /// </summary>
     public static async Task<CliResult> RunRawAsync(string[] args, string? workingDirectory = null)
     {
-        var psi = new ProcessStartInfo("dotnet")
-        {
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            WorkingDirectory = workingDirectory ?? Directory.GetCurrentDirectory()
-        };
-
-        psi.ArgumentList.Add("run");
-        psi.ArgumentList.Add("--project");
-        psi.ArgumentList.Add(CliProject);
-        psi.ArgumentList.Add("--no-build");
-        psi.ArgumentList.Add("--");
-
-        foreach (var arg in args)
-            psi.ArgumentList.Add(arg);
-
+        var psi = CreateProcessStartInfo(args, workingDirectory);
         using var process = Process.Start(psi)!;
 
         // Read stdout and stderr concurrently to avoid deadlocks when
@@ -92,17 +75,28 @@ public static class CliRunner
         return new CliResult(process.ExitCode, output, error);
     }
 
-    private static string GetCliProjectPath()
+    internal static ProcessStartInfo CreateProcessStartInfo(string[] args, string? workingDirectory = null)
     {
-        var baseDir = AppContext.BaseDirectory;
-        var dir = new DirectoryInfo(baseDir);
+        var psi = new ProcessStartInfo("dotnet")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            WorkingDirectory = workingDirectory ?? Directory.GetCurrentDirectory()
+        };
 
-        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "TALXIS.CLI.sln")))
-            dir = dir.Parent;
+        psi.ArgumentList.Add("run");
+        psi.ArgumentList.Add("--project");
+        psi.ArgumentList.Add(CliProject);
+        psi.ArgumentList.Add("--configuration");
+        psi.ArgumentList.Add(TestExecutionContext.BuildConfiguration);
+        psi.ArgumentList.Add("--no-build");
+        psi.ArgumentList.Add("--");
 
-        if (dir == null)
-            throw new InvalidOperationException("Could not find repository root");
+        foreach (var arg in args)
+            psi.ArgumentList.Add(arg);
 
-        return Path.Combine(dir.FullName, "src", "TALXIS.CLI", "TALXIS.CLI.csproj");
+        return psi;
     }
 }
