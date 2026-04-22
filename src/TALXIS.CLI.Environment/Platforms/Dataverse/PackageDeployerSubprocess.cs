@@ -4,7 +4,7 @@ using System.Reflection;
 using System.Text.Json;
 using TALXIS.CLI.XrmTools;
 
-namespace TALXIS.CLI.Environment;
+namespace TALXIS.CLI.Environment.Platforms.Dataverse;
 
 public static class PackageDeployerSubprocess
 {

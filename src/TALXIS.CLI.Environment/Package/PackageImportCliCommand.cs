@@ -1,72 +1,72 @@
 using System.ComponentModel;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
+using TALXIS.CLI.Dataverse;
+using TALXIS.CLI.Environment.Platforms.Dataverse;
 using TALXIS.CLI.Logging;
 using TALXIS.CLI.XrmTools;
 
-namespace TALXIS.CLI.Environment;
+namespace TALXIS.CLI.Environment.Package;
 
 [CliCommand(
-    Name = "deploy",
-    Description = "Deploys a Dataverse package using Package Deployer. Accepts a NuGet package name, a local .pdpkg.zip file, or a package DLL."
+    Name = "import",
+    Description = "Import a deployable package into the target environment."
 )]
-public class EnvironmentDeployCliCommand
+public class PackageImportCliCommand
 {
     private readonly NuGetPackageInstallerService _packageInstaller = new();
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EnvironmentDeployCliCommand));
+    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(PackageImportCliCommand));
 
-    [CliArgument(Description = "NuGet package name, or path to a local .pdpkg.zip / package DLL")]
+    [CliArgument(Name = "package", Description = "NuGet package name, local .pdpkg.zip/.pdpkg/.zip archive path, or extracted package folder path.", Required = true)]
     public required string Package { get; set; }
 
-    [CliOption(Name = "--version", Description = "NuGet package version to install. Defaults to 'latest'. Only used with NuGet packages.", Required = false)]
+    [CliOption(Name = "--version", Description = "NuGet package version (only when 'package' is a NuGet name).", Required = false)]
     [DefaultValue("latest")]
     public string PackageVersion { get; set; } = "latest";
 
-    [CliOption(Name = "--deployable-package", Description = "Deployable package file name inside the NuGet package. Use when the package contains multiple .pdpkg files.", Required = false)]
-    public string? DeployablePackageName { get; set; }
-
-    [CliOption(Name = "--output", Aliases = ["-o"], Description = "Directory where the downloaded and extracted files should be written. Defaults to a temporary directory.", Required = false)]
+    [CliOption(Name = "--output", Aliases = ["-o"], Description = "Download/extract output directory.", Required = false)]
     public string? OutputDirectory { get; set; }
 
-    [CliOption(Name = "--download-only", Description = "Download and extract the deployable package without invoking Package Deployer. Only used with NuGet packages.", Required = false)]
+    [CliOption(Name = "--download-only", Description = "Download/extract without running Package Deployer.", Required = false)]
     public bool DownloadOnly { get; set; }
 
-    [CliOption(Name = "--connection-string", Description = "Dataverse connection string used by the managed Package Deployer host. If omitted, txc checks DATAVERSE_CONNECTION_STRING and TXC_DATAVERSE_CONNECTION_STRING.", Required = false)]
-    public string? ConnectionString { get; set; }
-
-    [CliOption(Name = "--environment", Description = "Dataverse environment URL used for PAC-style interactive sign-in when no connection string is provided.", Required = false)]
-    public string? EnvironmentUrl { get; set; }
-
-    [CliOption(Name = "--device-code", Description = "Use Microsoft Entra device code flow instead of opening a browser for interactive sign-in.", Required = false)]
-    public bool DeviceCode { get; set; }
-
-    [CliOption(Name = "--settings", Description = "Runtime settings string passed to Package Deployer.", Required = false)]
+    [CliOption(Name = "--settings", Description = "Runtime settings string for Package Deployer.", Required = false)]
     public string? Settings { get; set; }
 
-    [CliOption(Name = "--log-file", Description = "Optional Package Deployer log file path.", Required = false)]
+    [CliOption(Name = "--log-file", Description = "Path to Package Deployer log file.", Required = false)]
     public string? LogFile { get; set; }
 
     [CliOption(Name = "--log-console", Description = "Enable Package Deployer console logging.", Required = false)]
     public bool LogConsole { get; set; }
 
-    [CliOption(Name = "--verbose", Description = "Enable verbose Package Deployer logging.", Required = false)]
+    [CliOption(Name = "--connection-string", Description = "Dataverse connection string.", Required = false)]
+    public string? ConnectionString { get; set; }
+
+    [CliOption(Name = "--environment", Description = "Dataverse environment URL for interactive sign-in.", Required = false)]
+    public string? EnvironmentUrl { get; set; }
+
+    [CliOption(Name = "--device-code", Description = "Use device-code flow instead of browser interactive sign-in.", Required = false)]
+    public bool DeviceCode { get; set; }
+
+    [CliOption(Name = "--verbose", Description = "Enable verbose logging.", Required = false)]
     public bool Verbose { get; set; }
 
     public async Task<int> RunAsync()
     {
         if (string.IsNullOrWhiteSpace(Package))
         {
-            _logger.LogError("A NuGet package name or local package path must be provided.");
+            _logger.LogError("'package' argument is required.");
             return 1;
         }
 
-        // Determine whether the argument is a local file or a NuGet package name.
         bool isLocalFile = File.Exists(Package)
             || Package.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)
             || Package.EndsWith(".dll", StringComparison.OrdinalIgnoreCase);
 
         string packagePath;
         string? tempWorkingDirectory = null;
+        string? nugetPackageName = null;
+        string? nugetPackageVersion = null;
 
         if (isLocalFile)
         {
@@ -81,25 +81,18 @@ public class EnvironmentDeployCliCommand
         }
         else
         {
-            // NuGet download flow
-            EnvironmentInstallOptions options = new(
+            NuGetPackageInstallOptions options = new(
                 Package,
                 PackageVersion,
-                DeployablePackageName,
-                OutputDirectory,
-                DownloadOnly,
-                ResolveConnectionString(ConnectionString),
-                ResolveEnvironmentUrl(EnvironmentUrl),
-                DeviceCode,
-                Settings,
-                LogFile,
-                LogConsole,
-                Verbose);
+                OutputDirectory);
 
             NuGetPackageInstallResult installResult = await _packageInstaller.InstallAsync(options);
 
             _logger.LogInformation("Resolved {PackageName} version {Version}", installResult.PackageName, installResult.ResolvedVersion);
             _logger.LogInformation("Deployable package extracted to {Path}", installResult.DeployablePackagePath);
+
+            nugetPackageName = installResult.PackageName;
+            nugetPackageVersion = installResult.ResolvedVersion;
 
             if (DownloadOnly)
             {
@@ -114,8 +107,8 @@ public class EnvironmentDeployCliCommand
             }
         }
 
-        string? resolvedConnectionString = ResolveConnectionString(ConnectionString);
-        string? resolvedEnvironmentUrl = ResolveEnvironmentUrl(EnvironmentUrl);
+        string? resolvedConnectionString = ServiceClientFactory.ResolveConnectionString(ConnectionString);
+        string? resolvedEnvironmentUrl = ServiceClientFactory.ResolveEnvironmentUrl(EnvironmentUrl);
         PackageDeployerResult? deployResult = null;
         string packageDeployerArtifactsDirectory = Path.Combine(
             Path.GetTempPath(),
@@ -142,7 +135,9 @@ public class EnvironmentDeployCliCommand
                 LogConsole,
                 Verbose,
                 packageDeployerArtifactsDirectory,
-                System.Environment.ProcessId));
+                System.Environment.ProcessId,
+                NuGetPackageName: nugetPackageName,
+                NuGetPackageVersion: nugetPackageVersion));
 
             if (!deployResult.Succeeded)
             {
@@ -166,11 +161,11 @@ public class EnvironmentDeployCliCommand
                     _logger.LogWarning("Detailed temporary logs were cleaned up. Pass --log-file to preserve them.");
                 }
 
-                _logger.LogError("Package deploy failed. Package located at {PackagePath}", packagePath);
+                _logger.LogError("Package import failed. Package located at {PackagePath}", packagePath);
                 return 1;
             }
 
-            _logger.LogInformation("Package deploy completed successfully.");
+            _logger.LogInformation("Package import completed successfully.");
 
             if (!string.IsNullOrWhiteSpace(LogFile))
             {
@@ -181,7 +176,7 @@ public class EnvironmentDeployCliCommand
         }
         catch (InvalidOperationException ex)
         {
-            _logger.LogError(ex, "Package deploy failed");
+            _logger.LogError(ex, "Package import failed");
             _logger.LogError("Package located at {PackagePath}", packagePath);
             return 1;
         }
@@ -194,27 +189,5 @@ public class EnvironmentDeployCliCommand
                 PackageDeployerSubprocess.TryDeleteDirectory(tempWorkingDirectory);
             }
         }
-    }
-
-    private static string? ResolveConnectionString(string? optionValue)
-    {
-        if (!string.IsNullOrWhiteSpace(optionValue))
-        {
-            return optionValue;
-        }
-
-        return System.Environment.GetEnvironmentVariable("DATAVERSE_CONNECTION_STRING")
-            ?? System.Environment.GetEnvironmentVariable("TXC_DATAVERSE_CONNECTION_STRING");
-    }
-
-    private static string? ResolveEnvironmentUrl(string? optionValue)
-    {
-        if (!string.IsNullOrWhiteSpace(optionValue))
-        {
-            return optionValue;
-        }
-
-        return System.Environment.GetEnvironmentVariable("DATAVERSE_ENVIRONMENT_URL")
-            ?? System.Environment.GetEnvironmentVariable("TXC_DATAVERSE_ENVIRONMENT_URL");
     }
 }

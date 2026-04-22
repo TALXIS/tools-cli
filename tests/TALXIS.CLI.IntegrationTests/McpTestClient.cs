@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 using ModelContextProtocol.Client;
@@ -25,19 +24,18 @@ public sealed class McpTestClient : IAsyncDisposable
 
     private static async Task<McpTestClient> CreateInstanceAsync()
     {
+        using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+
         var mcpProjectPath = GetMcpProjectPath();
-        
-        // Build the MCP project first to ensure it's available
-        await BuildMcpProjectAsync(mcpProjectPath);
-        
+
         var transport = new StdioClientTransport(new StdioClientTransportOptions
         {
             Name = "TALXIS CLI MCP Test Client",
             Command = "dotnet",
-            Arguments = ["run", "--project", mcpProjectPath]
+            Arguments = ["run", "--project", mcpProjectPath, "--no-build"]
         });
 
-        var client = await McpClient.CreateAsync(transport);
+        var client = await McpClient.CreateAsync(transport, cancellationToken: cts.Token);
         return new McpTestClient(client);
     }
 
@@ -69,35 +67,5 @@ public sealed class McpTestClient : IAsyncDisposable
             throw new InvalidOperationException("Could not find repository root");
 
         return Path.Combine(dir.FullName, "src", "TALXIS.CLI.MCP", "TALXIS.CLI.MCP.csproj");
-    }
-
-    /// <summary>
-    /// Builds the MCP project to ensure it's available for testing.
-    /// This is especially important in CI environments where --no-build might not work reliably.
-    /// </summary>
-    private static async Task BuildMcpProjectAsync(string projectPath)
-    {
-        var processInfo = new ProcessStartInfo
-        {
-            FileName = "dotnet",
-            Arguments = $"build \"{projectPath}\" --configuration Release",
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true
-        };
-
-        using var process = Process.Start(processInfo);
-        if (process == null)
-            throw new InvalidOperationException("Failed to start dotnet build process");
-
-        await process.WaitForExitAsync();
-        
-        if (process.ExitCode != 0)
-        {
-            var stdout = await process.StandardOutput.ReadToEndAsync();
-            var stderr = await process.StandardError.ReadToEndAsync();
-            throw new InvalidOperationException($"Failed to build MCP project. Exit code: {process.ExitCode}. Output: {stdout}. Error: {stderr}");
-        }
     }
 }
