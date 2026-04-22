@@ -18,6 +18,7 @@ namespace TALXIS.CLI.Config.Commands;
         typeof(Auth.AuthCliCommand),
         typeof(Connection.ConnectionCliCommand),
         typeof(Profile.ProfileCliCommand),
+        typeof(Setting.SettingCliCommand),
     }
 )]
 public class ConfigCliCommand
