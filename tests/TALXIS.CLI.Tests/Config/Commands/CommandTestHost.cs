@@ -24,7 +24,8 @@ internal sealed class CommandTestHost : IDisposable
 
     public CommandTestHost(
         bool headless = false,
-        InteractiveLoginResult? loginResult = null)
+        InteractiveLoginResult? loginResult = null,
+        string? currentDirectory = null)
     {
         Temp = new TempConfigDir();
         Vault = new FakeVault();
@@ -35,7 +36,10 @@ internal sealed class CommandTestHost : IDisposable
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Temp.Paths);
-        services.AddSingleton<IEnvironmentReader>(ProcessEnvironmentReader.Instance);
+        services.AddSingleton<IEnvironmentReader>(
+            currentDirectory is null
+                ? ProcessEnvironmentReader.Instance
+                : new FakeEnvironmentReader(currentDirectory));
         services.AddSingleton<IProfileStore, ProfileStore>();
         services.AddSingleton<IConnectionStore, ConnectionStore>();
         services.AddSingleton<ICredentialStore, CredentialStore>();
@@ -53,6 +57,14 @@ internal sealed class CommandTestHost : IDisposable
         TxcServices.Reset();
         Provider.Dispose();
         Temp.Dispose();
+    }
+
+    internal sealed class FakeEnvironmentReader : IEnvironmentReader
+    {
+        private readonly string _cwd;
+        public FakeEnvironmentReader(string cwd) { _cwd = cwd; }
+        public string? Get(string name) => System.Environment.GetEnvironmentVariable(name);
+        public string GetCurrentDirectory() => _cwd;
     }
 
     internal sealed class FakeVault : ICredentialVault
