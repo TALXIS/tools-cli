@@ -4,7 +4,7 @@ using TALXIS.CLI.Environment;
 using TALXIS.CLI.Environment.Platforms.Dataverse;
 using Xunit;
 
-namespace TALXIS.CLI.Tests.Deploy.Services;
+namespace TALXIS.CLI.Tests.Environment.Platforms.Dataverse;
 
 public class SolutionImporterPathSelectionTests
 {

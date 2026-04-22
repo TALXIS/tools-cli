@@ -3,7 +3,7 @@ using System.Globalization;
 namespace TALXIS.CLI.Environment.Platforms.Dataverse;
 
 /// <summary>
-/// Parses compact relative-time tokens used by <c>txc deploy list --since</c>.
+/// Parses compact relative-time tokens used by <c>txc environment deployment list --since</c>.
 /// Accepted suffixes: <c>m</c> (minutes), <c>h</c> (hours), <c>d</c> (days), <c>w</c> (weeks).
 /// The numeric portion must be a positive integer.
 /// </summary>

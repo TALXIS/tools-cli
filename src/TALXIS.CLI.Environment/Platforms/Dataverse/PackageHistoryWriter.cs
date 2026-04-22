@@ -18,7 +18,7 @@ public sealed record PackageHistoryStatusCodes(
 
 /// <summary>
 /// Writes packagehistory rows for txc-managed package uninstall runs so they are
-/// visible in deploy list/show alongside install runs.
+/// visible in environment deployment list/show alongside install runs.
 /// </summary>
 public sealed class PackageHistoryWriter
 {

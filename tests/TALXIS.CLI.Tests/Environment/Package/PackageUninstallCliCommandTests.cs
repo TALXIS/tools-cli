@@ -1,17 +1,18 @@
 using TALXIS.CLI.Environment;
+using TALXIS.CLI.Environment.Package;
 using TALXIS.CLI.Environment.Platforms.Dataverse;
 using Xunit;
 
-namespace TALXIS.CLI.Tests.Deploy;
+namespace TALXIS.CLI.Tests.Environment.Package;
 
-public class DeployUninstallCliCommandTests
+public class PackageUninstallCliCommandTests
 {
     [Fact]
     public void BuildReverseUninstallOrderFromImportConfig_ReversesGivenImportOrder()
     {
         var importOrder = new[] { "base", "mid", "top" };
 
-        var order = DeployUninstallCliCommand.BuildReverseUninstallOrderFromImportConfig(importOrder);
+        var order = PackageUninstallCliCommand.BuildReverseUninstallOrderFromImportConfig(importOrder);
 
         Assert.Equal(new[] { "top", "mid", "base" }, order);
     }
@@ -21,7 +22,7 @@ public class DeployUninstallCliCommandTests
     {
         var importOrder = new[] { "Base", "Top", "base" };
 
-        var order = DeployUninstallCliCommand.BuildReverseUninstallOrderFromImportConfig(importOrder);
+        var order = PackageUninstallCliCommand.BuildReverseUninstallOrderFromImportConfig(importOrder);
 
         Assert.Equal(new[] { "Top", "Base" }, order);
     }

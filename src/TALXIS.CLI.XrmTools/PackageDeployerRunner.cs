@@ -793,7 +793,7 @@ public sealed class PackageDeployerRunner
         /// <summary>
         /// Builds a <see cref="PackageInfo"/> from the NuGet metadata on the request so that
         /// Package Deployer writes the NuGet package name into <c>packagehistory.uniquename</c>,
-        /// enabling reliable lookup via <c>txc deploy show --package-name</c>.
+        /// enabling reliable lookup via <c>txc environment deployment show --package-name</c>.
         /// Returns <see langword="null"/> when the request has no NuGet identity (local-file deploys).
         /// </summary>
         private static PackageInfo? BuildPackageInfo(PackageDeployerRequest request)

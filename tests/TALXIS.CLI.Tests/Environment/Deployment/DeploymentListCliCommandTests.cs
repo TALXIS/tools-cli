@@ -1,11 +1,12 @@
 using TALXIS.CLI.Dataverse;
 using TALXIS.CLI.Environment;
+using TALXIS.CLI.Environment.Deployment;
 using TALXIS.CLI.Environment.Platforms.Dataverse;
 using Xunit;
 
-namespace TALXIS.CLI.Tests.Deploy;
+namespace TALXIS.CLI.Tests.Environment.Deployment;
 
-public class DeployListCliCommandTests
+public class DeploymentListCliCommandTests
 {
     [Fact]
     public void BuildRows_InterleavesBothStreamsByStartTimeDesc()
@@ -22,7 +23,7 @@ public class DeployListCliCommandTests
             new SolutionHistoryRecord(Guid.NewGuid(), "sol-newer", "1.0.0.0", null, 1, "Import", 1, "Install", null, newer, newer.AddMinutes(3), "Completed"),
         };
 
-        var rows = DeployListCliCommand.BuildRows(packages, solutions);
+        var rows = DeploymentListCliCommand.BuildRows(packages, solutions);
 
         Assert.Equal(2, rows.Count);
         Assert.Equal("sol", rows[0].Kind);
@@ -43,7 +44,7 @@ public class DeployListCliCommandTests
         {
             new PackageHistoryRecord(Guid.NewGuid(), "p", raw, null, started, null, null, null),
         };
-        var rows = DeployListCliCommand.BuildRows(packages, Array.Empty<SolutionHistoryRecord>());
+        var rows = DeploymentListCliCommand.BuildRows(packages, Array.Empty<SolutionHistoryRecord>());
         Assert.Equal(expected, rows[0].Status);
     }
 }

@@ -57,29 +57,30 @@ After installation, use the CLI via the `txc` command in any terminal.
 
 **Deploy the latest package from NuGet:**
 ```sh
-txc deploy run --type package --source TALXIS.Controls.FileExplorer.Package \
+txc environment package import TALXIS.Controls.FileExplorer.Package \
   --environment https://org.crm.dynamics.com
 ```
 
 **Inspect the latest package deployment with findings:**
 ```sh
-txc deploy show --package-name TALXIS.Controls.FileExplorer.Package \
+txc environment deployment show --package-name TALXIS.Controls.FileExplorer.Package \
   --environment https://org.crm.dynamics.com
 ```
 
 **Uninstall a package from its source artifact:**
 ```sh
-txc deploy uninstall --package-source TALXIS.Controls.FileExplorer.Package \
-  --force \
+txc environment package uninstall TALXIS.Controls.FileExplorer.Package \
+  --yes \
   --environment https://org.crm.dynamics.com
 ```
 
 **Import a solution and follow the async operation when needed:**
 ```sh
-txc deploy run --type solution --source ./Solutions/MySolution_managed.zip \
+txc environment solution import ./Solutions/MySolution_managed.zip \
   --environment https://org.crm.dynamics.com
 
-txc deploy show --id <asyncOperationId> --environment https://org.crm.dynamics.com
+txc environment deployment show --async-operation-id <asyncOperationId> \
+  --environment https://org.crm.dynamics.com
 ```
 
 **Import a CMT data folder into Dataverse:**

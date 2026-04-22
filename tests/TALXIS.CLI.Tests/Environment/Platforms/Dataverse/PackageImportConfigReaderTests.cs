@@ -4,7 +4,7 @@ using TALXIS.CLI.Environment;
 using TALXIS.CLI.Environment.Platforms.Dataverse;
 using Xunit;
 
-namespace TALXIS.CLI.Tests.Deploy;
+namespace TALXIS.CLI.Tests.Environment.Platforms.Dataverse;
 
 public class PackageImportConfigReaderTests
 {
@@ -104,7 +104,7 @@ public class PackageImportConfigReaderTests
          <?xml version="1.0" encoding="utf-8"?>
          <configdatastorage installsampledata="false" waitforsampledatatoinstall="true" crmmigdataimportfile="">
            <solutions>
-             {string.Join(Environment.NewLine, solutionZipFileNames.Select(n => $"<configsolutionfile solutionpackagefilename=\"{n}\" holdingsolution=\"false\" requiredimportmode=\"async\" publishworkflowsandactivateplugins=\"true\" />"))}
+             {string.Join(global::System.Environment.NewLine, solutionZipFileNames.Select(n => $"<configsolutionfile solutionpackagefilename=\"{n}\" holdingsolution=\"false\" requiredimportmode=\"async\" publishworkflowsandactivateplugins=\"true\" />"))}
            </solutions>
          </configdatastorage>
          """;

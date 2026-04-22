@@ -15,16 +15,6 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
   </ItemGroup>
 
-  <!--
-    Deploy/ tests reference classes removed in the environment command-surface split.
-    They are excluded from compilation pending rewrite as Environment/ typed-selector tests
-    (see plan.md + CONTRIBUTING.md). Do not re-enable until they are rewritten.
-  -->
-  <ItemGroup>
-    <Compile Remove="Deploy/**/*.cs" />
-    <None Include="Deploy/**/*.cs" />
-  </ItemGroup>
-
   <ItemGroup>
     <ProjectReference Include="../../src/TALXIS.CLI.Shared/TALXIS.CLI.Shared.csproj" />
     <ProjectReference Include="../../src/TALXIS.CLI.Logging/TALXIS.CLI.Logging.csproj" />
