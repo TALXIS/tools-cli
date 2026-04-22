@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.PowerPlatform.Dataverse.Client;
 using TALXIS.CLI.Dataverse;
 using TALXIS.CLI.Logging;
+using TALXIS.CLI.Shared;
 
 namespace TALXIS.CLI.Deploy;
 
@@ -111,7 +112,7 @@ public class DeployListCliCommand
 
                 if (Json)
                 {
-                    Console.WriteLine(JsonSerializer.Serialize(trimmed, JsonOptions));
+                    OutputWriter.WriteLine(JsonSerializer.Serialize(trimmed, JsonOptions));
                     return 0;
                 }
 
@@ -165,7 +166,7 @@ public class DeployListCliCommand
 
                 if (Json)
                 {
-                    Console.WriteLine(JsonSerializer.Serialize(rows, JsonOptions));
+                    OutputWriter.WriteLine(JsonSerializer.Serialize(rows, JsonOptions));
                     return 0;
                 }
 
@@ -246,7 +247,7 @@ public class DeployListCliCommand
     {
         if (rows.Count == 0)
         {
-            Console.WriteLine("No deployment runs found.");
+            OutputWriter.WriteLine("No deployment runs found.");
             return;
         }
 
@@ -254,15 +255,15 @@ public class DeployListCliCommand
         int statusWidth = Math.Max(8, rows.Max(r => r.Status.Length));
 
         string header = $"Kind | {"Name".PadRight(nameWidth)} | {"Status".PadRight(statusWidth)} | {"Started (UTC)",-19} | Duration";
-        Console.WriteLine(header);
-        Console.WriteLine(new string('-', header.Length));
+        OutputWriter.WriteLine(header);
+        OutputWriter.WriteLine(new string('-', header.Length));
         foreach (var r in rows)
         {
             string name = (r.Name ?? "(unknown)");
             if (name.Length > nameWidth) name = name[..(nameWidth - 1)] + ".";
             string started = r.StartedAtUtc?.ToString("yyyy-MM-dd HH:mm:ss") ?? "(unknown)";
             string duration = FormatDuration(r.StartedAtUtc, r.CompletedAtUtc);
-            Console.WriteLine($"{r.Kind,-4} | {name.PadRight(nameWidth)} | {r.Status.PadRight(statusWidth)} | {started,-19} | {duration}");
+            OutputWriter.WriteLine($"{r.Kind,-4} | {name.PadRight(nameWidth)} | {r.Status.PadRight(statusWidth)} | {started,-19} | {duration}");
         }
     }
 
@@ -270,7 +271,7 @@ public class DeployListCliCommand
     {
         if (rows.Count == 0)
         {
-            Console.WriteLine("No installed solutions found.");
+            OutputWriter.WriteLine("No installed solutions found.");
             return;
         }
 
@@ -279,8 +280,8 @@ public class DeployListCliCommand
         int managedWidth = 7;
 
         string header = $"{"Unique Name".PadRight(nameWidth)} | {"Version".PadRight(versionWidth)} | {"Managed".PadRight(managedWidth)} | Friendly Name";
-        Console.WriteLine(header);
-        Console.WriteLine(new string('-', header.Length));
+        OutputWriter.WriteLine(header);
+        OutputWriter.WriteLine(new string('-', header.Length));
         foreach (var r in rows)
         {
             string uniqueName = r.UniqueName.Length > nameWidth
@@ -288,7 +289,7 @@ public class DeployListCliCommand
                 : r.UniqueName;
             string version = string.IsNullOrWhiteSpace(r.Version) ? "(unknown)" : r.Version;
             string friendly = string.IsNullOrWhiteSpace(r.FriendlyName) ? "(none)" : r.FriendlyName;
-            Console.WriteLine($"{uniqueName.PadRight(nameWidth)} | {version.PadRight(versionWidth)} | {(r.Managed ? "true" : "false").PadRight(managedWidth)} | {friendly}");
+            OutputWriter.WriteLine($"{uniqueName.PadRight(nameWidth)} | {version.PadRight(versionWidth)} | {(r.Managed ? "true" : "false").PadRight(managedWidth)} | {friendly}");
         }
     }
 

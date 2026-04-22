@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.PowerPlatform.Dataverse.Client;
 using TALXIS.CLI.Dataverse;
 using TALXIS.CLI.Logging;
+using TALXIS.CLI.Shared;
 
 namespace TALXIS.CLI.Deploy;
 
@@ -27,9 +28,6 @@ public class DeployUninstallCliCommand
 
     [CliOption(Name = "--package-run-id", Description = "Specific packagehistory id to use for package uninstall mode.", Required = false)]
     public string? PackageRunId { get; set; }
-
-    [CliOption(Name = "--latest", Description = "Use the latest run for --package-name. Ignored when --package-run-id is provided.", Required = false)]
-    public bool Latest { get; set; }
 
     [CliOption(Name = "--version", Description = "NuGet package version for --package-source when source is a NuGet package name. Defaults to 'latest'.", Required = false)]
     public string PackageVersion { get; set; } = "latest";
@@ -72,9 +70,9 @@ public class DeployUninstallCliCommand
             return 1;
         }
 
-        if (hasSolutionSelector && (!string.IsNullOrWhiteSpace(PackageRunId) || Latest || !string.IsNullOrWhiteSpace(PackageSource) || !string.IsNullOrWhiteSpace(OutputDirectory) || !string.Equals(PackageVersion, "latest", StringComparison.OrdinalIgnoreCase)))
+        if (hasSolutionSelector && (!string.IsNullOrWhiteSpace(PackageRunId) || !string.IsNullOrWhiteSpace(PackageSource) || !string.IsNullOrWhiteSpace(OutputDirectory) || !string.Equals(PackageVersion, "latest", StringComparison.OrdinalIgnoreCase)))
         {
-            _logger.LogError("Package-only options (--package-name/--package-source/--package-run-id/--latest/--version/--output) cannot be used with --solution-name.");
+            _logger.LogError("Package-only options (--package-name/--package-source/--package-run-id/--version/--output) cannot be used with --solution-name.");
             return 1;
         }
 
@@ -90,9 +88,9 @@ public class DeployUninstallCliCommand
             return 1;
         }
 
-        if (!string.IsNullOrWhiteSpace(PackageSource) && (!string.IsNullOrWhiteSpace(PackageRunId) || Latest))
+        if (!string.IsNullOrWhiteSpace(PackageSource) && !string.IsNullOrWhiteSpace(PackageRunId))
         {
-            _logger.LogError("--package-run-id and --latest are not valid with --package-source. Source mode derives uninstall order from ImportConfig.");
+            _logger.LogError("--package-run-id is not valid with --package-source. Source mode derives uninstall order from ImportConfig.");
             return 1;
         }
 
@@ -200,7 +198,7 @@ public class DeployUninstallCliCommand
 
         if (Json)
         {
-            Console.WriteLine(JsonSerializer.Serialize(new
+            OutputWriter.WriteLine(JsonSerializer.Serialize(new
             {
                 mode = "package",
                 packageRunId = packageRun.Id,
@@ -212,17 +210,17 @@ public class DeployUninstallCliCommand
         }
         else
         {
-            Console.WriteLine($"Package run: {packageRun.Name ?? "(unknown)"}");
-            Console.WriteLine($"  id: {packageRun.Id}");
-            Console.WriteLine($"Correlated solutions: {solutionNames.Count}");
-            Console.WriteLine("Uninstall order (reverse import):");
+            OutputWriter.WriteLine($"Package run: {packageRun.Name ?? "(unknown)"}");
+            OutputWriter.WriteLine($"  id: {packageRun.Id}");
+            OutputWriter.WriteLine($"Correlated solutions: {solutionNames.Count}");
+            OutputWriter.WriteLine("Uninstall order (reverse import):");
             foreach (var name in solutionNames)
             {
-                Console.WriteLine($"  - {name}");
+                OutputWriter.WriteLine($"  - {name}");
             }
             foreach (var outcome in outcomes)
             {
-                Console.WriteLine($"- {outcome.SolutionName}: {outcome.Status} ({outcome.Message})");
+                OutputWriter.WriteLine($"- {outcome.SolutionName}: {outcome.Status} ({outcome.Message})");
             }
         }
 
@@ -258,7 +256,7 @@ public class DeployUninstallCliCommand
 
         if (Json)
         {
-            Console.WriteLine(JsonSerializer.Serialize(new
+            OutputWriter.WriteLine(JsonSerializer.Serialize(new
             {
                 mode = "package-source",
                 packageSource = PackageSource,
@@ -270,20 +268,20 @@ public class DeployUninstallCliCommand
         }
         else
         {
-            Console.WriteLine($"Package source: {PackageSource}");
+            OutputWriter.WriteLine($"Package source: {PackageSource}");
             if (!string.IsNullOrWhiteSpace(PackageName))
             {
-                Console.WriteLine($"Package name: {PackageName}");
+                OutputWriter.WriteLine($"Package name: {PackageName}");
             }
-            Console.WriteLine($"Resolved solutions: {solutionNames.Count}");
-            Console.WriteLine("Uninstall order (reverse ImportConfig):");
+            OutputWriter.WriteLine($"Resolved solutions: {solutionNames.Count}");
+            OutputWriter.WriteLine("Uninstall order (reverse ImportConfig):");
             foreach (var name in solutionNames)
             {
-                Console.WriteLine($"  - {name}");
+                OutputWriter.WriteLine($"  - {name}");
             }
             foreach (var outcome in outcomes)
             {
-                Console.WriteLine($"- {outcome.SolutionName}: {outcome.Status} ({outcome.Message})");
+                OutputWriter.WriteLine($"- {outcome.SolutionName}: {outcome.Status} ({outcome.Message})");
             }
         }
 
@@ -359,7 +357,7 @@ public class DeployUninstallCliCommand
     {
         if (Json)
         {
-            Console.WriteLine(JsonSerializer.Serialize(new
+            OutputWriter.WriteLine(JsonSerializer.Serialize(new
             {
                 mode = "solution",
                 outcome,
@@ -367,13 +365,13 @@ public class DeployUninstallCliCommand
         }
         else
         {
-            Console.WriteLine($"Solution: {outcome.SolutionName}");
-            Console.WriteLine($"  status: {outcome.Status}");
+            OutputWriter.WriteLine($"Solution: {outcome.SolutionName}");
+            OutputWriter.WriteLine($"  status: {outcome.Status}");
             if (outcome.SolutionId is { } id)
             {
-                Console.WriteLine($"  id: {id}");
+                OutputWriter.WriteLine($"  id: {id}");
             }
-            Console.WriteLine($"  message: {outcome.Message}");
+            OutputWriter.WriteLine($"  message: {outcome.Message}");
         }
 
         return outcome.Status == SolutionUninstallStatus.Success ? 0 : 1;

@@ -108,18 +108,4 @@ public class DeployCommandValidationTests
         var exitCode = await cmd.RunAsync();
         Assert.Equal(1, exitCode);
     }
-
-    [Fact]
-    public async Task DeployUninstall_PackageSourceWithLatest_ReturnsError()
-    {
-        var cmd = new DeployUninstallCliCommand
-        {
-            PackageSource = "TALXIS.Controls.FileExplorer.Package",
-            Latest = true,
-            Yes = true,
-        };
-
-        var exitCode = await cmd.RunAsync();
-        Assert.Equal(1, exitCode);
-    }
 }

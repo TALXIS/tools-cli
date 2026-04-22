@@ -99,7 +99,9 @@ public static class DeployFindingsAnalyzer
         }
 
         // Only emit when the package actually completed — stale "In Process" already has its own finding.
-        if (input.PackageStatus is null || !input.PackageStatus.Contains("Completed", StringComparison.OrdinalIgnoreCase))
+        if (input.PackageStatus is null
+            || (!input.PackageStatus.Contains("Completed", StringComparison.OrdinalIgnoreCase)
+                && !input.PackageStatus.Contains("Success", StringComparison.OrdinalIgnoreCase)))
         {
             return;
         }

@@ -13,6 +13,7 @@
   <ItemGroup>
     <ProjectReference Include="..\TALXIS.CLI.Dataverse\TALXIS.CLI.Dataverse.csproj" />
     <ProjectReference Include="..\TALXIS.CLI.Logging\TALXIS.CLI.Logging.csproj" />
+    <ProjectReference Include="..\TALXIS.CLI.Shared\TALXIS.CLI.Shared.csproj" />
     <ProjectReference Include="..\TALXIS.CLI.XrmTools\TALXIS.CLI.XrmTools.csproj" />
   </ItemGroup>
 

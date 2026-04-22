@@ -5,6 +5,7 @@ using Microsoft.PowerPlatform.Dataverse.Client;
 using Microsoft.Xrm.Sdk;
 using TALXIS.CLI.Dataverse;
 using TALXIS.CLI.Logging;
+using TALXIS.CLI.Shared;
 
 namespace TALXIS.CLI.Deploy;
 
@@ -107,7 +108,7 @@ public class DeployShowCliCommand
                 _logger.LogError("--id must be a full GUID (e.g. the asyncOperationId returned by a queued import or a deployment record id).");
                 return 1;
             }
-            selector = new DeployIdSelector(DeployIdSelectorKind.Guid, guid, null);
+            selector = new DeployIdSelector(DeployIdSelectorKind.Guid, guid, Id.Trim());
         }
 
         DataverseConnection conn;
@@ -249,7 +250,7 @@ public class DeployShowCliCommand
 
         if (Json)
         {
-            Console.WriteLine(JsonSerializer.Serialize(new
+            OutputWriter.WriteLine(JsonSerializer.Serialize(new
             {
                 kind = "package",
                 id = record.Id,
@@ -307,6 +308,7 @@ public class DeployShowCliCommand
         }
 
         string? formattedLog = null;
+        ImportJobRecord? importJobMatch = null;
         if (Full)
         {
             try
@@ -317,12 +319,12 @@ public class DeployShowCliCommand
                     var windowStart = startedAt2;
                     var windowEnd = (record.CompletedAtUtc ?? startedAt2) + CorrelationTailBuffer;
                     var jobs = await importReader.GetInTimeWindowAsync(windowStart, windowEnd).ConfigureAwait(false);
-                    var match = jobs.FirstOrDefault(j =>
+                    importJobMatch = jobs.FirstOrDefault(j =>
                         record.SolutionName is not null
                         && string.Equals(j.SolutionName, record.SolutionName, StringComparison.OrdinalIgnoreCase));
-                    if (match is not null)
+                    if (importJobMatch is not null)
                     {
-                        formattedLog = await importReader.GetFormattedResultsAsync(match.Id).ConfigureAwait(false);
+                        formattedLog = await importReader.GetFormattedResultsAsync(importJobMatch.Id).ConfigureAwait(false);
                     }
                 }
             }
@@ -334,7 +336,7 @@ public class DeployShowCliCommand
 
         var findings = DeployFindingsAnalyzer.Analyze(new DeployFindingsInput
         {
-            ImportJobData = null,
+            ImportJobData = importJobMatch?.Data,
             Primary = record,
             Solutions = new[] { record },
             IsPackageMode = false,
@@ -343,7 +345,7 @@ public class DeployShowCliCommand
 
         if (Json)
         {
-            Console.WriteLine(JsonSerializer.Serialize(new
+            OutputWriter.WriteLine(JsonSerializer.Serialize(new
             {
                 kind = "solution",
                 id = record.Id,
@@ -373,9 +375,9 @@ public class DeployShowCliCommand
         PrintSolution(record, parentPackage);
         if (Full && formattedLog is not null)
         {
-            Console.WriteLine();
-            Console.WriteLine("-- formatted import log --");
-            Console.WriteLine(formattedLog);
+            OutputWriter.WriteLine();
+            OutputWriter.WriteLine("-- formatted import log --");
+            OutputWriter.WriteLine(formattedLog);
         }
         WriteFindings(Console.Out, findings);
         return 0;
@@ -424,7 +426,7 @@ public class DeployShowCliCommand
 
             if (Json)
             {
-                Console.WriteLine(JsonSerializer.Serialize(new
+                OutputWriter.WriteLine(JsonSerializer.Serialize(new
                 {
                     kind = "asyncoperation",
                     id = asyncOpId,
@@ -436,9 +438,9 @@ public class DeployShowCliCommand
             }
             else
             {
-                Console.WriteLine($"Import in progress: {stateLabel}");
-                Console.WriteLine($"  asyncOperationId: {asyncOpId}");
-                Console.WriteLine($"  Run again to refresh or use `txc deploy show {asyncOpId}` when done.");
+                OutputWriter.WriteLine($"Import in progress: {stateLabel}");
+                OutputWriter.WriteLine($"  asyncOperationId: {asyncOpId}");
+                OutputWriter.WriteLine($"  Run again to refresh or use `txc deploy show --id {asyncOpId}` when done.");
             }
             return 0;
         }
@@ -480,7 +482,7 @@ public class DeployShowCliCommand
 
         if (Json)
         {
-            Console.WriteLine(JsonSerializer.Serialize(new
+            OutputWriter.WriteLine(JsonSerializer.Serialize(new
             {
                 kind = "asyncoperation",
                 id = asyncOpId,
@@ -494,14 +496,14 @@ public class DeployShowCliCommand
         }
         else
         {
-            Console.WriteLine($"Async operation {asyncOpId}");
-            Console.WriteLine($"  state:   Completed");
-            Console.WriteLine($"  result:  {(succeededOp ? "Succeeded" : $"Failed (status {statuscode})")}");
+            OutputWriter.WriteLine($"Async operation {asyncOpId}");
+            OutputWriter.WriteLine($"  state:   Completed");
+            OutputWriter.WriteLine($"  result:  {(succeededOp ? "Succeeded" : $"Failed (status {statuscode})")}");
             if (!string.IsNullOrWhiteSpace(message))
             {
-                Console.WriteLine($"  message: {message}");
+                OutputWriter.WriteLine($"  message: {message}");
             }
-            Console.WriteLine("  (Solution history record not yet available — re-run shortly to get full details.)");
+            OutputWriter.WriteLine("  (Solution history record not yet available — re-run shortly to get full details.)");
         }
 
         return succeededOp ? 0 : 1;
@@ -518,31 +520,31 @@ public class DeployShowCliCommand
 
     private static void PrintPackage(PackageHistoryRecord record, IReadOnlyList<SolutionHistoryRecord> correlated)
     {
-        Console.WriteLine($"Package: {record.Name ?? "(unknown)"}");
-        Console.WriteLine($"  id:              {record.Id}");
-        Console.WriteLine($"  status:          {record.Status ?? "(unknown)"}");
+        OutputWriter.WriteLine($"Package: {record.Name ?? "(unknown)"}");
+        OutputWriter.WriteLine($"  id:              {record.Id}");
+        OutputWriter.WriteLine($"  status:          {record.Status ?? "(unknown)"}");
         // Only show stage when the package didn't complete — it indicates where the failure occurred.
         bool completed = string.Equals(record.Status, "Completed", StringComparison.OrdinalIgnoreCase);
         if (!completed && record.Stage is not null)
         {
-            Console.WriteLine($"  stage:           {record.Stage}");
+            OutputWriter.WriteLine($"  stage:           {record.Stage}");
         }
-        Console.WriteLine($"  started (UTC):   {FormatUtc(record.StartedAtUtc)}");
+        OutputWriter.WriteLine($"  started (UTC):   {FormatUtc(record.StartedAtUtc)}");
         if (record.CompletedAtUtc is not null)
         {
-            Console.WriteLine($"  completed (UTC): {FormatUtc(record.CompletedAtUtc)}");
+            OutputWriter.WriteLine($"  completed (UTC): {FormatUtc(record.CompletedAtUtc)}");
         }
         if (record.StartedAtUtc is { } s && record.CompletedAtUtc is { } e)
         {
-            Console.WriteLine($"  duration:        {FormatDuration(e - s)}");
+            OutputWriter.WriteLine($"  duration:        {FormatDuration(e - s)}");
         }
         if (!string.IsNullOrWhiteSpace(record.Message))
         {
-            Console.WriteLine($"  message:         {record.Message}");
+            OutputWriter.WriteLine($"  message:         {record.Message}");
         }
 
-        Console.WriteLine();
-        Console.WriteLine($"Solutions within package run window: {correlated.Count}");
+        OutputWriter.WriteLine();
+        OutputWriter.WriteLine($"Solutions within package run window: {correlated.Count}");
         if (correlated.Count == 0)
         {
             return;
@@ -553,7 +555,7 @@ public class DeployShowCliCommand
             string duration = (solution.StartedAtUtc is { } start && solution.CompletedAtUtc is { } end)
                 ? FormatDuration(end - start)
                 : "(unknown)";
-            Console.WriteLine($"  - {solution.SolutionName ?? "(unknown)"} | {solution.SuboperationLabel} | {duration}");
+            OutputWriter.WriteLine($"  - {solution.SolutionName ?? "(unknown)"} | {solution.SuboperationLabel} | {duration}");
         }
     }
 
@@ -563,23 +565,23 @@ public class DeployShowCliCommand
             ? "(standalone import)"
             : $"(part of package: {parent.Id.ToString("N")[..8]} {parent.Name})";
 
-        Console.WriteLine($"Solution: {record.SolutionName ?? "(unknown)"} {context}");
-        Console.WriteLine($"  id:              {record.Id}");
-        Console.WriteLine($"  version:         {record.SolutionVersion ?? "(unknown)"}");
-        Console.WriteLine($"  operation:       {record.OperationLabel} / {record.SuboperationLabel}");
+        OutputWriter.WriteLine($"Solution: {record.SolutionName ?? "(unknown)"} {context}");
+        OutputWriter.WriteLine($"  id:              {record.Id}");
+        OutputWriter.WriteLine($"  version:         {record.SolutionVersion ?? "(unknown)"}");
+        OutputWriter.WriteLine($"  operation:       {record.OperationLabel} / {record.SuboperationLabel}");
         if (record.OverwriteUnmanagedCustomizations is { } overwrite)
         {
-            Console.WriteLine($"  overwrite:       {(overwrite ? "yes" : "no")}");
+            OutputWriter.WriteLine($"  overwrite:       {(overwrite ? "yes" : "no")}");
         }
-        Console.WriteLine($"  started (UTC):   {FormatUtc(record.StartedAtUtc)}");
-        Console.WriteLine($"  completed (UTC): {FormatUtc(record.CompletedAtUtc)}");
+        OutputWriter.WriteLine($"  started (UTC):   {FormatUtc(record.StartedAtUtc)}");
+        OutputWriter.WriteLine($"  completed (UTC): {FormatUtc(record.CompletedAtUtc)}");
         if (record.StartedAtUtc is { } s && record.CompletedAtUtc is { } e)
         {
-            Console.WriteLine($"  duration:        {FormatDuration(e - s)}");
+            OutputWriter.WriteLine($"  duration:        {FormatDuration(e - s)}");
         }
         if (!string.IsNullOrWhiteSpace(record.Result))
         {
-            Console.WriteLine($"  result:          {record.Result}");
+            OutputWriter.WriteLine($"  result:          {record.Result}");
         }
     }
 

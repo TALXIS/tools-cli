@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.PowerPlatform.Dataverse.Client;
 using TALXIS.CLI.Dataverse;
 using TALXIS.CLI.Logging;
+using TALXIS.CLI.Shared;
 using TALXIS.CLI.XrmTools;
 
 namespace TALXIS.CLI.Deploy;
@@ -334,7 +335,7 @@ public class DeployRunCliCommand
                         smartDiffExpected = result.SmartDiffExpected,
                         status = result.Status,
                     };
-                    Console.WriteLine(JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }));
+                    OutputWriter.WriteLine(JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }));
                 }
 
                 _logger.LogInformation("Import path: {Path}", FormatPath(result.Path));
