@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.IO.Compression;
 using System.Reflection;
 using System.Runtime.Loader;
@@ -203,7 +204,15 @@ public sealed class PackageDeployerRunner
                         AppDomain.CurrentDomain.FirstChanceException -= exHandler;
                 }
 
-                _workComplete.Wait();
+                TimeSpan workTimeout = ResolveWorkTimeout();
+                bool signaled = workTimeout == Timeout.InfiniteTimeSpan
+                    ? _workComplete.Wait(Timeout.InfiniteTimeSpan)
+                    : _workComplete.Wait(workTimeout);
+                if (!signaled)
+                {
+                    _errorMessage = $"Package Deployer did not signal completion within {workTimeout.TotalMinutes:0} minutes (TXC_DEPLOY_TIMEOUT_MINUTES). " +
+                        "Captured failure details: " + FormatFailureDetails();
+                }
 
                 // Dump captured first-chance exceptions if verbose
                 if (capturedExceptions.Count > 0)
@@ -829,6 +838,35 @@ public sealed class PackageDeployerRunner
                 {
                     _failureDetails.Add(normalized);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Resolves the maximum time the runner will block on <see cref="_workComplete"/>. Package Deployer
+        /// is expected to raise <c>Import_ImportComplete</c> (or <c>Parser_ConfigReadComplete</c> on config
+        /// failure) to end the wait. Real-world Package Deployer runs can span many hours for large data
+        /// packages, so the default is an infinite wait — preserving previous behavior. CI or callers that
+        /// need a bounded wait can opt in by setting <c>TXC_DEPLOY_TIMEOUT_MINUTES</c>.
+        /// </summary>
+        private static TimeSpan ResolveWorkTimeout()
+        {
+            string? raw = System.Environment.GetEnvironmentVariable("TXC_DEPLOY_TIMEOUT_MINUTES");
+            if (!string.IsNullOrWhiteSpace(raw)
+                && int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out int minutes)
+                && minutes > 0)
+            {
+                return TimeSpan.FromMinutes(minutes);
+            }
+            return Timeout.InfiniteTimeSpan;
+        }
+
+        private string FormatFailureDetails()
+        {
+            lock (_failureDetailsLock)
+            {
+                return _failureDetails.Count == 0
+                    ? "(none recorded)"
+                    : string.Join(" | ", _failureDetails);
             }
         }
 

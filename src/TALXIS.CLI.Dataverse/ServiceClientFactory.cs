@@ -95,7 +95,12 @@ public static class ServiceClientFactory
                 "Dataverse authentication requires either --connection-string or --environment (or the DATAVERSE_CONNECTION_STRING / DATAVERSE_ENVIRONMENT_URL env vars).");
         }
 
-        Uri instanceUri = new(environmentUrl);
+        if (!Uri.TryCreate(environmentUrl, UriKind.Absolute, out Uri? instanceUri))
+        {
+            throw new InvalidOperationException(
+                $"Invalid Dataverse environment URL '{environmentUrl}'. Pass a valid absolute URL to --environment or set DATAVERSE_ENVIRONMENT_URL / TXC_DATAVERSE_ENVIRONMENT_URL.");
+        }
+
         var provider = new DataverseAuthTokenProvider(instanceUri, deviceCode, verbose);
         tokenProvider = provider;
 

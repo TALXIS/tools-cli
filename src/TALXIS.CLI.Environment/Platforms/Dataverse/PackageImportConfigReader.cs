@@ -1,6 +1,5 @@
 using System.IO.Compression;
 using System.Xml.Linq;
-using Microsoft.Extensions.Logging;
 
 namespace TALXIS.CLI.Environment.Platforms.Dataverse;
 
@@ -12,11 +11,8 @@ public sealed class PackageImportConfigReader
 {
     private readonly NuGetPackageInstallerService _nugetInstaller;
 
-    public PackageImportConfigReader(
-        ILogger? logger = null,
-        NuGetPackageInstallerService? nugetInstaller = null)
+    public PackageImportConfigReader(NuGetPackageInstallerService? nugetInstaller = null)
     {
-        _ = logger;
         _nugetInstaller = nugetInstaller ?? new NuGetPackageInstallerService();
     }
 

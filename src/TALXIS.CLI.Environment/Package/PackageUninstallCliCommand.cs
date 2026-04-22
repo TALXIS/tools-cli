@@ -87,7 +87,7 @@ public class PackageUninstallCliCommand
 
     private async Task<int> RunPackageUninstallAsync(ServiceClient client, SolutionUninstaller uninstaller)
     {
-        var sourceReader = new PackageImportConfigReader(_logger);
+        var sourceReader = new PackageImportConfigReader();
         var importOrder = await sourceReader.ReadSolutionUniqueNamesInImportOrderAsync(
                 Package,
                 PackageVersion,
