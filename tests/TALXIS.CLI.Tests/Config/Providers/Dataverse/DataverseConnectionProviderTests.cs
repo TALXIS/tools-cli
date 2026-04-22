@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using TALXIS.CLI.Config.Abstractions;
 using TALXIS.CLI.Config.Model;
 using TALXIS.CLI.Config.Providers.Dataverse;
 using TALXIS.CLI.Config.Providers.Dataverse.Msal;
@@ -8,8 +9,10 @@ namespace TALXIS.CLI.Tests.Config.Providers.Dataverse;
 
 public sealed class DataverseConnectionProviderTests
 {
-    private static DataverseConnectionProvider NewProvider() =>
-        new(new DataverseMsalClientFactory(), NullLogger<DataverseConnectionProvider>.Instance);
+    private static DataverseConnectionProvider NewProvider(IDataverseLiveChecker? live = null) =>
+        new(new DataverseMsalClientFactory(),
+            live ?? new NotYetImplementedDataverseLiveChecker(),
+            NullLogger<DataverseConnectionProvider>.Instance);
 
     private static Connection ValidConnection(string id = "dev") => new()
     {
@@ -37,7 +40,7 @@ public sealed class DataverseConnectionProviderTests
     {
         var provider = NewProvider();
         var credential = new Credential { Id = "u", Kind = CredentialKind.InteractiveBrowser };
-        await provider.ValidateAsync(ValidConnection(), credential, default);
+        await provider.ValidateAsync(ValidConnection(), credential, ValidationMode.Structural, default);
     }
 
     [Fact]
@@ -52,7 +55,7 @@ public sealed class DataverseConnectionProviderTests
         };
         var credential = new Credential { Id = "u", Kind = CredentialKind.InteractiveBrowser };
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            provider.ValidateAsync(connection, credential, default));
+            provider.ValidateAsync(connection, credential, ValidationMode.Structural, default));
     }
 
     [Fact]
@@ -63,7 +66,7 @@ public sealed class DataverseConnectionProviderTests
         connection.EnvironmentUrl = null;
         var credential = new Credential { Id = "u", Kind = CredentialKind.InteractiveBrowser };
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            provider.ValidateAsync(connection, credential, default));
+            provider.ValidateAsync(connection, credential, ValidationMode.Structural, default));
     }
 
     [Fact]
@@ -74,7 +77,7 @@ public sealed class DataverseConnectionProviderTests
         connection.EnvironmentUrl = "/api/data/v9.2";
         var credential = new Credential { Id = "u", Kind = CredentialKind.InteractiveBrowser };
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            provider.ValidateAsync(connection, credential, default));
+            provider.ValidateAsync(connection, credential, ValidationMode.Structural, default));
     }
 
     [Fact]
@@ -83,6 +86,6 @@ public sealed class DataverseConnectionProviderTests
         var provider = NewProvider();
         var credential = new Credential { Id = "u", Kind = CredentialKind.Pat };
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            provider.ValidateAsync(ValidConnection(), credential, default));
+            provider.ValidateAsync(ValidConnection(), credential, ValidationMode.Structural, default));
     }
 }

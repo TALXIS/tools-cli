@@ -21,6 +21,7 @@ namespace TALXIS.CLI.Config.Commands.Profile;
         typeof(ProfileSelectCliCommand),
         typeof(ProfilePinCliCommand),
         typeof(ProfileUnpinCliCommand),
+        typeof(ProfileValidateCliCommand),
         typeof(ProfileDeleteCliCommand),
     }
 )]

@@ -29,13 +29,16 @@ public sealed class DataverseConnectionProvider : IConnectionProvider
     }.ToFrozenSet();
 
     private readonly DataverseMsalClientFactory _clientFactory;
+    private readonly IDataverseLiveChecker _liveChecker;
     private readonly ILogger<DataverseConnectionProvider> _logger;
 
     public DataverseConnectionProvider(
         DataverseMsalClientFactory clientFactory,
+        IDataverseLiveChecker liveChecker,
         ILogger<DataverseConnectionProvider>? logger = null)
     {
         _clientFactory = clientFactory ?? throw new ArgumentNullException(nameof(clientFactory));
+        _liveChecker = liveChecker ?? throw new ArgumentNullException(nameof(liveChecker));
         _logger = logger ?? NullLogger<DataverseConnectionProvider>.Instance;
     }
 
@@ -43,7 +46,7 @@ public sealed class DataverseConnectionProvider : IConnectionProvider
 
     public IReadOnlySet<CredentialKind> SupportedCredentialKinds => Supported;
 
-    public Task ValidateAsync(Connection connection, Credential credential, CancellationToken ct)
+    public async Task ValidateAsync(Connection connection, Credential credential, ValidationMode mode, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(credential);
@@ -76,6 +79,13 @@ public sealed class DataverseConnectionProvider : IConnectionProvider
         _logger.LogDebug(
             "Dataverse connection '{ConnectionId}' validated structurally (envUrl={EnvUrl}, cloud={Cloud}, kind={Kind}).",
             connection.Id, envUri, connection.Cloud, credential.Kind);
-        return Task.CompletedTask;
+
+        if (mode == ValidationMode.Live)
+        {
+            var result = await _liveChecker.CheckAsync(connection, credential, ct).ConfigureAwait(false);
+            _logger.LogInformation(
+                "Dataverse WhoAmI succeeded (userId={UserId}, orgId={OrgId}).",
+                result.UserId, result.OrganizationId);
+        }
     }
 }

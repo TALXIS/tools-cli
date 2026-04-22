@@ -5,10 +5,9 @@ using TALXIS.CLI.Config.Headless;
 using TALXIS.CLI.Config.Model;
 using TALXIS.CLI.Config.Resolution;
 using TALXIS.CLI.Config.Storage;
+using ConnectionModel = TALXIS.CLI.Config.Model.Connection;
 
-namespace TALXIS.CLI.Tests.Config.Commands;
-
-/// <summary>
+namespace TALXIS.CLI.Tests.Config.Commands;/// <summary>
 /// Per-test TxcServices scope: boots an in-memory service provider backed
 /// by a temp config dir + a fake in-memory vault, and tears it down on
 /// dispose. Commands resolve their dependencies through <c>TxcServices</c>,
@@ -21,17 +20,20 @@ internal sealed class CommandTestHost : IDisposable
     public FakeVault Vault { get; }
     public FakeHeadless Headless { get; }
     public FakeInteractiveLogin Login { get; }
+    public FakeConnectionProvider Provider_Dataverse { get; }
 
     public CommandTestHost(
         bool headless = false,
         InteractiveLoginResult? loginResult = null,
-        string? currentDirectory = null)
+        string? currentDirectory = null,
+        FakeConnectionProvider? dataverseProvider = null)
     {
         Temp = new TempConfigDir();
         Vault = new FakeVault();
         Headless = new FakeHeadless(headless);
         Login = new FakeInteractiveLogin(loginResult
             ?? new InteractiveLoginResult("tomas@contoso.com", "tenant-guid"));
+        Provider_Dataverse = dataverseProvider ?? new FakeConnectionProvider(ProviderKind.Dataverse);
 
         var services = new ServiceCollection();
         services.AddLogging();
@@ -47,6 +49,7 @@ internal sealed class CommandTestHost : IDisposable
         services.AddSingleton<ICredentialVault>(Vault);
         services.AddSingleton<IHeadlessDetector>(Headless);
         services.AddSingleton<IInteractiveLoginService>(Login);
+        services.AddSingleton<IConnectionProvider>(Provider_Dataverse);
 
         Provider = services.BuildServiceProvider();
         TxcServices.Initialize(Provider);
@@ -57,6 +60,36 @@ internal sealed class CommandTestHost : IDisposable
         TxcServices.Reset();
         Provider.Dispose();
         Temp.Dispose();
+    }
+
+    internal sealed class FakeConnectionProvider : IConnectionProvider
+    {
+        private static readonly HashSet<CredentialKind> DefaultKinds = new()
+        {
+            CredentialKind.InteractiveBrowser,
+            CredentialKind.DeviceCode,
+            CredentialKind.ClientSecret,
+            CredentialKind.ClientCertificate,
+            CredentialKind.WorkloadIdentityFederation,
+            CredentialKind.ManagedIdentity,
+            CredentialKind.AzureCli,
+        };
+
+        public FakeConnectionProvider(ProviderKind kind) { ProviderKind = kind; }
+
+        public ProviderKind ProviderKind { get; }
+        public IReadOnlySet<CredentialKind> SupportedCredentialKinds => DefaultKinds;
+        public int Calls { get; private set; }
+        public ValidationMode? LastMode { get; private set; }
+        public Func<ConnectionModel, Credential, ValidationMode, Task>? Behavior { get; set; }
+
+        public Task ValidateAsync(ConnectionModel connection, Credential credential, ValidationMode mode, CancellationToken ct)
+        {
+            Calls++;
+            LastMode = mode;
+            if (Behavior is not null) return Behavior(connection, credential, mode);
+            return Task.CompletedTask;
+        }
     }
 
     internal sealed class FakeEnvironmentReader : IEnvironmentReader

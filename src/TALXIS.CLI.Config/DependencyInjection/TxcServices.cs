@@ -32,6 +32,13 @@ public static class TxcServices
         return _provider?.GetService<T>();
     }
 
+    public static IEnumerable<T> GetAll<T>() where T : notnull
+    {
+        if (_provider is null)
+            throw new InvalidOperationException("TxcServices.Initialize has not been called.");
+        return _provider.GetServices<T>();
+    }
+
     // Exposed only for test teardown.
     internal static void Reset() => _provider = null;
 }
