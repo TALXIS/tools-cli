@@ -15,6 +15,7 @@ namespace TALXIS.CLI.Config.Commands.Auth;
     Children = new[]
     {
         typeof(AuthLoginCliCommand),
+        typeof(AuthAddServicePrincipalCliCommand),
         typeof(AuthListCliCommand),
         typeof(AuthShowCliCommand),
         typeof(AuthDeleteCliCommand),
