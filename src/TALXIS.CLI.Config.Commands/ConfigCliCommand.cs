@@ -13,7 +13,12 @@ namespace TALXIS.CLI.Config.Commands;
 [CliCommand(
     Name = "config",
     Description = "Manage txc profiles, connections, credentials, and settings.",
-    Children = new[] { typeof(Auth.AuthCliCommand), typeof(Connection.ConnectionCliCommand) }
+    Children = new[]
+    {
+        typeof(Auth.AuthCliCommand),
+        typeof(Connection.ConnectionCliCommand),
+        typeof(Profile.ProfileCliCommand),
+    }
 )]
 public class ConfigCliCommand
 {

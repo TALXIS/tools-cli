@@ -4,6 +4,7 @@ using TALXIS.CLI.Config.Commands.Auth;
 using TALXIS.CLI.Config.Model;
 using TALXIS.CLI.Shared;
 using Xunit;
+using ProfileModel = TALXIS.CLI.Config.Model.Profile;
 
 namespace TALXIS.CLI.Tests.Config.Commands.Auth;
 
@@ -108,7 +109,7 @@ public sealed class AuthCrudCommandsTests
 
         await SeedAsync(credStore, new Credential { Id = "dev", Kind = CredentialKind.InteractiveBrowser });
         await profileStore.UpsertAsync(
-            new Profile { Id = "demo", ConnectionRef = "conn", CredentialRef = "dev" },
+            new ProfileModel { Id = "demo", ConnectionRef = "conn", CredentialRef = "dev" },
             default);
 
         var exit = await new AuthDeleteCliCommand { Alias = "dev" }.RunAsync();

@@ -5,6 +5,7 @@ using TALXIS.CLI.Config.Model;
 using TALXIS.CLI.Shared;
 using Xunit;
 using ConnectionModel = TALXIS.CLI.Config.Model.Connection;
+using ProfileModel = TALXIS.CLI.Config.Model.Profile;
 
 namespace TALXIS.CLI.Tests.Config.Commands.Connection;
 
@@ -162,7 +163,7 @@ public sealed class ConnectionCommandsTests
             Provider = ProviderKind.Dataverse,
             EnvironmentUrl = "https://c1.crm.dynamics.com",
         }, default);
-        await profStore.UpsertAsync(new Profile
+        await profStore.UpsertAsync(new ProfileModel
         {
             Id = "p1",
             ConnectionRef = "c1",
@@ -186,7 +187,7 @@ public sealed class ConnectionCommandsTests
             Provider = ProviderKind.Dataverse,
             EnvironmentUrl = "https://c1.crm.dynamics.com",
         }, default);
-        await profStore.UpsertAsync(new Profile
+        await profStore.UpsertAsync(new ProfileModel
         {
             Id = "p1",
             ConnectionRef = "c1",
