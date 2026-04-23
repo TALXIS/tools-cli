@@ -1,0 +1,22 @@
+using TALXIS.CLI.Config.Model;
+using TALXIS.CLI.Dataverse;
+
+namespace TALXIS.CLI.Config.Providers.Dataverse.Runtime;
+
+/// <summary>
+/// Builds a ready-to-use <see cref="DataverseConnection"/> from a resolved
+/// (Profile, Connection, Credential) triple. Replaces the legacy
+/// <see cref="ServiceClientFactory.Connect"/> path that keyed off connection
+/// strings or <c>--environment</c> URLs: every leaf Dataverse command now
+/// goes through this one abstraction instead.
+/// </summary>
+public interface IDataverseConnectionFactory
+{
+    /// <summary>
+    /// Connects to the Dataverse environment described by
+    /// <paramref name="context"/>. Caller owns the returned
+    /// <see cref="DataverseConnection"/> (dispose to release the
+    /// <see cref="Microsoft.PowerPlatform.Dataverse.Client.ServiceClient"/>).
+    /// </summary>
+    Task<DataverseConnection> ConnectAsync(ResolvedProfileContext context, CancellationToken ct);
+}

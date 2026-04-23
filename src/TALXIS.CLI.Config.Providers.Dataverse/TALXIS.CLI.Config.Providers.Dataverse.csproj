@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TALXIS.CLI.Config\TALXIS.CLI.Config.csproj" />
+    <ProjectReference Include="..\TALXIS.CLI.Dataverse\TALXIS.CLI.Dataverse.csproj" />
   </ItemGroup>
 
   <ItemGroup>

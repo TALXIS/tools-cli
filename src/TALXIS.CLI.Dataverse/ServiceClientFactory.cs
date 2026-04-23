@@ -18,6 +18,18 @@ public sealed class DataverseConnection : IDisposable
         TokenProvider = tokenProvider;
     }
 
+    /// <summary>
+    /// Factory used by out-of-assembly callers (e.g. the profile-based
+    /// <c>IDataverseConnectionFactory</c> in
+    /// <c>TALXIS.CLI.Config.Providers.Dataverse</c>) that already own a
+    /// ready <see cref="ServiceClient"/> and no <see cref="DataverseAuthTokenProvider"/>.
+    /// </summary>
+    public static DataverseConnection FromServiceClient(ServiceClient client)
+    {
+        ArgumentNullException.ThrowIfNull(client);
+        return new DataverseConnection(client, tokenProvider: null);
+    }
+
     public void Dispose()
     {
         Client.Dispose();

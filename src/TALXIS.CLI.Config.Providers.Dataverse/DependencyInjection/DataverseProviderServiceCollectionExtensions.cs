@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Config.Abstractions;
 using TALXIS.CLI.Config.Providers.Dataverse.Authority;
+using TALXIS.CLI.Config.Providers.Dataverse.Runtime;
 using TALXIS.CLI.Config.Providers.Dataverse.Msal;
 using TALXIS.CLI.Config.Resolution;
 using TALXIS.CLI.Config.Storage;
@@ -34,7 +35,9 @@ public static class DataverseProviderServiceCollectionExtensions
         });
 
         services.AddSingleton<IConnectionProvider, DataverseConnectionProvider>();
-        services.AddSingleton<IDataverseLiveChecker, NotYetImplementedDataverseLiveChecker>();
+        services.AddSingleton<IDataverseAccessTokenService, DataverseAccessTokenService>();
+        services.AddSingleton<IDataverseConnectionFactory, DataverseConnectionFactory>();
+        services.AddSingleton<IDataverseLiveChecker, DataverseLiveChecker>();
         services.AddSingleton<IInteractiveLoginService, DataverseInteractiveLoginService>();
         return services;
     }

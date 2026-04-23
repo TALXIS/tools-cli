@@ -9,9 +9,15 @@ namespace TALXIS.CLI.Tests.Config.Providers.Dataverse;
 
 public sealed class DataverseConnectionProviderTests
 {
+    private sealed class StubLiveChecker : IDataverseLiveChecker
+    {
+        public Task<DataverseLiveCheckResult> CheckAsync(Connection connection, Credential credential, CancellationToken ct) =>
+            Task.FromResult(new DataverseLiveCheckResult(Guid.Empty, Guid.Empty, Guid.Empty));
+    }
+
     private static DataverseConnectionProvider NewProvider(IDataverseLiveChecker? live = null) =>
         new(new DataverseMsalClientFactory(),
-            live ?? new NotYetImplementedDataverseLiveChecker(),
+            live ?? new StubLiveChecker(),
             NullLogger<DataverseConnectionProvider>.Instance);
 
     private static Connection ValidConnection(string id = "dev") => new()
