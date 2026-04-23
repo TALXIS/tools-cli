@@ -44,35 +44,20 @@ public class AuthLoginCliCommand
     {
         try
         {
-            var headless = TxcServices.Get<IHeadlessDetector>();
-            headless.EnsureKindAllowed(CredentialKind.InteractiveBrowser);
-
             var login = TxcServices.Get<IInteractiveLoginService>();
             var store = TxcServices.Get<ICredentialStore>();
+            var headless = TxcServices.Get<IHeadlessDetector>();
             var cloud = Cloud ?? CloudInstance.Public;
 
             _logger.LogInformation("Starting interactive sign-in...");
-            var result = await login.LoginAsync(Tenant, cloud, CancellationToken.None).ConfigureAwait(false);
-
-            var alias = string.IsNullOrWhiteSpace(Alias)
-                ? await CredentialAliasResolver.ResolveForUpnAsync(store, result.Upn, CancellationToken.None).ConfigureAwait(false)
-                : Alias.Trim();
-
-            var credential = new Credential
-            {
-                Id = alias,
-                Kind = CredentialKind.InteractiveBrowser,
-                TenantId = result.TenantId,
-                Cloud = cloud,
-                Description = $"Interactive sign-in ({result.Upn})",
-            };
-            await store.UpsertAsync(credential, CancellationToken.None).ConfigureAwait(false);
+            var result = await InteractiveCredentialBootstrapper.AcquireAndPersistAsync(
+                login, store, headless, Tenant, cloud, Alias, CancellationToken.None).ConfigureAwait(false);
 
             _logger.LogInformation("Signed in as {Upn} (tenant {Tenant}). Credential '{Alias}' saved.",
-                result.Upn, result.TenantId, alias);
+                result.Upn, result.TenantId, result.Credential.Id);
 
             OutputWriter.WriteLine(JsonSerializer.Serialize(
-                new { id = alias, upn = result.Upn, tenantId = result.TenantId, cloud },
+                new { id = result.Credential.Id, upn = result.Upn, tenantId = result.TenantId, cloud },
                 TxcJsonOptions.Default));
             return 0;
         }
@@ -92,22 +77,4 @@ public class AuthLoginCliCommand
             return 1;
         }
     }
-
-    /// <summary>
-    /// Derives an alias from the UPN. Delegates to
-    /// <see cref="CredentialAliasResolver.ResolveForUpnAsync"/>. Kept on
-    /// the type for back-compat with existing tests and to surface the
-    /// documentation next to the flag that wires it in.
-    /// </summary>
-    internal static Task<string> ResolveDefaultAliasAsync(
-        ICredentialStore store, string upn, CancellationToken ct)
-        => CredentialAliasResolver.ResolveForUpnAsync(store, upn, ct);
-
-    /// <summary>
-    /// Returns the first domain label from the UPN in lowercase, e.g.
-    /// <c>tomas@contoso.com</c> → <c>contoso</c>. Delegates to
-    /// <see cref="CredentialAliasResolver.ExtractTenantShortName"/>.
-    /// </summary>
-    internal static string? ExtractTenantShortName(string upn)
-        => CredentialAliasResolver.ExtractTenantShortName(upn);
 }

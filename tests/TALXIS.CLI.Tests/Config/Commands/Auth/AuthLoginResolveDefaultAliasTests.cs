@@ -1,5 +1,5 @@
 using TALXIS.CLI.Config.Abstractions;
-using TALXIS.CLI.Config.Commands.Auth;
+using TALXIS.CLI.Config.Bootstrapping;
 using TALXIS.CLI.Config.Model;
 using Xunit;
 
@@ -15,7 +15,7 @@ public class AuthLoginResolveDefaultAliasTests
         cts.Cancel();
 
         await Assert.ThrowsAsync<OperationCanceledException>(
-            () => AuthLoginCliCommand.ResolveDefaultAliasAsync(store, "alice@contoso.com", cts.Token));
+            () => CredentialAliasResolver.ResolveForUpnAsync(store, "alice@contoso.com", cts.Token));
     }
 
     private sealed class CancellingStore : ICredentialStore

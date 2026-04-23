@@ -1,5 +1,6 @@
 using System.Text.Json;
 using TALXIS.CLI.Config.Abstractions;
+using TALXIS.CLI.Config.Bootstrapping;
 using TALXIS.CLI.Config.Commands.Auth;
 using TALXIS.CLI.Config.Model;
 using TALXIS.CLI.Shared;
@@ -117,6 +118,6 @@ public sealed class AuthLoginCommandTests
     [InlineData("", null)]
     public void ExtractTenantShortName_HandlesCommonShapes(string upn, string? expected)
     {
-        Assert.Equal(expected, AuthLoginCliCommand.ExtractTenantShortName(upn));
+        Assert.Equal(expected, CredentialAliasResolver.ExtractTenantShortName(upn));
     }
 }

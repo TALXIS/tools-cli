@@ -40,26 +40,10 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
     {
         if (request is null) throw new ArgumentNullException(nameof(request));
 
-        // Interactive browser is forbidden in CI. Throws HeadlessAuthRequiredException
-        // with the permitted-kinds message — same behaviour as `auth login`.
-        _headless.EnsureKindAllowed(CredentialKind.InteractiveBrowser);
-
         _logger.LogInformation("Starting interactive sign-in for '{Url}'...", request.EnvironmentUrl);
-        var login = await _login.LoginAsync(request.TenantId, request.Cloud, ct).ConfigureAwait(false);
-
-        var alias = await CredentialAliasResolver
-            .ResolveForUpnAsync(_credentials, login.Upn, ct)
-            .ConfigureAwait(false);
-
-        var credential = new Credential
-        {
-            Id = alias,
-            Kind = CredentialKind.InteractiveBrowser,
-            TenantId = login.TenantId,
-            Cloud = request.Cloud,
-            Description = $"Interactive sign-in ({login.Upn})",
-        };
-        await _credentials.UpsertAsync(credential, ct).ConfigureAwait(false);
+        var acquired = await InteractiveCredentialBootstrapper.AcquireAndPersistAsync(
+            _login, _credentials, _headless,
+            request.TenantId, request.Cloud, explicitAlias: null, ct).ConfigureAwait(false);
 
         var upsert = await _connections.ValidateAndUpsertAsync(
             request.Name,
@@ -67,13 +51,13 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
             request.EnvironmentUrl,
             request.Cloud,
             organizationId: null,
-            tenantId: request.TenantId ?? login.TenantId,
+            tenantId: request.TenantId ?? acquired.TenantId,
             description: request.Description,
             ct).ConfigureAwait(false);
 
         if (upsert.Error is not null)
-            return new ProfileBootstrapResult(credential, null, login.Upn, upsert.Error);
+            return new ProfileBootstrapResult(acquired.Credential, null, acquired.Upn, upsert.Error);
 
-        return new ProfileBootstrapResult(credential, upsert.Connection, login.Upn, null);
+        return new ProfileBootstrapResult(acquired.Credential, upsert.Connection, acquired.Upn, null);
     }
 }
