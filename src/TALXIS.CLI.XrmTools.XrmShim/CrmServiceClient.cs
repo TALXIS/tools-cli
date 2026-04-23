@@ -155,8 +155,15 @@ public class CrmServiceClient : ServiceClient, IDisposable
     /// <summary>
     /// Hides the base <see cref="ServiceClient.ConnectedOrgVersion"/> which
     /// can return 9.0.0.0 when the token-provider constructor path is used.
-    /// This version queries the server via RetrieveVersion if the base
-    /// property returns a stale/default value.
+    /// <para>
+    /// The token-provider constructor path uses lazy initialization: the
+    /// underlying connection service (and therefore <c>OrganizationVersion</c>)
+    /// is not populated until the first <c>Execute</c> call warms the connection.
+    /// This override issues a <c>RetrieveVersion</c> request to force that warm-up,
+    /// and — whether the request succeeds or fails — re-reads the base property
+    /// afterwards because the <c>Execute</c> call itself populates
+    /// <c>OrganizationVersion</c> as a side-effect of connecting.
+    /// </para>
     /// </summary>
     public new Version ConnectedOrgVersion
     {
@@ -172,7 +179,10 @@ public class CrmServiceClient : ServiceClient, IDisposable
                 return baseVersion;
             }
 
-            // Base returned 9.0.0.0 or lower — query the actual version.
+            // Base returned 9.0.0.0 or lower — the connection has not been
+            // warmed yet. Issue a RetrieveVersion request; this both returns
+            // the version string directly and — as a side-effect — causes the
+            // ServiceClient to populate its internal OrganizationVersion field.
             try
             {
                 var response = Execute(new OrganizationRequest("RetrieveVersion"));
@@ -186,7 +196,20 @@ public class CrmServiceClient : ServiceClient, IDisposable
             }
             catch
             {
-                // Fall through to base version on failure.
+                // Execute failed. The attempt may still have partially warmed
+                // the connection, so fall through and re-read the base property.
+            }
+
+            // Re-read the base property now that the Execute call above has
+            // warmed (or attempted to warm) the connection. OrganizationVersion
+            // is populated as a side-effect of the first successful Execute, so
+            // even if RetrieveVersion did not return a usable version string the
+            // base property may now reflect the real server version.
+            var postWarmVersion = base.ConnectedOrgVersion;
+            if (postWarmVersion > new Version(9, 0, 0, 0))
+            {
+                _cachedOrgVersion = postWarmVersion;
+                return postWarmVersion;
             }
 
             _cachedOrgVersion = baseVersion;

@@ -111,10 +111,18 @@ public sealed class PackageDeployerRunner
                         _temporaryArtifactsDirectory);
                 }
 
+                // Always log the organization version so it is visible in the output
+                // and — crucially — to pre-warm the ConnectedOrgVersion cache before
+                // Package Deployer reads it during solution validation.  With the
+                // token-provider constructor the ServiceClient uses lazy initialization:
+                // OrganizationVersion is not populated until the first Execute call.
+                // Accessing ConnectedOrgVersion here triggers that warm-up so that
+                // Package Deployer sees the real server version rather than the
+                // default 9.0.0.0.
+                _logger.LogInformation("Organization version: {Version}", crmServiceClient.ConnectedOrgVersion);
                 if (_request.Verbose)
                 {
                     _logger.LogInformation("Connected to: {Url}", crmServiceClient.ConnectedOrgUriActual);
-                    _logger.LogInformation("Organization version: {Version}", crmServiceClient.ConnectedOrgVersion);
                     _logger.LogInformation("Organization ID: {OrgId}", crmServiceClient.ConnectedOrgId);
                 }
 
