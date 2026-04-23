@@ -1,24 +1,36 @@
 using Microsoft.PowerPlatform.Dataverse.Client;
-using TALXIS.CLI.Dataverse;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Query;
+using TALXIS.CLI.Config.Platforms.Dataverse;
+using TALXIS.CLI.Config.Providers.Dataverse.Runtime;
+using TALXIS.CLI.Dataverse;
 
-namespace TALXIS.CLI.Environment.Platforms.Dataverse;
-
-/// <summary>
-/// Lightweight inventory row for an installed Dataverse solution.
-/// </summary>
-public sealed record InstalledSolutionRecord(
-    Guid Id,
-    string UniqueName,
-    string? FriendlyName,
-    string? Version,
-    bool Managed);
+namespace TALXIS.CLI.Config.Providers.Dataverse.Services;
 
 /// <summary>
-/// Reads the currently installed solution inventory from the Dataverse <c>solution</c> table.
+/// Dataverse implementation of <see cref="ISolutionInventoryService"/>.
+/// Combines profile/connection resolution with the raw <c>solution</c> table
+/// query so feature commands only see the abstraction.
 /// </summary>
-public sealed class SolutionInventoryReader
+internal sealed class DataverseSolutionInventoryService : ISolutionInventoryService
+{
+    public async Task<IReadOnlyList<InstalledSolutionRecord>> ListAsync(
+        string? profileName,
+        bool? managedFilter,
+        CancellationToken ct)
+    {
+        using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+        return await SolutionInventoryReader.ListAsync(conn.Client, managedFilter, ct: ct).ConfigureAwait(false);
+    }
+}
+
+/// <summary>
+/// Reads the currently installed solution inventory from the Dataverse
+/// <c>solution</c> table. Kept as a standalone helper so existing unit tests
+/// (which mock <see cref="IOrganizationServiceAsync2"/> directly) can keep
+/// exercising the query without going through the service-locator path.
+/// </summary>
+internal static class SolutionInventoryReader
 {
     private const string EntityName = DataverseSchema.Solution.EntityName;
     private static readonly ColumnSet Columns = new(
@@ -28,21 +40,13 @@ public sealed class SolutionInventoryReader
         "version",
         "ismanaged");
 
-    private readonly IOrganizationServiceAsync2 _service;
-
-    public SolutionInventoryReader(IOrganizationServiceAsync2 service)
-    {
-        _service = service ?? throw new ArgumentNullException(nameof(service));
-    }
-
-    /// <summary>
-    /// Lists installed solutions, optionally filtering by managed/unmanaged type.
-    /// </summary>
-    public async Task<IReadOnlyList<InstalledSolutionRecord>> ListAsync(
+    public static async Task<IReadOnlyList<InstalledSolutionRecord>> ListAsync(
+        IOrganizationServiceAsync2 service,
         bool? managedOnly = null,
         int maxRows = 5000,
         CancellationToken ct = default)
     {
+        if (service is null) throw new ArgumentNullException(nameof(service));
         if (maxRows <= 0) throw new ArgumentOutOfRangeException(nameof(maxRows), "maxRows must be > 0.");
 
         var query = new QueryExpression(EntityName)
@@ -59,7 +63,7 @@ public sealed class SolutionInventoryReader
             query.Criteria.AddCondition("ismanaged", ConditionOperator.Equal, managed);
         }
 
-        var response = await _service.RetrieveMultipleAsync(query, ct).ConfigureAwait(false);
+        var response = await service.RetrieveMultipleAsync(query, ct).ConfigureAwait(false);
         return response.Entities
             .Select(ToRecord)
             .Where(r => !string.IsNullOrWhiteSpace(r.UniqueName))

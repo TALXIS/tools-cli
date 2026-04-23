@@ -3,9 +3,8 @@ using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Config.Abstractions;
 using TALXIS.CLI.Config.Commands.Abstractions;
-using TALXIS.CLI.Config.Providers.Dataverse.Runtime;
-using TALXIS.CLI.Dataverse;
-using TALXIS.CLI.Environment.Platforms.Dataverse;
+using TALXIS.CLI.Config.DependencyInjection;
+using TALXIS.CLI.Config.Platforms.Dataverse;
 using TALXIS.CLI.Logging;
 using TALXIS.CLI.Shared;
 
@@ -38,39 +37,31 @@ public class SolutionListCliCommand : ProfiledCliCommand
             managedFilter = parsedManaged;
         }
 
-        DataverseConnection conn;
+        IReadOnlyList<InstalledSolutionRecord> rows;
         try
         {
-            conn = await DataverseCommandBridge.ConnectAsync(Profile, CancellationToken.None).ConfigureAwait(false);
+            var service = TxcServices.Get<ISolutionInventoryService>();
+            rows = await service.ListAsync(Profile, managedFilter, CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
         {
             _logger.LogError("{Error}", ex.Message);
             return 1;
         }
-
-        using (conn)
+        catch (Exception ex)
         {
-            try
-            {
-                var reader = new SolutionInventoryReader(conn.Client);
-                var rows = await reader.ListAsync(managedFilter).ConfigureAwait(false);
-
-                if (Json)
-                {
-                    OutputWriter.WriteLine(JsonSerializer.Serialize(rows, JsonOptions));
-                    return 0;
-                }
-
-                PrintSolutionsTable(rows);
-                return 0;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "environment solution list failed");
-                return 1;
-            }
+            _logger.LogError(ex, "environment solution list failed");
+            return 1;
         }
+
+        if (Json)
+        {
+            OutputWriter.WriteLine(JsonSerializer.Serialize(rows, JsonOptions));
+            return 0;
+        }
+
+        PrintSolutionsTable(rows);
+        return 0;
     }
 
     private static void PrintSolutionsTable(IReadOnlyList<InstalledSolutionRecord> rows)
