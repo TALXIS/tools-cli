@@ -1,3 +1,4 @@
+using TALXIS.CLI.Config.Platforms.Dataverse;
 using TALXIS.CLI.Dataverse;
 using TALXIS.CLI.Environment;
 using TALXIS.CLI.Environment.Deployment;

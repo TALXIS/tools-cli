@@ -1,3 +1,4 @@
+using TALXIS.CLI.Config.Platforms.Dataverse;
 using TALXIS.CLI.Dataverse;
 using Microsoft.Extensions.Logging;
 using Microsoft.PowerPlatform.Dataverse.Client;
@@ -5,26 +6,6 @@ using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Query;
 
 namespace TALXIS.CLI.Config.Providers.Dataverse.Platforms;
-
-/// <summary>
-/// Structured view of a row in the <c>packagehistory</c> table.
-/// All <see cref="DateTime"/> values are UTC.
-/// </summary>
-public sealed record PackageHistoryRecord(
-    Guid Id,
-    string? Name,
-    string? Status,
-    string? Stage,
-    DateTime? StartedAtUtc,
-    DateTime? CompletedAtUtc,
-    Guid? OperationId,
-    string? Message,
-    /// <summary>
-    /// PD's per-run correlation GUID. Set as <c>x-ms-client-session-id</c> on every SDK call,
-    /// so Dataverse records it as <c>asyncoperation.correlationid</c> for each import job.
-    /// Use with <see cref="SolutionHistoryReader.GetByCorrelationIdAsync"/> for exact join.
-    /// </summary>
-    Guid? CorrelationId = null);
 
 /// <summary>
 /// Reader for the <c>packagehistory</c> table (Package Deployer run records).

@@ -3,9 +3,8 @@ using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Config.Abstractions;
 using TALXIS.CLI.Config.Commands.Abstractions;
-using TALXIS.CLI.Config.Providers.Dataverse.Runtime;
-using TALXIS.CLI.Dataverse;
-using TALXIS.CLI.Config.Providers.Dataverse.Platforms;
+using TALXIS.CLI.Config.DependencyInjection;
+using TALXIS.CLI.Config.Platforms.Dataverse;
 using TALXIS.CLI.Logging;
 using TALXIS.CLI.Shared;
 
@@ -67,51 +66,42 @@ public class DeploymentListCliCommand : ProfiledCliCommand
             defaultCount = 200;
         }
 
-        DataverseConnection conn;
+        DeploymentHistorySnapshot snapshot;
         try
         {
-            conn = await DataverseCommandBridge.ConnectAsync(Profile, CancellationToken.None).ConfigureAwait(false);
+            var service = TxcServices.Get<IDeploymentHistoryService>();
+            snapshot = await service.GetRecentAsync(
+                Profile,
+                includePackages,
+                includeSolutions,
+                defaultCount,
+                sinceUtc,
+                Problems,
+                CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
         {
             _logger.LogError("{Error}", ex.Message);
             return 1;
         }
-
-        using (conn)
+        catch (Exception ex)
         {
-            try
-            {
-                var pkgReader = new PackageHistoryReader(conn.Client, _logger);
-                var solReader = new SolutionHistoryReader(conn.Client, _logger);
-
-                var pkgTask = includePackages
-                    ? pkgReader.GetRecentAsync(defaultCount, sinceUtc, Problems)
-                    : Task.FromResult<IReadOnlyList<PackageHistoryRecord>>(Array.Empty<PackageHistoryRecord>());
-                var solTask = includeSolutions
-                    ? solReader.GetRecentAsync(defaultCount, sinceUtc, Problems)
-                    : Task.FromResult<IReadOnlyList<SolutionHistoryRecord>>(Array.Empty<SolutionHistoryRecord>());
-                await Task.WhenAll(pkgTask, solTask).ConfigureAwait(false);
-
-                var rows = BuildRows(await pkgTask.ConfigureAwait(false), await solTask.ConfigureAwait(false));
-                int max = sinceUtc is null ? 20 : rows.Count;
-                var trimmed = rows.Take(max).ToList();
-
-                if (Json)
-                {
-                    OutputWriter.WriteLine(JsonSerializer.Serialize(trimmed, JsonOptions));
-                    return 0;
-                }
-
-                PrintRunsTable(trimmed);
-                return 0;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "environment deployment list failed");
-                return 1;
-            }
+            _logger.LogError(ex, "environment deployment list failed");
+            return 1;
         }
+
+        var rows = BuildRows(snapshot.Packages, snapshot.Solutions);
+        int max = sinceUtc is null ? 20 : rows.Count;
+        var trimmed = rows.Take(max).ToList();
+
+        if (Json)
+        {
+            OutputWriter.WriteLine(JsonSerializer.Serialize(trimmed, JsonOptions));
+            return 0;
+        }
+
+        PrintRunsTable(trimmed);
+        return 0;
     }
 
     /// <summary>

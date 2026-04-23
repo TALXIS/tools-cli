@@ -1,3 +1,4 @@
+using TALXIS.CLI.Config.Platforms.Dataverse;
 using System;
 using System.Collections.Generic;
 using TALXIS.CLI.Dataverse;

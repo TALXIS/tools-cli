@@ -1,3 +1,4 @@
+using TALXIS.CLI.Config.Platforms.Dataverse;
 using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;

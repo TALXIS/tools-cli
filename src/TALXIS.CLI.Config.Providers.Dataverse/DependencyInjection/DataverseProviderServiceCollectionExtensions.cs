@@ -45,6 +45,7 @@ public static class DataverseProviderServiceCollectionExtensions
         services.AddSingleton<IDataPackageService, DataverseDataPackageService>();
         services.AddSingleton<ISolutionUninstallService, DataverseSolutionUninstallService>();
         services.AddSingleton<ISolutionImportService, DataverseSolutionImportService>();
+        services.AddSingleton<IDeploymentHistoryService, DataverseDeploymentHistoryService>();
         services.AddSingleton<TALXIS.CLI.Config.Bootstrapping.IConnectionProviderBootstrapper,
             TALXIS.CLI.Config.Bootstrapping.DataverseConnectionProviderBootstrapper>();
         return services;

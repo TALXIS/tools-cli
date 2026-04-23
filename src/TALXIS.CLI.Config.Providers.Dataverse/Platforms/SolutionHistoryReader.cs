@@ -1,3 +1,4 @@
+using TALXIS.CLI.Config.Platforms.Dataverse;
 using TALXIS.CLI.Dataverse;
 using Microsoft.Extensions.Logging;
 using Microsoft.PowerPlatform.Dataverse.Client;
@@ -5,30 +6,6 @@ using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Query;
 
 namespace TALXIS.CLI.Config.Providers.Dataverse.Platforms;
-
-/// <summary>
-/// Structured view of a row in <c>msdyn_solutionhistory</c>. Operation / suboperation codes
-/// are mapped via <see cref="SolutionHistoryMappings"/>. <see cref="DateTime"/> values are UTC.
-/// </summary>
-public sealed record SolutionHistoryRecord(
-    Guid Id,
-    string? SolutionName,
-    string? SolutionVersion,
-    string? PackageName,
-    int? OperationCode,
-    string OperationLabel,
-    int? SuboperationCode,
-    string SuboperationLabel,
-    bool? OverwriteUnmanagedCustomizations,
-    DateTime? StartedAtUtc,
-    DateTime? CompletedAtUtc,
-    string? Result,
-    /// <summary>
-    /// Value of <c>msdyn_activityid</c> — the <c>asyncoperation.asyncoperationid</c> of the
-    /// platform's internal import job. Used for exact correlation with <c>packagehistory</c> via
-    /// <see cref="SolutionHistoryReader.GetByCorrelationIdAsync"/>.
-    /// </summary>
-    Guid? ActivityId = null);
 
 /// <summary>
 /// Reader for <c>msdyn_solutionhistory</c>. The virtual entity rejects arbitrary

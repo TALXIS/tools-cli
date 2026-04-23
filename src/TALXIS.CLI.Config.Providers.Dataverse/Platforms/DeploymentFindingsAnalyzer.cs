@@ -1,3 +1,4 @@
+using TALXIS.CLI.Config.Platforms.Dataverse;
 using System.Text.RegularExpressions;
 
 namespace TALXIS.CLI.Config.Providers.Dataverse.Platforms;
