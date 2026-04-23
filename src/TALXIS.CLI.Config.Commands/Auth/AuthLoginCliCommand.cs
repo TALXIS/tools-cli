@@ -21,6 +21,7 @@ namespace TALXIS.CLI.Config.Commands.Auth;
 /// Fails fast with exit 1 in headless contexts — interactive browser is
 /// never a permitted headless kind. See <see cref="HeadlessAuthRequiredException"/>.
 /// </remarks>
+[McpIgnore]
 [CliCommand(
     Name = "login",
     Description = "Interactive browser sign-in. Persists a credential named after the UPN (override with --alias)."

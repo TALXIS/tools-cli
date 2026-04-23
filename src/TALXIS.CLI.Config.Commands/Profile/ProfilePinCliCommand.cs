@@ -25,6 +25,7 @@ namespace TALXIS.CLI.Config.Commands.Profile;
 /// the named profile (must exist).
 /// </para>
 /// </summary>
+[McpIgnore]
 [CliCommand(
     Name = "pin",
     Description = "Pin the active profile (or <name>) to <cwd>/.txc/workspace.json."

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Config.Abstractions;
 using TALXIS.CLI.Config.DependencyInjection;
 using TALXIS.CLI.Logging;
+using TALXIS.CLI.Shared;
 
 namespace TALXIS.CLI.Config.Commands.Profile;
 
@@ -18,6 +19,7 @@ namespace TALXIS.CLI.Config.Commands.Profile;
 /// instead of silently resolving to a deleted one.
 /// </para>
 /// </summary>
+[McpIgnore]
 [CliCommand(
     Name = "delete",
     Description = "Delete a profile. Dependents are kept unless --cascade."

@@ -16,6 +16,7 @@ namespace TALXIS.CLI.Config.Commands.Profile;
 /// must be supplied; no-ops are refused with exit 1 so scripts fail
 /// loudly instead of silently doing nothing.
 /// </summary>
+[McpIgnore]
 [CliCommand(
     Name = "update",
     Description = "Rebind a profile to a different auth/connection or update its description."

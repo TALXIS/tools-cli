@@ -1,9 +1,11 @@
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Logging;
+using TALXIS.CLI.Shared;
 
 namespace TALXIS.CLI.Data;
 
+[McpIgnore]
 [CliCommand(
     Name = "start",  
     Description = "Starts a local HTTP server exposing endpoints for ETL/data transformation tasks. Useful for integrating with Power Query or other local ETL tools. " +

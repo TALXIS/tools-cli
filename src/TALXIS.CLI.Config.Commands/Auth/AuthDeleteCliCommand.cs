@@ -4,6 +4,7 @@ using TALXIS.CLI.Config.Abstractions;
 using TALXIS.CLI.Config.DependencyInjection;
 using TALXIS.CLI.Config.Model;
 using TALXIS.CLI.Logging;
+using TALXIS.CLI.Shared;
 
 namespace TALXIS.CLI.Config.Commands.Auth;
 
@@ -17,6 +18,7 @@ namespace TALXIS.CLI.Config.Commands.Auth;
 /// <c>pac auth clear</c> behaves similarly; cascading deletes would be
 /// surprising and are therefore intentionally not performed.
 /// </summary>
+[McpIgnore]
 [CliCommand(
     Name = "delete",
     Description = "Delete a stored credential. Profiles referencing it are left orphaned with a warning."

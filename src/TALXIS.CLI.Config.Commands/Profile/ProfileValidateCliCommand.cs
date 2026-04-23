@@ -23,6 +23,7 @@ namespace TALXIS.CLI.Config.Commands.Profile;
 /// provider; exit 1 = validation failure (structural or live).
 /// </para>
 /// </summary>
+[McpIgnore]
 [CliCommand(
     Name = "validate",
     Description = "Preflight a profile with structural and live checks."

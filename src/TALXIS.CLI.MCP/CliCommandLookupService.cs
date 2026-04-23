@@ -1,4 +1,5 @@
 using System.Reflection;
+using TALXIS.CLI.Shared;
 
 namespace TALXIS.CLI.MCP
 {
@@ -15,6 +16,9 @@ namespace TALXIS.CLI.MCP
         {
             var attr = Attribute.GetCustomAttribute(cmdType, typeof(DotMake.CommandLine.CliCommandAttribute)) as DotMake.CommandLine.CliCommandAttribute;
             if (attr == null) return;
+
+            // Skip commands (and their entire sub-tree) marked as not relevant for MCP.
+            if (Attribute.IsDefined(cmdType, typeof(McpIgnoreAttribute))) return;
             var cliCommandNameResolver = new CliCommandNameResolver();
             string name = cliCommandNameResolver.ResolveCommandName(cmdType, attr);
             bool isRoot = cmdType == rootType;
