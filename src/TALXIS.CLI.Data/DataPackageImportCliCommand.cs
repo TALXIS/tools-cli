@@ -52,13 +52,13 @@ public class DataPackageImportCliCommand : ProfiledCliCommand
 
         try
         {
-            CmtImportResult result = await _cmtImportRunner.RunAsync(new CmtImportRequest(
-                Path.GetFullPath(Data),
+            CmtImportResult result = await _cmtImportRunner.RunAsync(
+                new CmtImportRequest(
+                    Path.GetFullPath(Data),
+                    ConnectionCount,
+                    Verbose),
                 resolvedConnectionString,
-                EnvironmentUrl: null,
-                DeviceCode: false,
-                ConnectionCount,
-                Verbose));
+                CancellationToken.None);
 
             if (!result.Succeeded)
             {

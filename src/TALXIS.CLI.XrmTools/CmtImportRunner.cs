@@ -58,9 +58,10 @@ public sealed class CmtImportRunner
     ///   <item>Import data</item>
     /// </list>
     /// </summary>
-    public async Task<CmtImportResult> RunAsync(CmtImportRequest request)
+    public async Task<CmtImportResult> RunAsync(CmtImportRequest request, string connectionString, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 
         bool isDirectory = Directory.Exists(request.DataPath);
         bool isFile = !isDirectory && File.Exists(request.DataPath);
@@ -79,7 +80,6 @@ public sealed class CmtImportRunner
         // Track whether we created a temp folder that should be cleaned up.
         bool ownsWorkingFolder = false;
         CrmServiceClient? crmServiceClient = null;
-        DataverseInteractiveAuthHook? authHook = null;
 
         try
         {
@@ -117,22 +117,7 @@ public sealed class CmtImportRunner
             RegisterExtractedDirectoryForProbing(workingFolder);
 
             // 2. Connect to Dataverse.
-            if (!string.IsNullOrWhiteSpace(request.ConnectionString))
-            {
-                crmServiceClient = new CrmServiceClient(request.ConnectionString);
-            }
-            else
-            {
-                if (string.IsNullOrWhiteSpace(request.EnvironmentUrl) ||
-                    !Uri.TryCreate(request.EnvironmentUrl, UriKind.Absolute, out Uri? environmentUri))
-                {
-                    return new CmtImportResult(false, "A valid Dataverse environment URL or connection string is required.");
-                }
-
-                authHook = new DataverseInteractiveAuthHook(environmentUri, request.DeviceCode, request.Verbose);
-                CrmServiceClient.AuthOverrideHook = authHook;
-                crmServiceClient = new CrmServiceClient(environmentUri, useUniqueInstance: true);
-            }
+            crmServiceClient = new CrmServiceClient(connectionString);
 
             if (!crmServiceClient.IsReady)
             {
@@ -169,18 +154,8 @@ public sealed class CmtImportRunner
                     try
                     {
                         // Create additional CrmServiceClient instances using the
-                        // same auth approach — either connection string or auth hook.
-                        CrmServiceClient clone;
-                        if (!string.IsNullOrWhiteSpace(request.ConnectionString))
-                        {
-                            clone = new CrmServiceClient(request.ConnectionString);
-                        }
-                        else
-                        {
-                            clone = new CrmServiceClient(
-                                new Uri(request.EnvironmentUrl!),
-                                useUniqueInstance: true);
-                        }
+                        // same connection string as the primary client.
+                        CrmServiceClient clone = new(connectionString);
 
                         if (clone.IsReady)
                         {
@@ -242,7 +217,6 @@ public sealed class CmtImportRunner
         }
         finally
         {
-            authHook?.Dispose();
             crmServiceClient?.Dispose();
 
             AppDomain.CurrentDomain.AssemblyResolve -= OnResolveAssembly;
