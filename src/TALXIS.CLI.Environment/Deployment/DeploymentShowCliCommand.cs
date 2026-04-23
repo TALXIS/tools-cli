@@ -1,34 +1,21 @@
-using TALXIS.CLI.Config.Platforms.Dataverse;
 using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
-using Microsoft.PowerPlatform.Dataverse.Client;
-using Microsoft.Xrm.Sdk;
 using TALXIS.CLI.Config.Abstractions;
 using TALXIS.CLI.Config.Commands.Abstractions;
-using TALXIS.CLI.Config.Providers.Dataverse.Runtime;
-using TALXIS.CLI.Dataverse;
-using TALXIS.CLI.Config.Providers.Dataverse.Platforms;
+using TALXIS.CLI.Config.DependencyInjection;
+using TALXIS.CLI.Config.Platforms.Dataverse;
 using TALXIS.CLI.Logging;
 using TALXIS.CLI.Shared;
 
 namespace TALXIS.CLI.Environment.Deployment;
 
-/// <summary>
-/// Shows details for a single deployment run (package or solution). Resolution is driven by
-/// typed selectors — each selector maps to exactly one platform entity, with no cross-entity
-/// probing. Emits findings derived from <see cref="DeploymentFindingsAnalyzer"/>.
-/// </summary>
 [CliCommand(
     Name = "show",
     Description = "Show details and findings for a single deployment run. Specify exactly one of --package-run-id, --solution-run-id, --async-operation-id, --package-name, --solution-name, or --latest."
 )]
 public class DeploymentShowCliCommand : ProfiledCliCommand
 {
-    // Tail buffer added after package completion to catch async solution imports that finish
-    // slightly after Package Deployer signals done.
-    private static readonly TimeSpan CorrelationTailBuffer = TimeSpan.FromSeconds(30);
-
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(DeploymentShowCliCommand));
 
     [CliOption(Name = "--package-run-id", Description = "GUID of a package deployment run (packagehistory row).", Required = false)]
@@ -40,10 +27,10 @@ public class DeploymentShowCliCommand : ProfiledCliCommand
     [CliOption(Name = "--async-operation-id", Description = "GUID of the async operation returned by a queued solution import. Falls back to the correlated solution history row, then to raw async-op status.", Required = false)]
     public string? AsyncOperationId { get; set; }
 
-    [CliOption(Name = "--package-name", Description = "NuGet package name — returns the most recent run in packagehistory matching this name.", Required = false)]
+    [CliOption(Name = "--package-name", Description = "NuGet package name returns the most recent run in packagehistory matching this name.", Required = false)]
     public string? PackageName { get; set; }
 
-    [CliOption(Name = "--solution-name", Description = "Solution unique name — returns the most recent standalone solution import matching this name.", Required = false)]
+    [CliOption(Name = "--solution-name", Description = "Solution unique name returns the most recent standalone solution import matching this name.", Required = false)]
     public string? SolutionName { get; set; }
 
     [CliOption(Name = "--latest", Description = "Show the most recent deployment run across packages and solutions.", Required = false)]
@@ -76,126 +63,56 @@ public class DeploymentShowCliCommand : ProfiledCliCommand
             return 1;
         }
 
-        Guid packageRunGuid = Guid.Empty;
-        Guid solutionRunGuid = Guid.Empty;
-        Guid asyncOpGuid = Guid.Empty;
-
+        Guid packageRunGuid = Guid.Empty, solutionRunGuid = Guid.Empty, asyncOpGuid = Guid.Empty;
         if (PackageRunId is not null && !TryParseGuid(PackageRunId, "--package-run-id", out packageRunGuid)) return 1;
         if (SolutionRunId is not null && !TryParseGuid(SolutionRunId, "--solution-run-id", out solutionRunGuid)) return 1;
         if (AsyncOperationId is not null && !TryParseGuid(AsyncOperationId, "--async-operation-id", out asyncOpGuid)) return 1;
+        if (PackageName is not null && string.IsNullOrWhiteSpace(PackageName)) { _logger.LogError("--package-name must not be empty."); return 1; }
+        if (SolutionName is not null && string.IsNullOrWhiteSpace(SolutionName)) { _logger.LogError("--solution-name must not be empty."); return 1; }
 
-        if (PackageName is not null && string.IsNullOrWhiteSpace(PackageName))
-        {
-            _logger.LogError("--package-name must not be empty.");
-            return 1;
-        }
-        if (SolutionName is not null && string.IsNullOrWhiteSpace(SolutionName))
-        {
-            _logger.LogError("--solution-name must not be empty.");
-            return 1;
-        }
-
-        DataverseConnection conn;
+        DeploymentDetailResult? result;
         try
         {
-            conn = await DataverseCommandBridge.ConnectAsync(Profile, CancellationToken.None).ConfigureAwait(false);
+            var service = TxcServices.Get<IDeploymentDetailService>();
+            var ct = CancellationToken.None;
+            result = PackageRunId is not null ? await service.GetByPackageRunIdAsync(Profile, packageRunGuid, ct).ConfigureAwait(false)
+                : SolutionRunId is not null ? await service.GetBySolutionRunIdAsync(Profile, solutionRunGuid, Full, ct).ConfigureAwait(false)
+                : AsyncOperationId is not null ? await service.GetByAsyncOperationIdAsync(Profile, asyncOpGuid, Full, ct).ConfigureAwait(false)
+                : PackageName is not null ? await service.GetLatestByPackageNameAsync(Profile, PackageName!.Trim(), ct).ConfigureAwait(false)
+                : SolutionName is not null ? await service.GetLatestBySolutionNameAsync(Profile, SolutionName!.Trim(), Full, ct).ConfigureAwait(false)
+                : await service.GetLatestAsync(Profile, Full, ct).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
         {
             _logger.LogError("{Error}", ex.Message);
             return 1;
         }
-
-        using (conn)
+        catch (Exception ex)
         {
-            var client = conn.Client;
-            try
-            {
-                var pkgReader = new PackageHistoryReader(client, _logger);
-                var solReader = new SolutionHistoryReader(client, _logger);
-
-                if (PackageRunId is not null)
-                {
-                    var pkg = await pkgReader.GetByIdAsync(packageRunGuid).ConfigureAwait(false);
-                    if (pkg is null)
-                    {
-                        _logger.LogError("No package run matched --package-run-id '{Id}'.", PackageRunId);
-                        return 1;
-                    }
-                    return await RenderPackageAsync(client, pkg).ConfigureAwait(false);
-                }
-
-                if (SolutionRunId is not null)
-                {
-                    var sol = await solReader.GetByIdAsync(solutionRunGuid).ConfigureAwait(false);
-                    if (sol is null)
-                    {
-                        _logger.LogError("No solution run matched --solution-run-id '{Id}'.", SolutionRunId);
-                        return 1;
-                    }
-                    return await RenderSolutionAsync(client, sol).ConfigureAwait(false);
-                }
-
-                if (AsyncOperationId is not null)
-                {
-                    var sol = await solReader.GetByActivityIdAsync(asyncOpGuid).ConfigureAwait(false);
-                    if (sol is not null)
-                    {
-                        return await RenderSolutionAsync(client, sol).ConfigureAwait(false);
-                    }
-                    int? asyncResult = await TryShowAsyncOperationAsync(client, asyncOpGuid).ConfigureAwait(false);
-                    if (asyncResult.HasValue) return asyncResult.Value;
-                    _logger.LogError("No async operation or correlated solution run matched --async-operation-id '{Id}'.", AsyncOperationId);
-                    return 1;
-                }
-
-                if (PackageName is not null)
-                {
-                    var pkg = await pkgReader.GetLatestAsync(PackageName!.Trim()).ConfigureAwait(false);
-                    if (pkg is null)
-                    {
-                        _logger.LogError("No package run matched --package-name '{Name}'.", PackageName);
-                        return 1;
-                    }
-                    return await RenderPackageAsync(client, pkg).ConfigureAwait(false);
-                }
-
-                if (SolutionName is not null)
-                {
-                    var sol = await solReader.GetLatestByNameAsync(SolutionName!.Trim()).ConfigureAwait(false);
-                    if (sol is null)
-                    {
-                        _logger.LogError("No solution run matched --solution-name '{Name}'.", SolutionName);
-                        return 1;
-                    }
-                    return await RenderSolutionAsync(client, sol).ConfigureAwait(false);
-                }
-
-                // --latest
-                var pkgTask = pkgReader.GetRecentAsync(1);
-                var solTask = solReader.GetRecentAsync(1);
-                await Task.WhenAll(pkgTask, solTask).ConfigureAwait(false);
-                var latestPkg = (await pkgTask.ConfigureAwait(false)).FirstOrDefault();
-                var latestSol = (await solTask.ConfigureAwait(false)).FirstOrDefault();
-                if (latestPkg is null && latestSol is null)
-                {
-                    _logger.LogError("No deployment runs found.");
-                    return 1;
-                }
-                var pkgTime = latestPkg?.StartedAtUtc ?? DateTime.MinValue;
-                var solTime = latestSol?.StartedAtUtc ?? DateTime.MinValue;
-                if (latestPkg is not null && (latestSol is null || pkgTime >= solTime))
-                {
-                    return await RenderPackageAsync(client, latestPkg).ConfigureAwait(false);
-                }
-                return await RenderSolutionAsync(client, latestSol!).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "environment deployment show failed");
-                return 1;
-            }
+            _logger.LogError(ex, "environment deployment show failed");
+            return 1;
         }
+
+        if (result is null)
+        {
+            string hint = PackageRunId is not null ? $"No package run matched --package-run-id '{PackageRunId}'."
+                : SolutionRunId is not null ? $"No solution run matched --solution-run-id '{SolutionRunId}'."
+                : AsyncOperationId is not null ? $"No async operation or correlated solution run matched --async-operation-id '{AsyncOperationId}'."
+                : PackageName is not null ? $"No package run matched --package-name '{PackageName}'."
+                : SolutionName is not null ? $"No solution run matched --solution-name '{SolutionName}'."
+                : "No deployment runs found.";
+            _logger.LogError("{Message}", hint);
+            return 1;
+        }
+
+        return result.Kind switch
+        {
+            DeploymentRunKind.Package => RenderPackage(result),
+            DeploymentRunKind.Solution => RenderSolution(result),
+            DeploymentRunKind.AsyncOperationInProgress => RenderAsyncInProgress(result),
+            DeploymentRunKind.AsyncOperationCompleted => RenderAsyncCompleted(result),
+            _ => 1,
+        };
     }
 
     private bool TryParseGuid(string value, string optionName, out Guid guid)
@@ -205,58 +122,24 @@ public class DeploymentShowCliCommand : ProfiledCliCommand
         return false;
     }
 
-    private async Task<int> RenderPackageAsync(ServiceClient client, PackageHistoryRecord record)
+    private int RenderPackage(DeploymentDetailResult r)
     {
-        var historyReader = new SolutionHistoryReader(client, _logger);
-        IReadOnlyList<SolutionHistoryRecord> correlated = Array.Empty<SolutionHistoryRecord>();
-        if (record.StartedAtUtc is { } startedAt)
-        {
-            try
-            {
-                // Preferred path: exact join via asyncoperation.correlationid.
-                if (record.CorrelationId is { } corrId && corrId != Guid.Empty)
-                {
-                    correlated = await historyReader.GetByCorrelationIdAsync(corrId).ConfigureAwait(false);
-                }
-
-                // Fallback: time window when asyncoperation records have been cleaned up.
-                if (correlated.Count == 0)
-                {
-                    var windowEnd = (record.CompletedAtUtc ?? startedAt) + CorrelationTailBuffer;
-                    correlated = await historyReader.GetInTimeWindowAsync(startedAt, windowEnd).ConfigureAwait(false);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogDebug(ex, "Failed to enrich package run with solution history.");
-            }
-        }
-
-        var findings = DeploymentFindingsAnalyzer.Analyze(new DeploymentFindingsInput
-        {
-            ImportJobData = null,
-            Primary = null,
-            Solutions = correlated,
-            IsPackageMode = true,
-            IncludeSolutions = true,
-            PackageStatus = record.Status,
-            PackageStartedAtUtc = record.StartedAtUtc,
-        });
-
+        var pkg = r.Package!;
+        var correlated = r.CorrelatedSolutions;
         if (Json)
         {
             OutputWriter.WriteLine(JsonSerializer.Serialize(new
             {
                 kind = "package",
-                id = record.Id,
-                name = record.Name,
-                status = record.Status,
-                stage = record.Stage,
-                startedAtUtc = record.StartedAtUtc?.ToString("O"),
-                completedAtUtc = record.CompletedAtUtc?.ToString("O"),
-                operationId = record.OperationId,
-                correlationId = record.CorrelationId,
-                message = record.Message,
+                id = pkg.Id,
+                name = pkg.Name,
+                status = pkg.Status,
+                stage = pkg.Stage,
+                startedAtUtc = pkg.StartedAtUtc?.ToString("O"),
+                completedAtUtc = pkg.CompletedAtUtc?.ToString("O"),
+                operationId = pkg.OperationId,
+                correlationId = pkg.CorrelationId,
+                message = pkg.Message,
                 solutions = correlated.Select(s => new
                 {
                     id = s.Id,
@@ -272,241 +155,106 @@ public class DeploymentShowCliCommand : ProfiledCliCommand
                     completedAtUtc = s.CompletedAtUtc?.ToString("O"),
                     result = s.Result,
                 }).ToList<object>(),
-                findings,
+                findings = r.Findings,
             }, JsonOptions));
             return 0;
         }
-
-        PrintPackage(record, correlated);
-        WriteFindings(Console.Out, findings);
+        PrintPackage(pkg, correlated);
+        WriteFindings(r.Findings);
         return 0;
     }
 
-    private async Task<int> RenderSolutionAsync(ServiceClient client, SolutionHistoryRecord record)
+    private int RenderSolution(DeploymentDetailResult r)
     {
-        PackageHistoryRecord? parentPackage = null;
-        if (record.StartedAtUtc is { } startedAt)
-        {
-            try
-            {
-                var pkgReader = new PackageHistoryReader(client, _logger);
-                var nearby = await pkgReader.GetRecentAsync(50, startedAt - CorrelationTailBuffer, problemsOnly: false).ConfigureAwait(false);
-                parentPackage = nearby.FirstOrDefault(p =>
-                    p.StartedAtUtc is { } ps
-                    && ps <= startedAt
-                    && ((p.CompletedAtUtc ?? ps) + CorrelationTailBuffer) >= startedAt);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogDebug(ex, "Failed to locate parent package for solution history row.");
-            }
-        }
-
-        string? formattedLog = null;
-        ImportJobRecord? importJobMatch = null;
-        if (Full)
-        {
-            try
-            {
-                var importReader = new ImportJobReader(client, _logger);
-                if (record.StartedAtUtc is { } startedAt2)
-                {
-                    var windowStart = startedAt2;
-                    var windowEnd = (record.CompletedAtUtc ?? startedAt2) + CorrelationTailBuffer;
-                    var jobs = await importReader.GetInTimeWindowAsync(windowStart, windowEnd).ConfigureAwait(false);
-                    importJobMatch = jobs.FirstOrDefault(j =>
-                        record.SolutionName is not null
-                        && string.Equals(j.SolutionName, record.SolutionName, StringComparison.OrdinalIgnoreCase));
-                    if (importJobMatch is not null)
-                    {
-                        formattedLog = await importReader.GetFormattedResultsAsync(importJobMatch.Id).ConfigureAwait(false);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogDebug(ex, "Failed to retrieve formatted import log for solution history row.");
-            }
-        }
-
-        var findings = DeploymentFindingsAnalyzer.Analyze(new DeploymentFindingsInput
-        {
-            ImportJobData = importJobMatch?.Data,
-            Primary = record,
-            Solutions = new[] { record },
-            IsPackageMode = false,
-            IncludeSolutions = false,
-        });
-
+        var sol = r.Solution!;
+        var parent = r.ParentPackage;
         if (Json)
         {
             OutputWriter.WriteLine(JsonSerializer.Serialize(new
             {
                 kind = "solution",
-                id = record.Id,
-                solutionName = record.SolutionName,
-                solutionVersion = record.SolutionVersion,
-                packageName = record.PackageName,
-                operation = record.OperationLabel,
-                operationCode = record.OperationCode,
-                suboperation = record.SuboperationLabel,
-                suboperationCode = record.SuboperationCode,
-                overwriteUnmanagedCustomizations = record.OverwriteUnmanagedCustomizations,
-                startedAtUtc = record.StartedAtUtc?.ToString("O"),
-                completedAtUtc = record.CompletedAtUtc?.ToString("O"),
-                result = record.Result,
-                parentPackage = parentPackage is null ? null : new
-                {
-                    id = parentPackage.Id,
-                    name = parentPackage.Name,
-                    status = parentPackage.Status,
-                },
-                formattedImportLog = formattedLog,
-                findings,
+                id = sol.Id,
+                solutionName = sol.SolutionName,
+                solutionVersion = sol.SolutionVersion,
+                packageName = sol.PackageName,
+                operation = sol.OperationLabel,
+                operationCode = sol.OperationCode,
+                suboperation = sol.SuboperationLabel,
+                suboperationCode = sol.SuboperationCode,
+                overwriteUnmanagedCustomizations = sol.OverwriteUnmanagedCustomizations,
+                startedAtUtc = sol.StartedAtUtc?.ToString("O"),
+                completedAtUtc = sol.CompletedAtUtc?.ToString("O"),
+                result = sol.Result,
+                parentPackage = parent is null ? null : new { id = parent.Id, name = parent.Name, status = parent.Status },
+                formattedImportLog = r.FormattedImportLog,
+                findings = r.Findings,
             }, JsonOptions));
             return 0;
         }
-
-        PrintSolution(record, parentPackage);
-        if (Full && formattedLog is not null)
+        PrintSolution(sol, parent);
+        if (Full && r.FormattedImportLog is not null)
         {
             OutputWriter.WriteLine();
             OutputWriter.WriteLine("-- formatted import log --");
-            OutputWriter.WriteLine(formattedLog);
+            OutputWriter.WriteLine(r.FormattedImportLog);
         }
-        WriteFindings(Console.Out, findings);
+        WriteFindings(r.Findings);
         return 0;
     }
 
-    /// <summary>
-    /// Attempts to resolve and display status for an <c>asyncoperation</c> row directly.
-    /// Returns the exit code (0 = success, 1 = import failed) when the GUID is a known async
-    /// operation ID, or <c>null</c> when the GUID does not correspond to any async operation.
-    /// </summary>
-    private async Task<int?> TryShowAsyncOperationAsync(ServiceClient client, Guid asyncOpId)
+    private int RenderAsyncInProgress(DeploymentDetailResult r)
     {
-        Entity entity;
-        try
-        {
-            entity = await client.RetrieveAsync(
-                DataverseSchema.AsyncOperation.EntityName,
-                asyncOpId,
-                new Microsoft.Xrm.Sdk.Query.ColumnSet(
-                    "statecode", "statuscode", "message", "friendlymessage", "createdon", "completedon"),
-                default).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (IsNotFoundError(ex))
-        {
-            return null;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Failed to retrieve asyncoperation {Id}.", asyncOpId);
-            return null;
-        }
-
-        var statecode = entity.GetAttributeValue<OptionSetValue>("statecode")?.Value ?? 0;
-        var statuscode = entity.GetAttributeValue<OptionSetValue>("statuscode")?.Value ?? 0;
-
-        // Not yet completed — show live status.
-        if (statecode != 3)
-        {
-            string stateLabel = statecode switch
-            {
-                0 => "Ready",
-                1 => "Suspended",
-                2 => "In Progress",
-                _ => $"State {statecode}",
-            };
-
-            if (Json)
-            {
-                OutputWriter.WriteLine(JsonSerializer.Serialize(new
-                {
-                    kind = "asyncoperation",
-                    id = asyncOpId,
-                    state = stateLabel,
-                    statecode,
-                    statuscode,
-                    completed = false,
-                }, JsonOptions));
-            }
-            else
-            {
-                OutputWriter.WriteLine($"Import in progress: {stateLabel}");
-                OutputWriter.WriteLine($"  asyncOperationId: {asyncOpId}");
-                OutputWriter.WriteLine($"  Run again to refresh or use `txc environment deployment show --async-operation-id {asyncOpId}` when done.");
-            }
-            return 0;
-        }
-
-        bool succeededOp = statuscode == 30;
-        DateTime? completedOn = entity.Contains("completedon")
-            ? entity.GetAttributeValue<DateTime>("completedon")
-            : null;
-        DateTime? createdOn = entity.Contains("createdon")
-            ? entity.GetAttributeValue<DateTime>("createdon")
-            : null;
-
-        var historyReader = new SolutionHistoryReader(client, _logger);
-        DateTime pivot = completedOn ?? createdOn ?? DateTime.UtcNow;
-        SolutionHistoryRecord? sol = null;
-
-        bool veryRecent = (DateTime.UtcNow - pivot).TotalSeconds < 60;
-        int attempts = veryRecent ? 3 : 1;
-        for (int i = 0; i < attempts; i++)
-        {
-            if (i > 0)
-            {
-                await Task.Delay(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
-            }
-            sol = await historyReader.GetByActivityIdAsync(asyncOpId, nearUtc: pivot).ConfigureAwait(false);
-            if (sol is not null) break;
-        }
-
-        if (sol is not null)
-        {
-            return await RenderSolutionAsync(client, sol).ConfigureAwait(false);
-        }
-
-        string? message = entity.GetAttributeValue<string>("friendlymessage")
-            ?? entity.GetAttributeValue<string>("message");
-
+        var op = r.AsyncOperation!;
         if (Json)
         {
             OutputWriter.WriteLine(JsonSerializer.Serialize(new
             {
                 kind = "asyncoperation",
-                id = asyncOpId,
-                state = "Completed",
-                statecode,
-                statuscode,
-                completed = true,
-                succeeded = succeededOp,
-                message,
+                id = op.Id,
+                state = op.StateLabel,
+                statecode = op.StateCode,
+                statuscode = op.StatusCode,
+                completed = false,
             }, JsonOptions));
         }
         else
         {
-            OutputWriter.WriteLine($"Async operation {asyncOpId}");
-            OutputWriter.WriteLine($"  state:   Completed");
-            OutputWriter.WriteLine($"  result:  {(succeededOp ? "Succeeded" : $"Failed (status {statuscode})")}");
-            if (!string.IsNullOrWhiteSpace(message))
-            {
-                OutputWriter.WriteLine($"  message: {message}");
-            }
-            OutputWriter.WriteLine("  (Solution history record not yet available — re-run shortly to get full details.)");
+            OutputWriter.WriteLine($"Import in progress: {op.StateLabel}");
+            OutputWriter.WriteLine($"  asyncOperationId: {op.Id}");
+            OutputWriter.WriteLine($"  Run again to refresh or use `txc environment deployment show --async-operation-id {op.Id}` when done.");
         }
-
-        return succeededOp ? 0 : 1;
+        return 0;
     }
 
-    private static bool IsNotFoundError(Exception ex)
+    private int RenderAsyncCompleted(DeploymentDetailResult r)
     {
-        if (ex.Message.Contains("0x80040217", StringComparison.OrdinalIgnoreCase)) return true;
-        if (ex.Message.Contains("Does Not Exist", StringComparison.OrdinalIgnoreCase)) return true;
-        if (ex.Message.Contains("ObjectDoesNotExist", StringComparison.OrdinalIgnoreCase)) return true;
-        return false;
+        var op = r.AsyncOperation!;
+        if (Json)
+        {
+            OutputWriter.WriteLine(JsonSerializer.Serialize(new
+            {
+                kind = "asyncoperation",
+                id = op.Id,
+                state = "Completed",
+                statecode = op.StateCode,
+                statuscode = op.StatusCode,
+                completed = true,
+                succeeded = op.Succeeded,
+                message = op.Message,
+            }, JsonOptions));
+        }
+        else
+        {
+            OutputWriter.WriteLine($"Async operation {op.Id}");
+            OutputWriter.WriteLine($"  state:   Completed");
+            OutputWriter.WriteLine($"  result:  {(op.Succeeded ? "Succeeded" : $"Failed (status {op.StatusCode})")}");
+            if (!string.IsNullOrWhiteSpace(op.Message))
+            {
+                OutputWriter.WriteLine($"  message: {op.Message}");
+            }
+            OutputWriter.WriteLine("  (Solution history record not yet available -- re-run shortly to get full details.)");
+        }
+        return op.Succeeded ? 0 : 1;
     }
 
     private static void PrintPackage(PackageHistoryRecord record, IReadOnlyList<SolutionHistoryRecord> correlated)
@@ -535,11 +283,7 @@ public class DeploymentShowCliCommand : ProfiledCliCommand
 
         OutputWriter.WriteLine();
         OutputWriter.WriteLine($"Solutions within package run window: {correlated.Count}");
-        if (correlated.Count == 0)
-        {
-            return;
-        }
-
+        if (correlated.Count == 0) return;
         foreach (var solution in correlated)
         {
             string duration = (solution.StartedAtUtc is { } start && solution.CompletedAtUtc is { } end)
@@ -575,14 +319,14 @@ public class DeploymentShowCliCommand : ProfiledCliCommand
         }
     }
 
-    private static void WriteFindings(TextWriter writer, IReadOnlyList<string> findings)
+    private static void WriteFindings(IReadOnlyList<string> findings)
     {
         if (findings is null || findings.Count == 0) return;
-        writer.WriteLine();
-        writer.WriteLine("Findings:");
+        OutputWriter.WriteLine();
+        OutputWriter.WriteLine("Findings:");
         foreach (var f in findings)
         {
-            writer.WriteLine($"- {f}");
+            OutputWriter.WriteLine($"- {f}");
         }
     }
 
