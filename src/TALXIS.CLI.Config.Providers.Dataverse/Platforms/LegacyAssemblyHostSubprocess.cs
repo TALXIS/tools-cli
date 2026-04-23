@@ -97,7 +97,7 @@ public static class LegacyAssemblyHostSubprocess
             cancellationToken).ConfigureAwait(false);
     }
 
-    public static void TryDeleteDirectory(string? path)
+    internal static void TryDeleteDirectory(string? path)
     {
         if (string.IsNullOrEmpty(path)) return;
 
