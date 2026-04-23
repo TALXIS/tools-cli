@@ -94,4 +94,58 @@ public class LogRedactionFilterTests
         Assert.DoesNotContain("tok1", result2);
         Assert.DoesNotContain("key2", result2);
     }
+
+    [Fact]
+    public void Redact_BearerToken_Replaced()
+    {
+        var input = "Request headers: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.abc.def more text";
+        var result = LogRedactionFilter.Redact(input);
+        Assert.DoesNotContain("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", result);
+        Assert.Contains("Bearer ***REDACTED***", result);
+    }
+
+    [Fact]
+    public void Redact_AuthorizationHeader_ReplacedFullValue()
+    {
+        var input = "Sending: Authorization: Basic QWxhZGRpbjpvcGVuU2VzYW1l\nNext-Line: ok";
+        var result = LogRedactionFilter.Redact(input);
+        Assert.DoesNotContain("QWxhZGRpbjpvcGVuU2VzYW1l", result);
+        Assert.Contains("Authorization: ***REDACTED***", result);
+        Assert.Contains("Next-Line: ok", result);
+    }
+
+    [Fact]
+    public void Redact_BareJwt_Replaced()
+    {
+        var input = "Token received: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c and handled";
+        var result = LogRedactionFilter.Redact(input);
+        Assert.DoesNotContain("SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c", result);
+        Assert.Contains("***REDACTED***", result);
+    }
+
+    [Fact]
+    public void Redact_ClientSecret_InConnectionString()
+    {
+        var input = "AuthType=ClientSecret;Url=https://org.crm.dynamics.com;ClientId=abc;ClientSecret=topsecret123;";
+        var result = LogRedactionFilter.Redact(input);
+        Assert.DoesNotContain("topsecret123", result);
+    }
+
+    [Fact]
+    public void Redact_AccessTokenKey_InConnectionString()
+    {
+        var input = "AccessToken=abcdef;Url=https://x";
+        var result = LogRedactionFilter.Redact(input);
+        Assert.DoesNotContain("abcdef", result);
+    }
+
+    [Fact]
+    public void Redact_AccessTokenQueryParam()
+    {
+        var input = "https://example.com/callback?access_token=hunter2&state=x";
+        var result = LogRedactionFilter.Redact(input);
+        Assert.DoesNotContain("hunter2", result);
+        Assert.Contains("access_token=***REDACTED***", result);
+        Assert.Contains("state=x", result);
+    }
 }

@@ -38,6 +38,12 @@ internal sealed class JsonStderrLogger : ILogger
             message = $"{message} {exception}";
         }
 
+        // Apply redaction at the sink so any code path that logs an exception
+        // containing a connection string or bearer token is sanitised before
+        // leaving the process. Individual call sites in MCP still call Redact
+        // explicitly, but this guard catches accidental leaks.
+        message = LogRedactionFilter.Redact(message) ?? string.Empty;
+
         Dictionary<string, object?>? data = null;
         int? progress = null;
 
@@ -57,7 +63,7 @@ internal sealed class JsonStderrLogger : ILogger
                 }
 
                 data ??= new Dictionary<string, object?>();
-                data[kvp.Key] = kvp.Value;
+                data[kvp.Key] = kvp.Value is string s ? LogRedactionFilter.Redact(s) : kvp.Value;
             }
         }
 
