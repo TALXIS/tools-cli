@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Xml.Linq;
+using TALXIS.CLI.Config.Platforms.Packaging;
 
 namespace TALXIS.CLI.Config.Providers.Dataverse.Platforms;
 

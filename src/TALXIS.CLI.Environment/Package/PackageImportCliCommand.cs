@@ -4,8 +4,7 @@ using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Config.Commands.Abstractions;
 using TALXIS.CLI.Config.DependencyInjection;
 using TALXIS.CLI.Config.Platforms.Dataverse;
-using TALXIS.CLI.Config.Providers.Dataverse.Platforms;
-using TALXIS.CLI.Dataverse;
+using TALXIS.CLI.Config.Platforms.Packaging;
 using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Environment.Package;
