@@ -2,6 +2,7 @@ using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Config.Abstractions;
+using TALXIS.CLI.Config.Bootstrapping;
 using TALXIS.CLI.Config.DependencyInjection;
 using TALXIS.CLI.Config.Model;
 using TALXIS.CLI.Config.Storage;
@@ -50,54 +51,26 @@ public class ConnectionCreateCliCommand
     {
         try
         {
-            var name = Name?.Trim();
-            if (string.IsNullOrEmpty(name))
+            var svc = TxcServices.Get<ConnectionUpsertService>();
+            var upsert = await svc.ValidateAndUpsertAsync(
+                Name,
+                Provider,
+                EnvironmentUrl,
+                Cloud,
+                OrganizationId,
+                TenantId,
+                Description,
+                CancellationToken.None).ConfigureAwait(false);
+
+            if (upsert.Error is not null)
             {
-                _logger.LogError("Connection name must not be empty.");
+                _logger.LogError("{Message}", upsert.Error);
                 return 1;
             }
 
-            if (Provider != ProviderKind.Dataverse)
-            {
-                _logger.LogError(
-                    "Provider '{Provider}' is not implemented in v1. Only 'dataverse' is supported.",
-                    Provider);
-                return 1;
-            }
-
-            if (string.IsNullOrWhiteSpace(EnvironmentUrl))
-            {
-                _logger.LogError("--environment <url> is required when --provider is 'dataverse'.");
-                return 1;
-            }
-            if (!Uri.TryCreate(EnvironmentUrl, UriKind.Absolute, out var envUri)
-                || (envUri.Scheme != Uri.UriSchemeHttp && envUri.Scheme != Uri.UriSchemeHttps))
-            {
-                _logger.LogError("--environment must be an absolute http(s) URL: '{Value}'.", EnvironmentUrl);
-                return 1;
-            }
-
-            if (!string.IsNullOrWhiteSpace(OrganizationId) && !Guid.TryParse(OrganizationId, out _))
-            {
-                _logger.LogError("--organization-id must be a GUID: '{Value}'.", OrganizationId);
-                return 1;
-            }
-
-            var store = TxcServices.Get<IConnectionStore>();
-            var connection = new Model.Connection
-            {
-                Id = name,
-                Provider = Provider,
-                Description = Description,
-                EnvironmentUrl = envUri.ToString().TrimEnd('/'),
-                Cloud = Cloud ?? CloudInstance.Public,
-                OrganizationId = OrganizationId,
-                TenantId = TenantId,
-            };
-            await store.UpsertAsync(connection, CancellationToken.None).ConfigureAwait(false);
-
+            var connection = upsert.Connection!;
             _logger.LogInformation("Connection '{Name}' saved ({Provider} -> {Env}).",
-                name, Provider, connection.EnvironmentUrl);
+                connection.Id, connection.Provider, connection.EnvironmentUrl);
 
             OutputWriter.WriteLine(JsonSerializer.Serialize(
                 new

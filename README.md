@@ -65,6 +65,22 @@ Credentials never live in config files. Service-principal secrets, PATs, and cer
 
 ### Interactive workflow (dev laptop)
 
+**Quickstart — one command.** The common case (new laptop, new tenant) collapses to a single line:
+
+```sh
+txc c p create --url https://contoso.crm4.dynamics.com/
+```
+
+Behind the scenes `txc`:
+1. Infers the provider from the URL host (`*.dynamics.com` → `dataverse`; gov/DoD/China endpoints covered too).
+2. Derives a default profile/connection name from the first DNS label (`contoso` above). Override with `--name`.
+3. Opens the browser for interactive sign-in, caches the MSAL token, and stores a credential keyed off your UPN.
+4. Writes the `Credential`, `Connection`, and `Profile` records and auto-activates the new profile on first run.
+
+Result is identical to running the three primitive commands by hand — use whichever flow you prefer.
+
+**Advanced — primitives.** For scripted flows, service-principal onboarding, or reusing one credential across many environments:
+
 ```sh
 # 1. Log in interactively (opens a browser). Creates a Credential entry
 #    aliased from your UPN (override with --alias) and primes the MSAL cache.
@@ -76,7 +92,7 @@ txc c connection create customer-a-dev \
   --environment https://contoso.crm4.dynamics.com/
 
 # 3. Bind credential + connection into a profile and select it.
-txc c p create customer-a-dev \
+txc c p create --name customer-a-dev \
   --auth <upn-alias> \
   --connection customer-a-dev
 txc c p select customer-a-dev
@@ -112,7 +128,7 @@ txc c connection create ci-target \
   --provider dataverse \
   --environment "$DATAVERSE_URL"
 
-txc c p create ci --auth ci-spn --connection ci-target
+txc c p create --name ci --auth ci-spn --connection ci-target
 txc c p select ci
 
 # Every subsequent txc call picks up TXC_CONFIG_DIR + the selected profile.

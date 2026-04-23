@@ -46,10 +46,14 @@ internal sealed class CommandTestHost : IDisposable
         services.AddSingleton<IConnectionStore, ConnectionStore>();
         services.AddSingleton<ICredentialStore, CredentialStore>();
         services.AddSingleton<IGlobalConfigStore, GlobalConfigStore>();
+        services.AddSingleton<TALXIS.CLI.Config.Bootstrapping.ConnectionUpsertService>();
         services.AddSingleton<ICredentialVault>(Vault);
         services.AddSingleton<IHeadlessDetector>(Headless);
         services.AddSingleton<IInteractiveLoginService>(Login);
         services.AddSingleton<IConnectionProvider>(Provider_Dataverse);
+        services.AddSingleton<
+            TALXIS.CLI.Config.Bootstrapping.IConnectionProviderBootstrapper,
+            TALXIS.CLI.Config.Bootstrapping.DataverseConnectionProviderBootstrapper>();
 
         Provider = services.BuildServiceProvider();
         TxcServices.Initialize(Provider);

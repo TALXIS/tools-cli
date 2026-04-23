@@ -39,6 +39,8 @@ public static class DataverseProviderServiceCollectionExtensions
         services.AddSingleton<IDataverseConnectionFactory, DataverseConnectionFactory>();
         services.AddSingleton<IDataverseLiveChecker, DataverseLiveChecker>();
         services.AddSingleton<IInteractiveLoginService, DataverseInteractiveLoginService>();
+        services.AddSingleton<TALXIS.CLI.Config.Bootstrapping.IConnectionProviderBootstrapper,
+            TALXIS.CLI.Config.Bootstrapping.DataverseConnectionProviderBootstrapper>();
         return services;
     }
 }

@@ -2,6 +2,7 @@ using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Config.Abstractions;
+using TALXIS.CLI.Config.Bootstrapping;
 using TALXIS.CLI.Config.DependencyInjection;
 using TALXIS.CLI.Config.Headless;
 using TALXIS.CLI.Config.Model;
@@ -54,7 +55,7 @@ public class AuthLoginCliCommand
             var result = await login.LoginAsync(Tenant, cloud, CancellationToken.None).ConfigureAwait(false);
 
             var alias = string.IsNullOrWhiteSpace(Alias)
-                ? await ResolveDefaultAliasAsync(store, result.Upn, CancellationToken.None).ConfigureAwait(false)
+                ? await CredentialAliasResolver.ResolveForUpnAsync(store, result.Upn, CancellationToken.None).ConfigureAwait(false)
                 : Alias.Trim();
 
             var credential = new Credential
@@ -93,52 +94,20 @@ public class AuthLoginCliCommand
     }
 
     /// <summary>
-    /// Derives an alias from the UPN. Falls back to appending the UPN's
-    /// tenant-domain short name, then numeric suffixes, until an unused
-    /// alias is found. Exposed internally for unit testing.
+    /// Derives an alias from the UPN. Delegates to
+    /// <see cref="CredentialAliasResolver.ResolveForUpnAsync"/>. Kept on
+    /// the type for back-compat with existing tests and to surface the
+    /// documentation next to the flag that wires it in.
     /// </summary>
-    internal static async Task<string> ResolveDefaultAliasAsync(
+    internal static Task<string> ResolveDefaultAliasAsync(
         ICredentialStore store, string upn, CancellationToken ct)
-    {
-        var slug = upn.Trim().ToLowerInvariant();
-        if (await store.GetAsync(slug, ct).ConfigureAwait(false) is null)
-            return slug;
-
-        var shortName = ExtractTenantShortName(upn);
-        if (!string.IsNullOrEmpty(shortName))
-        {
-            var combined = $"{slug}-{shortName}";
-            if (await store.GetAsync(combined, ct).ConfigureAwait(false) is null)
-                return combined;
-        }
-
-        // Numeric fallback caps at 99 — past that the user should pass --alias.
-        for (var i = 2; i < 100; i++)
-        {
-            var candidate = $"{slug}-{i}";
-            if (await store.GetAsync(candidate, ct).ConfigureAwait(false) is null)
-                return candidate;
-        }
-
-        throw new InvalidOperationException(
-            $"Cannot derive a unique alias for '{upn}' — pass --alias explicitly.");
-    }
+        => CredentialAliasResolver.ResolveForUpnAsync(store, upn, ct);
 
     /// <summary>
     /// Returns the first domain label from the UPN in lowercase, e.g.
-    /// <c>tomas@contoso.com</c> → <c>contoso</c>. Returns <c>null</c>
-    /// when the UPN has no usable domain portion. Internal for tests.
+    /// <c>tomas@contoso.com</c> → <c>contoso</c>. Delegates to
+    /// <see cref="CredentialAliasResolver.ExtractTenantShortName"/>.
     /// </summary>
     internal static string? ExtractTenantShortName(string upn)
-    {
-        if (string.IsNullOrWhiteSpace(upn)) return null;
-        var at = upn.IndexOf('@');
-        if (at < 0 || at == upn.Length - 1) return null;
-
-        var domain = upn[(at + 1)..];
-        var dot = domain.IndexOf('.');
-        var head = dot > 0 ? domain[..dot] : domain;
-        head = head.Trim().ToLowerInvariant();
-        return string.IsNullOrEmpty(head) ? null : head;
-    }
+        => CredentialAliasResolver.ExtractTenantShortName(upn);
 }

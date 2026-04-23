@@ -28,6 +28,7 @@ public static class ConfigServiceCollectionExtensions
 
         services.AddSingleton<IConfigurationResolver, ConfigurationResolver>();
         services.AddSingleton<IHeadlessDetector, HeadlessDetector>();
+        services.AddSingleton<TALXIS.CLI.Config.Bootstrapping.ConnectionUpsertService>();
 
         // Singleton so MsalCacheHelper (and its CrossPlatLock) is instantiated
         // once per process per cache file. See `session/files/keychain-prompt-research.md`:
