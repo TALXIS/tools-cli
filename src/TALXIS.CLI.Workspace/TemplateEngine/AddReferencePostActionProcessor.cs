@@ -27,7 +27,7 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
                 {
                     FileName = "dotnet",
                     Arguments = $"add \"{projectFile}\" reference \"{referenceFile}\"",
-                    WorkingDirectory = Environment.CurrentDirectory,
+                    WorkingDirectory = System.Environment.CurrentDirectory,
                     // If environment is not null and you want to use a custom path, update here
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,

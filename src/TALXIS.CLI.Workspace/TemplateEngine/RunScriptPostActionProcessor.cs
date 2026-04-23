@@ -19,8 +19,8 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
 
         public bool Process(IEngineEnvironmentSettings environment, IPostAction action)
         {
-            // Fall back to using Environment.CurrentDirectory if no explicit output path is provided
-            return ProcessInternal(environment, action, null!, null!, Environment.CurrentDirectory);
+            // Fall back to using System.Environment.CurrentDirectory if no explicit output path is provided
+            return ProcessInternal(environment, action, null!, null!, System.Environment.CurrentDirectory);
         }
 
         public bool ProcessInternal(IEngineEnvironmentSettings environment, IPostAction action, ICreationEffects creationEffects, ICreationResult? templateCreationResult, string outputBasePath)
@@ -40,7 +40,7 @@ namespace TALXIS.CLI.Workspace.TemplateEngine
             
             var scriptArgs = args.TryGetValue("args", out var scriptArgsValue) ? scriptArgsValue : string.Empty;
             
-            // Use the explicit outputBasePath as working directory instead of Environment.CurrentDirectory
+            // Use the explicit outputBasePath as working directory instead of System.Environment.CurrentDirectory
             // This ensures consistent behavior regardless of any directory changes by previous operations
             string workingDir = outputBasePath;
             

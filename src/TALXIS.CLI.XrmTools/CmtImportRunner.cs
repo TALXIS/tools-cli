@@ -58,12 +58,43 @@ public sealed class CmtImportRunner
     ///   <item>Import data</item>
     /// </list>
     /// </summary>
-    public async Task<CmtImportResult> RunAsync(CmtImportRequest request, string connectionString, CancellationToken cancellationToken = default)
+    public Task<CmtImportResult> RunAsync(CmtImportRequest request, string connectionString, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+        return RunInternalAsync(request, () => new CrmServiceClient(connectionString), cancellationToken);
+    }
 
-        bool isDirectory = Directory.Exists(request.DataPath);
+    /// <summary>
+    /// Token-provider overload matching
+    /// <see cref="PackageDeployerRunner.RunAsync(PackageDeployerRequest, Uri, Func{string, Task{string}}, CancellationToken)"/>.
+    /// Primary and clone <see cref="CrmServiceClient"/> instances are built
+    /// via the capture-free <c>(Uri, Func&lt;string, Task&lt;string&gt;&gt;, ...)</c>
+    /// constructor, so no static auth state is involved.
+    /// </summary>
+    public Task<CmtImportResult> RunAsync(
+        CmtImportRequest request,
+        Uri environmentUrl,
+        Func<string, Task<string>> tokenProvider,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(environmentUrl);
+        ArgumentNullException.ThrowIfNull(tokenProvider);
+        if (!environmentUrl.IsAbsoluteUri)
+            throw new ArgumentException($"Environment URL '{environmentUrl}' must be absolute.", nameof(environmentUrl));
+
+        return RunInternalAsync(
+            request,
+            () => new CrmServiceClient(environmentUrl, tokenProvider, useUniqueInstance: true),
+            cancellationToken);
+    }
+
+    private async Task<CmtImportResult> RunInternalAsync(
+        CmtImportRequest request,
+        Func<CrmServiceClient> clientFactory,
+        CancellationToken cancellationToken)
+    {        bool isDirectory = Directory.Exists(request.DataPath);
         bool isFile = !isDirectory && File.Exists(request.DataPath);
 
         if (!isDirectory && !isFile)
@@ -117,7 +148,7 @@ public sealed class CmtImportRunner
             RegisterExtractedDirectoryForProbing(workingFolder);
 
             // 2. Connect to Dataverse.
-            crmServiceClient = new CrmServiceClient(connectionString);
+            crmServiceClient = clientFactory();
 
             if (!crmServiceClient.IsReady)
             {
@@ -154,8 +185,9 @@ public sealed class CmtImportRunner
                     try
                     {
                         // Create additional CrmServiceClient instances using the
-                        // same connection string as the primary client.
-                        CrmServiceClient clone = new(connectionString);
+                        // same auth as the primary client (connection string or
+                        // token-provider callback, via the shared factory).
+                        CrmServiceClient clone = clientFactory();
 
                         if (clone.IsReady)
                         {

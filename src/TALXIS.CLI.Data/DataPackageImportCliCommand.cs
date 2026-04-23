@@ -1,9 +1,11 @@
 using System.ComponentModel;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
+using Microsoft.Identity.Client;
 using TALXIS.CLI.Config.Abstractions;
 using TALXIS.CLI.Config.Commands.Abstractions;
 using TALXIS.CLI.Config.Providers.Dataverse.Runtime;
+using TALXIS.CLI.Environment.Platforms.Dataverse;
 using TALXIS.CLI.Logging;
 using TALXIS.CLI.XrmTools;
 
@@ -15,7 +17,6 @@ namespace TALXIS.CLI.Data;
 )]
 public class DataPackageImportCliCommand : ProfiledCliCommand
 {
-    private readonly CmtImportRunner _cmtImportRunner = new();
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(DataPackageImportCliCommand));
 
     [CliArgument(Description = "Path to the CMT data package (.zip file or folder containing data.xml and data_schema.xml)")]
@@ -39,10 +40,14 @@ public class DataPackageImportCliCommand : ProfiledCliCommand
             return 1;
         }
 
-        string resolvedConnectionString;
         try
         {
-            resolvedConnectionString = await DataverseCommandBridge.BuildConnectionStringAsync(Profile, CancellationToken.None).ConfigureAwait(false);
+            await DataverseCommandBridge.PrimeTokenAsync(Profile, CancellationToken.None);
+        }
+        catch (MsalUiRequiredException)
+        {
+            _logger.LogError("Interactive authentication is required. Run 'txc config auth login' for profile '{Profile}' and retry.", Profile ?? "(default)");
+            return 1;
         }
         catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
         {
@@ -52,12 +57,12 @@ public class DataPackageImportCliCommand : ProfiledCliCommand
 
         try
         {
-            CmtImportResult result = await _cmtImportRunner.RunAsync(
+            CmtImportResult result = await LegacyAssemblyHostSubprocess.RunCmtImportAsync(
                 new CmtImportRequest(
                     Path.GetFullPath(Data),
                     ConnectionCount,
                     Verbose),
-                resolvedConnectionString,
+                Profile ?? string.Empty,
                 CancellationToken.None);
 
             if (!result.Succeeded)

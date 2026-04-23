@@ -24,19 +24,46 @@ public sealed class PackageDeployerRunner
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-        return Task.Run(() => Run(request, connectionString), cancellationToken);
+        return Task.Run(() => Run(request, () => new CrmServiceClient(connectionString)), cancellationToken);
     }
 
-    private static PackageDeployerResult Run(PackageDeployerRequest request, string connectionString)
+    /// <summary>
+    /// Token-provider overload. Prefer this for every credential kind except
+    /// explicit connection-string scenarios: it uses the modern
+    /// <c>ServiceClient(Uri, Func&lt;string, Task&lt;string&gt;&gt;, ...)</c>
+    /// constructor so InteractiveBrowser, ClientCertificate, and federated
+    /// credentials all work without inlining secrets anywhere.
+    /// </summary>
+    public Task<PackageDeployerResult> RunAsync(
+        PackageDeployerRequest request,
+        Uri environmentUrl,
+        Func<string, Task<string>> tokenProvider,
+        CancellationToken cancellationToken = default)
     {
-        using ManagedPackageDeployerHost host = new(request, connectionString);
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(environmentUrl);
+        ArgumentNullException.ThrowIfNull(tokenProvider);
+        if (!environmentUrl.IsAbsoluteUri)
+            throw new ArgumentException($"Environment URL '{environmentUrl}' must be absolute.", nameof(environmentUrl));
+
+        // A newly-constructed CrmServiceClient binds its token callback at
+        // construction time, so there is no static state to restore around
+        // the call — two concurrent deployments remain fully isolated.
+        return Task.Run(
+            () => Run(request, () => new CrmServiceClient(environmentUrl, tokenProvider, useUniqueInstance: true)),
+            cancellationToken);
+    }
+
+    private static PackageDeployerResult Run(PackageDeployerRequest request, Func<CrmServiceClient> clientFactory)
+    {
+        using ManagedPackageDeployerHost host = new(request, clientFactory);
         return host.Run();
     }
 
     private sealed class ManagedPackageDeployerHost : IDisposable
     {
         private readonly PackageDeployerRequest _request;
-        private readonly string _connectionString;
+        private readonly Func<CrmServiceClient> _clientFactory;
         private readonly ILogger _logger;
         private readonly Dictionary<string, Assembly> _assemblyMap;
         private readonly HashSet<string> _unresolvedAssemblies = new(StringComparer.OrdinalIgnoreCase);
@@ -56,10 +83,10 @@ public sealed class PackageDeployerRunner
         private BaseImportCustomizations? _import;
         private CoreObjects? _coreObjects;
 
-        public ManagedPackageDeployerHost(PackageDeployerRequest request, string connectionString)
+        public ManagedPackageDeployerHost(PackageDeployerRequest request, Func<CrmServiceClient> clientFactory)
         {
             _request = request;
-            _connectionString = connectionString;
+            _clientFactory = clientFactory;
             _logger = TxcLoggerFactory.CreateLogger(nameof(PackageDeployerRunner));
 
             // Instance map starts as a copy of the static map — the instance
@@ -84,7 +111,7 @@ public sealed class PackageDeployerRunner
             CrmServiceClient? crmServiceClient = null;
             try
             {
-                crmServiceClient = new CrmServiceClient(_connectionString);
+                crmServiceClient = _clientFactory();
 
                 if (!crmServiceClient.IsReady)
                 {

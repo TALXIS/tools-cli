@@ -41,14 +41,28 @@ public sealed class DataverseAccessTokenService : IDataverseAccessTokenService
     public async Task<string> AcquireAsync(Model.Connection connection, Credential credential, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(connection);
-        ArgumentNullException.ThrowIfNull(credential);
 
         if (string.IsNullOrWhiteSpace(connection.EnvironmentUrl))
             throw new InvalidOperationException($"Dataverse connection '{connection.Id}' is missing EnvironmentUrl.");
         if (!Uri.TryCreate(connection.EnvironmentUrl, UriKind.Absolute, out var envUri))
             throw new InvalidOperationException($"Dataverse connection '{connection.Id}' EnvironmentUrl '{connection.EnvironmentUrl}' is not a valid absolute URI.");
 
-        var scope = DataverseScope.BuildDefault(envUri);
+        return await AcquireForResourceAsync(connection, credential, envUri, ct).ConfigureAwait(false);
+    }
+
+    public async Task<string> AcquireForResourceAsync(
+        Model.Connection connection,
+        Credential credential,
+        Uri resourceUri,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(credential);
+        ArgumentNullException.ThrowIfNull(resourceUri);
+        if (!resourceUri.IsAbsoluteUri)
+            throw new ArgumentException($"Resource URI '{resourceUri}' must be absolute.", nameof(resourceUri));
+
+        var scope = DataverseScope.BuildDefault(resourceUri);
 
         return credential.Kind switch
         {

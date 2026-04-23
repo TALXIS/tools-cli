@@ -66,7 +66,7 @@ public class DataModelConvertCliCommand
         if (lines.Any(l => l.Trim() == entry))
             return;
 
-        File.AppendAllText(gitIgnorePath, $"{Environment.NewLine}{entry}{Environment.NewLine}");
+        File.AppendAllText(gitIgnorePath, $"{System.Environment.NewLine}{entry}{System.Environment.NewLine}");
     }
 
     private static string? FindGitIgnore(string startPath)

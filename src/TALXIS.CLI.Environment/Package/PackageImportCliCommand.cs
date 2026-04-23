@@ -1,7 +1,9 @@
 using System.ComponentModel;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
+using Microsoft.Identity.Client;
 using TALXIS.CLI.Config.Commands.Abstractions;
+using TALXIS.CLI.Config.Providers.Dataverse.Runtime;
 using TALXIS.CLI.Dataverse;
 using TALXIS.CLI.Environment.Platforms.Dataverse;
 using TALXIS.CLI.Logging;
@@ -97,15 +99,20 @@ public class PackageImportCliCommand : ProfiledCliCommand
         }
 
         PackageDeployerResult? deployResult = null;
-        string packageDeployerArtifactsDirectory = Path.Combine(
-            Path.GetTempPath(),
-            "txc",
-            "package-deployer-host",
-            Guid.NewGuid().ToString("N"));
 
         try
         {
-            deployResult = await PackageDeployerSubprocess.RunAsync(new PackageDeployerRequest(
+            try
+            {
+                await DataverseCommandBridge.PrimeTokenAsync(Profile, CancellationToken.None);
+            }
+            catch (MsalUiRequiredException)
+            {
+                _logger.LogError("Interactive authentication is required. Run 'txc config auth login' for profile '{Profile}' and retry.", Profile ?? "(default)");
+                return 1;
+            }
+
+            deployResult = await LegacyAssemblyHostSubprocess.RunPackageDeployerAsync(new PackageDeployerRequest(
                 packagePath,
                 ProfileId: Profile ?? string.Empty,
                 ConfigDirectory: null,
@@ -113,8 +120,8 @@ public class PackageImportCliCommand : ProfiledCliCommand
                 LogFile,
                 LogConsole,
                 Verbose,
-                packageDeployerArtifactsDirectory,
-                System.Environment.ProcessId,
+                TemporaryArtifactsDirectory: string.Empty,
+                ParentProcessId: System.Environment.ProcessId,
                 NuGetPackageName: nugetPackageName,
                 NuGetPackageVersion: nugetPackageVersion));
 
@@ -161,11 +168,9 @@ public class PackageImportCliCommand : ProfiledCliCommand
         }
         finally
         {
-            PackageDeployerSubprocess.TryDeleteDirectory(packageDeployerArtifactsDirectory);
-
             if (!string.IsNullOrWhiteSpace(tempWorkingDirectory))
             {
-                PackageDeployerSubprocess.TryDeleteDirectory(tempWorkingDirectory);
+                LegacyAssemblyHostSubprocess.TryDeleteDirectory(tempWorkingDirectory);
             }
         }
     }

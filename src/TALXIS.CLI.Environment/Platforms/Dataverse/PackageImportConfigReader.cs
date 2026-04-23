@@ -54,7 +54,7 @@ public sealed class PackageImportConfigReader
         {
             if (installResult.UsesTemporaryWorkingDirectory)
             {
-                PackageDeployerSubprocess.TryDeleteDirectory(installResult.WorkingDirectory);
+                LegacyAssemblyHostSubprocess.TryDeleteDirectory(installResult.WorkingDirectory);
             }
         }
     }

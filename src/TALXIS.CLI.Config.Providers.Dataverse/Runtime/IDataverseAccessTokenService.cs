@@ -34,4 +34,27 @@ public interface IDataverseAccessTokenService
     /// <paramref name="credential"/>.
     /// </summary>
     Task<string> AcquireAsync(Model.Connection connection, Credential credential, CancellationToken ct);
+
+    /// <summary>
+    /// Acquires a bearer token scoped to <paramref name="resourceUri"/>.
+    /// Required for token-provider callbacks passed to the Xrm Tooling
+    /// <c>ServiceClient</c>, which may request tokens for the SDK-canonicalized
+    /// org URL rather than the pre-login <c>Connection.EnvironmentUrl</c>.
+    /// </summary>
+    /// <param name="connection">
+    /// The resolved Dataverse connection. Used for authority selection and
+    /// public-client identity lookup (cached account match).
+    /// </param>
+    /// <param name="credential">The resolved credential.</param>
+    /// <param name="resourceUri">
+    /// The audience URL the caller needs a token for (e.g.
+    /// <c>https://contoso.crm.dynamics.com</c>). Scope is built via
+    /// <see cref="Scopes.DataverseScope.BuildDefault"/> from this URI.
+    /// </param>
+    /// <param name="ct">Cancellation token.</param>
+    Task<string> AcquireForResourceAsync(
+        Model.Connection connection,
+        Credential credential,
+        Uri resourceUri,
+        CancellationToken ct);
 }

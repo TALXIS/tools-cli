@@ -7,7 +7,7 @@ namespace TALXIS.CLI
     {
         public static async Task<int> Main(string[] args)
         {
-            int? packageDeployerExitCode = await PackageDeployerSubprocess.TryRunAsync(args);
+            int? packageDeployerExitCode = await LegacyAssemblyHostSubprocess.TryRunAsync(args);
             if (packageDeployerExitCode.HasValue)
             {
                 return packageDeployerExitCode.Value;

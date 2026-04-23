@@ -7,7 +7,7 @@ namespace TALXIS.CLI.Environment.Platforms.Dataverse;
 /// <summary>
 /// Shared <see cref="TxcServices"/> bootstrap used by both the main CLI pipeline
 /// and by out-of-process helpers such as
-/// <see cref="PackageDeployerSubprocess"/>. Idempotent.
+/// <see cref="LegacyAssemblyHostSubprocess"/>. Idempotent.
 /// </summary>
 public static class TxcServicesBootstrap
 {
