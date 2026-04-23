@@ -1,5 +1,5 @@
 using TALXIS.CLI.Config.Model;
-using TALXIS.CLI.Config.Providers.Dataverse.Msal;
+using TALXIS.CLI.Platform.Dataverse.Msal;
 using Xunit;
 
 namespace TALXIS.CLI.Tests.Config.Providers.Dataverse;

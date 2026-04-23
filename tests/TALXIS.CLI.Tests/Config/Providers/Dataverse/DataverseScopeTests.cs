@@ -1,4 +1,4 @@
-using TALXIS.CLI.Config.Providers.Dataverse.Scopes;
+using TALXIS.CLI.Platform.Dataverse.Scopes;
 using Xunit;
 
 namespace TALXIS.CLI.Tests.Config.Providers.Dataverse;

@@ -1,6 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
-using TALXIS.CLI.Config.Providers.Dataverse.Authority;
+using TALXIS.CLI.Platform.Dataverse.Authority;
 using Xunit;
 
 namespace TALXIS.CLI.Tests.Config.Providers.Dataverse;

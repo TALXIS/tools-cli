@@ -15,7 +15,7 @@ public enum ValidationMode
 /// <summary>
 /// Connects a Connection + Credential pair to a runtime service client.
 /// Registered once per provider; the Dataverse implementation lives in
-/// <c>TALXIS.CLI.Config.Providers.Dataverse</c>.
+/// <c>TALXIS.CLI.Platform.Dataverse</c>.
 /// </summary>
 public interface IConnectionProvider
 {

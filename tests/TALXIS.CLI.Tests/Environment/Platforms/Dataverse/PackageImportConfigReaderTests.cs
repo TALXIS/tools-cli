@@ -1,7 +1,7 @@
 using System.IO.Compression;
 using System.Text;
 using TALXIS.CLI.Features.Environment;
-using TALXIS.CLI.Config.Providers.Dataverse.Platforms;
+using TALXIS.CLI.Platform.Dataverse.Platforms;
 using Xunit;
 
 namespace TALXIS.CLI.Tests.Environment.Platforms.Dataverse;

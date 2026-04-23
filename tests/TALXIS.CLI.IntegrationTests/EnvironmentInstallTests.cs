@@ -2,7 +2,7 @@ using System.IO.Compression;
 using System.Net;
 using System.Net.Http;
 using System.Text;
-using TALXIS.CLI.Dataverse;
+using TALXIS.CLI.Platform.Dataverse;
 using TALXIS.CLI.Features.Environment;
 using TALXIS.CLI.Config.Platforms.Packaging;
 using Xunit;

@@ -1,7 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
-using TALXIS.CLI.Config.Providers.Dataverse.Msal;
+using TALXIS.CLI.Platform.Dataverse.Msal;
 using TALXIS.CLI.Config.Resolution;
 using Xunit;
 

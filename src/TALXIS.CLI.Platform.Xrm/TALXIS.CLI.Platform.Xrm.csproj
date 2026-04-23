@@ -15,7 +15,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\TALXIS.CLI.Dataverse\TALXIS.CLI.Dataverse.csproj" />
     <ProjectReference Include="..\TALXIS.CLI.Logging\TALXIS.CLI.Logging.csproj" />
     <ProjectReference Include="..\TALXIS.CLI.Platform.XrmShim\TALXIS.CLI.Platform.XrmShim.csproj" />
   </ItemGroup>
