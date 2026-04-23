@@ -68,7 +68,7 @@ public class ProfilePinCliCommand
             var workspaceFile = Path.Combine(workspaceDir, WorkspaceDiscovery.FileName);
 
             var config = new WorkspaceConfig { DefaultProfile = profile.Id };
-            await WriteWorkspaceConfigAsync(workspaceFile, config, CancellationToken.None).ConfigureAwait(false);
+            await JsonFile.WriteAtomicAsync(workspaceFile, config, CancellationToken.None).ConfigureAwait(false);
 
             _logger.LogInformation("Pinned profile '{Id}' to '{Path}'.", profile.Id, workspaceFile);
 
@@ -82,23 +82,5 @@ public class ProfilePinCliCommand
             _logger.LogError(ex, "Failed to pin profile.");
             return 1;
         }
-    }
-
-    // WorkspaceConfig shape is trivial enough that inlining a write here is
-    // cleaner than introducing a new store abstraction just for one field.
-    private static async Task WriteWorkspaceConfigAsync(string path, WorkspaceConfig config, CancellationToken ct)
-    {
-        var dir = Path.GetDirectoryName(path)!;
-        Directory.CreateDirectory(dir);
-        var tmp = path + ".tmp";
-        await using (var stream = File.Create(tmp))
-        {
-            await JsonSerializer.SerializeAsync(stream, config, TxcJsonOptions.Default, ct).ConfigureAwait(false);
-            await stream.FlushAsync(ct).ConfigureAwait(false);
-        }
-        if (File.Exists(path))
-            File.Replace(tmp, path, destinationBackupFileName: null, ignoreMetadataErrors: true);
-        else
-            File.Move(tmp, path);
     }
 }

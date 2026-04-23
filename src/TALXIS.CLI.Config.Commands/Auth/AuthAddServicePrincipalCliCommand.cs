@@ -95,11 +95,7 @@ public class AuthAddServicePrincipalCliCommand
                     cloud = credential.Cloud,
                     description = credential.Description,
                 },
-                new JsonSerializerOptions(TxcJsonOptions.Default)
-                {
-                    WriteIndented = true,
-                    DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
-                }));
+                TxcJsonOptions.Default));
             return 0;
         }
         catch (HeadlessAuthRequiredException ex)

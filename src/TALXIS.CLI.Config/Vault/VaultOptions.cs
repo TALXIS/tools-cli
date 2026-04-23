@@ -1,3 +1,4 @@
+using TALXIS.CLI.Config.Internal;
 using TALXIS.CLI.Config.Resolution;
 
 namespace TALXIS.CLI.Config.Vault;
@@ -99,7 +100,7 @@ public sealed record VaultOptions
         if (OperatingSystem.IsLinux())
         {
             var v = env.Get(LinuxPlaintextEnvVar);
-            if (IsTruthy(v))
+            if (EnvBool.IsTruthy(v))
                 return (true, $"{LinuxPlaintextEnvVar}={v}");
         }
         else if (OperatingSystem.IsMacOS())
@@ -110,10 +111,4 @@ public sealed record VaultOptions
         }
         return (false, null);
     }
-
-    private static bool IsTruthy(string? v) =>
-        !string.IsNullOrEmpty(v) &&
-        (v == "1" ||
-         string.Equals(v, "true", StringComparison.OrdinalIgnoreCase) ||
-         string.Equals(v, "yes", StringComparison.OrdinalIgnoreCase));
 }

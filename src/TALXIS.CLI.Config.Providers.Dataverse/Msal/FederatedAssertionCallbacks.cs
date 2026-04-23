@@ -13,8 +13,8 @@ namespace TALXIS.CLI.Config.Providers.Dataverse.Msal;
 ///   <item>
 ///     Azure DevOps (ADO) pipelines — same contract as pac CLI's
 ///     <c>--azureDevOpsFederated</c> flag. Reads an OIDC issuance URL +
-///     bearer token from env vars, GETs a JWT from <c>idp/oidctoken</c>,
-///     returns it. See discussions 884 / 906 on
+///     bearer token from env vars, POSTs to <c>idp/oidctoken</c> and
+///     parses the <c>oidcToken</c> JWT from the response. See discussions 884 / 906 on
 ///     <c>microsoft/powerplatform-build-tools</c>.
 ///   </item>
 ///   <item>
@@ -80,7 +80,7 @@ public static class FederatedAssertionCallbacks
     }
 
     /// <summary>
-    /// Azure DevOps pipelines federation. GETs
+    /// Azure DevOps pipelines federation. POSTs to
     /// <c>{TXC_ADO_ID_TOKEN_REQUEST_URL}</c> with
     /// <c>Authorization: Bearer {TXC_ADO_ID_TOKEN_REQUEST_TOKEN}</c>,
     /// parses the <c>oidcToken</c> / <c>value</c> field from the JSON body.
@@ -105,7 +105,8 @@ public static class FederatedAssertionCallbacks
 
     /// <summary>
     /// GitHub Actions federation. Appends <c>&amp;audience=api://AzureADTokenExchange</c>
-    /// to <c>ACTIONS_ID_TOKEN_REQUEST_URL</c> and GETs with the bearer token.
+    /// to <c>ACTIONS_ID_TOKEN_REQUEST_URL</c> and GETs it with the bearer token
+    /// (this one really is a GET — only ADO's endpoint requires POST).
     /// </summary>
     public static ClientAssertionCallback ForGitHubActions(
         IEnvironmentReader env,

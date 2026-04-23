@@ -55,11 +55,7 @@ public class AuthShowCliCommand
                 secretRef = cred.SecretRef?.Uri,
             };
 
-            OutputWriter.WriteLine(JsonSerializer.Serialize(projected, new JsonSerializerOptions(TxcJsonOptions.Default)
-            {
-                WriteIndented = true,
-                DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
-            }));
+            OutputWriter.WriteLine(JsonSerializer.Serialize(projected, TxcJsonOptions.Default));
             return 0;
         }
         catch (Exception ex)

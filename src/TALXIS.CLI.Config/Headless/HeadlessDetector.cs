@@ -1,4 +1,6 @@
 using TALXIS.CLI.Config.Abstractions;
+using TALXIS.CLI.Config.Internal;
+using TALXIS.CLI.Config.Resolution;
 
 namespace TALXIS.CLI.Config.Headless;
 
@@ -16,19 +18,19 @@ public sealed class HeadlessDetector : IHeadlessDetector
         "CI", "GITHUB_ACTIONS", "TF_BUILD",
     };
 
-    public HeadlessDetector() : this(new ConsoleRedirectionProbe(), ProcessEnv) { }
+    public HeadlessDetector() : this(new ConsoleRedirectionProbe(), ProcessEnvironmentReader.Instance) { }
 
-    internal HeadlessDetector(IConsoleRedirectionProbe probe, Func<string, string?> getEnv)
+    internal HeadlessDetector(IConsoleRedirectionProbe probe, IEnvironmentReader env)
     {
         var reasons = new List<string>();
 
-        if (IsTruthy(getEnv(TxcNonInteractive)))
+        if (EnvBool.IsTruthy(env.Get(TxcNonInteractive)))
             reasons.Add($"{TxcNonInteractive}=1");
 
         foreach (var ci in CiVariables)
         {
-            if (IsTruthy(getEnv(ci)))
-                reasons.Add($"{ci}={getEnv(ci)}");
+            if (EnvBool.IsTruthy(env.Get(ci)))
+                reasons.Add($"{ci}={env.Get(ci)}");
         }
 
         if (probe.IsInputRedirected && probe.IsOutputRedirected)
@@ -40,16 +42,6 @@ public sealed class HeadlessDetector : IHeadlessDetector
 
     public bool IsHeadless { get; }
     public string? Reason { get; }
-
-    private static string? ProcessEnv(string name) => Environment.GetEnvironmentVariable(name);
-
-    private static bool IsTruthy(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return false;
-        return value.Equals("1", StringComparison.Ordinal)
-            || value.Equals("true", StringComparison.OrdinalIgnoreCase)
-            || value.Equals("yes", StringComparison.OrdinalIgnoreCase);
-    }
 }
 
 internal interface IConsoleRedirectionProbe

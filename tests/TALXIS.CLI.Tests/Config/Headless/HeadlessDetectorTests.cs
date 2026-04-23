@@ -1,4 +1,5 @@
 using TALXIS.CLI.Config.Headless;
+using TALXIS.CLI.Config.Resolution;
 using Xunit;
 
 namespace TALXIS.CLI.Tests.Config.Headless;
@@ -8,7 +9,7 @@ public class HeadlessDetectorTests
     [Fact]
     public void InteractiveByDefault()
     {
-        var det = new HeadlessDetector(new FakeProbe(false, false), _ => null);
+        var det = new HeadlessDetector(new FakeProbe(false, false), new FakeEnv());
         Assert.False(det.IsHeadless);
         Assert.Null(det.Reason);
     }
@@ -16,7 +17,7 @@ public class HeadlessDetectorTests
     [Fact]
     public void StdinAndStdoutRedirectedMarksHeadless()
     {
-        var det = new HeadlessDetector(new FakeProbe(true, true), _ => null);
+        var det = new HeadlessDetector(new FakeProbe(true, true), new FakeEnv());
         Assert.True(det.IsHeadless);
         Assert.Contains("redirected", det.Reason);
     }
@@ -24,7 +25,7 @@ public class HeadlessDetectorTests
     [Fact]
     public void OnlyStdinRedirectedStaysInteractive()
     {
-        var det = new HeadlessDetector(new FakeProbe(true, false), _ => null);
+        var det = new HeadlessDetector(new FakeProbe(true, false), new FakeEnv());
         Assert.False(det.IsHeadless);
     }
 
@@ -37,7 +38,7 @@ public class HeadlessDetectorTests
     public void TruthyEnvVarForcesHeadless(string envName, string value)
     {
         var det = new HeadlessDetector(new FakeProbe(false, false),
-            name => name == envName ? value : null);
+            new FakeEnv((envName, value)));
         Assert.True(det.IsHeadless);
         Assert.Contains(envName, det.Reason);
     }
@@ -46,7 +47,7 @@ public class HeadlessDetectorTests
     public void FalsyEnvVarDoesNotForceHeadless()
     {
         var det = new HeadlessDetector(new FakeProbe(false, false),
-            name => name == "CI" ? "false" : null);
+            new FakeEnv(("CI", "false")));
         Assert.False(det.IsHeadless);
     }
 
@@ -55,5 +56,16 @@ public class HeadlessDetectorTests
         public FakeProbe(bool input, bool output) { IsInputRedirected = input; IsOutputRedirected = output; }
         public bool IsInputRedirected { get; }
         public bool IsOutputRedirected { get; }
+    }
+
+    private sealed class FakeEnv : IEnvironmentReader
+    {
+        private readonly Dictionary<string, string> _map;
+        public FakeEnv(params (string Key, string Value)[] entries)
+        {
+            _map = entries.ToDictionary(e => e.Key, e => e.Value, StringComparer.Ordinal);
+        }
+        public string? Get(string name) => _map.TryGetValue(name, out var v) ? v : null;
+        public string GetCurrentDirectory() => Directory.GetCurrentDirectory();
     }
 }

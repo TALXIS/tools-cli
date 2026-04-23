@@ -71,11 +71,7 @@ public class AuthLoginCliCommand
 
             OutputWriter.WriteLine(JsonSerializer.Serialize(
                 new { id = alias, upn = result.Upn, tenantId = result.TenantId, cloud },
-                new JsonSerializerOptions(TxcJsonOptions.Default)
-                {
-                    WriteIndented = true,
-                    DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
-                }));
+                TxcJsonOptions.Default));
             return 0;
         }
         catch (HeadlessAuthRequiredException ex)
@@ -104,14 +100,14 @@ public class AuthLoginCliCommand
         ICredentialStore store, string upn, CancellationToken ct)
     {
         var slug = upn.Trim().ToLowerInvariant();
-        if (await store.GetAsync(slug, CancellationToken.None).ConfigureAwait(false) is null)
+        if (await store.GetAsync(slug, ct).ConfigureAwait(false) is null)
             return slug;
 
         var shortName = ExtractTenantShortName(upn);
         if (!string.IsNullOrEmpty(shortName))
         {
             var combined = $"{slug}-{shortName}";
-            if (await store.GetAsync(combined, CancellationToken.None).ConfigureAwait(false) is null)
+            if (await store.GetAsync(combined, ct).ConfigureAwait(false) is null)
                 return combined;
         }
 
@@ -119,7 +115,7 @@ public class AuthLoginCliCommand
         for (var i = 2; i < 100; i++)
         {
             var candidate = $"{slug}-{i}";
-            if (await store.GetAsync(candidate, CancellationToken.None).ConfigureAwait(false) is null)
+            if (await store.GetAsync(candidate, ct).ConfigureAwait(false) is null)
                 return candidate;
         }
 

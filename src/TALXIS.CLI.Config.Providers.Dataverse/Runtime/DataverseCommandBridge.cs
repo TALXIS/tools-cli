@@ -20,12 +20,6 @@ public static class DataverseCommandBridge
         return await factory.ConnectAsync(context, ct).ConfigureAwait(false);
     }
 
-    public static async Task<ResolvedProfileContext> ResolveAsync(string? profileName, CancellationToken ct)
-    {
-        var resolver = TxcServices.Get<IConfigurationResolver>();
-        return await resolver.ResolveAsync(profileName, ct).ConfigureAwait(false);
-    }
-
     /// <summary>
     /// Transitional helper for subprocess-based commands (PackageImport,
     /// DataPackageImport) that still expect a Dataverse connection string.
@@ -40,7 +34,8 @@ public static class DataverseCommandBridge
     /// </summary>
     public static async Task<string> BuildConnectionStringAsync(string? profileName, CancellationToken ct)
     {
-        var context = await ResolveAsync(profileName, ct).ConfigureAwait(false);
+        var resolver = TxcServices.Get<IConfigurationResolver>();
+        var context = await resolver.ResolveAsync(profileName, ct).ConfigureAwait(false);
         if (context.Connection.Provider != ProviderKind.Dataverse)
             throw new InvalidOperationException(
                 $"Connection '{context.Connection.Id}' has provider {context.Connection.Provider}, expected {ProviderKind.Dataverse}.");

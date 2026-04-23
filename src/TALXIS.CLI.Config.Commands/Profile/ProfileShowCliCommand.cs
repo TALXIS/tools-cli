@@ -37,9 +37,9 @@ public class ProfileShowCliCommand
             var globalConfig = TxcServices.Get<IGlobalConfigStore>();
 
             string? target = Name;
+            var global = await globalConfig.LoadAsync(CancellationToken.None).ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(target))
             {
-                var global = await globalConfig.LoadAsync(CancellationToken.None).ConfigureAwait(false);
                 target = global.ActiveProfile;
                 if (string.IsNullOrWhiteSpace(target))
                 {
@@ -59,13 +59,12 @@ public class ProfileShowCliCommand
             // Missing refs are surfaced as null rather than erroring — `validate` is the command for integrity checks.
             var connection = await connectionStore.GetAsync(profile.ConnectionRef, CancellationToken.None).ConfigureAwait(false);
             var credential = await credentialStore.GetAsync(profile.CredentialRef, CancellationToken.None).ConfigureAwait(false);
-            var activeName = (await globalConfig.LoadAsync(CancellationToken.None).ConfigureAwait(false)).ActiveProfile;
 
             OutputWriter.WriteLine(JsonSerializer.Serialize(
                 new
                 {
                     id = profile.Id,
-                    active = string.Equals(profile.Id, activeName, StringComparison.OrdinalIgnoreCase),
+                    active = string.Equals(profile.Id, global.ActiveProfile, StringComparison.OrdinalIgnoreCase),
                     description = profile.Description,
                     connection,
                     credential,

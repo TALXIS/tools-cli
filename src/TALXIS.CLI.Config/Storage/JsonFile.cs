@@ -7,7 +7,7 @@ namespace TALXIS.CLI.Config.Storage;
 /// Writes go via a sibling <c>*.tmp</c> file and <see cref="File.Replace(string,string,string?)"/>
 /// to avoid torn files on crash.
 /// </summary>
-internal static class JsonFile
+public static class JsonFile
 {
     public static async Task<T> ReadOrDefaultAsync<T>(string path, CancellationToken ct) where T : new()
     {

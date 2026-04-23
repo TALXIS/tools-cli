@@ -42,11 +42,7 @@ public class AuthListCliCommand
                 description = c.Description,
             });
 
-            var json = JsonSerializer.Serialize(projected, new JsonSerializerOptions(TxcJsonOptions.Default)
-            {
-                WriteIndented = true,
-                DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
-            });
+            var json = JsonSerializer.Serialize(projected, TxcJsonOptions.Default);
             OutputWriter.WriteLine(json);
             return 0;
         }

@@ -14,21 +14,13 @@ public sealed class Connection
     public ProviderKind Provider { get; set; }
     public string? Description { get; set; }
 
-    // Dataverse
+    // Dataverse (the only provider implemented in v1 — Azure / ADO / Jira
+    // fields are intentionally not on this model until their providers land;
+    // ExtraFields below round-trips any unknown future keys without loss).
     public string? EnvironmentUrl { get; set; }
     public string? OrganizationId { get; set; }
     public CloudInstance? Cloud { get; set; }
     public string? TenantId { get; set; }
-
-    // Azure
-    public string? SubscriptionId { get; set; }
-
-    // ADO
-    public string? Organization { get; set; }
-    public string? Project { get; set; }
-
-    // Jira
-    public string? ServerUrl { get; set; }
 
     /// <summary>Captured but unprocessed fields (forward-compat).</summary>
     [JsonExtensionData]

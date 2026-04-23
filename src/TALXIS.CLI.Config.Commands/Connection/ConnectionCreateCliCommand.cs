@@ -110,11 +110,7 @@ public class ConnectionCreateCliCommand
                     tenantId = connection.TenantId,
                     description = connection.Description,
                 },
-                new JsonSerializerOptions(TxcJsonOptions.Default)
-                {
-                    WriteIndented = true,
-                    DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
-                }));
+                TxcJsonOptions.Default));
             return 0;
         }
         catch (Exception ex)
