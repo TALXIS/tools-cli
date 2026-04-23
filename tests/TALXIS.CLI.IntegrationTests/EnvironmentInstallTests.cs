@@ -4,7 +4,7 @@ using System.Net.Http;
 using System.Text;
 using TALXIS.CLI.Dataverse;
 using TALXIS.CLI.Environment;
-using TALXIS.CLI.Environment.Platforms.Dataverse;
+using TALXIS.CLI.Config.Providers.Dataverse.Platforms;
 using Xunit;
 
 namespace TALXIS.CLI.IntegrationTests;

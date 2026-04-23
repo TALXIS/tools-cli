@@ -4,7 +4,7 @@ using Microsoft.PowerPlatform.Dataverse.Client;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Query;
 
-namespace TALXIS.CLI.Environment.Platforms.Dataverse;
+namespace TALXIS.CLI.Config.Providers.Dataverse.Platforms;
 
 /// <summary>
 /// Structured view of a row in <c>msdyn_solutionhistory</c>. Operation / suboperation codes

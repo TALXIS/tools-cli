@@ -1,6 +1,6 @@
 ﻿using DotMake.CommandLine;
 using TALXIS.CLI.Config.Providers.Dataverse.DependencyInjection;
-using TALXIS.CLI.Environment.Platforms.Dataverse;
+using TALXIS.CLI.Config.Providers.Dataverse.Platforms;
 
 namespace TALXIS.CLI
 {

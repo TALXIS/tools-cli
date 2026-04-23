@@ -8,7 +8,7 @@ using Microsoft.Xrm.Sdk.Messages;
 using Microsoft.Xrm.Sdk.Query;
 using TALXIS.CLI.Dataverse;
 
-namespace TALXIS.CLI.Environment.Platforms.Dataverse;
+namespace TALXIS.CLI.Config.Providers.Dataverse.Platforms;
 
 /// <summary>
 /// Information about a Dataverse solution's identity extracted from its ZIP manifest

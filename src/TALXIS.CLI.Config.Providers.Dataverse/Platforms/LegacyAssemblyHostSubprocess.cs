@@ -7,7 +7,7 @@ using TALXIS.CLI.Config.Providers.Dataverse.DependencyInjection;
 using TALXIS.CLI.Config.Providers.Dataverse.Runtime;
 using TALXIS.CLI.XrmTools;
 
-namespace TALXIS.CLI.Environment.Platforms.Dataverse;
+namespace TALXIS.CLI.Config.Providers.Dataverse.Platforms;
 
 /// <summary>
 /// Out-of-process host for runners that depend on the legacy-patched
@@ -97,7 +97,7 @@ public static class LegacyAssemblyHostSubprocess
             cancellationToken).ConfigureAwait(false);
     }
 
-    internal static void TryDeleteDirectory(string? path)
+    public static void TryDeleteDirectory(string? path)
     {
         if (string.IsNullOrEmpty(path)) return;
 

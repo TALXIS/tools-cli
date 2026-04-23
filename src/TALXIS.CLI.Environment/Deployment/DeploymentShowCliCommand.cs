@@ -7,7 +7,7 @@ using TALXIS.CLI.Config.Abstractions;
 using TALXIS.CLI.Config.Commands.Abstractions;
 using TALXIS.CLI.Config.Providers.Dataverse.Runtime;
 using TALXIS.CLI.Dataverse;
-using TALXIS.CLI.Environment.Platforms.Dataverse;
+using TALXIS.CLI.Config.Providers.Dataverse.Platforms;
 using TALXIS.CLI.Logging;
 using TALXIS.CLI.Shared;
 

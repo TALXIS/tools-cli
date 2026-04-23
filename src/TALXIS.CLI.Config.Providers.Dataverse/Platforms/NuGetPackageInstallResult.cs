@@ -1,4 +1,4 @@
-namespace TALXIS.CLI.Environment.Platforms.Dataverse;
+namespace TALXIS.CLI.Config.Providers.Dataverse.Platforms;
 
 public sealed record NuGetPackageInstallResult(
     string PackageName,
