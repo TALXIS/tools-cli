@@ -6,6 +6,7 @@ using TALXIS.CLI.Config.Abstractions;
 using TALXIS.CLI.Config.DependencyInjection;
 using TALXIS.CLI.Config.Headless;
 using TALXIS.CLI.Config.Model;
+using TALXIS.CLI.Config.Storage;
 using TALXIS.CLI.Logging;
 using TALXIS.CLI.Shared;
 
@@ -88,13 +89,13 @@ public class AuthAddServicePrincipalCliCommand
                 new
                 {
                     id = credential.Id,
-                    kind = credential.Kind.ToString(),
+                    kind = credential.Kind,
                     tenantId = credential.TenantId,
                     applicationId = credential.ApplicationId,
                     cloud = credential.Cloud,
                     description = credential.Description,
                 },
-                new JsonSerializerOptions
+                new JsonSerializerOptions(TxcJsonOptions.Default)
                 {
                     WriteIndented = true,
                     DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,

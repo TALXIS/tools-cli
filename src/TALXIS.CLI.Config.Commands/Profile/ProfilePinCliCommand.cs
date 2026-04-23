@@ -93,8 +93,8 @@ public class ProfilePinCliCommand
         var tmp = path + ".tmp";
         await using (var stream = File.Create(tmp))
         {
-            await JsonSerializer.SerializeAsync(stream, config, TxcJsonOptions.Default, CancellationToken.None).ConfigureAwait(false);
-            await stream.FlushAsync(CancellationToken.None).ConfigureAwait(false);
+            await JsonSerializer.SerializeAsync(stream, config, TxcJsonOptions.Default, ct).ConfigureAwait(false);
+            await stream.FlushAsync(ct).ConfigureAwait(false);
         }
         if (File.Exists(path))
             File.Replace(tmp, path, destinationBackupFileName: null, ignoreMetadataErrors: true);

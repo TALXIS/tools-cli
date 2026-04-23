@@ -5,6 +5,7 @@ using TALXIS.CLI.Config.Abstractions;
 using TALXIS.CLI.Config.DependencyInjection;
 using TALXIS.CLI.Config.Headless;
 using TALXIS.CLI.Config.Model;
+using TALXIS.CLI.Config.Storage;
 using TALXIS.CLI.Logging;
 using TALXIS.CLI.Shared;
 
@@ -70,7 +71,7 @@ public class AuthLoginCliCommand
 
             OutputWriter.WriteLine(JsonSerializer.Serialize(
                 new { id = alias, upn = result.Upn, tenantId = result.TenantId, cloud },
-                new JsonSerializerOptions
+                new JsonSerializerOptions(TxcJsonOptions.Default)
                 {
                     WriteIndented = true,
                     DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,

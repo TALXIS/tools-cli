@@ -45,8 +45,9 @@ public sealed class HeadlessAuthRequiredException : Exception
             $"Credential kind '{ToKebab(kind)}' requires an interactive TTY, " +
             $"but this process is running in headless mode ({reason}). " +
             $"Permitted headless kinds: {permitted}. " +
-            "To run non-interactively, either create a headless-capable credential " +
-            "(e.g. `txc config auth create --kind client-secret ...`) and bind it to the profile, " +
+            "To run non-interactively, register a headless-capable credential with " +
+            "`txc config auth add-service-principal --alias <alias> --tenant <tenant> " +
+            "--client-id <app-id> --secret-from-env <ENV_VAR_NAME>` and bind it to the profile, " +
             "or supply the credential via environment variables " +
             "(AZURE_CLIENT_ID / AZURE_CLIENT_SECRET / AZURE_TENANT_ID for SPN, " +
             "AZURE_FEDERATED_TOKEN_FILE for workload-identity federation).";

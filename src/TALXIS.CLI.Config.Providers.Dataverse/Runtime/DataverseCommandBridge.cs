@@ -29,11 +29,14 @@ public static class DataverseCommandBridge
     /// <summary>
     /// Transitional helper for subprocess-based commands (PackageImport,
     /// DataPackageImport) that still expect a Dataverse connection string.
-    /// Supports only credential kinds that can be expressed as a connection
-    /// string in-line (ClientSecret + ClientCertificate). Other kinds —
-    /// especially InteractiveBrowser — are rejected with a clear message
-    /// until the subprocess gets its own MSAL cache access via
-    /// TXC_CONFIG_DIR (planned in the package-deployer-subprocess milestone).
+    /// Supports only <see cref="CredentialKind.ClientSecret"/> in v1 —
+    /// this is the single credential kind that can be safely inlined into
+    /// a connection string for the child process. Every other kind
+    /// (including <see cref="CredentialKind.ClientCertificate"/>,
+    /// <see cref="CredentialKind.InteractiveBrowser"/>, federation, etc.)
+    /// is rejected with a deterministic message until the subprocess gets
+    /// its own MSAL cache access via TXC_CONFIG_DIR.
+    /// TODO: add certificate + MSAL-cache paths in a follow-up milestone.
     /// </summary>
     public static async Task<string> BuildConnectionStringAsync(string? profileName, CancellationToken ct)
     {

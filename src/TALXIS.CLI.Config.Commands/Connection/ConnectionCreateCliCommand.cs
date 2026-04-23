@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Config.Abstractions;
 using TALXIS.CLI.Config.DependencyInjection;
 using TALXIS.CLI.Config.Model;
+using TALXIS.CLI.Config.Storage;
 using TALXIS.CLI.Logging;
 using TALXIS.CLI.Shared;
 
@@ -109,7 +110,7 @@ public class ConnectionCreateCliCommand
                     tenantId = connection.TenantId,
                     description = connection.Description,
                 },
-                new JsonSerializerOptions
+                new JsonSerializerOptions(TxcJsonOptions.Default)
                 {
                     WriteIndented = true,
                     DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,

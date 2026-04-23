@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Config.Abstractions;
 using TALXIS.CLI.Config.DependencyInjection;
 using TALXIS.CLI.Config.Model;
+using TALXIS.CLI.Config.Storage;
 using TALXIS.CLI.Logging;
 using TALXIS.CLI.Shared;
 
@@ -41,7 +42,7 @@ public class AuthListCliCommand
                 description = c.Description,
             });
 
-            var json = JsonSerializer.Serialize(projected, new JsonSerializerOptions
+            var json = JsonSerializer.Serialize(projected, new JsonSerializerOptions(TxcJsonOptions.Default)
             {
                 WriteIndented = true,
                 DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,

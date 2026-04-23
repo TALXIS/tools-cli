@@ -3,6 +3,7 @@ using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Config.Abstractions;
 using TALXIS.CLI.Config.DependencyInjection;
+using TALXIS.CLI.Config.Storage;
 using TALXIS.CLI.Logging;
 using TALXIS.CLI.Shared;
 
@@ -54,7 +55,7 @@ public class AuthShowCliCommand
                 secretRef = cred.SecretRef?.Uri,
             };
 
-            OutputWriter.WriteLine(JsonSerializer.Serialize(projected, new JsonSerializerOptions
+            OutputWriter.WriteLine(JsonSerializer.Serialize(projected, new JsonSerializerOptions(TxcJsonOptions.Default)
             {
                 WriteIndented = true,
                 DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,

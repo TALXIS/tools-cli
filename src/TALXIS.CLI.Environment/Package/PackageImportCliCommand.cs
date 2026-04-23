@@ -96,16 +96,6 @@ public class PackageImportCliCommand : ProfiledCliCommand
             }
         }
 
-        if (string.IsNullOrWhiteSpace(Profile))
-        {
-            // We leave profile resolution entirely to the subprocess: it uses
-            // TXC_CONFIG_DIR + IConfigurationResolver exactly the way the main
-            // CLI does. Still, fail fast here so the user sees a friendly
-            // message rather than a subprocess-side resolution error.
-            // (Empty profile is permitted; the resolver will fall through to
-            // the active-profile pointer.)
-        }
-
         PackageDeployerResult? deployResult = null;
         string packageDeployerArtifactsDirectory = Path.Combine(
             Path.GetTempPath(),
