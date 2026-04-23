@@ -70,7 +70,8 @@ public class ProfileEndToEndTests : IDisposable
 
         // 3. Bind them into a profile.
         var profile = await CliRunner.RunRawAsync(
-            new[] { "config", "profile", "create", "e2e-profile",
+            new[] { "config", "profile", "create",
+                    "--name", "e2e-profile",
                     "--auth", "e2e-sp",
                     "--connection", "e2e-conn" },
             env: _env);
