@@ -7,7 +7,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\TALXIS.CLI.Data\TALXIS.CLI.Data.csproj" />
+    <ProjectReference Include="..\TALXIS.CLI.Logging\TALXIS.CLI.Logging.csproj" />
+    <ProjectReference Include="..\TALXIS.CLI.Shared\TALXIS.CLI.Shared.csproj" />
   </ItemGroup>
 
   <ItemGroup>
