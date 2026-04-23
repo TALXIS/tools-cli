@@ -109,6 +109,14 @@ internal static class CliSubprocessRunner
         // Enable structured JSON logging for MCP consumption
         startInfo.Environment["TXC_LOG_FORMAT"] = "json";
 
+        // Force headless mode for every MCP-spawned tool invocation so that
+        // interactive auth flows (browser, device code, masked secret prompts)
+        // can never run: stdout is reserved for JSON-RPC frames and the
+        // process has stdin/stdout redirected. Leaf commands must fail fast
+        // with a structured AUTH_REQUIRED-style error instead of hanging on
+        // Console.ReadKey. See src/TALXIS.CLI.MCP/README.md#auth-contract.
+        startInfo.Environment["TXC_NON_INTERACTIVE"] = "1";
+
         startInfo.FileName = fileName;
         if (!string.IsNullOrWhiteSpace(assemblyPath))
         {
