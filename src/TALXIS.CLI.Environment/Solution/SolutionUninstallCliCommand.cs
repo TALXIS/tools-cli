@@ -3,9 +3,8 @@ using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Config.Abstractions;
 using TALXIS.CLI.Config.Commands.Abstractions;
-using TALXIS.CLI.Config.Providers.Dataverse.Runtime;
-using TALXIS.CLI.Dataverse;
-using TALXIS.CLI.Config.Providers.Dataverse.Platforms;
+using TALXIS.CLI.Config.DependencyInjection;
+using TALXIS.CLI.Config.Platforms.Dataverse;
 using TALXIS.CLI.Logging;
 using TALXIS.CLI.Shared;
 
@@ -42,32 +41,24 @@ public class SolutionUninstallCliCommand : ProfiledCliCommand
             return 1;
         }
 
-        DataverseConnection conn;
+        SolutionUninstallOutcome outcome;
         try
         {
-            conn = await DataverseCommandBridge.ConnectAsync(Profile, CancellationToken.None).ConfigureAwait(false);
+            var service = TxcServices.Get<ISolutionUninstallService>();
+            outcome = await service.UninstallByUniqueNameAsync(Profile, Name, CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
         {
             _logger.LogError("{Error}", ex.Message);
             return 1;
         }
-
-        using (conn)
+        catch (Exception ex)
         {
-            var client = conn.Client;
-            try
-            {
-                var uninstaller = new SolutionUninstaller(client, _logger);
-                var outcome = await uninstaller.UninstallByUniqueNameAsync(Name).ConfigureAwait(false);
-                return RenderSingle(outcome);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "environment solution uninstall failed");
-                return 1;
-            }
+            _logger.LogError(ex, "environment solution uninstall failed");
+            return 1;
         }
+
+        return RenderSingle(outcome);
     }
 
     private int RenderSingle(SolutionUninstallOutcome outcome)

@@ -42,6 +42,8 @@ public static class DataverseProviderServiceCollectionExtensions
         services.AddSingleton<IDataverseLiveChecker, DataverseLiveChecker>();
         services.AddSingleton<IInteractiveLoginService, DataverseInteractiveLoginService>();
         services.AddSingleton<ISolutionInventoryService, DataverseSolutionInventoryService>();
+        services.AddSingleton<IDataPackageService, DataverseDataPackageService>();
+        services.AddSingleton<ISolutionUninstallService, DataverseSolutionUninstallService>();
         services.AddSingleton<TALXIS.CLI.Config.Bootstrapping.IConnectionProviderBootstrapper,
             TALXIS.CLI.Config.Bootstrapping.DataverseConnectionProviderBootstrapper>();
         return services;

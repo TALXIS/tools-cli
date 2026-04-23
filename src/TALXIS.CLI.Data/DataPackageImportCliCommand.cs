@@ -1,13 +1,10 @@
 using System.ComponentModel;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
-using Microsoft.Identity.Client;
-using TALXIS.CLI.Config.Abstractions;
 using TALXIS.CLI.Config.Commands.Abstractions;
-using TALXIS.CLI.Config.Providers.Dataverse.Runtime;
-using TALXIS.CLI.Config.Providers.Dataverse.Platforms;
+using TALXIS.CLI.Config.DependencyInjection;
+using TALXIS.CLI.Config.Platforms.Dataverse;
 using TALXIS.CLI.Logging;
-using TALXIS.CLI.XrmTools;
 
 namespace TALXIS.CLI.Data;
 
@@ -40,44 +37,11 @@ public class DataPackageImportCliCommand : ProfiledCliCommand
             return 1;
         }
 
+        var service = TxcServices.Get<IDataPackageService>();
+        DataPackageImportResult result;
         try
         {
-            await DataverseCommandBridge.PrimeTokenAsync(Profile, CancellationToken.None);
-        }
-        catch (MsalUiRequiredException)
-        {
-            _logger.LogError("Interactive authentication is required. Run 'txc config auth login' for profile '{Profile}' and retry.", Profile ?? "(default)");
-            return 1;
-        }
-        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
-        {
-            _logger.LogError("{Error}", ex.Message);
-            return 1;
-        }
-
-        try
-        {
-            CmtImportResult result = await LegacyAssemblyHostSubprocess.RunCmtImportAsync(
-                new CmtImportRequest(
-                    Path.GetFullPath(Data),
-                    ConnectionCount,
-                    Verbose),
-                Profile ?? string.Empty,
-                CancellationToken.None);
-
-            if (!result.Succeeded)
-            {
-                if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
-                {
-                    _logger.LogError("{ErrorMessage}", result.ErrorMessage);
-                }
-
-                _logger.LogError("Data import failed. Data package: {DataPath}", Path.GetFullPath(Data));
-                return 1;
-            }
-
-            _logger.LogInformation("Data import completed successfully.");
-            return 0;
+            result = await service.ImportAsync(Profile, Data, ConnectionCount, Verbose, CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -85,5 +49,24 @@ public class DataPackageImportCliCommand : ProfiledCliCommand
             _logger.LogError("Data package: {DataPath}", Path.GetFullPath(Data));
             return 1;
         }
+
+        if (result.InteractiveAuthRequired)
+        {
+            _logger.LogError("Interactive authentication is required. Run 'txc config auth login' for profile '{Profile}' and retry.", Profile ?? "(default)");
+            return 1;
+        }
+
+        if (!result.Succeeded)
+        {
+            if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
+            {
+                _logger.LogError("{ErrorMessage}", result.ErrorMessage);
+            }
+            _logger.LogError("Data import failed. Data package: {DataPath}", Path.GetFullPath(Data));
+            return 1;
+        }
+
+        _logger.LogInformation("Data import completed successfully.");
+        return 0;
     }
 }

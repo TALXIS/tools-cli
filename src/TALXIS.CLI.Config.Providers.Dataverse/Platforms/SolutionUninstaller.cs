@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using TALXIS.CLI.Config.Platforms.Dataverse;
 using TALXIS.CLI.Dataverse;
 using Microsoft.PowerPlatform.Dataverse.Client;
 using Microsoft.Xrm.Sdk;
@@ -6,20 +7,6 @@ using Microsoft.Xrm.Sdk.Messages;
 using Microsoft.Xrm.Sdk.Query;
 
 namespace TALXIS.CLI.Config.Providers.Dataverse.Platforms;
-
-public enum SolutionUninstallStatus
-{
-    Success,
-    NotFound,
-    Ambiguous,
-    Failed,
-}
-
-public sealed record SolutionUninstallOutcome(
-    string SolutionName,
-    Guid? SolutionId,
-    SolutionUninstallStatus Status,
-    string Message);
 
 /// <summary>
 /// Uninstalls solutions from Dataverse by unique name.
