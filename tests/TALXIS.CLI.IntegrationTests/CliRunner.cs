@@ -29,9 +29,9 @@ public static class CliRunner
     /// Runs a CLI command with explicit argument tokens.
     /// Throws <see cref="InvalidOperationException"/> on non-zero exit code.
     /// </summary>
-    public static async Task<string> RunAsync(string[] args, string? workingDirectory = null)
+    public static async Task<string> RunAsync(string[] args, string? workingDirectory = null, System.Collections.Generic.IReadOnlyDictionary<string, string?>? env = null)
     {
-        var result = await RunRawAsync(args, workingDirectory);
+        var result = await RunRawAsync(args, workingDirectory, env);
 
         if (result.ExitCode != 0)
         {
@@ -57,7 +57,7 @@ public static class CliRunner
     /// <summary>
     /// Runs a CLI command with explicit argument tokens and returns the full result without throwing on failure.
     /// </summary>
-    public static async Task<CliResult> RunRawAsync(string[] args, string? workingDirectory = null)
+    public static async Task<CliResult> RunRawAsync(string[] args, string? workingDirectory = null, System.Collections.Generic.IReadOnlyDictionary<string, string?>? env = null)
     {
         var psi = new ProcessStartInfo("dotnet")
         {
@@ -67,6 +67,17 @@ public static class CliRunner
             CreateNoWindow = true,
             WorkingDirectory = workingDirectory ?? Directory.GetCurrentDirectory()
         };
+
+        if (env is not null)
+        {
+            foreach (var kvp in env)
+            {
+                if (kvp.Value is null)
+                    psi.Environment.Remove(kvp.Key);
+                else
+                    psi.Environment[kvp.Key] = kvp.Value;
+            }
+        }
 
         psi.ArgumentList.Add("run");
         psi.ArgumentList.Add("--project");
