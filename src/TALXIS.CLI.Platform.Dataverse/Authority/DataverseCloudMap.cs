@@ -1,4 +1,4 @@
-using TALXIS.CLI.Config.Model;
+using TALXIS.CLI.Core.Model;
 
 namespace TALXIS.CLI.Platform.Dataverse.Authority;
 

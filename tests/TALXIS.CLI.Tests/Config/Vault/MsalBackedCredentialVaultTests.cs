@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
-using TALXIS.CLI.Config.Model;
-using TALXIS.CLI.Config.Storage;
-using TALXIS.CLI.Config.Vault;
+using TALXIS.CLI.Core.Model;
+using TALXIS.CLI.Core.Storage;
+using TALXIS.CLI.Core.Vault;
 using Xunit;
 
 namespace TALXIS.CLI.Tests.Config.Vault;

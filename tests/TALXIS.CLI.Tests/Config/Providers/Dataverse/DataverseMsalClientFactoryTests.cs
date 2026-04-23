@@ -1,4 +1,4 @@
-using TALXIS.CLI.Config.Model;
+using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Platform.Dataverse.Msal;
 using Xunit;
 

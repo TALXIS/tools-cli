@@ -1,8 +1,8 @@
 using System.Collections.Frozen;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using TALXIS.CLI.Config.Abstractions;
-using TALXIS.CLI.Config.Model;
+using TALXIS.CLI.Core.Abstractions;
+using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Platform.Dataverse.Msal;
 
 namespace TALXIS.CLI.Platform.Dataverse;

@@ -1,7 +1,7 @@
 using System.Text;
 using DotMake.CommandLine;
 using Microsoft.TemplateEngine.Abstractions;
-using TALXIS.CLI.Shared;
+using TALXIS.CLI.Core;
 using TALXIS.CLI.Features.Workspace.TemplateEngine;
 
 namespace TALXIS.CLI.Features.Workspace;

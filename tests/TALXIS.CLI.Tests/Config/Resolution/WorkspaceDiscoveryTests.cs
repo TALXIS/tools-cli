@@ -1,4 +1,4 @@
-using TALXIS.CLI.Config.Resolution;
+using TALXIS.CLI.Core.Resolution;
 using Xunit;
 
 namespace TALXIS.CLI.Tests.Config.Resolution;

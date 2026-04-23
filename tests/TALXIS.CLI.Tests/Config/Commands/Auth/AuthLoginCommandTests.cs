@@ -1,9 +1,9 @@
 using System.Text.Json;
-using TALXIS.CLI.Config.Abstractions;
-using TALXIS.CLI.Config.Bootstrapping;
+using TALXIS.CLI.Core.Abstractions;
+using TALXIS.CLI.Core.Bootstrapping;
 using TALXIS.CLI.Features.Config.Auth;
-using TALXIS.CLI.Config.Model;
-using TALXIS.CLI.Shared;
+using TALXIS.CLI.Core.Model;
+using TALXIS.CLI.Core;
 using Xunit;
 
 namespace TALXIS.CLI.Tests.Config.Commands.Auth;

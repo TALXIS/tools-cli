@@ -1,11 +1,11 @@
-using TALXIS.CLI.Config.Model;
+using TALXIS.CLI.Core.Model;
 
 namespace TALXIS.CLI.Platform.Dataverse;
 
 /// <summary>
 /// Provider-specific live-check seam consumed by
 /// <see cref="DataverseConnectionProvider"/> when
-/// <see cref="TALXIS.CLI.Config.Abstractions.ValidationMode.Live"/> is
+/// <see cref="TALXIS.CLI.Core.Abstractions.ValidationMode.Live"/> is
 /// requested. Default implementation wires through
 /// <c>DataverseMsalClientFactory</c> + HTTP to issue a WhoAmI request;
 /// tests inject a fake so they can assert command behaviour without

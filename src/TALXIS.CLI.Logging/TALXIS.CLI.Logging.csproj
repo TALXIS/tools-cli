@@ -6,7 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\TALXIS.CLI.Shared\TALXIS.CLI.Shared.csproj" />
+    <ProjectReference Include="..\TALXIS.CLI.Core\TALXIS.CLI.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>

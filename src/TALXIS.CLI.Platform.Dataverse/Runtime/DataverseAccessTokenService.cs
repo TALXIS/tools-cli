@@ -2,11 +2,11 @@ using System.Security.Cryptography.X509Certificates;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Identity.Client;
-using TALXIS.CLI.Config.Abstractions;
-using TALXIS.CLI.Config.Model;
+using TALXIS.CLI.Core.Abstractions;
+using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Platform.Dataverse.Msal;
 using TALXIS.CLI.Platform.Dataverse.Scopes;
-using TALXIS.CLI.Config.Resolution;
+using TALXIS.CLI.Core.Resolution;
 
 namespace TALXIS.CLI.Platform.Dataverse.Runtime;
 
@@ -38,7 +38,7 @@ public sealed class DataverseAccessTokenService : IDataverseAccessTokenService
         _logger = logger ?? NullLogger<DataverseAccessTokenService>.Instance;
     }
 
-    public async Task<string> AcquireAsync(TALXIS.CLI.Config.Model.Connection connection, Credential credential, CancellationToken ct)
+    public async Task<string> AcquireAsync(TALXIS.CLI.Core.Model.Connection connection, Credential credential, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(connection);
 
@@ -51,7 +51,7 @@ public sealed class DataverseAccessTokenService : IDataverseAccessTokenService
     }
 
     public async Task<string> AcquireForResourceAsync(
-        TALXIS.CLI.Config.Model.Connection connection,
+        TALXIS.CLI.Core.Model.Connection connection,
         Credential credential,
         Uri resourceUri,
         CancellationToken ct)
@@ -79,7 +79,7 @@ public sealed class DataverseAccessTokenService : IDataverseAccessTokenService
     }
 
     private async Task<string> AcquirePublicClientSilentAsync(
-        TALXIS.CLI.Config.Model.Connection connection, Credential credential, string scope, CancellationToken ct)
+        TALXIS.CLI.Core.Model.Connection connection, Credential credential, string scope, CancellationToken ct)
     {
         var app = _clientFactory.BuildPublicClient(connection);
         _cacheBinder.Attach(app.UserTokenCache);
@@ -114,7 +114,7 @@ public sealed class DataverseAccessTokenService : IDataverseAccessTokenService
     }
 
     private async Task<string> AcquireClientSecretAsync(
-        TALXIS.CLI.Config.Model.Connection connection, Credential credential, string scope, CancellationToken ct)
+        TALXIS.CLI.Core.Model.Connection connection, Credential credential, string scope, CancellationToken ct)
     {
         if (credential.SecretRef is null)
             throw new InvalidOperationException($"Credential '{credential.Id}' (ClientSecret) has no SecretRef.");
@@ -135,7 +135,7 @@ public sealed class DataverseAccessTokenService : IDataverseAccessTokenService
     }
 
     private async Task<string> AcquireClientCertificateAsync(
-        TALXIS.CLI.Config.Model.Connection connection, Credential credential, string scope, CancellationToken ct)
+        TALXIS.CLI.Core.Model.Connection connection, Credential credential, string scope, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(credential.CertificatePath))
             throw new InvalidOperationException($"Credential '{credential.Id}' (ClientCertificate) has no CertificatePath.");
@@ -167,7 +167,7 @@ public sealed class DataverseAccessTokenService : IDataverseAccessTokenService
     }
 
     private async Task<string> AcquireFederatedAsync(
-        TALXIS.CLI.Config.Model.Connection connection, Credential credential, string scope, CancellationToken ct)
+        TALXIS.CLI.Core.Model.Connection connection, Credential credential, string scope, CancellationToken ct)
     {
         var callback = FederatedAssertionCallbacks.AutoSelect(_env, logger: _logger);
         var material = new ConfidentialClientMaterial { AssertionCallback = callback };

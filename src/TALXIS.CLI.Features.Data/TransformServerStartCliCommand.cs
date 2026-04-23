@@ -1,7 +1,7 @@
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Logging;
-using TALXIS.CLI.Shared;
+using TALXIS.CLI.Core;
 
 namespace TALXIS.CLI.Features.Data;
 

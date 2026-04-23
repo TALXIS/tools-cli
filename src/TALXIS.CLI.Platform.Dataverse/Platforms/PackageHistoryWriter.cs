@@ -1,4 +1,4 @@
-using TALXIS.CLI.Config.Platforms.Dataverse;
+using TALXIS.CLI.Core.Platforms.Dataverse;
 using Microsoft.Extensions.Logging;
 using Microsoft.Crm.Sdk.Messages;
 using Microsoft.PowerPlatform.Dataverse.Client;

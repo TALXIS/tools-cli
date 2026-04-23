@@ -1,6 +1,6 @@
-using TALXIS.CLI.Config.Abstractions;
-using TALXIS.CLI.Config.DependencyInjection;
-using TALXIS.CLI.Config.Model;
+using TALXIS.CLI.Core.Abstractions;
+using TALXIS.CLI.Core.DependencyInjection;
+using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Platform.Dataverse;
 
 namespace TALXIS.CLI.Platform.Dataverse.Runtime;
@@ -122,7 +122,7 @@ public static class DataverseCommandBridge
         return $"AuthType=ClientSecret;Url={url};ClientId={cred.ApplicationId};ClientSecret={secret}";
     }
 
-    private static void ValidateDataverseProfile(TALXIS.CLI.Config.Model.Connection connection)
+    private static void ValidateDataverseProfile(TALXIS.CLI.Core.Model.Connection connection)
     {
         if (connection.Provider != ProviderKind.Dataverse)
             throw new InvalidOperationException(
@@ -131,7 +131,7 @@ public static class DataverseCommandBridge
             throw new InvalidOperationException($"Dataverse connection '{connection.Id}' is missing EnvironmentUrl.");
     }
 
-    private static Uri ParseEnvironmentUrl(TALXIS.CLI.Config.Model.Connection connection)
+    private static Uri ParseEnvironmentUrl(TALXIS.CLI.Core.Model.Connection connection)
     {
         if (!Uri.TryCreate(connection.EnvironmentUrl, UriKind.Absolute, out var envUri))
             throw new InvalidOperationException(
@@ -140,5 +140,5 @@ public static class DataverseCommandBridge
     }
 
     /// <summary>Result of <see cref="PrimeTokenAsync"/>: the resolved profile pair + validated environment URL.</summary>
-    public sealed record PrimedProfile(TALXIS.CLI.Config.Model.Connection Connection, Credential Credential, Uri EnvironmentUrl);
+    public sealed record PrimedProfile(TALXIS.CLI.Core.Model.Connection Connection, Credential Credential, Uri EnvironmentUrl);
 }

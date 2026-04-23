@@ -1,4 +1,4 @@
-using TALXIS.CLI.Config.Model;
+using TALXIS.CLI.Core.Model;
 using Xunit;
 
 namespace TALXIS.CLI.Tests.Config.Storage;

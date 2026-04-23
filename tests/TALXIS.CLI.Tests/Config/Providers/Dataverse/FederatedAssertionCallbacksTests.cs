@@ -2,7 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using TALXIS.CLI.Platform.Dataverse.Msal;
-using TALXIS.CLI.Config.Resolution;
+using TALXIS.CLI.Core.Resolution;
 using Xunit;
 
 namespace TALXIS.CLI.Tests.Config.Providers.Dataverse;

@@ -1,5 +1,5 @@
 using DotMake.CommandLine;
-using TALXIS.CLI.Shared;
+using TALXIS.CLI.Core;
 
 namespace TALXIS.CLI.Features.Workspace;
 

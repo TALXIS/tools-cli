@@ -1,16 +1,16 @@
 using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
-using TALXIS.CLI.Config.Abstractions;
-using TALXIS.CLI.Config.Bootstrapping;
-using TALXIS.CLI.Config.DependencyInjection;
-using TALXIS.CLI.Config.Headless;
-using TALXIS.CLI.Config.Model;
-using TALXIS.CLI.Config.Storage;
+using TALXIS.CLI.Core.Abstractions;
+using TALXIS.CLI.Core.Bootstrapping;
+using TALXIS.CLI.Core.DependencyInjection;
+using TALXIS.CLI.Core.Headless;
+using TALXIS.CLI.Core.Model;
+using TALXIS.CLI.Core.Storage;
 using TALXIS.CLI.Logging;
-using TALXIS.CLI.Shared;
-using ConnectionModel = TALXIS.CLI.Config.Model.Connection;
-using ProfileModel = TALXIS.CLI.Config.Model.Profile;
+using TALXIS.CLI.Core;
+using ConnectionModel = TALXIS.CLI.Core.Model.Connection;
+using ProfileModel = TALXIS.CLI.Core.Model.Profile;
 
 namespace TALXIS.CLI.Features.Config.Profile;
 

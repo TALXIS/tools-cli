@@ -1,9 +1,9 @@
 using System.Text.Json;
-using TALXIS.CLI.Config.Abstractions;
+using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Features.Config.Profile;
-using TALXIS.CLI.Config.Model;
-using TALXIS.CLI.Config.Headless;
-using TALXIS.CLI.Shared;
+using TALXIS.CLI.Core.Model;
+using TALXIS.CLI.Core.Headless;
+using TALXIS.CLI.Core;
 using TALXIS.CLI.Tests.Config.Commands;
 using Xunit;
 

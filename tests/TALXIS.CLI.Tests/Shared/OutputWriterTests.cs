@@ -1,4 +1,4 @@
-using TALXIS.CLI.Shared;
+using TALXIS.CLI.Core;
 using Xunit;
 
 namespace TALXIS.CLI.Tests.Shared;

@@ -16,7 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\TALXIS.CLI.Config\TALXIS.CLI.Config.csproj" />
+    <ProjectReference Include="..\TALXIS.CLI.Core\TALXIS.CLI.Core.csproj" />
     <ProjectReference Include="..\TALXIS.CLI.Logging\TALXIS.CLI.Logging.csproj" />
     <ProjectReference Include="..\TALXIS.CLI.Platform.Xrm\TALXIS.CLI.Platform.Xrm.csproj" />
   </ItemGroup>

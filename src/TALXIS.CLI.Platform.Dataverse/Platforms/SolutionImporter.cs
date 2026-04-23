@@ -6,9 +6,9 @@ using Microsoft.PowerPlatform.Dataverse.Client;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Messages;
 using Microsoft.Xrm.Sdk.Query;
-using TALXIS.CLI.Config.Platforms.Dataverse;
+using TALXIS.CLI.Core.Platforms.Dataverse;
 using TALXIS.CLI.Platform.Dataverse;
-using SolutionInfo = TALXIS.CLI.Config.Platforms.Dataverse.SolutionInfo;
+using SolutionInfo = TALXIS.CLI.Core.Platforms.Dataverse.SolutionInfo;
 
 namespace TALXIS.CLI.Platform.Dataverse.Platforms;
 

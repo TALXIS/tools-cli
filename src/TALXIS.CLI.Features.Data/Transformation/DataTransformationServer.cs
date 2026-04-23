@@ -2,7 +2,7 @@ using System.Net;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Features.Data.DataServer;
 using TALXIS.CLI.Logging;
-using TALXIS.CLI.Shared;
+using TALXIS.CLI.Core;
 
 namespace TALXIS.CLI.Features.Data;
 

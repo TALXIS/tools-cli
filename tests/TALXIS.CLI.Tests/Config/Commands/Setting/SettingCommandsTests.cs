@@ -1,8 +1,8 @@
 using System.IO;
-using TALXIS.CLI.Config.Abstractions;
+using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Features.Config.Setting;
-using TALXIS.CLI.Config.DependencyInjection;
-using TALXIS.CLI.Shared;
+using TALXIS.CLI.Core.DependencyInjection;
+using TALXIS.CLI.Core;
 using Xunit;
 
 namespace TALXIS.CLI.Tests.Config.Commands.Setting;

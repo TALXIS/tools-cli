@@ -1,11 +1,11 @@
 using Microsoft.Extensions.DependencyInjection;
-using TALXIS.CLI.Config.Abstractions;
-using TALXIS.CLI.Config.DependencyInjection;
-using TALXIS.CLI.Config.Headless;
-using TALXIS.CLI.Config.Model;
-using TALXIS.CLI.Config.Resolution;
-using TALXIS.CLI.Config.Storage;
-using ConnectionModel = TALXIS.CLI.Config.Model.Connection;
+using TALXIS.CLI.Core.Abstractions;
+using TALXIS.CLI.Core.DependencyInjection;
+using TALXIS.CLI.Core.Headless;
+using TALXIS.CLI.Core.Model;
+using TALXIS.CLI.Core.Resolution;
+using TALXIS.CLI.Core.Storage;
+using ConnectionModel = TALXIS.CLI.Core.Model.Connection;
 
 namespace TALXIS.CLI.Tests.Config.Commands;/// <summary>
 /// Per-test TxcServices scope: boots an in-memory service provider backed
@@ -46,14 +46,14 @@ internal sealed class CommandTestHost : IDisposable
         services.AddSingleton<IConnectionStore, ConnectionStore>();
         services.AddSingleton<ICredentialStore, CredentialStore>();
         services.AddSingleton<IGlobalConfigStore, GlobalConfigStore>();
-        services.AddSingleton<TALXIS.CLI.Config.Bootstrapping.ConnectionUpsertService>();
+        services.AddSingleton<TALXIS.CLI.Core.Bootstrapping.ConnectionUpsertService>();
         services.AddSingleton<ICredentialVault>(Vault);
         services.AddSingleton<IHeadlessDetector>(Headless);
         services.AddSingleton<IInteractiveLoginService>(Login);
         services.AddSingleton<IConnectionProvider>(Provider_Dataverse);
         services.AddSingleton<
-            TALXIS.CLI.Config.Bootstrapping.IConnectionProviderBootstrapper,
-            TALXIS.CLI.Config.Bootstrapping.DataverseConnectionProviderBootstrapper>();
+            TALXIS.CLI.Core.Bootstrapping.IConnectionProviderBootstrapper,
+            TALXIS.CLI.Core.Bootstrapping.DataverseConnectionProviderBootstrapper>();
 
         Provider = services.BuildServiceProvider();
         TxcServices.Initialize(Provider);

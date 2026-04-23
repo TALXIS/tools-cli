@@ -2,9 +2,9 @@ using System.ComponentModel;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Features.Config.Abstractions;
-using TALXIS.CLI.Config.DependencyInjection;
-using TALXIS.CLI.Config.Platforms.Dataverse;
-using TALXIS.CLI.Config.Platforms.Packaging;
+using TALXIS.CLI.Core.DependencyInjection;
+using TALXIS.CLI.Core.Platforms.Dataverse;
+using TALXIS.CLI.Core.Platforms.Packaging;
 using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.Package;

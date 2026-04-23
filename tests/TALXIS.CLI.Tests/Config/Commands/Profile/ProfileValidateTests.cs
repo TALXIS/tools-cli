@@ -1,10 +1,10 @@
 using System.Text.Json;
-using TALXIS.CLI.Config.Abstractions;
+using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Features.Config.Profile;
-using TALXIS.CLI.Config.Model;
-using TALXIS.CLI.Shared;
+using TALXIS.CLI.Core.Model;
+using TALXIS.CLI.Core;
 using Xunit;
-using ConnectionModel = TALXIS.CLI.Config.Model.Connection;
+using ConnectionModel = TALXIS.CLI.Core.Model.Connection;
 
 namespace TALXIS.CLI.Tests.Config.Commands.Profile;
 

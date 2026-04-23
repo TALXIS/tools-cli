@@ -1,5 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
-using TALXIS.CLI.Config.DependencyInjection;
+using TALXIS.CLI.Core.DependencyInjection;
 
 namespace TALXIS.CLI.Platform.Dataverse.DependencyInjection;
 

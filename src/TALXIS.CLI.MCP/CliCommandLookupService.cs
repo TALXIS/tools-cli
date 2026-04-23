@@ -1,5 +1,5 @@
 using System.Reflection;
-using TALXIS.CLI.Shared;
+using TALXIS.CLI.Core;
 
 namespace TALXIS.CLI.MCP
 {

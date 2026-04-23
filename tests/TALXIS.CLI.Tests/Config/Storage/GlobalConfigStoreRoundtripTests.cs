@@ -1,5 +1,5 @@
-using TALXIS.CLI.Config.Model;
-using TALXIS.CLI.Config.Storage;
+using TALXIS.CLI.Core.Model;
+using TALXIS.CLI.Core.Storage;
 using Xunit;
 
 namespace TALXIS.CLI.Tests.Config.Storage;

@@ -2,7 +2,7 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using TALXIS.CLI.Config.Model;
+using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Platform.Dataverse.Runtime;
 
 namespace TALXIS.CLI.Platform.Dataverse;
@@ -44,7 +44,7 @@ public sealed class DataverseLiveChecker : IDataverseLiveChecker
         _logger = logger ?? NullLogger<DataverseLiveChecker>.Instance;
     }
 
-    public async Task<DataverseLiveCheckResult> CheckAsync(TALXIS.CLI.Config.Model.Connection connection, Credential credential, CancellationToken ct)
+    public async Task<DataverseLiveCheckResult> CheckAsync(TALXIS.CLI.Core.Model.Connection connection, Credential credential, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(credential);

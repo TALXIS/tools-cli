@@ -1,7 +1,7 @@
 using System.Security.Cryptography.X509Certificates;
 using Microsoft.Identity.Client;
-using TALXIS.CLI.Config.Abstractions;
-using TALXIS.CLI.Config.Model;
+using TALXIS.CLI.Core.Abstractions;
+using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Platform.Dataverse.Authority;
 
 namespace TALXIS.CLI.Platform.Dataverse.Msal;

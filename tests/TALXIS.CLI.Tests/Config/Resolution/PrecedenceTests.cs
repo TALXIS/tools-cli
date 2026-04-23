@@ -1,7 +1,7 @@
-using TALXIS.CLI.Config.Abstractions;
-using TALXIS.CLI.Config.Model;
-using TALXIS.CLI.Config.Resolution;
-using TALXIS.CLI.Config.Storage;
+using TALXIS.CLI.Core.Abstractions;
+using TALXIS.CLI.Core.Model;
+using TALXIS.CLI.Core.Resolution;
+using TALXIS.CLI.Core.Storage;
 using Xunit;
 
 namespace TALXIS.CLI.Tests.Config.Resolution;

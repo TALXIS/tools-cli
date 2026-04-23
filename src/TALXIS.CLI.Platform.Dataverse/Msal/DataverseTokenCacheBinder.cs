@@ -1,9 +1,9 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Identity.Client.Extensions.Msal;
-using TALXIS.CLI.Config.Resolution;
-using TALXIS.CLI.Config.Storage;
-using TALXIS.CLI.Config.Vault;
+using TALXIS.CLI.Core.Resolution;
+using TALXIS.CLI.Core.Storage;
+using TALXIS.CLI.Core.Vault;
 
 namespace TALXIS.CLI.Platform.Dataverse.Msal;
 

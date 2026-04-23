@@ -1,6 +1,6 @@
 using DotMake.CommandLine;
 using TALXIS.CLI.Features.Data.DataModelConverter;
-using TALXIS.CLI.Shared;
+using TALXIS.CLI.Core;
 
 namespace TALXIS.CLI.Features.Data;
 

@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging;
-using TALXIS.CLI.Config.Platforms.Dataverse;
+using TALXIS.CLI.Core.Platforms.Dataverse;
 using TALXIS.CLI.Platform.Dataverse.Platforms;
 using TALXIS.CLI.Platform.Dataverse.Runtime;
 using TALXIS.CLI.Logging;

@@ -1,4 +1,4 @@
-using TALXIS.CLI.Config.Storage;
+using TALXIS.CLI.Core.Storage;
 
 namespace TALXIS.CLI.Tests.Config;
 

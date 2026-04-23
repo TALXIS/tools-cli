@@ -1,6 +1,6 @@
 using DotMake.CommandLine;
 using System.ComponentModel;
-using TALXIS.CLI.Shared;
+using TALXIS.CLI.Core;
 
 namespace TALXIS.CLI.MCP
 {

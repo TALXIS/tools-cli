@@ -1,5 +1,5 @@
-using TALXIS.CLI.Config.Headless;
-using TALXIS.CLI.Config.Resolution;
+using TALXIS.CLI.Core.Headless;
+using TALXIS.CLI.Core.Resolution;
 using Xunit;
 
 namespace TALXIS.CLI.Tests.Config.Headless;

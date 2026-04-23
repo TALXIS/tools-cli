@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.PowerPlatform.Dataverse.Client;
-using TALXIS.CLI.Config.Model;
+using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Platform.Dataverse;
 
 namespace TALXIS.CLI.Platform.Dataverse.Runtime;

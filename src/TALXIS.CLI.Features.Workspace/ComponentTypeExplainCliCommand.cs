@@ -1,7 +1,7 @@
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Logging;
-using TALXIS.CLI.Shared;
+using TALXIS.CLI.Core;
 using TALXIS.CLI.Features.Workspace.TemplateEngine;
 
 namespace TALXIS.CLI.Features.Workspace;

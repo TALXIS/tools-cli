@@ -65,7 +65,7 @@ public class McpServerProtocolTests : IAsyncDisposable
             if (toolName == "copilot-instructions")
             {
                 var output = new StringWriter();
-                using var redirect = TALXIS.CLI.Shared.OutputWriter.RedirectTo(output);
+                using var redirect = TALXIS.CLI.Core.OutputWriter.RedirectTo(output);
                 var command = new CopilotInstructionsCliCommand();
                 await command.RunAsync(null!);
                 return new CallToolResult

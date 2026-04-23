@@ -1,6 +1,6 @@
 using Microsoft.Identity.Client;
-using TALXIS.CLI.Config.Abstractions;
-using TALXIS.CLI.Config.Platforms.Dataverse;
+using TALXIS.CLI.Core.Abstractions;
+using TALXIS.CLI.Core.Platforms.Dataverse;
 using TALXIS.CLI.Platform.Dataverse.Platforms;
 using TALXIS.CLI.Platform.Dataverse.Runtime;
 using TALXIS.CLI.Platform.Xrm;

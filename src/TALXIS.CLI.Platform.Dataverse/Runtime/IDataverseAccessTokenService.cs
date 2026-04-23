@@ -1,4 +1,4 @@
-using TALXIS.CLI.Config.Model;
+using TALXIS.CLI.Core.Model;
 
 namespace TALXIS.CLI.Platform.Dataverse.Runtime;
 
@@ -33,7 +33,7 @@ public interface IDataverseAccessTokenService
     /// <paramref name="connection"/> using the given
     /// <paramref name="credential"/>.
     /// </summary>
-    Task<string> AcquireAsync(TALXIS.CLI.Config.Model.Connection connection, Credential credential, CancellationToken ct);
+    Task<string> AcquireAsync(TALXIS.CLI.Core.Model.Connection connection, Credential credential, CancellationToken ct);
 
     /// <summary>
     /// Acquires a bearer token scoped to <paramref name="resourceUri"/>.
@@ -53,7 +53,7 @@ public interface IDataverseAccessTokenService
     /// </param>
     /// <param name="ct">Cancellation token.</param>
     Task<string> AcquireForResourceAsync(
-        TALXIS.CLI.Config.Model.Connection connection,
+        TALXIS.CLI.Core.Model.Connection connection,
         Credential credential,
         Uri resourceUri,
         CancellationToken ct);

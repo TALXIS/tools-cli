@@ -1,13 +1,13 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using TALXIS.CLI.Config.Abstractions;
-using TALXIS.CLI.Config.Platforms.Dataverse;
+using TALXIS.CLI.Core.Abstractions;
+using TALXIS.CLI.Core.Platforms.Dataverse;
 using TALXIS.CLI.Platform.Dataverse.Authority;
 using TALXIS.CLI.Platform.Dataverse.Runtime;
 using TALXIS.CLI.Platform.Dataverse.Msal;
 using TALXIS.CLI.Platform.Dataverse.Services;
-using TALXIS.CLI.Config.Resolution;
-using TALXIS.CLI.Config.Storage;
+using TALXIS.CLI.Core.Resolution;
+using TALXIS.CLI.Core.Storage;
 
 namespace TALXIS.CLI.Platform.Dataverse.DependencyInjection;
 
@@ -49,8 +49,8 @@ public static class DataverseProviderServiceCollectionExtensions
         services.AddSingleton<IDeploymentDetailService, DataverseDeploymentDetailService>();
         services.AddSingleton<IPackageImportService, DataversePackageImportService>();
         services.AddSingleton<IPackageUninstallService, DataversePackageUninstallService>();
-        services.AddSingleton<TALXIS.CLI.Config.Bootstrapping.IConnectionProviderBootstrapper,
-            TALXIS.CLI.Config.Bootstrapping.DataverseConnectionProviderBootstrapper>();
+        services.AddSingleton<TALXIS.CLI.Core.Bootstrapping.IConnectionProviderBootstrapper,
+            TALXIS.CLI.Core.Bootstrapping.DataverseConnectionProviderBootstrapper>();
         return services;
     }
 }

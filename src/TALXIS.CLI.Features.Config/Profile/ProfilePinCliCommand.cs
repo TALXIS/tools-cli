@@ -1,13 +1,13 @@
 using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
-using TALXIS.CLI.Config.Abstractions;
-using TALXIS.CLI.Config.DependencyInjection;
-using TALXIS.CLI.Config.Model;
-using TALXIS.CLI.Config.Resolution;
-using TALXIS.CLI.Config.Storage;
+using TALXIS.CLI.Core.Abstractions;
+using TALXIS.CLI.Core.DependencyInjection;
+using TALXIS.CLI.Core.Model;
+using TALXIS.CLI.Core.Resolution;
+using TALXIS.CLI.Core.Storage;
 using TALXIS.CLI.Logging;
-using TALXIS.CLI.Shared;
+using TALXIS.CLI.Core;
 
 namespace TALXIS.CLI.Features.Config.Profile;
 

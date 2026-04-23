@@ -1,9 +1,9 @@
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
-using TALXIS.CLI.Config.Abstractions;
-using TALXIS.CLI.Config.DependencyInjection;
+using TALXIS.CLI.Core.Abstractions;
+using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Logging;
-using TALXIS.CLI.Shared;
+using TALXIS.CLI.Core;
 
 namespace TALXIS.CLI.Features.Config.Profile;
 
