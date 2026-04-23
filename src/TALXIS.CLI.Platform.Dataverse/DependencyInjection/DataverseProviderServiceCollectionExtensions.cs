@@ -50,7 +50,7 @@ public static class DataverseProviderServiceCollectionExtensions
         services.AddSingleton<IPackageImportService, DataversePackageImportService>();
         services.AddSingleton<IPackageUninstallService, DataversePackageUninstallService>();
         services.AddSingleton<TALXIS.CLI.Core.Bootstrapping.IConnectionProviderBootstrapper,
-            TALXIS.CLI.Core.Bootstrapping.DataverseConnectionProviderBootstrapper>();
+            TALXIS.CLI.Platform.Dataverse.Bootstrapping.DataverseConnectionProviderBootstrapper>();
         return services;
     }
 }

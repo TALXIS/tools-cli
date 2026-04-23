@@ -53,7 +53,7 @@ internal sealed class CommandTestHost : IDisposable
         services.AddSingleton<IConnectionProvider>(Provider_Dataverse);
         services.AddSingleton<
             TALXIS.CLI.Core.Bootstrapping.IConnectionProviderBootstrapper,
-            TALXIS.CLI.Core.Bootstrapping.DataverseConnectionProviderBootstrapper>();
+            TALXIS.CLI.Platform.Dataverse.Bootstrapping.DataverseConnectionProviderBootstrapper>();
 
         Provider = services.BuildServiceProvider();
         TxcServices.Initialize(Provider);
