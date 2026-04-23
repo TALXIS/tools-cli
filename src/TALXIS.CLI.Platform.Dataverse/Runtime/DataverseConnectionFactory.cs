@@ -51,7 +51,18 @@ public sealed class DataverseConnectionFactory : IDataverseConnectionFactory
         var cred = context.Credential;
         var client = new ServiceClient(
             envUri,
-            async _ => await _tokens.AcquireAsync(conn, cred, ct).ConfigureAwait(false),
+            async resource =>
+            {
+                // Honor the resource requested by the Dataverse SDK because it may
+                // canonicalize or redirect the organization URL before asking for a token.
+                if (!string.IsNullOrWhiteSpace(resource) &&
+                    Uri.TryCreate(resource, UriKind.Absolute, out var resourceUri))
+                {
+                    return await _tokens.AcquireForResourceAsync(conn, cred, resourceUri, ct).ConfigureAwait(false);
+                }
+
+                return await _tokens.AcquireAsync(conn, cred, ct).ConfigureAwait(false);
+            },
             useUniqueInstance: true,
             logger: null);
 

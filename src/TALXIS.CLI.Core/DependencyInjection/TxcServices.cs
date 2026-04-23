@@ -12,10 +12,25 @@ namespace TALXIS.CLI.Core.DependencyInjection;
 public static class TxcServices
 {
     private static IServiceProvider? _provider;
+    private static readonly object _gate = new();
 
+    /// <summary>
+    /// Installs the process-wide service provider. Fails fast if called twice —
+    /// double-initialization means two composition roots are fighting for the
+    /// same locator and would resolve services from different containers.
+    /// Tests that need to rebuild the container must call <see cref="Reset"/>
+    /// between initializations.
+    /// </summary>
     public static void Initialize(IServiceProvider provider)
     {
-        _provider = provider ?? throw new ArgumentNullException(nameof(provider));
+        ArgumentNullException.ThrowIfNull(provider);
+        lock (_gate)
+        {
+            if (_provider is not null && !ReferenceEquals(_provider, provider))
+                throw new InvalidOperationException(
+                    "TxcServices.Initialize has already been called. Only one composition root is allowed per process; call TxcServices.Reset() first if you intentionally want to replace it (tests only).");
+            _provider = provider;
+        }
     }
 
     public static bool IsInitialized => _provider is not null;
@@ -40,5 +55,11 @@ public static class TxcServices
     }
 
     // Exposed only for test teardown.
-    internal static void Reset() => _provider = null;
+    internal static void Reset()
+    {
+        lock (_gate)
+        {
+            _provider = null;
+        }
+    }
 }

@@ -36,8 +36,11 @@ public class CliCommandAdapterProfileArgumentTests
         Assert.Equal("string", profile.GetProperty("type").GetString());
         // Profile is optional on ProfiledCliCommand; every derived command
         // inherits Required=false and must NOT appear in the required list.
-        var required = schema.GetProperty("required").EnumerateArray()
-            .Select(x => x.GetString()).ToList();
+        // JSON Schema allows omitting "required" entirely when there are no
+        // required members, so treat an absent property as an empty set.
+        var required = schema.TryGetProperty("required", out var requiredProperty)
+            ? requiredProperty.EnumerateArray().Select(x => x.GetString()).ToList()
+            : new List<string?>();
         Assert.DoesNotContain("profile", required);
     }
 
