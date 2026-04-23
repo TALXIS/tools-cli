@@ -42,7 +42,7 @@ The separation is deliberate. Connections are *where*, credentials are *who*, pr
 Command paths describe **what the user is doing**, not **what platform implements it**.
 
 - **No platform names in user-facing paths.** The word `dataverse` does not appear in any command path, and neither will any future platform name (`azure`, `entra`, `graph`, etc.). Users should not need to know or care which runtime their workspace artifacts land on.
-- **Platforms live internally.** Platform-specific code lives under `Platforms/<Name>/` inside the owning project (e.g. `TALXIS.CLI.Features.Environment/Platforms/Dataverse/`). Do **not** create a `<Name>CliCommand` — platforms are not command groups.
+- **Platforms live in dedicated projects.** Platform-specific implementations live in `TALXIS.CLI.Platform.<Name>` projects (e.g. `TALXIS.CLI.Platform.Dataverse`). Feature projects depend on abstractions in `TALXIS.CLI.Core`, never directly on a `Platform.*` project. Provider registration happens in the host (`TALXIS.CLI` / `TALXIS.CLI.MCP`). Do **not** create a `<Name>CliCommand` — platforms are not command groups.
 - **Abstractions are extracted, not speculated.** When a second platform is actually implemented, extract an interface from the shape that already exists. Do not speculate an `IEnvironmentPlatform` (or similar) before there is a second concrete implementation to validate it.
 
 We avoid even the term "backend" for this abstraction: a Dataverse environment carries metadata for frontend (forms, apps), middle tier (business logic, plugins, workflows), and integrations. Calling it a backend understates what ships there.
@@ -216,12 +216,39 @@ Never call the metamodel "the model" — it collides with the user's data model 
 
 When a second runtime platform actually needs to be supported:
 
-1. Add `Platforms/<Name>/` inside the owning project (e.g. `TALXIS.CLI.Features.Environment/Platforms/Azure/`).
-2. Put all platform-specific services in that folder, in a `TALXIS.CLI.Features.Environment.Platforms.<Name>` namespace.
-3. Keep the command classes platform-agnostic: a single `Package.PackageImportCliCommand` dispatches to the right platform internally.
-4. At this point (and not before), extract a shared abstraction — e.g. `IEnvironmentPlatform` — from the two real shapes. Do not write the interface before the second implementation exists.
+1. Add a new `TALXIS.CLI.Platform.<Name>` project (e.g. `TALXIS.CLI.Platform.Azure`) alongside the existing `Platform.*` projects.
+2. Put all platform-specific services in that project, under a `TALXIS.CLI.Platform.<Name>` namespace.
+3. Register the provider's services in an `AddTxc<Name>Provider` extension, and wire it up from the host composition roots (`TALXIS.CLI/Program.cs` and `TALXIS.CLI.MCP/Program.cs`).
+4. Keep the command classes platform-agnostic: a single `Package.PackageImportCliCommand` resolves the right implementation via the DI container, it does not reference a `Platform.*` project directly.
+5. At this point (and not before), extract a shared abstraction in `TALXIS.CLI.Core` — e.g. `IEnvironmentPlatform` — from the two real shapes. Do not write the interface before the second implementation exists.
 
 Do not add a `<Name>CliCommand`. Platforms are implementation details; they do not surface as command groups.
+
+---
+
+## Project layout
+
+Projects are grouped by architectural role. Names must reflect this role:
+
+- **Hosts** — thin entrypoints that compose DI and register commands. Nothing else.
+  - `TALXIS.CLI` — the `txc` CLI host.
+  - `TALXIS.CLI.MCP` — the MCP server host.
+- **Features** — user-facing command surfaces and orchestration, organised by domain.
+  - `TALXIS.CLI.Features.Config`, `TALXIS.CLI.Features.Data`, `TALXIS.CLI.Features.Environment`, `TALXIS.CLI.Features.Workspace`, `TALXIS.CLI.Features.Docs`.
+- **Core** — contracts, models, configuration, vault, resolution, shared utilities.
+  - `TALXIS.CLI.Core`.
+- **Platform** — external-system adapters and SDK integration.
+  - `TALXIS.CLI.Platform.Dataverse`, `TALXIS.CLI.Platform.Xrm`, `TALXIS.CLI.Platform.XrmShim`.
+- **Cross-cutting** — infrastructure.
+  - `TALXIS.CLI.Logging`.
+
+**Layering rules:**
+
+- Features depend on `Core` and `Logging` only. Features do **not** reference `Platform.*` projects.
+- Platform depends on `Core` (and external SDKs). Platform does **not** reference `Features.*`.
+- Hosts reference everything they need for composition: `Features.*`, `Platform.*`, `Core`, `Logging`.
+- No feature references another feature. Shared logic goes into `Core`.
+- Provider selection happens at the host composition root, never inside a command handler.
 
 ---
 
