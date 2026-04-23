@@ -1,13 +1,12 @@
 using System.ComponentModel;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
-using Microsoft.Identity.Client;
 using TALXIS.CLI.Config.Commands.Abstractions;
-using TALXIS.CLI.Config.Providers.Dataverse.Runtime;
-using TALXIS.CLI.Dataverse;
+using TALXIS.CLI.Config.DependencyInjection;
+using TALXIS.CLI.Config.Platforms.Dataverse;
 using TALXIS.CLI.Config.Providers.Dataverse.Platforms;
+using TALXIS.CLI.Dataverse;
 using TALXIS.CLI.Logging;
-using TALXIS.CLI.XrmTools;
 
 namespace TALXIS.CLI.Environment.Package;
 
@@ -72,12 +71,8 @@ public class PackageImportCliCommand : ProfiledCliCommand
         }
         else
         {
-            NuGetPackageInstallOptions options = new(
-                Package,
-                PackageVersion,
-                OutputDirectory);
-
-            NuGetPackageInstallResult installResult = await _packageInstaller.InstallAsync(options);
+            var options = new NuGetPackageInstallOptions(Package, PackageVersion, OutputDirectory);
+            var installResult = await _packageInstaller.InstallAsync(options);
 
             _logger.LogInformation("Resolved {PackageName} version {Version}", installResult.PackageName, installResult.ResolvedVersion);
             _logger.LogInformation("Deployable package extracted to {Path}", installResult.DeployablePackagePath);
@@ -91,74 +86,26 @@ public class PackageImportCliCommand : ProfiledCliCommand
             }
 
             packagePath = installResult.DeployablePackagePath;
-
             if (installResult.UsesTemporaryWorkingDirectory)
             {
                 tempWorkingDirectory = installResult.WorkingDirectory;
             }
         }
 
-        PackageDeployerResult? deployResult = null;
-
+        PackageImportResult result;
         try
         {
-            try
-            {
-                await DataverseCommandBridge.PrimeTokenAsync(Profile, CancellationToken.None);
-            }
-            catch (MsalUiRequiredException)
-            {
-                _logger.LogError("Interactive authentication is required. Run 'txc config auth login' for profile '{Profile}' and retry.", Profile ?? "(default)");
-                return 1;
-            }
-
-            deployResult = await LegacyAssemblyHostSubprocess.RunPackageDeployerAsync(new PackageDeployerRequest(
-                packagePath,
-                ProfileId: Profile ?? string.Empty,
-                ConfigDirectory: null,
-                Settings,
-                LogFile,
-                LogConsole,
-                Verbose,
-                TemporaryArtifactsDirectory: string.Empty,
-                ParentProcessId: System.Environment.ProcessId,
+            var service = TxcServices.Get<IPackageImportService>();
+            result = await service.ImportAsync(new PackageImportRequest(
+                ProfileName: Profile,
+                PackagePath: packagePath,
+                Settings: Settings,
+                LogFile: LogFile,
+                LogConsole: LogConsole,
+                Verbose: Verbose,
                 NuGetPackageName: nugetPackageName,
-                NuGetPackageVersion: nugetPackageVersion));
-
-            if (!deployResult.Succeeded)
-            {
-                if (!string.IsNullOrWhiteSpace(deployResult.ErrorMessage))
-                {
-                    _logger.LogError("{ErrorMessage}", deployResult.ErrorMessage);
-                }
-
-                if (!string.IsNullOrWhiteSpace(LogFile) && !string.IsNullOrWhiteSpace(deployResult.LogFilePath))
-                {
-                    _logger.LogError("Detailed Package Deployer log: {LogPath}", deployResult.LogFilePath);
-                }
-
-                if (!string.IsNullOrWhiteSpace(LogFile) && !string.IsNullOrWhiteSpace(deployResult.CmtLogFilePath))
-                {
-                    _logger.LogError("Detailed CMT import log: {LogPath}", deployResult.CmtLogFilePath);
-                }
-                else if (string.IsNullOrWhiteSpace(LogFile) &&
-                    (!string.IsNullOrWhiteSpace(deployResult.LogFilePath) || !string.IsNullOrWhiteSpace(deployResult.CmtLogFilePath)))
-                {
-                    _logger.LogWarning("Detailed temporary logs were cleaned up. Pass --log-file to preserve them.");
-                }
-
-                _logger.LogError("Package import failed. Package located at {PackagePath}", packagePath);
-                return 1;
-            }
-
-            _logger.LogInformation("Package import completed successfully.");
-
-            if (!string.IsNullOrWhiteSpace(LogFile))
-            {
-                _logger.LogInformation("Package Deployer log: {LogPath}", Path.GetFullPath(LogFile));
-            }
-
-            return 0;
+                NuGetPackageVersion: nugetPackageVersion,
+                TempWorkingDirectory: tempWorkingDirectory), CancellationToken.None).ConfigureAwait(false);
         }
         catch (InvalidOperationException ex)
         {
@@ -166,12 +113,44 @@ public class PackageImportCliCommand : ProfiledCliCommand
             _logger.LogError("Package located at {PackagePath}", packagePath);
             return 1;
         }
-        finally
+
+        if (result.InteractiveAuthRequired)
         {
-            if (!string.IsNullOrWhiteSpace(tempWorkingDirectory))
-            {
-                LegacyAssemblyHostSubprocess.TryDeleteDirectory(tempWorkingDirectory);
-            }
+            _logger.LogError("Interactive authentication is required. Run 'txc config auth login' for profile '{Profile}' and retry.", Profile ?? "(default)");
+            return 1;
         }
+
+        if (!result.Succeeded)
+        {
+            if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
+            {
+                _logger.LogError("{ErrorMessage}", result.ErrorMessage);
+            }
+
+            if (!string.IsNullOrWhiteSpace(LogFile) && !string.IsNullOrWhiteSpace(result.LogFilePath))
+            {
+                _logger.LogError("Detailed Package Deployer log: {LogPath}", result.LogFilePath);
+            }
+
+            if (!string.IsNullOrWhiteSpace(LogFile) && !string.IsNullOrWhiteSpace(result.CmtLogFilePath))
+            {
+                _logger.LogError("Detailed CMT import log: {LogPath}", result.CmtLogFilePath);
+            }
+            else if (string.IsNullOrWhiteSpace(LogFile) &&
+                (!string.IsNullOrWhiteSpace(result.LogFilePath) || !string.IsNullOrWhiteSpace(result.CmtLogFilePath)))
+            {
+                _logger.LogWarning("Detailed temporary logs were cleaned up. Pass --log-file to preserve them.");
+            }
+
+            _logger.LogError("Package import failed. Package located at {PackagePath}", packagePath);
+            return 1;
+        }
+
+        _logger.LogInformation("Package import completed successfully.");
+        if (!string.IsNullOrWhiteSpace(LogFile))
+        {
+            _logger.LogInformation("Package Deployer log: {LogPath}", Path.GetFullPath(LogFile));
+        }
+        return 0;
     }
 }
