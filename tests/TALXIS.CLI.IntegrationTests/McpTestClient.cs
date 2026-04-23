@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Threading.Tasks;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
@@ -26,13 +25,13 @@ public sealed class McpTestClient : IAsyncDisposable
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(2));
 
-        var mcpProjectPath = GetMcpProjectPath();
+        var mcpProjectPath = TestExecutionContext.GetProjectPath("src", "TALXIS.CLI.MCP", "TALXIS.CLI.MCP.csproj");
 
         var transport = new StdioClientTransport(new StdioClientTransportOptions
         {
             Name = "TALXIS CLI MCP Test Client",
             Command = "dotnet",
-            Arguments = ["run", "--project", mcpProjectPath, "--no-build"]
+            Arguments = GetCommandArguments(mcpProjectPath)
         });
 
         var client = await McpClient.CreateAsync(transport, cancellationToken: cts.Token);
@@ -55,17 +54,14 @@ public sealed class McpTestClient : IAsyncDisposable
         await _client.DisposeAsync();
     }
 
-    private static string GetMcpProjectPath()
+    internal static string[] GetCommandArguments(string projectPath)
     {
-        var baseDir = AppContext.BaseDirectory;
-        var dir = new DirectoryInfo(baseDir);
-
-        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "TALXIS.CLI.sln")))
-            dir = dir.Parent;
-
-        if (dir == null)
-            throw new InvalidOperationException("Could not find repository root");
-
-        return Path.Combine(dir.FullName, "src", "TALXIS.CLI.MCP", "TALXIS.CLI.MCP.csproj");
+        return
+        [
+            "run",
+            "--project", projectPath,
+            "--configuration", TestExecutionContext.BuildConfiguration,
+            "--no-build"
+        ];
     }
 }
