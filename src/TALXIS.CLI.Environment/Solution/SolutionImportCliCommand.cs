@@ -4,9 +4,8 @@ using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Config.Abstractions;
 using TALXIS.CLI.Config.Commands.Abstractions;
-using TALXIS.CLI.Config.Providers.Dataverse.Runtime;
-using TALXIS.CLI.Dataverse;
-using TALXIS.CLI.Config.Providers.Dataverse.Platforms;
+using TALXIS.CLI.Config.DependencyInjection;
+using TALXIS.CLI.Config.Platforms.Dataverse;
 using TALXIS.CLI.Logging;
 using TALXIS.CLI.Shared;
 
@@ -60,110 +59,65 @@ public class SolutionImportCliCommand : ProfiledCliCommand
             return 1;
         }
 
-        SolutionInfo source;
+        var options = new SolutionImportOptions(
+            StageAndUpgrade: StageAndUpgrade,
+            ForceOverwrite: ForceOverwrite,
+            PublishWorkflows: PublishWorkflows,
+            SkipDependencyCheck: SkipDependencyCheck,
+            SkipLowerVersion: SkipLowerVersion,
+            Async: !Wait);
+
+        SolutionImportResult result;
         try
         {
-            source = SolutionImporter.ReadSolutionInfo(solutionPath);
+            var service = TxcServices.Get<ISolutionImportService>();
+            result = await service.ImportAsync(Profile, solutionPath, options, CancellationToken.None).ConfigureAwait(false);
         }
-        catch (Exception ex) when (ex is InvalidOperationException or FileNotFoundException)
-        {
-            _logger.LogError(ex, "Unable to read solution metadata from {Path}", solutionPath);
-            return 1;
-        }
-
-        _logger.LogInformation("Source solution: {UniqueName} {Version} ({Managed})",
-            source.UniqueName, source.Version, source.Managed ? "managed" : "unmanaged");
-
-        DataverseConnection conn;
-        try
-        {
-            conn = await DataverseCommandBridge.ConnectAsync(Profile, CancellationToken.None).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
+        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException or FileNotFoundException)
         {
             _logger.LogError("{Error}", ex.Message);
             return 1;
         }
-
-        using (conn)
+        catch (Exception ex)
         {
-            var client = conn.Client;
-            try
+            _logger.LogError(ex, "Solution import failed");
+            return 1;
+        }
+
+        if (Json)
+        {
+            var payload = new
             {
-                var importer = new SolutionImporter(client, _logger);
-                var existing = await importer.GetExistingSolutionAsync(source.UniqueName).ConfigureAwait(false);
-                var plannedPath = SolutionImporter.SelectImportPath(source, existing, StageAndUpgrade);
-                bool smartDiffExpected = SolutionImporter.SmartDiffExpected(plannedPath, ForceOverwrite);
-
-                _logger.LogInformation("Planned import path: {Path}", FormatPath(plannedPath));
-                _logger.LogInformation("SmartDiff expected: {SmartDiff}", smartDiffExpected ? "yes" : "no");
-
-                EmitWarnings(plannedPath, ForceOverwrite);
-
-                var options = new SolutionImportOptions(
-                    StageAndUpgrade: StageAndUpgrade,
-                    ForceOverwrite: ForceOverwrite,
-                    PublishWorkflows: PublishWorkflows,
-                    SkipDependencyCheck: SkipDependencyCheck,
-                    SkipLowerVersion: SkipLowerVersion,
-                    Async: !Wait);
-
-                var result = await importer.ImportAsync(solutionPath, options).ConfigureAwait(false);
-
-                if (Json)
-                {
-                    var payload = new
-                    {
-                        path = FormatPath(result.Path),
-                        uniqueName = result.Source.UniqueName,
-                        sourceVersion = result.Source.Version.ToString(),
-                        sourceManaged = result.Source.Managed,
-                        existingVersion = result.ExistingTarget?.Version.ToString(),
-                        existingManaged = result.ExistingTarget?.Managed,
-                        importJobId = result.ImportJobId,
-                        asyncOperationId = result.AsyncOperationId,
-                        startedAtUtc = result.StartedAtUtc.ToString("O"),
-                        completedAtUtc = result.CompletedAtUtc?.ToString("O"),
-                        smartDiffExpected = result.SmartDiffExpected,
-                        status = result.Status,
-                    };
-                    OutputWriter.WriteLine(JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }));
-                }
-
-                _logger.LogInformation("Import path: {Path}", FormatPath(result.Path));
-                _logger.LogInformation("Status: {Status}", result.Status);
-                _logger.LogInformation("ImportJobId: {ImportJobId}", result.ImportJobId);
-                if (result.AsyncOperationId is { } asyncId)
-                {
-                    _logger.LogInformation("AsyncOperationId: {AsyncOperationId}", asyncId);
-                }
-                _logger.LogInformation("Started (UTC): {Start}", result.StartedAtUtc.ToString("O"));
-                if (result.CompletedAtUtc is { } completed)
-                {
-                    _logger.LogInformation("Completed (UTC): {End}", completed.ToString("O"));
-                }
-
-                return 0;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Solution import failed");
-                return 1;
-            }
+                path = FormatPath(result.Path),
+                uniqueName = result.Source.UniqueName,
+                sourceVersion = result.Source.Version.ToString(),
+                sourceManaged = result.Source.Managed,
+                existingVersion = result.ExistingTarget?.Version.ToString(),
+                existingManaged = result.ExistingTarget?.Managed,
+                importJobId = result.ImportJobId,
+                asyncOperationId = result.AsyncOperationId,
+                startedAtUtc = result.StartedAtUtc.ToString("O"),
+                completedAtUtc = result.CompletedAtUtc?.ToString("O"),
+                smartDiffExpected = result.SmartDiffExpected,
+                status = result.Status,
+            };
+            OutputWriter.WriteLine(JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }));
         }
-    }
 
-    private void EmitWarnings(SolutionImportPath plannedPath, bool forceOverwrite)
-    {
-        if (forceOverwrite && plannedPath == SolutionImportPath.Upgrade)
+        _logger.LogInformation("Import path: {Path}", FormatPath(result.Path));
+        _logger.LogInformation("Status: {Status}", result.Status);
+        _logger.LogInformation("ImportJobId: {ImportJobId}", result.ImportJobId);
+        if (result.AsyncOperationId is { } asyncId)
         {
-            _logger.LogWarning("--force-overwrite disables SmartDiff; expect a full re-import.");
+            _logger.LogInformation("AsyncOperationId: {AsyncOperationId}", asyncId);
+        }
+        _logger.LogInformation("Started (UTC): {Start}", result.StartedAtUtc.ToString("O"));
+        if (result.CompletedAtUtc is { } completed)
+        {
+            _logger.LogInformation("Completed (UTC): {End}", completed.ToString("O"));
         }
 
-        if (plannedPath == SolutionImportPath.Update)
-        {
-            _logger.LogWarning("Plain update does not delete components removed from the source solution.");
-        }
+        return 0;
     }
 
     private static string FormatPath(SolutionImportPath path) => path switch
