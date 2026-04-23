@@ -1,6 +1,9 @@
 using System.ComponentModel;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
+using TALXIS.CLI.Config.Abstractions;
+using TALXIS.CLI.Config.Commands.Abstractions;
+using TALXIS.CLI.Config.Providers.Dataverse.Runtime;
 using TALXIS.CLI.Dataverse;
 using TALXIS.CLI.Environment.Platforms.Dataverse;
 using TALXIS.CLI.Logging;
@@ -12,7 +15,7 @@ namespace TALXIS.CLI.Environment.Package;
     Name = "import",
     Description = "Import a deployable package into the target environment."
 )]
-public class PackageImportCliCommand
+public class PackageImportCliCommand : ProfiledCliCommand
 {
     private readonly NuGetPackageInstallerService _packageInstaller = new();
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(PackageImportCliCommand));
@@ -38,18 +41,6 @@ public class PackageImportCliCommand
 
     [CliOption(Name = "--log-console", Description = "Enable Package Deployer console logging.", Required = false)]
     public bool LogConsole { get; set; }
-
-    [CliOption(Name = "--connection-string", Description = "Dataverse connection string.", Required = false)]
-    public string? ConnectionString { get; set; }
-
-    [CliOption(Name = "--environment", Description = "Dataverse environment URL for interactive sign-in.", Required = false)]
-    public string? EnvironmentUrl { get; set; }
-
-    [CliOption(Name = "--device-code", Description = "Use device-code flow instead of browser interactive sign-in.", Required = false)]
-    public bool DeviceCode { get; set; }
-
-    [CliOption(Name = "--verbose", Description = "Enable verbose logging.", Required = false)]
-    public bool Verbose { get; set; }
 
     public async Task<int> RunAsync()
     {
@@ -107,8 +98,18 @@ public class PackageImportCliCommand
             }
         }
 
-        string? resolvedConnectionString = ServiceClientFactory.ResolveConnectionString(ConnectionString);
-        string? resolvedEnvironmentUrl = ServiceClientFactory.ResolveEnvironmentUrl(EnvironmentUrl);
+        string resolvedConnectionString;
+        try
+        {
+            resolvedConnectionString = await DataverseCommandBridge.BuildConnectionStringAsync(Profile, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
+        {
+            _logger.LogError("{Error}", ex.Message);
+            _logger.LogError("Package located at {PackagePath}", packagePath);
+            return 1;
+        }
+
         PackageDeployerResult? deployResult = null;
         string packageDeployerArtifactsDirectory = Path.Combine(
             Path.GetTempPath(),
@@ -116,20 +117,13 @@ public class PackageImportCliCommand
             "package-deployer-host",
             Guid.NewGuid().ToString("N"));
 
-        if (string.IsNullOrWhiteSpace(resolvedConnectionString) && string.IsNullOrWhiteSpace(resolvedEnvironmentUrl))
-        {
-            _logger.LogError("Dataverse authentication is required to run Package Deployer. Pass --connection-string, pass --environment for interactive sign-in, or set DATAVERSE_CONNECTION_STRING / TXC_DATAVERSE_CONNECTION_STRING / DATAVERSE_ENVIRONMENT_URL / TXC_DATAVERSE_ENVIRONMENT_URL.");
-            _logger.LogError("Package located at {PackagePath}", packagePath);
-            return 1;
-        }
-
         try
         {
             deployResult = await PackageDeployerSubprocess.RunAsync(new PackageDeployerRequest(
                 packagePath,
                 resolvedConnectionString,
-                resolvedEnvironmentUrl,
-                DeviceCode,
+                EnvironmentUrl: null,
+                DeviceCode: false,
                 Settings,
                 LogFile,
                 LogConsole,

@@ -14,6 +14,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\TALXIS.CLI.Config\TALXIS.CLI.Config.csproj" />
+    <ProjectReference Include="..\TALXIS.CLI.Config.Commands\TALXIS.CLI.Config.Commands.csproj" />
+    <ProjectReference Include="..\TALXIS.CLI.Config.Providers.Dataverse\TALXIS.CLI.Config.Providers.Dataverse.csproj" />
+    <ProjectReference Include="..\TALXIS.CLI.Dataverse\TALXIS.CLI.Dataverse.csproj" />
+    <ProjectReference Include="..\TALXIS.CLI.Logging\TALXIS.CLI.Logging.csproj" />
+    <ProjectReference Include="..\TALXIS.CLI.Shared\TALXIS.CLI.Shared.csproj" />
     <ProjectReference Include="..\TALXIS.CLI.XrmTools\TALXIS.CLI.XrmTools.csproj" />
   </ItemGroup>
 

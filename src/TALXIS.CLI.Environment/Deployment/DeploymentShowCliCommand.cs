@@ -3,6 +3,9 @@ using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using Microsoft.PowerPlatform.Dataverse.Client;
 using Microsoft.Xrm.Sdk;
+using TALXIS.CLI.Config.Abstractions;
+using TALXIS.CLI.Config.Commands.Abstractions;
+using TALXIS.CLI.Config.Providers.Dataverse.Runtime;
 using TALXIS.CLI.Dataverse;
 using TALXIS.CLI.Environment.Platforms.Dataverse;
 using TALXIS.CLI.Logging;
@@ -19,7 +22,7 @@ namespace TALXIS.CLI.Environment.Deployment;
     Name = "show",
     Description = "Show details and findings for a single deployment run. Specify exactly one of --package-run-id, --solution-run-id, --async-operation-id, --package-name, --solution-name, or --latest."
 )]
-public class DeploymentShowCliCommand
+public class DeploymentShowCliCommand : ProfiledCliCommand
 {
     // Tail buffer added after package completion to catch async solution imports that finish
     // slightly after Package Deployer signals done.
@@ -45,23 +48,11 @@ public class DeploymentShowCliCommand
     [CliOption(Name = "--latest", Description = "Show the most recent deployment run across packages and solutions.", Required = false)]
     public bool Latest { get; set; }
 
-    [CliOption(Name = "--connection-string", Description = "Dataverse connection string. If omitted, txc checks DATAVERSE_CONNECTION_STRING and TXC_DATAVERSE_CONNECTION_STRING.", Required = false)]
-    public string? ConnectionString { get; set; }
-
-    [CliOption(Name = "--environment", Description = "Dataverse environment URL for interactive sign-in when no connection string is provided.", Required = false)]
-    public string? EnvironmentUrl { get; set; }
-
-    [CliOption(Name = "--device-code", Description = "Use Microsoft Entra device code flow instead of opening a browser for interactive sign-in.", Required = false)]
-    public bool DeviceCode { get; set; }
-
     [CliOption(Name = "--full", Description = "Include every correlated solution and the formatted import log (solution mode). Default output is compact.", Required = false)]
     public bool Full { get; set; }
 
     [CliOption(Name = "--json", Description = "Emit the full structured record as indented JSON (always unbounded).", Required = false)]
     public bool Json { get; set; }
-
-    [CliOption(Name = "--verbose", Description = "Enable verbose logging.", Required = false)]
-    public bool Verbose { get; set; }
 
     public async Task<int> RunAsync()
     {
@@ -106,9 +97,9 @@ public class DeploymentShowCliCommand
         DataverseConnection conn;
         try
         {
-            conn = ServiceClientFactory.Connect(ConnectionString, EnvironmentUrl, DeviceCode, Verbose, _logger);
+            conn = await DataverseCommandBridge.ConnectAsync(Profile, CancellationToken.None).ConfigureAwait(false);
         }
-        catch (InvalidOperationException ex)
+        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
         {
             _logger.LogError("{Error}", ex.Message);
             return 1;

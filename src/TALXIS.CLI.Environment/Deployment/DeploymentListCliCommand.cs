@@ -1,6 +1,9 @@
 using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
+using TALXIS.CLI.Config.Abstractions;
+using TALXIS.CLI.Config.Commands.Abstractions;
+using TALXIS.CLI.Config.Providers.Dataverse.Runtime;
 using TALXIS.CLI.Dataverse;
 using TALXIS.CLI.Environment.Platforms.Dataverse;
 using TALXIS.CLI.Logging;
@@ -12,7 +15,7 @@ namespace TALXIS.CLI.Environment.Deployment;
     Name = "list",
     Description = "List past deployment runs (package and solution) in the target environment."
 )]
-public class DeploymentListCliCommand
+public class DeploymentListCliCommand : ProfiledCliCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(DeploymentListCliCommand));
 
@@ -27,18 +30,6 @@ public class DeploymentListCliCommand
 
     [CliOption(Name = "--json", Description = "Emit the list as indented JSON instead of a text table.", Required = false)]
     public bool Json { get; set; }
-
-    [CliOption(Name = "--connection-string", Description = "Dataverse connection string. If omitted, txc checks DATAVERSE_CONNECTION_STRING and TXC_DATAVERSE_CONNECTION_STRING.", Required = false)]
-    public string? ConnectionString { get; set; }
-
-    [CliOption(Name = "--environment", Description = "Dataverse environment URL for interactive sign-in when no connection string is provided.", Required = false)]
-    public string? EnvironmentUrl { get; set; }
-
-    [CliOption(Name = "--device-code", Description = "Use Microsoft Entra device code flow instead of opening a browser for interactive sign-in.", Required = false)]
-    public bool DeviceCode { get; set; }
-
-    [CliOption(Name = "--verbose", Description = "Enable verbose logging.", Required = false)]
-    public bool Verbose { get; set; }
 
     public async Task<int> RunAsync()
     {
@@ -79,9 +70,9 @@ public class DeploymentListCliCommand
         DataverseConnection conn;
         try
         {
-            conn = ServiceClientFactory.Connect(ConnectionString, EnvironmentUrl, DeviceCode, Verbose, _logger);
+            conn = await DataverseCommandBridge.ConnectAsync(Profile, CancellationToken.None).ConfigureAwait(false);
         }
-        catch (InvalidOperationException ex)
+        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
         {
             _logger.LogError("{Error}", ex.Message);
             return 1;

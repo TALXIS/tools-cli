@@ -2,6 +2,9 @@ using System.ComponentModel;
 using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
+using TALXIS.CLI.Config.Abstractions;
+using TALXIS.CLI.Config.Commands.Abstractions;
+using TALXIS.CLI.Config.Providers.Dataverse.Runtime;
 using TALXIS.CLI.Dataverse;
 using TALXIS.CLI.Environment.Platforms.Dataverse;
 using TALXIS.CLI.Logging;
@@ -13,7 +16,7 @@ namespace TALXIS.CLI.Environment.Solution;
     Name = "import",
     Description = "Import a solution .zip into the target environment."
 )]
-public class SolutionImportCliCommand
+public class SolutionImportCliCommand : ProfiledCliCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(SolutionImportCliCommand));
 
@@ -42,18 +45,6 @@ public class SolutionImportCliCommand
     [CliOption(Name = "--json", Description = "Emit import result as JSON.", Required = false)]
     public bool Json { get; set; }
 
-    [CliOption(Name = "--connection-string", Description = "Dataverse connection string.", Required = false)]
-    public string? ConnectionString { get; set; }
-
-    [CliOption(Name = "--environment", Description = "Dataverse environment URL for interactive sign-in.", Required = false)]
-    public string? EnvironmentUrl { get; set; }
-
-    [CliOption(Name = "--device-code", Description = "Use device-code flow instead of browser interactive sign-in.", Required = false)]
-    public bool DeviceCode { get; set; }
-
-    [CliOption(Name = "--verbose", Description = "Enable verbose logging.", Required = false)]
-    public bool Verbose { get; set; }
-
     public async Task<int> RunAsync()
     {
         if (string.IsNullOrWhiteSpace(SolutionZip))
@@ -66,15 +57,6 @@ public class SolutionImportCliCommand
         if (!File.Exists(solutionPath))
         {
             _logger.LogError("Solution file not found: {Path}", solutionPath);
-            return 1;
-        }
-
-        string? resolvedConnectionString = ServiceClientFactory.ResolveConnectionString(ConnectionString);
-        string? resolvedEnvironmentUrl = ServiceClientFactory.ResolveEnvironmentUrl(EnvironmentUrl);
-
-        if (string.IsNullOrWhiteSpace(resolvedConnectionString) && string.IsNullOrWhiteSpace(resolvedEnvironmentUrl))
-        {
-            _logger.LogError("Dataverse authentication is required. Pass --connection-string, pass --environment for interactive sign-in, or set DATAVERSE_CONNECTION_STRING / TXC_DATAVERSE_CONNECTION_STRING / DATAVERSE_ENVIRONMENT_URL / TXC_DATAVERSE_ENVIRONMENT_URL.");
             return 1;
         }
 
@@ -95,9 +77,9 @@ public class SolutionImportCliCommand
         DataverseConnection conn;
         try
         {
-            conn = ServiceClientFactory.Connect(ConnectionString, EnvironmentUrl, DeviceCode, Verbose, _logger);
+            conn = await DataverseCommandBridge.ConnectAsync(Profile, CancellationToken.None).ConfigureAwait(false);
         }
-        catch (InvalidOperationException ex)
+        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
         {
             _logger.LogError("{Error}", ex.Message);
             return 1;

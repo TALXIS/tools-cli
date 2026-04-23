@@ -1,6 +1,9 @@
 using System.ComponentModel;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
+using TALXIS.CLI.Config.Abstractions;
+using TALXIS.CLI.Config.Commands.Abstractions;
+using TALXIS.CLI.Config.Providers.Dataverse.Runtime;
 using TALXIS.CLI.Logging;
 using TALXIS.CLI.XrmTools;
 
@@ -10,7 +13,7 @@ namespace TALXIS.CLI.Data;
     Name = "import",
     Description = "Import a CMT data package into a Dataverse environment"
 )]
-public class DataPackageImportCliCommand
+public class DataPackageImportCliCommand : ProfiledCliCommand
 {
     private readonly CmtImportRunner _cmtImportRunner = new();
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(DataPackageImportCliCommand));
@@ -18,21 +21,9 @@ public class DataPackageImportCliCommand
     [CliArgument(Description = "Path to the CMT data package (.zip file or folder containing data.xml and data_schema.xml)")]
     public required string Data { get; set; }
 
-    [CliOption(Name = "--connection-string", Description = "Dataverse connection string. If omitted, txc checks DATAVERSE_CONNECTION_STRING and TXC_DATAVERSE_CONNECTION_STRING.", Required = false)]
-    public string? ConnectionString { get; set; }
-
-    [CliOption(Name = "--environment", Description = "Dataverse environment URL for interactive sign-in when no connection string is provided.", Required = false)]
-    public string? EnvironmentUrl { get; set; }
-
-    [CliOption(Name = "--device-code", Description = "Use Microsoft Entra device code flow instead of opening a browser for interactive sign-in.", Required = false)]
-    public bool DeviceCode { get; set; }
-
     [CliOption(Name = "--connection-count", Description = "Number of parallel connections for data import.", Required = false)]
     [DefaultValue(1)]
     public int ConnectionCount { get; set; } = 1;
-
-    [CliOption(Name = "--verbose", Description = "Enable verbose CMT logging.", Required = false)]
-    public bool Verbose { get; set; }
 
     public async Task<int> RunAsync()
     {
@@ -48,12 +39,14 @@ public class DataPackageImportCliCommand
             return 1;
         }
 
-        string? resolvedConnectionString = ResolveConnectionString(ConnectionString);
-        string? resolvedEnvironmentUrl = ResolveEnvironmentUrl(EnvironmentUrl);
-
-        if (string.IsNullOrWhiteSpace(resolvedConnectionString) && string.IsNullOrWhiteSpace(resolvedEnvironmentUrl))
+        string resolvedConnectionString;
+        try
         {
-            _logger.LogError("Dataverse authentication is required. Pass --connection-string, pass --environment for interactive sign-in, or set DATAVERSE_CONNECTION_STRING / TXC_DATAVERSE_CONNECTION_STRING / DATAVERSE_ENVIRONMENT_URL / TXC_DATAVERSE_ENVIRONMENT_URL.");
+            resolvedConnectionString = await DataverseCommandBridge.BuildConnectionStringAsync(Profile, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
+        {
+            _logger.LogError("{Error}", ex.Message);
             return 1;
         }
 
@@ -62,8 +55,8 @@ public class DataPackageImportCliCommand
             CmtImportResult result = await _cmtImportRunner.RunAsync(new CmtImportRequest(
                 Path.GetFullPath(Data),
                 resolvedConnectionString,
-                resolvedEnvironmentUrl,
-                DeviceCode,
+                EnvironmentUrl: null,
+                DeviceCode: false,
                 ConnectionCount,
                 Verbose));
 
@@ -87,27 +80,5 @@ public class DataPackageImportCliCommand
             _logger.LogError("Data package: {DataPath}", Path.GetFullPath(Data));
             return 1;
         }
-    }
-
-    private static string? ResolveConnectionString(string? optionValue)
-    {
-        if (!string.IsNullOrWhiteSpace(optionValue))
-        {
-            return optionValue;
-        }
-
-        return Environment.GetEnvironmentVariable("DATAVERSE_CONNECTION_STRING")
-            ?? Environment.GetEnvironmentVariable("TXC_DATAVERSE_CONNECTION_STRING");
-    }
-
-    private static string? ResolveEnvironmentUrl(string? optionValue)
-    {
-        if (!string.IsNullOrWhiteSpace(optionValue))
-        {
-            return optionValue;
-        }
-
-        return Environment.GetEnvironmentVariable("DATAVERSE_ENVIRONMENT_URL")
-            ?? Environment.GetEnvironmentVariable("TXC_DATAVERSE_ENVIRONMENT_URL");
     }
 }
