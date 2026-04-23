@@ -42,7 +42,7 @@ The separation is deliberate. Connections are *where*, credentials are *who*, pr
 Command paths describe **what the user is doing**, not **what platform implements it**.
 
 - **No platform names in user-facing paths.** The word `dataverse` does not appear in any command path, and neither will any future platform name (`azure`, `entra`, `graph`, etc.). Users should not need to know or care which runtime their workspace artifacts land on.
-- **Platforms live internally.** Platform-specific code lives under `Platforms/<Name>/` inside the owning project (e.g. `TALXIS.CLI.Environment/Platforms/Dataverse/`). Do **not** create a `<Name>CliCommand` — platforms are not command groups.
+- **Platforms live internally.** Platform-specific code lives under `Platforms/<Name>/` inside the owning project (e.g. `TALXIS.CLI.Features.Environment/Platforms/Dataverse/`). Do **not** create a `<Name>CliCommand` — platforms are not command groups.
 - **Abstractions are extracted, not speculated.** When a second platform is actually implemented, extract an interface from the shape that already exists. Do not speculate an `IEnvironmentPlatform` (or similar) before there is a second concrete implementation to validate it.
 
 We avoid even the term "backend" for this abstraction: a Dataverse environment carries metadata for frontend (forms, apps), middle tier (business logic, plugins, workflows), and integrations. Calling it a backend understates what ships there.
@@ -183,10 +183,10 @@ We use this mechanism to pin the design of reserved-but-not-yet-implemented comm
 
 Current reserved skeletons:
 
-- `TALXIS.CLI.Environment.Deployment.DeploymentPatchCliCommand` → future `environment deployment patch`.
-- `TALXIS.CLI.Workspace.WorkspaceValidateCliCommand` → future `workspace validate`.
-- `TALXIS.CLI.Workspace.WorkspaceLanguageServerCliCommand` → future `workspace language-server`.
-- `TALXIS.CLI.Workspace.Metamodel.MetamodelCliCommand` + `MetamodelDescribeCliCommand` + `MetamodelListCliCommand` → future `workspace metamodel {describe,list}`.
+- `TALXIS.CLI.Features.Environment.Deployment.DeploymentPatchCliCommand` → future `environment deployment patch`.
+- `TALXIS.CLI.Features.Workspace.WorkspaceValidateCliCommand` → future `workspace validate`.
+- `TALXIS.CLI.Features.Workspace.WorkspaceLanguageServerCliCommand` → future `workspace language-server`.
+- `TALXIS.CLI.Features.Workspace.Metamodel.MetamodelCliCommand` + `MetamodelDescribeCliCommand` + `MetamodelListCliCommand` → future `workspace metamodel {describe,list}`.
 
 Each skeleton throws `NotImplementedException` and carries a file-top comment explaining that it is intentionally unreachable and how to activate it.
 
@@ -216,8 +216,8 @@ Never call the metamodel "the model" — it collides with the user's data model 
 
 When a second runtime platform actually needs to be supported:
 
-1. Add `Platforms/<Name>/` inside the owning project (e.g. `TALXIS.CLI.Environment/Platforms/Azure/`).
-2. Put all platform-specific services in that folder, in a `TALXIS.CLI.Environment.Platforms.<Name>` namespace.
+1. Add `Platforms/<Name>/` inside the owning project (e.g. `TALXIS.CLI.Features.Environment/Platforms/Azure/`).
+2. Put all platform-specific services in that folder, in a `TALXIS.CLI.Features.Environment.Platforms.<Name>` namespace.
 3. Keep the command classes platform-agnostic: a single `Package.PackageImportCliCommand` dispatches to the right platform internally.
 4. At this point (and not before), extract a shared abstraction — e.g. `IEnvironmentPlatform` — from the two real shapes. Do not write the interface before the second implementation exists.
 

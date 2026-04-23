@@ -1,5 +1,5 @@
 using System.Text.Json;
-using TALXIS.CLI.Environment.Solution;
+using TALXIS.CLI.Features.Environment.Solution;
 using TALXIS.CLI.MCP;
 using Xunit;
 

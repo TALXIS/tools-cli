@@ -3,7 +3,7 @@ using TALXIS.CLI.Config.Abstractions;
 using TALXIS.CLI.Config.Platforms.Dataverse;
 using TALXIS.CLI.Config.Providers.Dataverse.Platforms;
 using TALXIS.CLI.Config.Providers.Dataverse.Runtime;
-using TALXIS.CLI.XrmTools;
+using TALXIS.CLI.Platform.Xrm;
 
 namespace TALXIS.CLI.Config.Providers.Dataverse.Services;
 

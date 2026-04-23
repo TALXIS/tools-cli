@@ -20,9 +20,9 @@
     <ProjectReference Include="../../src/TALXIS.CLI.Logging/TALXIS.CLI.Logging.csproj" />
     <ProjectReference Include="../../src/TALXIS.CLI.MCP/TALXIS.CLI.MCP.csproj" />
     <ProjectReference Include="../../src/TALXIS.CLI.Dataverse/TALXIS.CLI.Dataverse.csproj" />
-    <ProjectReference Include="../../src/TALXIS.CLI.Environment/TALXIS.CLI.Environment.csproj" />
+    <ProjectReference Include="../../src/TALXIS.CLI.Features.Environment/TALXIS.CLI.Features.Environment.csproj" />
     <ProjectReference Include="../../src/TALXIS.CLI.Config/TALXIS.CLI.Config.csproj" />
     <ProjectReference Include="../../src/TALXIS.CLI.Config.Providers.Dataverse/TALXIS.CLI.Config.Providers.Dataverse.csproj" />
-    <ProjectReference Include="../../src/TALXIS.CLI.Config.Commands/TALXIS.CLI.Config.Commands.csproj" />
+    <ProjectReference Include="../../src/TALXIS.CLI.Features.Config/TALXIS.CLI.Features.Config.csproj" />
   </ItemGroup>
 </Project>

@@ -1,5 +1,5 @@
 using TALXIS.CLI.Config.Abstractions;
-using TALXIS.CLI.Config.Commands.Profile;
+using TALXIS.CLI.Features.Config.Profile;
 using TALXIS.CLI.Config.Model;
 using TALXIS.CLI.Config.Resolution;
 using TALXIS.CLI.Config.Storage;

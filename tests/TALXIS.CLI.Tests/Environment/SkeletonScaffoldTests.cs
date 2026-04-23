@@ -2,9 +2,9 @@ using System.Linq;
 using System.Reflection;
 using DotMake.CommandLine;
 using TALXIS.CLI;
-using TALXIS.CLI.Environment.Deployment;
-using TALXIS.CLI.Workspace;
-using TALXIS.CLI.Workspace.Metamodel;
+using TALXIS.CLI.Features.Environment.Deployment;
+using TALXIS.CLI.Features.Workspace;
+using TALXIS.CLI.Features.Workspace.Metamodel;
 using Xunit;
 
 namespace TALXIS.CLI.Tests.Environment;

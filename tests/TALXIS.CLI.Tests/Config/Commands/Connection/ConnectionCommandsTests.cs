@@ -1,6 +1,6 @@
 using System.Text.Json;
 using TALXIS.CLI.Config.Abstractions;
-using TALXIS.CLI.Config.Commands.Connection;
+using TALXIS.CLI.Features.Config.Connection;
 using TALXIS.CLI.Config.Model;
 using TALXIS.CLI.Shared;
 using Xunit;

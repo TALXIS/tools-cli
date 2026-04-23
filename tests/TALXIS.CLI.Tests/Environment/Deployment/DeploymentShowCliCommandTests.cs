@@ -1,4 +1,4 @@
-using TALXIS.CLI.Environment.Deployment;
+using TALXIS.CLI.Features.Environment.Deployment;
 using Xunit;
 
 namespace TALXIS.CLI.Tests.Environment.Deployment;

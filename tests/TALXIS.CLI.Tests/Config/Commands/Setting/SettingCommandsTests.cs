@@ -1,6 +1,6 @@
 using System.IO;
 using TALXIS.CLI.Config.Abstractions;
-using TALXIS.CLI.Config.Commands.Setting;
+using TALXIS.CLI.Features.Config.Setting;
 using TALXIS.CLI.Config.DependencyInjection;
 using TALXIS.CLI.Shared;
 using Xunit;

@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using TALXIS.CLI.Config.Providers.Dataverse.DependencyInjection;
 using TALXIS.CLI.Config.Providers.Dataverse.Runtime;
-using TALXIS.CLI.XrmTools;
+using TALXIS.CLI.Platform.Xrm;
 
 namespace TALXIS.CLI.Config.Providers.Dataverse.Platforms;
 

@@ -3,7 +3,7 @@ using System.Net;
 using System.Net.Http;
 using System.Text;
 using TALXIS.CLI.Dataverse;
-using TALXIS.CLI.Environment;
+using TALXIS.CLI.Features.Environment;
 using TALXIS.CLI.Config.Platforms.Packaging;
 using Xunit;
 

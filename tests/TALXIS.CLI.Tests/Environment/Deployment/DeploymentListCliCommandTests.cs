@@ -1,7 +1,7 @@
 using TALXIS.CLI.Config.Platforms.Dataverse;
 using TALXIS.CLI.Dataverse;
-using TALXIS.CLI.Environment;
-using TALXIS.CLI.Environment.Deployment;
+using TALXIS.CLI.Features.Environment;
+using TALXIS.CLI.Features.Environment.Deployment;
 using TALXIS.CLI.Config.Providers.Dataverse.Platforms;
 using Xunit;
 

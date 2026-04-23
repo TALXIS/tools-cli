@@ -1,4 +1,4 @@
-using TALXIS.CLI.XrmTools;
+using TALXIS.CLI.Platform.Xrm;
 
 namespace TALXIS.CLI.Config.Providers.Dataverse.Platforms;
 

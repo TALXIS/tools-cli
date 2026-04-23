@@ -1,7 +1,7 @@
 using System.Text.Json;
 using TALXIS.CLI.Config.Abstractions;
 using TALXIS.CLI.Config.Bootstrapping;
-using TALXIS.CLI.Config.Commands.Auth;
+using TALXIS.CLI.Features.Config.Auth;
 using TALXIS.CLI.Config.Model;
 using TALXIS.CLI.Shared;
 using Xunit;
