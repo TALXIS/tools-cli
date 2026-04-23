@@ -1,7 +1,9 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text.Json;
+using TALXIS.CLI.Config.Providers.Dataverse.Runtime;
 using TALXIS.CLI.XrmTools;
 
 namespace TALXIS.CLI.Environment.Platforms.Dataverse;
@@ -10,6 +12,7 @@ public static class PackageDeployerSubprocess
 {
     private const string CommandName = "__txc_internal_package_deployer";
     private const string CleanupCommandName = "__txc_internal_package_deployer_cleanup";
+    private const string ConfigDirectoryEnvVar = "TXC_CONFIG_DIR";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     public static async Task<int?> TryRunAsync(string[] args)
@@ -31,11 +34,25 @@ public static class PackageDeployerSubprocess
         try
         {
             PackageDeployerRequest request = await ReadJsonAsync<PackageDeployerRequest>(requestPath);
+
+            // Scope txc-config to the same config directory as the parent so the
+            // vault + profile lookup resolves identically in the child process.
+            if (!string.IsNullOrWhiteSpace(request.ConfigDirectory))
+            {
+                System.Environment.SetEnvironmentVariable(ConfigDirectoryEnvVar, request.ConfigDirectory);
+            }
+
+            TxcServicesBootstrap.EnsureInitialized();
+
             using CancellationTokenSource parentWatcher = RegisterParentExitWatcher(request.ParentProcessId);
             try
             {
+                string connectionString = await DataverseCommandBridge
+                    .BuildConnectionStringAsync(request.ProfileId, parentWatcher.Token)
+                    .ConfigureAwait(false);
+
                 PackageDeployerRunner runner = new();
-                result = await runner.RunAsync(request);
+                result = await runner.RunAsync(request, connectionString, parentWatcher.Token);
             }
             finally
             {
@@ -63,10 +80,17 @@ public static class PackageDeployerSubprocess
             "txc",
             "package-deployer-host",
             Guid.NewGuid().ToString("N"));
+        // Propagate the parent's TXC_CONFIG_DIR (if any) so the child re-resolves
+        // the same vault/profile files. Request-local copy wins over later env
+        // mutation.
+        string? configDirectory = request.ConfigDirectory
+            ?? System.Environment.GetEnvironmentVariable(ConfigDirectoryEnvVar);
+
         PackageDeployerRequest effectiveRequest = request with
         {
             TemporaryArtifactsDirectory = temporaryArtifactsDirectory,
-            ParentProcessId = System.Environment.ProcessId
+            ParentProcessId = System.Environment.ProcessId,
+            ConfigDirectory = configDirectory
         };
 
         Directory.CreateDirectory(coordinatorDirectory);
@@ -77,6 +101,11 @@ public static class PackageDeployerSubprocess
         try
         {
             await WriteJsonAsync(requestPath, effectiveRequest);
+            // Even though the request no longer carries secrets, keep the
+            // coordinator files readable only by the current user. On Windows
+            // per-user %TEMP% ACLs are sufficient; on Unix we need an explicit
+            // chmod 600.
+            TrySetOwnerReadWriteOnly(requestPath);
 
             using Process process = StartSubprocess(requestPath, resultPath);
             using Process cleanupHelper = StartCleanupHelper(coordinatorDirectory, temporaryArtifactsDirectory, process.Id);
@@ -366,5 +395,30 @@ public static class PackageDeployerSubprocess
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         await using FileStream stream = File.Create(path);
         await JsonSerializer.SerializeAsync(stream, value, JsonOptions);
+    }
+
+    private static void TrySetOwnerReadWriteOnly(string path)
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            // Per-user %TEMP% ACLs already restrict access. Explicit ACL
+            // tightening via System.Security.AccessControl would add a Windows
+            // SDK dependency for negligible benefit.
+            return;
+        }
+
+        try
+        {
+            File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        }
+        catch (PlatformNotSupportedException)
+        {
+            // Running on a platform where Unix modes are meaningless.
+        }
+        catch (IOException)
+        {
+            // Filesystem does not honor mode bits (e.g. some mounted shares) —
+            // best-effort only; the request file contains no secrets.
+        }
     }
 }

@@ -1,10 +1,17 @@
 namespace TALXIS.CLI.XrmTools;
 
+/// <summary>
+/// Transport contract between the <c>txc</c> parent process and the
+/// <c>__txc_internal_package_deployer</c> subprocess. Intentionally contains
+/// NO secrets — the child re-resolves the credential from the OS vault via
+/// <c>IConfigurationResolver</c> using <see cref="ProfileId"/> (and, if set,
+/// <see cref="ConfigDirectory"/> to scope the vault to a specific
+/// <c>TXC_CONFIG_DIR</c>).
+/// </summary>
 public sealed record PackageDeployerRequest(
     string PackagePath,
-    string? ConnectionString,
-    string? EnvironmentUrl,
-    bool DeviceCode,
+    string ProfileId,
+    string? ConfigDirectory,
     string? Settings,
     string? LogFile,
     bool LogConsole,

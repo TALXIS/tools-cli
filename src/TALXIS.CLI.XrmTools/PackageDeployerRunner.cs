@@ -20,21 +20,23 @@ public sealed class PackageDeployerRunner
         LegacyAssemblyRuntime.EnsureInitialized();
     }
 
-    public Task<PackageDeployerResult> RunAsync(PackageDeployerRequest request, CancellationToken cancellationToken = default)
+    public Task<PackageDeployerResult> RunAsync(PackageDeployerRequest request, string connectionString, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return Task.Run(() => Run(request), cancellationToken);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+        return Task.Run(() => Run(request, connectionString), cancellationToken);
     }
 
-    private static PackageDeployerResult Run(PackageDeployerRequest request)
+    private static PackageDeployerResult Run(PackageDeployerRequest request, string connectionString)
     {
-        using ManagedPackageDeployerHost host = new(request);
+        using ManagedPackageDeployerHost host = new(request, connectionString);
         return host.Run();
     }
 
     private sealed class ManagedPackageDeployerHost : IDisposable
     {
         private readonly PackageDeployerRequest _request;
+        private readonly string _connectionString;
         private readonly ILogger _logger;
         private readonly Dictionary<string, Assembly> _assemblyMap;
         private readonly HashSet<string> _unresolvedAssemblies = new(StringComparer.OrdinalIgnoreCase);
@@ -54,9 +56,10 @@ public sealed class PackageDeployerRunner
         private BaseImportCustomizations? _import;
         private CoreObjects? _coreObjects;
 
-        public ManagedPackageDeployerHost(PackageDeployerRequest request)
+        public ManagedPackageDeployerHost(PackageDeployerRequest request, string connectionString)
         {
             _request = request;
+            _connectionString = connectionString;
             _logger = TxcLoggerFactory.CreateLogger(nameof(PackageDeployerRunner));
 
             // Instance map starts as a copy of the static map — the instance
@@ -79,27 +82,9 @@ public sealed class PackageDeployerRunner
             TraceLogger traceLogger = SetupLogging();
 
             CrmServiceClient? crmServiceClient = null;
-            DataverseInteractiveAuthHook? authHook = null;
             try
             {
-                if (!string.IsNullOrWhiteSpace(_request.ConnectionString))
-                {
-                    crmServiceClient = new CrmServiceClient(_request.ConnectionString);
-                }
-                else
-                {
-                    if (!Uri.TryCreate(_request.EnvironmentUrl, UriKind.Absolute, out Uri? environmentUri))
-                    {
-                        throw new InvalidOperationException("A valid Dataverse environment URL is required for interactive authentication.");
-                    }
-
-                    authHook = new DataverseInteractiveAuthHook(environmentUri, _request.DeviceCode, _request.Verbose);
-                    CrmServiceClient.AuthOverrideHook = authHook;
-
-                    // Use the token provider constructor — our shim delegates
-                    // to AuthOverrideHook internally when the URI constructor is used.
-                    crmServiceClient = new CrmServiceClient(environmentUri, useUniqueInstance: true);
-                }
+                crmServiceClient = new CrmServiceClient(_connectionString);
 
                 if (!crmServiceClient.IsReady)
                 {
@@ -235,7 +220,6 @@ public sealed class PackageDeployerRunner
             {
                 CrmServiceClient.AuthOverrideHook = null;
                 crmServiceClient?.Dispose();
-                authHook?.Dispose();
             }
         }
 

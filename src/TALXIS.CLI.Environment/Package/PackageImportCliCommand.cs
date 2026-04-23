@@ -1,9 +1,7 @@
 using System.ComponentModel;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
-using TALXIS.CLI.Config.Abstractions;
 using TALXIS.CLI.Config.Commands.Abstractions;
-using TALXIS.CLI.Config.Providers.Dataverse.Runtime;
 using TALXIS.CLI.Dataverse;
 using TALXIS.CLI.Environment.Platforms.Dataverse;
 using TALXIS.CLI.Logging;
@@ -98,16 +96,14 @@ public class PackageImportCliCommand : ProfiledCliCommand
             }
         }
 
-        string resolvedConnectionString;
-        try
+        if (string.IsNullOrWhiteSpace(Profile))
         {
-            resolvedConnectionString = await DataverseCommandBridge.BuildConnectionStringAsync(Profile, CancellationToken.None).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
-        {
-            _logger.LogError("{Error}", ex.Message);
-            _logger.LogError("Package located at {PackagePath}", packagePath);
-            return 1;
+            // We leave profile resolution entirely to the subprocess: it uses
+            // TXC_CONFIG_DIR + IConfigurationResolver exactly the way the main
+            // CLI does. Still, fail fast here so the user sees a friendly
+            // message rather than a subprocess-side resolution error.
+            // (Empty profile is permitted; the resolver will fall through to
+            // the active-profile pointer.)
         }
 
         PackageDeployerResult? deployResult = null;
@@ -121,9 +117,8 @@ public class PackageImportCliCommand : ProfiledCliCommand
         {
             deployResult = await PackageDeployerSubprocess.RunAsync(new PackageDeployerRequest(
                 packagePath,
-                resolvedConnectionString,
-                EnvironmentUrl: null,
-                DeviceCode: false,
+                ProfileId: Profile ?? string.Empty,
+                ConfigDirectory: null,
                 Settings,
                 LogFile,
                 LogConsole,
