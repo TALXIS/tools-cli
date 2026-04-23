@@ -23,6 +23,7 @@ TALXIS CLI (`txc`) is a modular, extensible .NET global tool for automating deve
 
 ## Table of Contents
 - [Installation](#installation)
+- [Identity, Connections & Profiles](#identity-connections--profiles)
 - [Example Usage](#example-usage)
 - [Local Development & Debugging](#local-development--debugging)
 - [Versioning & Release](#versioning--release)
@@ -50,43 +51,131 @@ After installation, use the CLI via the `txc` command in any terminal.
 
 ---
 
+## Identity, Connections & Profiles
+
+`txc` decouples **who you are** (credentials) from **where you target** (connections) and exposes the combination as a named **profile**. Every command that touches a live environment takes exactly one context flag — `--profile <name>` (short form `-p`). There are no raw `--environment`, `--connection-string`, or `--device-code` flags on leaf commands; to switch endpoints or identities you create (or select) a different profile.
+
+The resolution order for the active profile is:
+
+```
+--profile flag > TXC_PROFILE env > <repo>/.txc/workspace.json > global active pointer (~/.txc/config.json)
+```
+
+Credentials never live in config files. Service-principal secrets, PATs, and certificate passwords are stored in the OS credential vault (DPAPI on Windows, Keychain on macOS, libsecret on Linux) and referenced from `credentials.json` by opaque `vault://` handles. MSAL tokens live in a separate cache file protected by the same vault.
+
+### Interactive workflow (dev laptop)
+
+**Quickstart — one command.** The common case (new laptop, new tenant) collapses to a single line:
+
+```sh
+txc c p create --url https://contoso.crm4.dynamics.com/
+```
+
+Behind the scenes `txc`:
+1. Infers the provider from the URL host (`*.dynamics.com` → `dataverse`; gov/DoD/China endpoints covered too).
+2. Derives a default profile/connection name from the first DNS label (`contoso` above). Override with `--name`.
+3. Opens the browser for interactive sign-in, caches the MSAL token, and stores a credential keyed off your UPN.
+4. Writes the `Credential`, `Connection`, and `Profile` records and auto-activates the new profile on first run.
+
+Result is identical to running the three primitive commands by hand — use whichever flow you prefer.
+
+**Advanced — primitives.** For scripted flows, service-principal onboarding, or reusing one credential across many environments:
+
+```sh
+# 1. Log in interactively (opens a browser). Creates a Credential entry
+#    aliased from your UPN (override with --alias) and primes the MSAL cache.
+txc c auth login
+
+# 2. Register the Dataverse environment you want to target.
+txc c connection create customer-a-dev \
+  --provider dataverse \
+  --environment https://contoso.crm4.dynamics.com/
+
+# 3. Bind credential + connection into a profile and select it.
+txc c p create --name customer-a-dev \
+  --auth <upn-alias> \
+  --connection customer-a-dev
+txc c p select customer-a-dev
+
+# 4. Optional: pin this profile to the current repo.
+#    Writes <repo>/.txc/workspace.json so every shell in this checkout
+#    defaults to customer-a-dev without touching the global pointer.
+txc c p pin
+# Unpin when done:  txc c p unpin
+
+# 5. Sanity-check end-to-end auth + endpoint reachability.
+txc c p validate
+```
+
+### Headless / CI workflow (service principal)
+
+```sh
+# Total config isolation — nothing written to $HOME on the runner.
+export TXC_CONFIG_DIR="$RUNNER_TEMP/txc-config"
+export TXC_NON_INTERACTIVE=1
+
+# Secret is supplied via env var (never as --secret on the command line,
+# which would leak to shell history and process listings).
+export SPN_SECRET='<client-secret>'
+
+txc c auth add-service-principal \
+  --tenant "$AZURE_TENANT_ID" \
+  --client-id "$AZURE_CLIENT_ID" \
+  --alias ci-spn \
+  --secret-from-env SPN_SECRET
+
+txc c connection create ci-target \
+  --provider dataverse \
+  --environment "$DATAVERSE_URL"
+
+txc c p create --name ci --auth ci-spn --connection ci-target
+txc c p select ci
+
+# Every subsequent txc call picks up TXC_CONFIG_DIR + the selected profile.
+txc env pkg import TALXIS.Controls.FileExplorer.Package
+```
+
+For workload-identity federation (GitHub OIDC, Azure DevOps WIF), the Dataverse provider auto-detects `ACTIONS_ID_TOKEN_REQUEST_*` and `TXC_ADO_ID_TOKEN_REQUEST_*` env vars at acquire time — no extra flags needed.
+
+---
+
 ## Example Usage
 
 > [!IMPORTANT]
 > `txc` runs both **Dataverse Package Deployer** and **Configuration Migration Tool (CMT)** on **modern .NET**, including **macOS** and **Linux**. The goal is a better developer experience: cross-platform automation, simpler happy-path commands, and better visibility into what happened during deploys.
 
+The examples below assume you have an active profile (see [above](#identity-connections--profiles)). Pass `--profile <name>` (or `-p <name>`) to any command to override the active profile for a single invocation.
+
 **Deploy the latest package from NuGet:**
 ```sh
-txc env pkg import TALXIS.Controls.FileExplorer.Package \
-  --environment https://org.crm.dynamics.com
+txc env pkg import TALXIS.Controls.FileExplorer.Package
 ```
 
 **Inspect the latest package deployment with findings:**
 ```sh
-txc env deploy show --package-name TALXIS.Controls.FileExplorer.Package \
-  --environment https://org.crm.dynamics.com
+txc env deploy show --package-name TALXIS.Controls.FileExplorer.Package
 ```
 
 **Uninstall a package from its source artifact:**
 ```sh
-txc env pkg uninstall TALXIS.Controls.FileExplorer.Package \
-  --yes \
-  --environment https://org.crm.dynamics.com
+txc env pkg uninstall TALXIS.Controls.FileExplorer.Package --yes
 ```
 
 **Import a solution and follow the async operation when needed:**
 ```sh
-txc env sln import ./Solutions/MySolution_managed.zip \
-  --environment https://org.crm.dynamics.com
+txc env sln import ./Solutions/MySolution_managed.zip
 
-txc env deploy show --async-operation-id <asyncOperationId> \
-  --environment https://org.crm.dynamics.com
+txc env deploy show --async-operation-id <asyncOperationId>
+```
+
+**Target a different environment for a single call without switching profiles:**
+```sh
+txc env sln import ./Solutions/MySolution_managed.zip -p customer-b-prod
 ```
 
 **Import a CMT data folder into Dataverse:**
 ```sh
-txc data pkg import ./data-package \
-  --environment https://org.crm.dynamics.com
+txc data pkg import ./data-package
 ```
 
 **Convert Excel to CMT XML:**

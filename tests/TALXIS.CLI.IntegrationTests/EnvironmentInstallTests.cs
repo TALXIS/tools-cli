@@ -2,10 +2,9 @@ using System.IO.Compression;
 using System.Net;
 using System.Net.Http;
 using System.Text;
-using TALXIS.CLI.Dataverse;
-using TALXIS.CLI.Environment;
-using TALXIS.CLI.Environment.Platforms.Dataverse;
-using TALXIS.CLI.XrmTools;
+using TALXIS.CLI.Platform.Dataverse;
+using TALXIS.CLI.Features.Environment;
+using TALXIS.CLI.Core.Platforms.Packaging;
 using Xunit;
 
 namespace TALXIS.CLI.IntegrationTests;
@@ -71,22 +70,6 @@ public class EnvironmentInstallTests : IDisposable
         {
             Directory.Delete(_tempDirectory, recursive: true);
         }
-    }
-
-    [Fact]
-    public void BuildDefaultScope_UsesPacCompatibleDoubleSlashSeparator()
-    {
-        string scope = DataverseAuthTokenProvider.BuildDefaultScope(new Uri("https://org2928f636.crm.dynamics.com/main.aspx"));
-
-        Assert.Equal("https://org2928f636.crm.dynamics.com//.default", scope);
-    }
-
-    [Fact]
-    public void ResolveAuthority_UsesPublicCloudAuthorityForDynamicsCom()
-    {
-        Uri authority = DataverseAuthTokenProvider.ResolveAuthority(new Uri("https://org2928f636.crm.dynamics.com"));
-
-        Assert.Equal(new Uri("https://login.microsoftonline.com/organizations"), authority);
     }
 
     private static void CreateTestNuGetPackage(string packagePath, string innerPath, string content)

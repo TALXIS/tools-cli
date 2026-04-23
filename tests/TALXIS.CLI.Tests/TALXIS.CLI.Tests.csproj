@@ -16,10 +16,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../src/TALXIS.CLI.Shared/TALXIS.CLI.Shared.csproj" />
+    <ProjectReference Include="../../src/TALXIS.CLI.Core/TALXIS.CLI.Core.csproj" />
     <ProjectReference Include="../../src/TALXIS.CLI.Logging/TALXIS.CLI.Logging.csproj" />
     <ProjectReference Include="../../src/TALXIS.CLI.MCP/TALXIS.CLI.MCP.csproj" />
-    <ProjectReference Include="../../src/TALXIS.CLI.Dataverse/TALXIS.CLI.Dataverse.csproj" />
-    <ProjectReference Include="../../src/TALXIS.CLI.Environment/TALXIS.CLI.Environment.csproj" />
+    <ProjectReference Include="../../src/TALXIS.CLI.Platform.Dataverse/TALXIS.CLI.Platform.Dataverse.csproj" />
+    <ProjectReference Include="../../src/TALXIS.CLI.Features.Environment/TALXIS.CLI.Features.Environment.csproj" />
+    <ProjectReference Include="../../src/TALXIS.CLI.Features.Config/TALXIS.CLI.Features.Config.csproj" />
   </ItemGroup>
 </Project>

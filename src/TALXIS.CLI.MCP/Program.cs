@@ -328,7 +328,7 @@ async Task<CallToolResult> ExecuteMcpSpecificToolWithCapturedOutputAsync(Type co
 
     // Redirect OutputWriter (result data) to our capture buffer.
     // In-process MCP tools use OutputWriter.WriteLine() for result data.
-    using var redirect = TALXIS.CLI.Shared.OutputWriter.RedirectTo(output);
+    using var redirect = TALXIS.CLI.Core.OutputWriter.RedirectTo(output);
 
     try
     {

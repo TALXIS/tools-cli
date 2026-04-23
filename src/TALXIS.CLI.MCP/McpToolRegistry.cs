@@ -17,11 +17,11 @@ public class McpToolRegistry
     /// </summary>
     private static readonly HashSet<Type> _longRunningCommandTypes = new()
     {
-        typeof(TALXIS.CLI.Data.DataPackageImportCliCommand),
-        typeof(TALXIS.CLI.Environment.Package.PackageImportCliCommand),
-        typeof(TALXIS.CLI.Environment.Package.PackageUninstallCliCommand),
-        typeof(TALXIS.CLI.Environment.Solution.SolutionImportCliCommand),
-        typeof(TALXIS.CLI.Environment.Solution.SolutionUninstallCliCommand),
+        typeof(TALXIS.CLI.Features.Data.DataPackageImportCliCommand),
+        typeof(TALXIS.CLI.Features.Environment.Package.PackageImportCliCommand),
+        typeof(TALXIS.CLI.Features.Environment.Package.PackageUninstallCliCommand),
+        typeof(TALXIS.CLI.Features.Environment.Solution.SolutionImportCliCommand),
+        typeof(TALXIS.CLI.Features.Environment.Solution.SolutionUninstallCliCommand),
     };
 
     /// <summary>

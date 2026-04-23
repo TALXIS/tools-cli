@@ -4,11 +4,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\TALXIS.CLI.Data\TALXIS.CLI.Data.csproj" />
-    <ProjectReference Include="..\TALXIS.CLI.Environment\TALXIS.CLI.Environment.csproj" />
-    <ProjectReference Include="..\TALXIS.CLI.Docs\TALXIS.CLI.Docs.csproj" />
+    <ProjectReference Include="..\TALXIS.CLI.Features.Data\TALXIS.CLI.Features.Data.csproj" />
+    <ProjectReference Include="..\TALXIS.CLI.Features.Environment\TALXIS.CLI.Features.Environment.csproj" />
+    <ProjectReference Include="..\TALXIS.CLI.Features.Docs\TALXIS.CLI.Features.Docs.csproj" />
     <ProjectReference Include="..\TALXIS.CLI.Logging\TALXIS.CLI.Logging.csproj" />
-    <ProjectReference Include="..\TALXIS.CLI.Workspace\TALXIS.CLI.Workspace.csproj" />
+    <ProjectReference Include="..\TALXIS.CLI.Features.Workspace\TALXIS.CLI.Features.Workspace.csproj" />
+    <ProjectReference Include="..\TALXIS.CLI.Core\TALXIS.CLI.Core.csproj" />
+    <ProjectReference Include="..\TALXIS.CLI.Features.Config\TALXIS.CLI.Features.Config.csproj" />
+    <ProjectReference Include="..\TALXIS.CLI.Platform.Dataverse\TALXIS.CLI.Platform.Dataverse.csproj" />
   </ItemGroup>
 
   <ItemGroup>

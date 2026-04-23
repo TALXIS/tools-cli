@@ -65,7 +65,7 @@ public class McpServerProtocolTests : IAsyncDisposable
             if (toolName == "copilot-instructions")
             {
                 var output = new StringWriter();
-                using var redirect = TALXIS.CLI.Shared.OutputWriter.RedirectTo(output);
+                using var redirect = TALXIS.CLI.Core.OutputWriter.RedirectTo(output);
                 var command = new CopilotInstructionsCliCommand();
                 await command.RunAsync(null!);
                 return new CallToolResult
@@ -181,13 +181,15 @@ public class McpServerProtocolTests : IAsyncDisposable
     {
         var tools = _registry.ListTools();
 
-        var docsTool = tools.FirstOrDefault(t => t.Name == "docs");
-        Assert.NotNull(docsTool);
-        Assert.Null(docsTool.Execution);
-
+        // copilot-instructions is a short-lived MCP-only tool (no task support)
         var copilotTool = tools.FirstOrDefault(t => t.Name == "copilot-instructions");
         Assert.NotNull(copilotTool);
         Assert.Null(copilotTool.Execution);
+
+        // workspace_explain is a short-lived CLI tool (no task support)
+        var workspaceExplainTool = tools.FirstOrDefault(t => t.Name == "workspace_explain");
+        Assert.NotNull(workspaceExplainTool);
+        Assert.Null(workspaceExplainTool.Execution);
     }
 
     public async ValueTask DisposeAsync()

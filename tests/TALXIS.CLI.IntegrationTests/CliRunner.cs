@@ -29,9 +29,9 @@ public static class CliRunner
     /// Runs a CLI command with explicit argument tokens.
     /// Throws <see cref="InvalidOperationException"/> on non-zero exit code.
     /// </summary>
-    public static async Task<string> RunAsync(string[] args, string? workingDirectory = null)
+    public static async Task<string> RunAsync(string[] args, string? workingDirectory = null, System.Collections.Generic.IReadOnlyDictionary<string, string?>? env = null)
     {
-        var result = await RunRawAsync(args, workingDirectory);
+        var result = await RunRawAsync(args, workingDirectory, env);
 
         if (result.ExitCode != 0)
         {
@@ -57,9 +57,21 @@ public static class CliRunner
     /// <summary>
     /// Runs a CLI command with explicit argument tokens and returns the full result without throwing on failure.
     /// </summary>
-    public static async Task<CliResult> RunRawAsync(string[] args, string? workingDirectory = null)
+    public static async Task<CliResult> RunRawAsync(string[] args, string? workingDirectory = null, System.Collections.Generic.IReadOnlyDictionary<string, string?>? env = null)
     {
         var psi = CreateProcessStartInfo(args, workingDirectory);
+
+        if (env is not null)
+        {
+            foreach (var kvp in env)
+            {
+                if (kvp.Value is null)
+                    psi.Environment.Remove(kvp.Key);
+                else
+                    psi.Environment[kvp.Key] = kvp.Value;
+            }
+        }
+
         using var process = Process.Start(psi)!;
 
         // Read stdout and stderr concurrently to avoid deadlocks when

@@ -36,7 +36,7 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.5" />
     <PackageReference Include="ModelContextProtocol" Version="1.2.0" />
     <ProjectReference Include="../TALXIS.CLI/TALXIS.CLI.csproj" />
-    <ProjectReference Include="../TALXIS.CLI.Data/TALXIS.CLI.Data.csproj" />
+    <ProjectReference Include="../TALXIS.CLI.Features.Data/TALXIS.CLI.Features.Data.csproj" />
     <ProjectReference Include="../TALXIS.CLI.Logging/TALXIS.CLI.Logging.csproj" />
   </ItemGroup>
 </Project>
