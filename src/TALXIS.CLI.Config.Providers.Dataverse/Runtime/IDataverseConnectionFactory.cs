@@ -5,10 +5,8 @@ namespace TALXIS.CLI.Config.Providers.Dataverse.Runtime;
 
 /// <summary>
 /// Builds a ready-to-use <see cref="DataverseConnection"/> from a resolved
-/// (Profile, Connection, Credential) triple. Replaces the legacy
-/// legacy <c>ServiceClientFactory.Connect</c> path that keyed off connection
-/// strings or <c>--environment</c> URLs: every leaf Dataverse command now
-/// goes through this one abstraction instead.
+/// (Profile, Connection, Credential) triple. Every leaf Dataverse command
+/// goes through this one abstraction.
 /// </summary>
 public interface IDataverseConnectionFactory
 {

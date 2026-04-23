@@ -3,18 +3,16 @@ using Microsoft.PowerPlatform.Dataverse.Client;
 namespace TALXIS.CLI.Dataverse;
 
 /// <summary>
-/// Disposable wrapper around a <see cref="ServiceClient"/> plus its optional
-/// <see cref="DataverseAuthTokenProvider"/>. Disposing releases both.
+/// Disposable wrapper around a <see cref="ServiceClient"/>. Disposing
+/// releases the underlying client.
 /// </summary>
 public sealed class DataverseConnection : IDisposable
 {
     public ServiceClient Client { get; }
-    public DataverseAuthTokenProvider? TokenProvider { get; }
 
-    internal DataverseConnection(ServiceClient client, DataverseAuthTokenProvider? tokenProvider)
+    private DataverseConnection(ServiceClient client)
     {
         Client = client;
-        TokenProvider = tokenProvider;
     }
 
     /// <summary>
@@ -26,12 +24,11 @@ public sealed class DataverseConnection : IDisposable
     public static DataverseConnection FromServiceClient(ServiceClient client)
     {
         ArgumentNullException.ThrowIfNull(client);
-        return new DataverseConnection(client, tokenProvider: null);
+        return new DataverseConnection(client);
     }
 
     public void Dispose()
     {
         Client.Dispose();
-        TokenProvider?.Dispose();
     }
 }
