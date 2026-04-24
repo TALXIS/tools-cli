@@ -53,7 +53,7 @@ After installation, use the CLI via the `txc` command in any terminal.
 
 ## Identity, Connections & Profiles
 
-`txc` decouples **who you are** (credentials) from **where you target** (connections) and exposes the combination as a named **profile**. Every command that touches a live environment takes exactly one context flag — `--profile <name>`. There are no raw `--environment`, `--connection-string`, or `--device-code` flags on leaf commands; to switch endpoints or identities you create (or select) a different profile.
+`txc` decouples **who you are** (credentials) from **where you target** (connections) and exposes the combination as a named **profile**. Every command that touches a live environment takes exactly one context flag — `--profile <name>`.
 
 **Quickstart for most developers:**
 
@@ -108,7 +108,7 @@ txc data pkg import ./data-package
 
 **Convert Excel to CMT XML:**
 ```sh
-txc data package convert --input export.xlsx --output data.xml
+txc data pkg convert --input export.xlsx --output data.xml
 ```
 
 **List available workspace components:**
