@@ -1,9 +1,9 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
+using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Model;
-using TALXIS.CLI.Platform.Dataverse.Runtime;
 
-namespace TALXIS.CLI.Platform.Dataverse.PowerPlatform;
+namespace TALXIS.CLI.Platform.PowerPlatform.Control;
 
 /// <summary>
 /// Metadata about a Power Platform environment returned by the admin API.
@@ -42,11 +42,11 @@ public sealed class PowerPlatformEnvironmentCatalog : IPowerPlatformEnvironmentC
     private const string ApiVersion = "2020-10-01";
     private static readonly Uri PowerAppsAudience = new("https://service.powerapps.com/");
 
-    private readonly IDataverseAccessTokenService _tokens;
+    private readonly IAccessTokenService _tokens;
     private readonly IHttpClientFactoryWrapper _httpFactory;
 
     public PowerPlatformEnvironmentCatalog(
-        IDataverseAccessTokenService tokens,
+        IAccessTokenService tokens,
         IHttpClientFactoryWrapper? httpFactory = null)
     {
         _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));

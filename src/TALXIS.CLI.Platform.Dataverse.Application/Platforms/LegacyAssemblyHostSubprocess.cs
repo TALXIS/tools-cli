@@ -3,11 +3,11 @@ using System.Globalization;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.Json;
-using TALXIS.CLI.Platform.Dataverse.DependencyInjection;
+using TALXIS.CLI.Platform.Dataverse.Application.DependencyInjection;
 using TALXIS.CLI.Platform.Dataverse.Runtime;
 using TALXIS.CLI.Platform.Xrm;
 
-namespace TALXIS.CLI.Platform.Dataverse.Platforms;
+namespace TALXIS.CLI.Platform.Dataverse.Application.Platforms;
 
 /// <summary>
 /// Out-of-process host for runners that depend on the legacy-patched

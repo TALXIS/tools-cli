@@ -1,6 +1,6 @@
 using TALXIS.CLI.Platform.Xrm;
 
-namespace TALXIS.CLI.Platform.Dataverse.Platforms;
+namespace TALXIS.CLI.Platform.Dataverse.Application.Platforms;
 
 /// <summary>
 /// IPC envelope for the CMT data-import subprocess. Mirrors the shape of

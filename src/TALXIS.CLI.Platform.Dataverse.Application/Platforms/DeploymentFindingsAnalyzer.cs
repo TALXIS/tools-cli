@@ -1,7 +1,7 @@
 using TALXIS.CLI.Core.Platforms.Dataverse;
 using System.Text.RegularExpressions;
 
-namespace TALXIS.CLI.Platform.Dataverse.Platforms;
+namespace TALXIS.CLI.Platform.Dataverse.Application.Platforms;
 
 /// <summary>
 /// Input to <see cref="DeploymentFindingsAnalyzer"/>. Carries only structured records already

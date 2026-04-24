@@ -1,4 +1,4 @@
-namespace TALXIS.CLI.Platform.Dataverse;
+namespace TALXIS.CLI.Platform.Dataverse.Application;
 
 /// <summary>
 /// UTC normalisation helpers. Dataverse returns UTC but the SDK often surfaces

@@ -1,9 +1,9 @@
 using TALXIS.CLI.Core.Platforms.Dataverse;
-using TALXIS.CLI.Platform.Dataverse.Platforms;
+using TALXIS.CLI.Platform.Dataverse.Application.Platforms;
 using TALXIS.CLI.Platform.Dataverse.Runtime;
 using TALXIS.CLI.Logging;
 
-namespace TALXIS.CLI.Platform.Dataverse.Services;
+namespace TALXIS.CLI.Platform.Dataverse.Application.Services;
 
 internal sealed class DataverseDeploymentHistoryService : IDeploymentHistoryService
 {

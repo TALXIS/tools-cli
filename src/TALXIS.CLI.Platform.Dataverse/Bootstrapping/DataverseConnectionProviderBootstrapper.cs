@@ -5,7 +5,7 @@ using TALXIS.CLI.Core.Headless;
 using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Core.Storage;
 using TALXIS.CLI.Platform.Dataverse.Authority;
-using TALXIS.CLI.Platform.Dataverse.PowerPlatform;
+using TALXIS.CLI.Platform.PowerPlatform.Control;
 
 namespace TALXIS.CLI.Platform.Dataverse.Bootstrapping;
 

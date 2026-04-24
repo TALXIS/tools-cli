@@ -4,7 +4,7 @@ using TALXIS.CLI.Features.Config.Profile;
 using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Core.Headless;
 using TALXIS.CLI.Core;
-using TALXIS.CLI.Platform.Dataverse.PowerPlatform;
+using TALXIS.CLI.Platform.PowerPlatform.Control;
 using TALXIS.CLI.Tests.Config.Commands;
 using Xunit;
 

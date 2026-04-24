@@ -1,4 +1,4 @@
-namespace TALXIS.CLI.Platform.Dataverse;
+namespace TALXIS.CLI.Platform.Dataverse.Application;
 
 /// <summary>
 /// Logical names of platform-level Dataverse entities that are not tied to a specific domain.

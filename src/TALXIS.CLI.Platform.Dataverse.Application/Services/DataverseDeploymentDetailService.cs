@@ -3,12 +3,13 @@ using Microsoft.PowerPlatform.Dataverse.Client;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Query;
 using TALXIS.CLI.Core.Platforms.Dataverse;
-using TALXIS.CLI.Platform.Dataverse.Platforms;
+using TALXIS.CLI.Platform.Dataverse.Application.Platforms;
 using TALXIS.CLI.Platform.Dataverse.Runtime;
 using TALXIS.CLI.Platform.Dataverse;
+using TALXIS.CLI.Platform.Dataverse.Application;
 using TALXIS.CLI.Logging;
 
-namespace TALXIS.CLI.Platform.Dataverse.Services;
+namespace TALXIS.CLI.Platform.Dataverse.Application.Services;
 
 internal sealed class DataverseDeploymentDetailService : IDeploymentDetailService
 {

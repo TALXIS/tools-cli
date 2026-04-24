@@ -4,8 +4,9 @@ using Microsoft.Xrm.Sdk.Query;
 using TALXIS.CLI.Core.Platforms.Dataverse;
 using TALXIS.CLI.Platform.Dataverse.Runtime;
 using TALXIS.CLI.Platform.Dataverse;
+using TALXIS.CLI.Platform.Dataverse.Application;
 
-namespace TALXIS.CLI.Platform.Dataverse.Services;
+namespace TALXIS.CLI.Platform.Dataverse.Application.Services;
 
 /// <summary>
 /// Dataverse implementation of <see cref="ISolutionInventoryService"/>.

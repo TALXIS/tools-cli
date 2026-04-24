@@ -1,5 +1,5 @@
 using System;
-using TALXIS.CLI.Platform.Dataverse;
+using TALXIS.CLI.Platform.Dataverse.Application;
 using Xunit;
 
 namespace TALXIS.CLI.Tests.Dataverse;

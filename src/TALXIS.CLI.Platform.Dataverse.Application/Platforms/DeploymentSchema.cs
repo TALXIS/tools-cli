@@ -1,4 +1,4 @@
-namespace TALXIS.CLI.Platform.Dataverse.Platforms;
+namespace TALXIS.CLI.Platform.Dataverse.Application.Platforms;
 
 /// <summary>
 /// Logical names of Dataverse entities used by the deployment domain

@@ -1,12 +1,13 @@
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core.Platforms.Dataverse;
 using TALXIS.CLI.Platform.Dataverse;
+using TALXIS.CLI.Platform.Dataverse.Application;
 using Microsoft.PowerPlatform.Dataverse.Client;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Messages;
 using Microsoft.Xrm.Sdk.Query;
 
-namespace TALXIS.CLI.Platform.Dataverse.Platforms;
+namespace TALXIS.CLI.Platform.Dataverse.Application.Platforms;
 
 /// <summary>
 /// Uninstalls solutions from Dataverse by unique name.

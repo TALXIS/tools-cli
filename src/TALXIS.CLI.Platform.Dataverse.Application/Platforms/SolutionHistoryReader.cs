@@ -1,11 +1,12 @@
 using TALXIS.CLI.Core.Platforms.Dataverse;
 using TALXIS.CLI.Platform.Dataverse;
+using TALXIS.CLI.Platform.Dataverse.Application;
 using Microsoft.Extensions.Logging;
 using Microsoft.PowerPlatform.Dataverse.Client;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Query;
 
-namespace TALXIS.CLI.Platform.Dataverse.Platforms;
+namespace TALXIS.CLI.Platform.Dataverse.Application.Platforms;
 
 /// <summary>
 /// Reader for <c>msdyn_solutionhistory</c>. The virtual entity rejects arbitrary

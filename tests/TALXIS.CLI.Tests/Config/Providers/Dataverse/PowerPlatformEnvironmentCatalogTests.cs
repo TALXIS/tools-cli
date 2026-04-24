@@ -1,8 +1,8 @@
 using System.Net;
 using System.Net.Http;
+using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Model;
-using TALXIS.CLI.Platform.Dataverse;
-using TALXIS.CLI.Platform.Dataverse.PowerPlatform;
+using TALXIS.CLI.Platform.PowerPlatform.Control;
 using TALXIS.CLI.Platform.Dataverse.Runtime;
 using Xunit;
 

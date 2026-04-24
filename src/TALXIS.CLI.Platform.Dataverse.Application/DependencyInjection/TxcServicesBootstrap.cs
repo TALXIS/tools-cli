@@ -1,8 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Logging;
+using TALXIS.CLI.Platform.Dataverse.DependencyInjection;
 
-namespace TALXIS.CLI.Platform.Dataverse.DependencyInjection;
+namespace TALXIS.CLI.Platform.Dataverse.Application.DependencyInjection;
 
 /// <summary>
 /// Composition root for a Config core + Dataverse provider container.
@@ -26,6 +27,7 @@ public static class TxcServicesBootstrap
         services.AddTxcLogging();
         services.AddTxcConfigCore();
         services.AddTxcDataverseProvider();
+        services.AddTxcDataverseApplication();
 
         var provider = services.BuildServiceProvider();
         TxcServices.Initialize(provider);

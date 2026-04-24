@@ -7,7 +7,7 @@ using TALXIS.CLI.Core.Resolution;
 using TALXIS.CLI.Core.Storage;
 using TALXIS.CLI.Core.Vault;
 using TALXIS.CLI.Platform.Dataverse.Msal;
-using TALXIS.CLI.Platform.Dataverse.PowerPlatform;
+using TALXIS.CLI.Platform.PowerPlatform.Control;
 using ConnectionModel = TALXIS.CLI.Core.Model.Connection;
 
 namespace TALXIS.CLI.Tests.Config.Commands;/// <summary>

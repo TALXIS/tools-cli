@@ -22,6 +22,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/TALXIS.CLI/TALXIS.CLI.csproj" />
     <ProjectReference Include="../../src/TALXIS.CLI.Platform.Dataverse/TALXIS.CLI.Platform.Dataverse.csproj" />
+    <ProjectReference Include="../../src/TALXIS.CLI.Platform.Dataverse.Application/TALXIS.CLI.Platform.Dataverse.Application.csproj" />
     <ProjectReference Include="../../src/TALXIS.CLI.Features.Environment/TALXIS.CLI.Features.Environment.csproj" />
     <ProjectReference Include="../../src/TALXIS.CLI.MCP/TALXIS.CLI.MCP.csproj" />
   </ItemGroup>

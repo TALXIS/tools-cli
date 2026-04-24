@@ -1,3 +1,4 @@
+using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Model;
 
 namespace TALXIS.CLI.Platform.Dataverse.Runtime;
@@ -8,7 +9,12 @@ namespace TALXIS.CLI.Platform.Dataverse.Runtime;
 /// for the refactored Dataverse commands and the live <c>WhoAmI</c> check.
 /// </summary>
 /// <remarks>
+/// Extends <see cref="IAccessTokenService"/> so the Dataverse implementation
+/// can be consumed wherever a provider-agnostic token source is needed
+/// (e.g. the Power Platform control-plane catalog).
+/// <para>
 /// Token-cache behaviour depends on the credential kind:
+/// </para>
 /// <list type="bullet">
 ///   <item><see cref="CredentialKind.InteractiveBrowser"/> — silent via the
 ///     shared MSAL user cache; throws a precise error if the user has to
@@ -26,7 +32,7 @@ namespace TALXIS.CLI.Platform.Dataverse.Runtime;
 /// throw <see cref="NotSupportedException"/> with a remedy message.
 /// </para>
 /// </remarks>
-public interface IDataverseAccessTokenService
+public interface IDataverseAccessTokenService : IAccessTokenService
 {
     /// <summary>
     /// Acquires a bearer token scoped to the Dataverse environment URL on
@@ -34,27 +40,4 @@ public interface IDataverseAccessTokenService
     /// <paramref name="credential"/>.
     /// </summary>
     Task<string> AcquireAsync(TALXIS.CLI.Core.Model.Connection connection, Credential credential, CancellationToken ct);
-
-    /// <summary>
-    /// Acquires a bearer token scoped to <paramref name="resourceUri"/>.
-    /// Required for token-provider callbacks passed to the Xrm Tooling
-    /// <c>ServiceClient</c>, which may request tokens for the SDK-canonicalized
-    /// org URL rather than the pre-login <c>Connection.EnvironmentUrl</c>.
-    /// </summary>
-    /// <param name="connection">
-    /// The resolved Dataverse connection. Used for authority selection and
-    /// public-client identity lookup (cached account match).
-    /// </param>
-    /// <param name="credential">The resolved credential.</param>
-    /// <param name="resourceUri">
-    /// The audience URL the caller needs a token for (e.g.
-    /// <c>https://contoso.crm.dynamics.com</c>). Scope is built via
-    /// <see cref="Scopes.DataverseScope.BuildDefault"/> from this URI.
-    /// </param>
-    /// <param name="ct">Cancellation token.</param>
-    Task<string> AcquireForResourceAsync(
-        TALXIS.CLI.Core.Model.Connection connection,
-        Credential credential,
-        Uri resourceUri,
-        CancellationToken ct);
 }
