@@ -3,9 +3,10 @@ using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.DependencyInjection;
-using TALXIS.CLI.Core.Storage;
 using TALXIS.CLI.Logging;
 using TALXIS.CLI.Core;
+using TALXIS.CLI.Core.Model;
+using TALXIS.CLI.Core.Storage;
 
 namespace TALXIS.CLI.Features.Config.Profile;
 
@@ -42,44 +43,28 @@ public class ProfileValidateCliCommand
     {
         try
         {
-            var profileStore = TxcServices.Get<IProfileStore>();
-            var connectionStore = TxcServices.Get<IConnectionStore>();
-            var credentialStore = TxcServices.Get<ICredentialStore>();
-            var globalConfig = TxcServices.Get<IGlobalConfigStore>();
+            var resolver = TxcServices.Get<IConfigurationResolver>();
             var providers = TxcServices.GetAll<IConnectionProvider>();
-
-            var target = Name;
-            if (string.IsNullOrWhiteSpace(target))
+            ResolvedProfileContext context;
+            try
             {
-                var gc = await globalConfig.LoadAsync(CancellationToken.None).ConfigureAwait(false);
-                target = gc.ActiveProfile;
-                if (string.IsNullOrWhiteSpace(target))
-                {
-                    _logger.LogError("No active profile is set. Pass <name> or run 'txc config profile select <name>'.");
-                    return 2;
-                }
+                context = await resolver.ResolveAsync(Name, CancellationToken.None).ConfigureAwait(false);
             }
-
-            var profile = await profileStore.GetAsync(target!, CancellationToken.None).ConfigureAwait(false);
-            if (profile is null)
+            catch (ConfigurationResolutionException ex)
             {
-                _logger.LogError("Profile '{Name}' not found.", target);
+                _logger.LogError("{Error}", ex.Message);
                 return 2;
             }
 
-            var connection = await connectionStore.GetAsync(profile.ConnectionRef, CancellationToken.None).ConfigureAwait(false);
-            if (connection is null)
+            if (context.Profile is null)
             {
-                _logger.LogError("Profile '{Profile}' references missing connection '{Connection}'.", profile.Id, profile.ConnectionRef);
+                _logger.LogError("Resolved configuration is ephemeral. 'txc config profile validate' requires a stored profile.");
                 return 2;
             }
 
-            var credential = await credentialStore.GetAsync(profile.CredentialRef, CancellationToken.None).ConfigureAwait(false);
-            if (credential is null)
-            {
-                _logger.LogError("Profile '{Profile}' references missing credential '{Credential}'.", profile.Id, profile.CredentialRef);
-                return 2;
-            }
+            var profile = context.Profile;
+            var connection = context.Connection;
+            var credential = context.Credential;
 
             var provider = providers.FirstOrDefault(p => p.ProviderKind == connection.Provider);
             if (provider is null)

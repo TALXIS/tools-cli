@@ -60,6 +60,7 @@ internal sealed class CommandTestHost : IDisposable
         services.AddSingleton<ICredentialVault>(Vault);
         services.AddSingleton<IHeadlessDetector>(Headless);
         services.AddSingleton<IWorkspaceDiscovery, WorkspaceDiscovery>();
+        services.AddSingleton<IConfigurationResolver, ConfigurationResolver>();
         services.AddSingleton<IInteractiveLoginService>(Login);
         services.AddSingleton<IPowerPlatformEnvironmentCatalog>(EnvironmentCatalog);
         services.AddSingleton(_ =>

@@ -66,8 +66,13 @@ public sealed class ConfigurationResolver : IConfigurationResolver
             ?? throw new ConfigurationResolutionException(
                 $"Profile '{profile.Id}' references missing credential '{profile.CredentialRef}'.");
 
-        _log.LogDebug("Resolved profile '{ProfileId}' (connection '{ConnectionId}', credential '{CredentialId}') from {Source}.",
-            profile.Id, connection.Id, credential.Id, source);
+        _log.LogInformation(
+            "Resolved target environment '{EnvironmentUrl}' using profile '{ProfileId}', connection '{ConnectionId}', credential '{CredentialId}' (source: {Source}).",
+            string.IsNullOrWhiteSpace(connection.EnvironmentUrl) ? "(not set)" : connection.EnvironmentUrl,
+            profile.Id,
+            connection.Id,
+            credential.Id,
+            source);
 
         return new ResolvedProfileContext(profile, connection, credential, source);
     }
