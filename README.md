@@ -91,7 +91,7 @@ Manage environment-level settings exposed by the Power Platform admin API — fe
 txc env setting list --filter powerApps
 ```
 
-**Enable code-first apps (Power Apps code components):**
+**Enable Power Apps Code Apps:**
 ```sh
 txc env setting update --name powerApps_AllowCodeApps --value true
 ```
