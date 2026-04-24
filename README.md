@@ -200,7 +200,7 @@ txc workspace component parameter list pp-entity
 **Scaffold a Dataverse entity component:**
 ```sh
 txc workspace component create pp-entity \
-  --output ./src/Declarations \
+  --output "/Users/tomasprokop/Desktop/mcp-test/test" \
   --param Behavior=New \
   --param PublisherPrefix=tom \
   --param LogicalName=location \
