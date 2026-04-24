@@ -40,6 +40,7 @@ public interface IPowerPlatformEnvironmentCatalog
 public sealed class PowerPlatformEnvironmentCatalog : IPowerPlatformEnvironmentCatalog
 {
     private const string ApiVersion = "2020-10-01";
+    private static readonly Uri PowerAppsAudience = new("https://service.powerapps.com/");
 
     private readonly IDataverseAccessTokenService _tokens;
     private readonly IHttpClientFactoryWrapper _httpFactory;
@@ -61,7 +62,7 @@ public sealed class PowerPlatformEnvironmentCatalog : IPowerPlatformEnvironmentC
         ArgumentNullException.ThrowIfNull(credential);
 
         var baseUri = GetAdminApiBaseUri(connection.Cloud ?? CloudInstance.Public);
-        var token = await _tokens.AcquireForResourceAsync(connection, credential, baseUri, ct).ConfigureAwait(false);
+        var token = await _tokens.AcquireForResourceAsync(connection, credential, PowerAppsAudience, ct).ConfigureAwait(false);
 
         using var http = _httpFactory.Create();
         var environments = new List<PowerPlatformEnvironmentSummary>();

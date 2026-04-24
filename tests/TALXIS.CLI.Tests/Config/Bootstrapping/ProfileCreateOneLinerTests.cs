@@ -224,6 +224,24 @@ public sealed class ProfileCreateOneLinerTests
     }
 
     [Fact]
+    public async Task UrlMode_InvalidUrl_WithExplicitProvider_FailsBeforeInteractiveLogin()
+    {
+        using var host = new CommandTestHost();
+        using (OutputWriter.RedirectTo(new StringWriter()))
+        {
+            var exit = await new ProfileCreateCliCommand
+            {
+                Url = "not-a-url",
+                Provider = ProviderKind.Dataverse,
+            }.RunAsync();
+            Assert.Equal(1, exit);
+        }
+
+        Assert.Equal(0, host.Login.Calls);
+        Assert.Empty(await ((ICredentialStore)host.Provider.GetService(typeof(ICredentialStore))!).ListAsync(default));
+    }
+
+    [Fact]
     public async Task UrlMode_Headless_FailsWithHeadlessError()
     {
         using var host = new CommandTestHost(headless: true);
@@ -259,6 +277,26 @@ public sealed class ProfileCreateOneLinerTests
         var connections = (IConnectionStore)host.Provider.GetService(typeof(IConnectionStore))!;
         Assert.NotNull(await profiles.GetAsync("my-profile", default));
         Assert.NotNull(await connections.GetAsync("my-profile", default));
+    }
+
+    [Fact]
+    public async Task UrlMode_InfersSovereignCloud_FromEnvironmentUrl_WhenCloudOmitted()
+    {
+        using var host = new CommandTestHost();
+        using (OutputWriter.RedirectTo(new StringWriter()))
+        {
+            var exit = await new ProfileCreateCliCommand
+            {
+                Url = "https://contoso.crm.microsoftdynamics.us/",
+            }.RunAsync();
+            Assert.Equal(0, exit);
+        }
+
+        Assert.Equal(CloudInstance.GccHigh, host.Login.LastCloud);
+
+        var connections = (IConnectionStore)host.Provider.GetService(typeof(IConnectionStore))!;
+        var connection = Assert.Single(await connections.ListAsync(default));
+        Assert.Equal(CloudInstance.GccHigh, connection.Cloud);
     }
 
     [Fact]

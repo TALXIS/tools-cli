@@ -12,7 +12,7 @@ public sealed record ProfileBootstrapRequest(
     string? Name,
     ProviderKind Provider,
     string EnvironmentUrl,
-    CloudInstance Cloud,
+    CloudInstance? Cloud,
     string? TenantId,
     string? Description);
 

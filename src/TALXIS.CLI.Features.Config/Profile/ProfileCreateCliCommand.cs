@@ -126,6 +126,12 @@ public class ProfileCreateCliCommand
 
     private async Task<int> RunOneLinerAsync()
     {
+        if (!IsAbsoluteHttpUrl(Url))
+        {
+            _logger.LogError("'{Url}' is not an absolute http(s) URL.", Url);
+            return 1;
+        }
+
         var inference = ProviderUrlResolver.Infer(Url);
         var provider = Provider ?? inference.Provider;
         if (provider is null)
@@ -155,7 +161,7 @@ public class ProfileCreateCliCommand
             Name: string.IsNullOrWhiteSpace(Name) ? null : Name.Trim(),
             Provider: provider.Value,
             EnvironmentUrl: Url!,
-            Cloud: Cloud ?? CloudInstance.Public,
+            Cloud: Cloud,
             TenantId: Tenant,
             Description: Description);
 
@@ -271,4 +277,8 @@ public class ProfileCreateCliCommand
             TxcJsonOptions.Default));
         return 0;
     }
+
+    private static bool IsAbsoluteHttpUrl(string? url)
+        => Uri.TryCreate(url, UriKind.Absolute, out var uri)
+           && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
 }

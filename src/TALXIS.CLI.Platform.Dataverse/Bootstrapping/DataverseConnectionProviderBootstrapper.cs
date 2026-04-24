@@ -4,6 +4,7 @@ using TALXIS.CLI.Core.Bootstrapping;
 using TALXIS.CLI.Core.Headless;
 using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Core.Storage;
+using TALXIS.CLI.Platform.Dataverse.Authority;
 using TALXIS.CLI.Platform.Dataverse.PowerPlatform;
 
 namespace TALXIS.CLI.Platform.Dataverse.Bootstrapping;
@@ -50,13 +51,27 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
         ProfileBootstrapRequest request, CancellationToken ct)
     {
         if (request is null) throw new ArgumentNullException(nameof(request));
+        if (!Uri.TryCreate(request.EnvironmentUrl, UriKind.Absolute, out var environmentUrl)
+            || (environmentUrl.Scheme != Uri.UriSchemeHttp && environmentUrl.Scheme != Uri.UriSchemeHttps))
+        {
+            return new ProfileBootstrapResult(
+                string.Empty,
+                null,
+                null,
+                null,
+                $"'{request.EnvironmentUrl}' is not an absolute http(s) URL.");
+        }
+
+        var cloud = request.Cloud
+            ?? DataverseCloudMap.TryInferFromEnvironmentUrl(environmentUrl)
+            ?? CloudInstance.Public;
 
         _logger.LogInformation("Starting interactive sign-in for '{Url}'...", request.EnvironmentUrl);
         var acquired = await InteractiveCredentialBootstrapper.AcquireAndPersistAsync(
             _login, _credentials, _headless,
-            request.TenantId, request.Cloud, explicitAlias: null, ct).ConfigureAwait(false);
+            request.TenantId, cloud, explicitAlias: null, ct).ConfigureAwait(false);
 
-        var names = await ResolveBindingNamesAsync(request, acquired, ct).ConfigureAwait(false);
+        var names = await ResolveBindingNamesAsync(request, environmentUrl, cloud, acquired, ct).ConfigureAwait(false);
         if (names is null)
         {
             return new ProfileBootstrapResult(
@@ -71,7 +86,7 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
             names.ConnectionName,
             request.Provider,
             request.EnvironmentUrl,
-            request.Cloud,
+            cloud,
             organizationId: null,
             tenantId: request.TenantId ?? acquired.TenantId,
             description: request.Description,
@@ -87,11 +102,13 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
 
     private async Task<BindingNames?> ResolveBindingNamesAsync(
         ProfileBootstrapRequest request,
+        Uri environmentUrl,
+        CloudInstance cloud,
         InteractiveCredentialResult acquired,
         CancellationToken ct)
     {
         var explicitName = string.IsNullOrWhiteSpace(request.Name) ? null : request.Name.Trim();
-        var existingConnection = await FindExistingConnectionAsync(request, acquired, ct).ConfigureAwait(false);
+        var existingConnection = await FindExistingConnectionAsync(request, cloud, acquired, ct).ConfigureAwait(false);
         var existingProfile = existingConnection is null
             ? null
             : await FindExistingProfileAsync(existingConnection.Id, acquired.Credential.Id, ct).ConfigureAwait(false);
@@ -103,32 +120,29 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
             return new BindingNames(existingProfile.Id, existingProfile.ConnectionRef!);
 
         string? preferredBase = null;
-        if (Uri.TryCreate(request.EnvironmentUrl, UriKind.Absolute, out var environmentUrl))
+        var ephemeralConnection = new Connection
         {
-            var ephemeralConnection = new Connection
-            {
-                Id = "(ephemeral)",
-                Provider = request.Provider,
-                EnvironmentUrl = environmentUrl.ToString().TrimEnd('/'),
-                Cloud = request.Cloud,
-                TenantId = request.TenantId ?? acquired.TenantId,
-            };
+            Id = "(ephemeral)",
+            Provider = request.Provider,
+            EnvironmentUrl = environmentUrl.ToString().TrimEnd('/'),
+            Cloud = cloud,
+            TenantId = request.TenantId ?? acquired.TenantId,
+        };
 
-            try
-            {
-                var environment = await _environmentCatalog
-                    .TryGetByEnvironmentUrlAsync(ephemeralConnection, acquired.Credential, environmentUrl, ct)
-                    .ConfigureAwait(false);
-                if (environment is not null)
-                    preferredBase = ProviderUrlResolver.DeriveDefaultName(environment.DisplayName, request.EnvironmentUrl);
-            }
-            catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException)
-            {
-                _logger.LogWarning(
-                    ex,
-                    "Could not resolve Power Platform environment metadata for '{Url}'. Falling back to the URL host.",
-                    request.EnvironmentUrl);
-            }
+        try
+        {
+            var environment = await _environmentCatalog
+                .TryGetByEnvironmentUrlAsync(ephemeralConnection, acquired.Credential, environmentUrl, ct)
+                .ConfigureAwait(false);
+            if (environment is not null)
+                preferredBase = ProviderUrlResolver.DeriveDefaultName(environment.DisplayName, request.EnvironmentUrl);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException)
+        {
+            _logger.LogWarning(
+                ex,
+                "Could not resolve Power Platform environment metadata for '{Url}'. Falling back to the URL host.",
+                request.EnvironmentUrl);
         }
 
         preferredBase ??= ProviderUrlResolver.DeriveDefaultName(request.EnvironmentUrl);
@@ -160,6 +174,7 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
 
     private async Task<Connection?> FindExistingConnectionAsync(
         ProfileBootstrapRequest request,
+        CloudInstance cloud,
         InteractiveCredentialResult acquired,
         CancellationToken ct)
     {
@@ -172,7 +187,7 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
         return connections
             .Where(c => c.Provider == request.Provider)
             .Where(c => string.Equals(c.EnvironmentUrl?.TrimEnd('/'), normalizedUrl, StringComparison.OrdinalIgnoreCase))
-            .Where(c => c.Cloud == request.Cloud)
+            .Where(c => c.Cloud == cloud)
             .Where(c =>
                 string.IsNullOrWhiteSpace(c.TenantId)
                 || string.Equals(c.TenantId, request.TenantId ?? acquired.TenantId, StringComparison.OrdinalIgnoreCase))
