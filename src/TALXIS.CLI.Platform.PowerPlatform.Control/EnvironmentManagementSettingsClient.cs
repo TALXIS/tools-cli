@@ -114,27 +114,34 @@ public sealed class EnvironmentManagementSettingsClient
             return Array.Empty<EnvironmentManagementSetting>();
         }
 
-        var settings = new List<EnvironmentManagementSetting>();
-        foreach (var item in objectResult.EnumerateArray())
+        var items = objectResult.EnumerateArray();
+        if (!items.MoveNext() || items.Current.ValueKind != JsonValueKind.Object)
         {
-            foreach (var prop in item.EnumerateObject())
+            return Array.Empty<EnvironmentManagementSetting>();
+        }
+
+        // The API contract for this method is to flatten settings from the first
+        // objectResult entry only. Ignore any additional array entries to avoid
+        // merging unrelated properties into a single settings collection.
+        var firstItem = items.Current;
+        var settings = new List<EnvironmentManagementSetting>();
+        foreach (var prop in firstItem.EnumerateObject())
+        {
+            // Skip envelope identifiers — they are not settings.
+            if (prop.Name is "id" or "tenantId")
+                continue;
+
+            object? value = prop.Value.ValueKind switch
             {
-                // Skip envelope identifiers — they are not settings.
-                if (prop.Name is "id" or "tenantId")
-                    continue;
+                JsonValueKind.True => true,
+                JsonValueKind.False => false,
+                JsonValueKind.Number => prop.Value.TryGetInt32(out var i) ? i : prop.Value.GetDouble(),
+                JsonValueKind.String => prop.Value.GetString(),
+                JsonValueKind.Null => null,
+                _ => prop.Value.GetRawText(),
+            };
 
-                object? value = prop.Value.ValueKind switch
-                {
-                    JsonValueKind.True => true,
-                    JsonValueKind.False => false,
-                    JsonValueKind.Number => prop.Value.TryGetInt32(out var i) ? i : prop.Value.GetDouble(),
-                    JsonValueKind.String => prop.Value.GetString(),
-                    JsonValueKind.Null => null,
-                    _ => prop.Value.GetRawText(),
-                };
-
-                settings.Add(new EnvironmentManagementSetting(prop.Name, value));
-            }
+            settings.Add(new EnvironmentManagementSetting(prop.Name, value));
         }
 
         return settings;
