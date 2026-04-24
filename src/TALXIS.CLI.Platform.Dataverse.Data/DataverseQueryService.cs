@@ -1,0 +1,416 @@
+using System.Net.Http;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using System.Xml.Linq;
+using Microsoft.Xrm.Sdk;
+using Microsoft.Xrm.Sdk.Messages;
+using Microsoft.Xrm.Sdk.Metadata;
+using Microsoft.Xrm.Sdk.Query;
+using TALXIS.CLI.Core.Contracts.Dataverse;
+using TALXIS.CLI.Platform.Dataverse.Runtime;
+
+namespace TALXIS.CLI.Platform.Dataverse.Data;
+
+/// <summary>
+/// Dataverse implementation of <see cref="IDataverseQueryService"/>.
+/// Executes read-only SQL, FetchXML, and OData queries via the
+/// <c>ServiceClient</c> obtained through <see cref="DataverseCommandBridge"/>.
+/// </summary>
+internal sealed class DataverseQueryService : IDataverseQueryService
+{
+    /// <summary>
+    /// Regex that detects SQL write operations. Only SELECT queries are allowed.
+    /// </summary>
+    private static readonly Regex WriteOperationPattern = new(
+        @"\b(INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE|MERGE)\b",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    /// <summary>
+    /// Prefixes used by OData/Dataverse annotations that are stripped from
+    /// results unless the caller explicitly asks for them.
+    /// </summary>
+    private static readonly string[] AnnotationPrefixes = { "@odata.", "@OData.", "@Microsoft." };
+
+    // ───────────────────────────── SQL ──────────────────────────────
+
+    /// <inheritdoc />
+    public async Task<DataverseQueryResult> QuerySqlAsync(
+        string? profileName,
+        string sql,
+        int? top,
+        bool includeAnnotations,
+        CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sql);
+        ValidateSqlReadOnly(sql);
+
+        using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+
+        // Resolve the entity set name from the table's logical name so the
+        // Web API request targets the correct OData entity set.
+        var entitySetName = ResolveEntitySetName(conn, sql);
+
+        var headers = BuildHeaders(includeAnnotations);
+        var queryPath = $"{entitySetName}?sql={Uri.EscapeDataString(sql)}";
+        var response = conn.Client.ExecuteWebRequest(HttpMethod.Get, queryPath, string.Empty, headers);
+
+        var records = new List<JsonElement>();
+        ParseValueArray(response, records);
+
+        // Follow @odata.nextLink pages until exhausted or top limit reached.
+        await FollowNextLinksAsync(conn, response, records, top, headers, ct).ConfigureAwait(false);
+
+        if (!includeAnnotations)
+            StripAnnotations(records);
+
+        if (top.HasValue && records.Count > top.Value)
+            records.RemoveRange(top.Value, records.Count - top.Value);
+
+        return new DataverseQueryResult(records, records.Count);
+    }
+
+    // ──────────────────────────── FetchXML ──────────────────────────
+
+    /// <inheritdoc />
+    public async Task<DataverseQueryResult> QueryFetchXmlAsync(
+        string? profileName,
+        string fetchXml,
+        int? top,
+        bool includeAnnotations,
+        CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fetchXml);
+
+        using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+
+        var records = new List<JsonElement>();
+        bool hasFetchTop = HasTopAttribute(fetchXml);
+        int page = 1;
+        string? pagingCookie = null;
+
+        while (true)
+        {
+            var pagedXml = ApplyPaging(fetchXml, page, pagingCookie);
+            var fetchExpr = new FetchExpression(pagedXml);
+            var response = await conn.Client.RetrieveMultipleAsync(fetchExpr, ct).ConfigureAwait(false);
+
+            foreach (var entity in response.Entities)
+            {
+                records.Add(EntityToJsonElement(entity, includeAnnotations));
+
+                if (top.HasValue && records.Count >= top.Value)
+                    return new DataverseQueryResult(records, records.Count);
+            }
+
+            // When the FetchXML has a top attribute, Dataverse handles the
+            // row limit server-side and does not support paging alongside it.
+            if (hasFetchTop || !response.MoreRecords)
+                break;
+
+            pagingCookie = response.PagingCookie;
+            page++;
+        }
+
+        return new DataverseQueryResult(records, records.Count);
+    }
+
+    // ──────────────────────────── OData ─────────────────────────────
+
+    /// <inheritdoc />
+    public async Task<DataverseQueryResult> QueryODataAsync(
+        string? profileName,
+        string entitySetOrPath,
+        string? select,
+        string? filter,
+        string? orderBy,
+        int? top,
+        bool includeAnnotations,
+        CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(entitySetOrPath);
+
+        using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+
+        var queryPath = BuildODataQueryPath(entitySetOrPath, select, filter, orderBy, top);
+        var headers = BuildHeaders(includeAnnotations);
+        var response = conn.Client.ExecuteWebRequest(HttpMethod.Get, queryPath, string.Empty, headers);
+
+        var records = new List<JsonElement>();
+        ParseValueArray(response, records);
+
+        // Only follow nextLink if the caller did not specify $top — if they
+        // did, the server-side limit already constrains the result set.
+        if (!top.HasValue)
+            await FollowNextLinksAsync(conn, response, records, top: null, headers, ct).ConfigureAwait(false);
+
+        if (!includeAnnotations)
+            StripAnnotations(records);
+
+        return new DataverseQueryResult(records, records.Count);
+    }
+
+    // ──────────────────────── Private helpers ───────────────────────
+
+    /// <summary>
+    /// Throws <see cref="InvalidOperationException"/> when the SQL text
+    /// contains write-oriented keywords. Only SELECT queries are allowed.
+    /// </summary>
+    private static void ValidateSqlReadOnly(string sql)
+    {
+        if (WriteOperationPattern.IsMatch(sql))
+            throw new InvalidOperationException(
+                "Write operations (INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, MERGE) are not allowed. Only SELECT queries are supported.");
+    }
+
+    /// <summary>
+    /// Extracts the table logical name from the SQL FROM clause and
+    /// retrieves its <c>EntitySetName</c> via entity metadata.
+    /// </summary>
+    private static string ResolveEntitySetName(DataverseConnection conn, string sql)
+    {
+        // Simple regex to grab the first table name after FROM.
+        var match = Regex.Match(sql, @"\bFROM\s+(\w+)", RegexOptions.IgnoreCase);
+        if (!match.Success)
+            throw new InvalidOperationException("Could not parse a table name from the SQL FROM clause.");
+
+        var tableName = match.Groups[1].Value.ToLowerInvariant();
+
+        var metaRequest = new RetrieveEntityRequest
+        {
+            LogicalName = tableName,
+            EntityFilters = EntityFilters.Entity,
+        };
+
+        var metaResponse = (RetrieveEntityResponse)conn.Client.Execute(metaRequest);
+        return metaResponse.EntityMetadata.EntitySetName;
+    }
+
+    /// <summary>
+    /// Builds custom HTTP headers for ExecuteWebRequest calls.
+    /// The Dataverse <c>ServiceClient.ExecuteWebRequest</c> expects headers
+    /// as <c>Dictionary&lt;string, List&lt;string&gt;&gt;</c>.
+    /// </summary>
+    private static Dictionary<string, List<string>> BuildHeaders(bool includeAnnotations)
+    {
+        var headers = new Dictionary<string, List<string>>();
+        if (includeAnnotations)
+            headers["Prefer"] = new List<string> { "odata.include-annotations=*" };
+        return headers;
+    }
+
+    /// <summary>
+    /// Constructs the OData query path from individual query parameters.
+    /// </summary>
+    private static string BuildODataQueryPath(
+        string entitySetOrPath, string? select, string? filter, string? orderBy, int? top)
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(select))
+            parts.Add($"$select={select}");
+        if (!string.IsNullOrWhiteSpace(filter))
+            parts.Add($"$filter={filter}");
+        if (!string.IsNullOrWhiteSpace(orderBy))
+            parts.Add($"$orderby={orderBy}");
+        if (top.HasValue)
+            parts.Add($"$top={top.Value}");
+
+        return parts.Count > 0
+            ? $"{entitySetOrPath}?{string.Join("&", parts)}"
+            : entitySetOrPath;
+    }
+
+    /// <summary>
+    /// Parses the <c>value</c> array from a Web API JSON response.
+    /// </summary>
+    private static void ParseValueArray(HttpResponseMessage response, List<JsonElement> target)
+    {
+        var content = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+        using var doc = JsonDocument.Parse(content);
+
+        if (doc.RootElement.TryGetProperty("value", out var valueArray) &&
+            valueArray.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in valueArray.EnumerateArray())
+                target.Add(item.Clone());
+        }
+    }
+
+    /// <summary>
+    /// Follows <c>@odata.nextLink</c> URLs for automatic pagination.
+    /// NextLink URLs are absolute; we extract the relative path to pass
+    /// to <see cref="Microsoft.PowerPlatform.Dataverse.Client.ServiceClient.ExecuteWebRequest"/>.
+    /// </summary>
+    private static async Task FollowNextLinksAsync(
+        DataverseConnection conn,
+        HttpResponseMessage lastResponse,
+        List<JsonElement> records,
+        int? top,
+        Dictionary<string, List<string>> headers,
+        CancellationToken ct)
+    {
+        var currentResponse = lastResponse;
+
+        while (true)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var content = await currentResponse.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            using var doc = JsonDocument.Parse(content);
+
+            if (!doc.RootElement.TryGetProperty("@odata.nextLink", out var nextLinkElement))
+                break;
+
+            var nextLinkUrl = nextLinkElement.GetString();
+            if (string.IsNullOrWhiteSpace(nextLinkUrl))
+                break;
+
+            // Extract relative path from the absolute nextLink URL.
+            var relativePath = ExtractRelativePath(nextLinkUrl, conn);
+
+            currentResponse = conn.Client.ExecuteWebRequest(HttpMethod.Get, relativePath, string.Empty, headers);
+            ParseValueArray(currentResponse, records);
+
+            if (top.HasValue && records.Count >= top.Value)
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Extracts the relative path from an absolute nextLink URL by stripping
+    /// the base URI of the Dataverse environment.
+    /// </summary>
+    private static string ExtractRelativePath(string absoluteUrl, DataverseConnection conn)
+    {
+        if (Uri.TryCreate(absoluteUrl, UriKind.Absolute, out var uri))
+        {
+            // The ConnectedOrgUriActual gives us the org service URL; the Web API
+            // path is relative to the org root. We strip the scheme + host portion.
+            return uri.PathAndQuery.TrimStart('/');
+        }
+
+        // If it's already relative, just return it.
+        return absoluteUrl;
+    }
+
+    /// <summary>
+    /// Returns <c>true</c> when the FetchXML root has a <c>top</c> attribute,
+    /// meaning the server controls the row limit and paging must not be added
+    /// (Dataverse rejects <c>top</c> + <c>page</c> together).
+    /// </summary>
+    private static bool HasTopAttribute(string fetchXml)
+    {
+        var doc = XDocument.Parse(fetchXml);
+        return doc.Root?.Attribute("top") is not null;
+    }
+
+    /// <summary>
+    /// Applies paging information (page number and paging cookie) to a
+    /// FetchXML query string for multi-page retrieval. Skipped when the
+    /// FetchXML already contains a <c>top</c> attribute.
+    /// </summary>
+    private static string ApplyPaging(string fetchXml, int page, string? pagingCookie)
+    {
+        var doc = XDocument.Parse(fetchXml);
+        var fetchElement = doc.Root
+            ?? throw new InvalidOperationException("FetchXML document has no root element.");
+
+        // Do not add paging when the FetchXML already has a top attribute —
+        // Dataverse rejects the combination.
+        if (fetchElement.Attribute("top") is not null)
+            return fetchXml;
+
+        fetchElement.SetAttributeValue("page", page);
+
+        if (!string.IsNullOrWhiteSpace(pagingCookie))
+            fetchElement.SetAttributeValue("paging-cookie", pagingCookie);
+
+        return doc.ToString(SaveOptions.DisableFormatting);
+    }
+
+    /// <summary>
+    /// Converts a Dataverse <see cref="Entity"/> to a <see cref="JsonElement"/>
+    /// by serializing its attributes as a flat dictionary.
+    /// </summary>
+    private static JsonElement EntityToJsonElement(Entity entity, bool includeAnnotations)
+    {
+        var dict = new Dictionary<string, object?>();
+
+        foreach (var attr in entity.Attributes)
+        {
+            dict[attr.Key] = ConvertAttributeValue(attr.Value);
+        }
+
+        // Include formatted values (annotations) when requested.
+        if (includeAnnotations && entity.FormattedValues.Count > 0)
+        {
+            foreach (var fv in entity.FormattedValues)
+                dict[$"{fv.Key}@OData.Community.Display.V1.FormattedValue"] = fv.Value;
+        }
+
+        var json = JsonSerializer.Serialize(dict);
+        using var doc = JsonDocument.Parse(json);
+        return doc.RootElement.Clone();
+    }
+
+    /// <summary>
+    /// Converts SDK attribute values to JSON-safe primitives.
+    /// </summary>
+    private static object? ConvertAttributeValue(object? value)
+    {
+        return value switch
+        {
+            null => null,
+            EntityReference er => new { Id = er.Id, LogicalName = er.LogicalName, Name = er.Name },
+            OptionSetValue osv => osv.Value,
+            Money m => m.Value,
+            AliasedValue av => ConvertAttributeValue(av.Value),
+            _ => value,
+        };
+    }
+
+    /// <summary>
+    /// Removes OData/Microsoft annotation keys from each record's properties.
+    /// Called by default unless <c>includeAnnotations</c> is <c>true</c>.
+    /// </summary>
+    private static void StripAnnotations(List<JsonElement> records)
+    {
+        for (int i = 0; i < records.Count; i++)
+        {
+            if (records[i].ValueKind != JsonValueKind.Object)
+                continue;
+
+            var dict = new Dictionary<string, JsonElement>();
+            bool hasAnnotations = false;
+
+            foreach (var prop in records[i].EnumerateObject())
+            {
+                if (IsAnnotationKey(prop.Name))
+                {
+                    hasAnnotations = true;
+                    continue;
+                }
+                dict[prop.Name] = prop.Value.Clone();
+            }
+
+            if (hasAnnotations)
+            {
+                var json = JsonSerializer.Serialize(dict);
+                using var doc = JsonDocument.Parse(json);
+                records[i] = doc.RootElement.Clone();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Returns <c>true</c> when the property name is an OData/Dataverse annotation.
+    /// </summary>
+    private static bool IsAnnotationKey(string key)
+    {
+        foreach (var prefix in AnnotationPrefixes)
+        {
+            if (key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
+    }
+}
