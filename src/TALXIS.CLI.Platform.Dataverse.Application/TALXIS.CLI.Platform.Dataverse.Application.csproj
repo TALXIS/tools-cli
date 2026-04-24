@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>TALXIS.CLI.Platform.Dataverse.Application</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.PowerPlatform.Dataverse.Client" Version="1.2.10" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TALXIS.CLI.Core\TALXIS.CLI.Core.csproj" />
+    <ProjectReference Include="..\TALXIS.CLI.Logging\TALXIS.CLI.Logging.csproj" />
+    <ProjectReference Include="..\TALXIS.CLI.Platform.Dataverse\TALXIS.CLI.Platform.Dataverse.csproj" />
+    <ProjectReference Include="..\TALXIS.CLI.Platform.Xrm\TALXIS.CLI.Platform.Xrm.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="TALXIS.CLI.Tests" />
+  </ItemGroup>
+
+</Project>

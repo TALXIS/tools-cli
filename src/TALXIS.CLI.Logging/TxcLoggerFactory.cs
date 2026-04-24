@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Console;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace TALXIS.CLI.Logging;
 
@@ -19,12 +20,21 @@ public static class TxcLoggerFactory
 
     public static ILogger CreateLogger(string categoryName) => Instance.CreateLogger(categoryName);
 
+    public static IServiceCollection AddTxcLogging(this IServiceCollection services)
+    {
+        services.AddLogging(Configure);
+        return services;
+    }
+
     private static ILoggerFactory Create()
+        => LoggerFactory.Create(Configure);
+
+    public static void Configure(ILoggingBuilder builder)
     {
         string? logFormat = System.Environment.GetEnvironmentVariable("TXC_LOG_FORMAT");
         string? configuredLogLevel = System.Environment.GetEnvironmentVariable("TXC_LOG_LEVEL");
         // Use JSON stderr mode when explicitly requested OR when stdout is
-        // redirected (e.g. piped into an MCP stdio transport).  This prevents
+        // redirected (e.g. piped into an MCP stdio transport). This prevents
         // the SimpleConsole provider from writing to stdout and corrupting the
         // JSON-RPC stream.
         bool jsonMode = logFormat == "json" || System.Console.IsOutputRedirected;
@@ -33,22 +43,20 @@ public static class TxcLoggerFactory
             ? parsed
             : LogLevel.Information;
 
-        return LoggerFactory.Create(builder =>
-        {
-            builder.SetMinimumLevel(minimumLogLevel);
+        builder.ClearProviders();
+        builder.SetMinimumLevel(minimumLogLevel);
 
-            if (jsonMode)
+        if (jsonMode)
+        {
+            builder.AddProvider(new JsonStderrLoggerProvider());
+        }
+        else
+        {
+            builder.AddSimpleConsole(opts =>
             {
-                builder.AddProvider(new JsonStderrLoggerProvider());
-            }
-            else
-            {
-                builder.AddSimpleConsole(opts =>
-                {
-                    opts.SingleLine = true;
-                    opts.ColorBehavior = LoggerColorBehavior.Enabled;
-                });
-            }
-        });
+                opts.SingleLine = true;
+                opts.ColorBehavior = LoggerColorBehavior.Enabled;
+            });
+        }
     }
 }

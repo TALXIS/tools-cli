@@ -60,4 +60,13 @@ public class ProviderUrlResolverTests
     {
         Assert.Null(ProviderUrlResolver.DeriveDefaultName(url));
     }
+
+    [Theory]
+    [InlineData("Contoso Dev", "https://org0fadb1dd.crm.dynamics.com/", "contoso-dev-org0fadb1dd")]
+    [InlineData("Org0fadb1dd", "https://org0fadb1dd.crm.dynamics.com/", "org0fadb1dd")]
+    [InlineData("Very Long Environment Name That Should Still Keep The Host Visible", "https://org0fadb1dd.crm.dynamics.com/", "very-long-environment-name-that-should-still-keep-th-org0fadb1dd")]
+    public void DeriveDefaultName_UsesDisplayNameAndKeepsHostSuffix(string displayName, string url, string expected)
+    {
+        Assert.Equal(expected, ProviderUrlResolver.DeriveDefaultName(displayName, url));
+    }
 }

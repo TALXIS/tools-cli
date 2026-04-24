@@ -61,6 +61,10 @@ public sealed class DataverseInteractiveLoginService : IInteractiveLoginService
             throw new InvalidOperationException(
                 "Sign-in succeeded but MSAL did not return a UPN. Try again with --alias to provide one explicitly.");
 
-        return new InteractiveLoginResult(upn, result.TenantId);
+        return new InteractiveLoginResult(
+            upn,
+            result.TenantId,
+            result.Account?.HomeAccountId?.Identifier,
+            DataverseMsalClientFactory.PublicClientId);
     }
 }

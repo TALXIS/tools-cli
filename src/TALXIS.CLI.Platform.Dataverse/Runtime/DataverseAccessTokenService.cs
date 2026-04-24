@@ -85,9 +85,16 @@ public sealed class DataverseAccessTokenService : IDataverseAccessTokenService
         _cacheBinder.Attach(app.UserTokenCache);
 
         var accounts = await app.GetAccountsAsync().ConfigureAwait(false);
-        // Prefer the account whose UPN matches the credential alias (case-insensitive).
         var account = accounts.FirstOrDefault(a =>
-            string.Equals(a.Username, credential.Id, StringComparison.OrdinalIgnoreCase))
+                !string.IsNullOrWhiteSpace(credential.InteractiveAccountId)
+                && string.Equals(a.HomeAccountId?.Identifier, credential.InteractiveAccountId, StringComparison.OrdinalIgnoreCase))
+            ?? accounts.FirstOrDefault(a =>
+                !string.IsNullOrWhiteSpace(credential.InteractiveUpn)
+                && string.Equals(a.Username, credential.InteractiveUpn, StringComparison.OrdinalIgnoreCase))
+            // Backward compatibility for credentials created before txc stored
+            // a stable interactive account id.
+            ?? accounts.FirstOrDefault(a =>
+                string.Equals(a.Username, credential.Id, StringComparison.OrdinalIgnoreCase))
             ?? accounts.FirstOrDefault();
 
         if (account is null)

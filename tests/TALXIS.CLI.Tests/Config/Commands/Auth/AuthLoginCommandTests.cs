@@ -4,6 +4,7 @@ using TALXIS.CLI.Core.Bootstrapping;
 using TALXIS.CLI.Features.Config.Auth;
 using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Core;
+using TALXIS.CLI.Platform.Dataverse.Msal;
 using Xunit;
 
 namespace TALXIS.CLI.Tests.Config.Commands.Auth;
@@ -15,7 +16,11 @@ public sealed class AuthLoginCommandTests
     public async Task Login_PersistsCredential_WithUpnAlias()
     {
         using var host = new CommandTestHost(
-            loginResult: new InteractiveLoginResult("tomas@contoso.com", "t-guid"));
+            loginResult: new InteractiveLoginResult(
+                "tomas@contoso.com",
+                "t-guid",
+                "account-guid",
+                DataverseMsalClientFactory.PublicClientId));
         var store = (ICredentialStore)host.Provider.GetService(typeof(ICredentialStore))!;
 
         var sw = new StringWriter();
@@ -34,6 +39,9 @@ public sealed class AuthLoginCommandTests
         Assert.Equal(CredentialKind.InteractiveBrowser, cred.Kind);
         Assert.Equal("t-guid", cred.TenantId);
         Assert.Equal(CloudInstance.Public, cred.Cloud);
+        Assert.Equal("account-guid", cred.InteractiveAccountId);
+        Assert.Equal("tomas@contoso.com", cred.InteractiveUpn);
+        Assert.Equal(DataverseMsalClientFactory.PublicClientId, cred.ApplicationId);
 
         using var doc = JsonDocument.Parse(sw.ToString());
         Assert.Equal("tomas@contoso.com", doc.RootElement.GetProperty("id").GetString());
@@ -98,6 +106,102 @@ public sealed class AuthLoginCommandTests
         Assert.Equal(0, exit);
         var creds = await store.ListAsync(default);
         Assert.Contains(creds, c => c.Id == "tomas@contoso.com-2");
+    }
+
+    [Fact]
+    public async Task Login_ReusesExistingInteractiveCredential_ForSameAccount()
+    {
+        using var host = new CommandTestHost(
+            loginResult: new InteractiveLoginResult(
+                "tomas@contoso.com",
+                "t-guid",
+                "account-1",
+                DataverseMsalClientFactory.PublicClientId));
+        var store = (ICredentialStore)host.Provider.GetService(typeof(ICredentialStore))!;
+        await store.UpsertAsync(new Credential
+        {
+            Id = "shared",
+            Kind = CredentialKind.InteractiveBrowser,
+            TenantId = "t-guid",
+            Cloud = CloudInstance.Public,
+            ApplicationId = DataverseMsalClientFactory.PublicClientId,
+            InteractiveAccountId = "account-1",
+            InteractiveUpn = "tomas@contoso.com",
+            Description = "Interactive sign-in (tomas@contoso.com)",
+        }, default);
+
+        var sw = new StringWriter();
+        using (OutputWriter.RedirectTo(sw))
+        {
+            var exit = await new AuthLoginCliCommand().RunAsync();
+            Assert.Equal(0, exit);
+        }
+
+        var creds = await store.ListAsync(default);
+        var cred = Assert.Single(creds);
+        Assert.Equal("shared", cred.Id);
+
+        using var doc = JsonDocument.Parse(sw.ToString());
+        Assert.Equal("shared", doc.RootElement.GetProperty("id").GetString());
+    }
+
+    [Fact]
+    public async Task Login_ReusesLegacyUpnAliasedInteractiveCredential_AndBackfillsIdentity()
+    {
+        using var host = new CommandTestHost(
+            loginResult: new InteractiveLoginResult(
+                "tomas@contoso.com",
+                "t-guid",
+                "account-1",
+                DataverseMsalClientFactory.PublicClientId));
+        var store = (ICredentialStore)host.Provider.GetService(typeof(ICredentialStore))!;
+        await store.UpsertAsync(new Credential
+        {
+            Id = "tomas@contoso.com",
+            Kind = CredentialKind.InteractiveBrowser,
+            TenantId = "t-guid",
+            Cloud = CloudInstance.Public,
+        }, default);
+
+        var exit = await new AuthLoginCliCommand().RunAsync();
+        Assert.Equal(0, exit);
+
+        var creds = await store.ListAsync(default);
+        var cred = Assert.Single(creds);
+        Assert.Equal("tomas@contoso.com", cred.Id);
+        Assert.Equal("account-1", cred.InteractiveAccountId);
+        Assert.Equal("tomas@contoso.com", cred.InteractiveUpn);
+        Assert.Equal(DataverseMsalClientFactory.PublicClientId, cred.ApplicationId);
+    }
+
+    [Fact]
+    public async Task Login_WithExplicitAlias_ReusesExistingSameAccountCredential()
+    {
+        using var host = new CommandTestHost(
+            loginResult: new InteractiveLoginResult(
+                "tomas@contoso.com",
+                "t-guid",
+                "account-1",
+                DataverseMsalClientFactory.PublicClientId));
+        var store = (ICredentialStore)host.Provider.GetService(typeof(ICredentialStore))!;
+        await store.UpsertAsync(new Credential
+        {
+            Id = "shared",
+            Kind = CredentialKind.InteractiveBrowser,
+            TenantId = "t-guid",
+            Cloud = CloudInstance.Public,
+            ApplicationId = DataverseMsalClientFactory.PublicClientId,
+            InteractiveAccountId = "account-1",
+            InteractiveUpn = "tomas@contoso.com",
+        }, default);
+
+        var exit = await new AuthLoginCliCommand { Alias = "other-name" }.RunAsync();
+        Assert.Equal(0, exit);
+
+        var creds = await store.ListAsync(default);
+        var cred = Assert.Single(creds);
+        Assert.Equal("shared", cred.Id);
+        Assert.Null(await store.GetAsync("other-name", default));
     }
 
     [Fact]

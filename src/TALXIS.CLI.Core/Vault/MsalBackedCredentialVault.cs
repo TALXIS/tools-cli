@@ -133,6 +133,23 @@ public sealed class MsalBackedCredentialVault : ICredentialVault
         finally { _gate.Release(); }
     }
 
+    public async Task ClearAsync(CancellationToken ct)
+    {
+        await _gate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            try
+            {
+                _helper.Clear();
+            }
+            catch (Exception ex)
+            {
+                throw new VaultUnavailableException(ex);
+            }
+        }
+        finally { _gate.Release(); }
+    }
+
     private Dictionary<string, string> LoadBlob()
     {
         byte[] raw;

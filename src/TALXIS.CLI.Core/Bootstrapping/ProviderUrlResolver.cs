@@ -60,6 +60,43 @@ public static class ProviderUrlResolver
             $"Cannot infer provider from host '{uri.Host}'. Pass --provider explicitly. Known host suffixes: {known}.");
     }
 
+    private const int MaxDefaultNameLength = 64;
+
+    /// <summary>
+    /// Derives a default profile/connection name from the Power Platform
+    /// environment display name plus the URL host's first DNS label. When
+    /// no display name is available, falls back to the first DNS label only.
+    /// Names are lowercased, non-alphanumeric runs collapse to <c>-</c>, and
+    /// the result is capped at 64 characters.
+    /// </summary>
+    public static string? DeriveDefaultName(string? environmentDisplayName, string? url)
+    {
+        var hostSlug = DeriveHostSlug(url);
+        var displaySlug = Slugify(environmentDisplayName);
+
+        if (string.IsNullOrEmpty(displaySlug))
+            return hostSlug;
+        if (string.IsNullOrEmpty(hostSlug))
+            return displaySlug;
+        if (string.Equals(displaySlug, hostSlug, StringComparison.Ordinal))
+            return displaySlug;
+        if (displaySlug.Split('-', StringSplitOptions.RemoveEmptyEntries)
+            .Contains(hostSlug, StringComparer.Ordinal))
+            return TruncateSlug(displaySlug);
+
+        var maxDisplayLength = MaxDefaultNameLength - hostSlug.Length - 1;
+        if (maxDisplayLength <= 0)
+            return TruncateSlug(hostSlug);
+
+        var displayPrefix = displaySlug.Length <= maxDisplayLength
+            ? displaySlug
+            : TrimTrailingDash(displaySlug[..maxDisplayLength]);
+
+        return string.IsNullOrEmpty(displayPrefix)
+            ? TruncateSlug(hostSlug)
+            : $"{displayPrefix}-{hostSlug}";
+    }
+
     /// <summary>
     /// Derives a default profile/connection name from the URL host's
     /// first DNS label (<c>https://contoso.crm4.dynamics.com/</c> →
@@ -68,6 +105,9 @@ public static class ProviderUrlResolver
     /// is malformed or yields no usable label.
     /// </summary>
     public static string? DeriveDefaultName(string? url)
+        => DeriveDefaultName(environmentDisplayName: null, url);
+
+    private static string? DeriveHostSlug(string? url)
     {
         if (string.IsNullOrWhiteSpace(url)) return null;
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return null;
@@ -77,9 +117,16 @@ public static class ProviderUrlResolver
         var dot = host.IndexOf('.');
         var head = dot > 0 ? host[..dot] : host;
 
-        var buf = new System.Text.StringBuilder(head.Length);
+        return Slugify(head);
+    }
+
+    private static string? Slugify(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+
+        var buf = new System.Text.StringBuilder(value.Length);
         var lastDash = true;
-        foreach (var c in head.ToLowerInvariant())
+        foreach (var c in value.Trim().ToLowerInvariant())
         {
             if (char.IsLetterOrDigit(c))
             {
@@ -92,13 +139,28 @@ public static class ProviderUrlResolver
                 lastDash = true;
             }
         }
-        while (buf.Length > 0 && buf[^1] == '-')
-            buf.Length--;
 
-        if (buf.Length == 0) return null;
-        if (buf.Length > 64) buf.Length = 64;
-        while (buf.Length > 0 && buf[^1] == '-')
-            buf.Length--;
-        return buf.Length == 0 ? null : buf.ToString();
+        return TruncateSlug(buf.ToString());
+    }
+
+    private static string? TruncateSlug(string? slug)
+    {
+        if (string.IsNullOrEmpty(slug)) return null;
+
+        var trimmed = slug.Length > MaxDefaultNameLength
+            ? slug[..MaxDefaultNameLength]
+            : slug;
+
+        trimmed = TrimTrailingDash(trimmed);
+        return string.IsNullOrEmpty(trimmed) ? null : trimmed;
+    }
+
+    private static string TrimTrailingDash(string value)
+    {
+        var trimmed = value;
+        while (trimmed.Length > 0 && trimmed[^1] == '-')
+            trimmed = trimmed[..^1];
+
+        return trimmed;
     }
 }

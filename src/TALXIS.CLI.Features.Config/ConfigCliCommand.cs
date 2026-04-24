@@ -14,6 +14,7 @@ namespace TALXIS.CLI.Features.Config;
     Description = "Manage txc profiles, connections, credentials, and settings.",
     Children = new[]
     {
+        typeof(ConfigClearCliCommand),
         typeof(Auth.AuthCliCommand),
         typeof(Connection.ConnectionCliCommand),
         typeof(Profile.ProfileCliCommand),

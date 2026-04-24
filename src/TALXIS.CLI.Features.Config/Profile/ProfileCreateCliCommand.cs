@@ -29,8 +29,9 @@ namespace TALXIS.CLI.Features.Config.Profile;
 /// </para>
 ///
 /// <para>
-/// First profile created is auto-promoted to the global active profile
-/// — same behaviour as before.
+/// In <c>--url</c> mode the created profile is selected automatically unless
+/// <c>--no-select</c> is passed. In explicit mode, the first profile created
+/// is auto-promoted to the global active profile — same behaviour as before.
 /// </para>
 /// </summary>
 [CliCommand(
@@ -41,11 +42,14 @@ public class ProfileCreateCliCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ProfileCreateCliCommand));
 
-    [CliOption(Name = "--name", Aliases = new[] { "-n" }, Description = "Profile name (slug). Optional — derived from --url host or --connection when omitted.", Required = false)]
+    [CliOption(Name = "--name", Aliases = new[] { "-n" }, Description = "Profile name (slug). Optional — derived from the Power Platform environment name and URL host, or from --connection when omitted.", Required = false)]
     public string? Name { get; set; }
 
     [CliOption(Name = "--url", Description = "Service URL to bootstrap from. Triggers interactive sign-in, credential upsert, and connection creation in one step.", Required = false)]
     public string? Url { get; set; }
+
+    [CliOption(Name = "--no-select", Description = "Do not make the created profile active. Used only with --url.", Required = false)]
+    public bool NoSelect { get; set; }
 
     [CliOption(Name = "--provider", Description = "Connection provider. Optional in --url mode (inferred from the URL host).", Required = false)]
     public ProviderKind? Provider { get; set; }
@@ -106,6 +110,7 @@ public class ProfileCreateCliCommand
         // two modes write different primitives (one-liner *creates* a
         // credential; explicit *references* one).
         if (hasUrl && (hasAuth || hasConnection)) return Mode.Invalid;
+        if (NoSelect && !hasUrl) return Mode.Invalid;
         if (hasUrl) return Mode.OneLiner;
         if (hasAuth && hasConnection) return Mode.Explicit;
         return Mode.Invalid;
@@ -114,13 +119,19 @@ public class ProfileCreateCliCommand
     private int LogUsageError()
     {
         _logger.LogError(
-            "Specify either --url <service-url> (quickstart) or --auth <alias> --connection <name> (advanced). " +
+            "Specify either --url <service-url> [--no-select] (quickstart) or --auth <alias> --connection <name> (advanced). " +
             "Example: txc config profile create --url https://contoso.crm4.dynamics.com/");
         return 1;
     }
 
     private async Task<int> RunOneLinerAsync()
     {
+        if (!IsAbsoluteHttpUrl(Url))
+        {
+            _logger.LogError("'{Url}' is not an absolute http(s) URL.", Url);
+            return 1;
+        }
+
         var inference = ProviderUrlResolver.Infer(Url);
         var provider = Provider ?? inference.Provider;
         if (provider is null)
@@ -146,22 +157,11 @@ public class ProfileCreateCliCommand
             return 1;
         }
 
-        var profileStore = TxcServices.Get<IProfileStore>();
-        var connectionStore = TxcServices.Get<IConnectionStore>();
-
-        var name = await ResolveProfileNameAsync(profileStore, connectionStore).ConfigureAwait(false);
-        if (name is null)
-        {
-            _logger.LogError(
-                "Cannot derive a profile name from --url '{Url}'. Pass --name explicitly.", Url);
-            return 1;
-        }
-
         var request = new ProfileBootstrapRequest(
-            Name: name,
+            Name: string.IsNullOrWhiteSpace(Name) ? null : Name.Trim(),
             Provider: provider.Value,
             EnvironmentUrl: Url!,
-            Cloud: Cloud ?? CloudInstance.Public,
+            Cloud: Cloud,
             TenantId: Tenant,
             Description: Description);
 
@@ -172,7 +172,12 @@ public class ProfileCreateCliCommand
             return 1;
         }
 
-        return await PersistProfileAsync(name, result.Credential!.Id, result.Connection!.Id, result.Upn).ConfigureAwait(false);
+        return await PersistProfileAsync(
+            result.ProfileName,
+            result.Credential!.Id,
+            result.Connection.Id,
+            result.Upn,
+            NoSelect ? ProfileActivationMode.Never : ProfileActivationMode.Always).ConfigureAwait(false);
     }
 
     private async Task<int> RunExplicitAsync()
@@ -202,29 +207,27 @@ public class ProfileCreateCliCommand
             return 1;
         }
 
-        return await PersistProfileAsync(name, credential.Id, connection.Id, upn: null).ConfigureAwait(false);
+        return await PersistProfileAsync(
+            name,
+            credential.Id,
+            connection.Id,
+            upn: null,
+            ProfileActivationMode.IfMissing).ConfigureAwait(false);
     }
 
-    private async Task<string?> ResolveProfileNameAsync(IProfileStore profiles, IConnectionStore connections)
+    private enum ProfileActivationMode
     {
-        var explicitName = string.IsNullOrWhiteSpace(Name) ? null : Name!.Trim();
-        if (!string.IsNullOrEmpty(explicitName)) return explicitName;
-
-        var derived = ProviderUrlResolver.DeriveDefaultName(Url);
-        if (string.IsNullOrEmpty(derived)) return null;
-
-        // Keep profile + connection names aligned so the mental model is
-        // "one name, one profile, one connection" in the quickstart flow.
-        // Probe both stores when picking a free suffix.
-        return await CredentialAliasResolver.ResolveFreeNameAsync(
-            derived!,
-            async (candidate, ct) =>
-                await profiles.GetAsync(candidate, ct).ConfigureAwait(false) is not null
-                || await connections.GetAsync(candidate, ct).ConfigureAwait(false) is not null,
-            CancellationToken.None).ConfigureAwait(false);
+        IfMissing,
+        Always,
+        Never,
     }
 
-    private async Task<int> PersistProfileAsync(string name, string credentialId, string connectionId, string? upn)
+    private async Task<int> PersistProfileAsync(
+        string name,
+        string credentialId,
+        string connectionId,
+        string? upn,
+        ProfileActivationMode activationMode)
     {
         var profileStore = TxcServices.Get<IProfileStore>();
         var globalConfig = TxcServices.Get<IGlobalConfigStore>();
@@ -240,12 +243,19 @@ public class ProfileCreateCliCommand
         await profileStore.UpsertAsync(profile, CancellationToken.None).ConfigureAwait(false);
 
         var global = await globalConfig.LoadAsync(CancellationToken.None).ConfigureAwait(false);
-        var promoted = false;
-        if (string.IsNullOrWhiteSpace(global.ActiveProfile))
+        var activated = false;
+        if (activationMode == ProfileActivationMode.Always)
         {
             global.ActiveProfile = profile.Id;
             await globalConfig.SaveAsync(global, CancellationToken.None).ConfigureAwait(false);
-            promoted = true;
+            activated = true;
+            _logger.LogInformation("Profile '{Id}' is now the active profile.", profile.Id);
+        }
+        else if (activationMode == ProfileActivationMode.IfMissing && string.IsNullOrWhiteSpace(global.ActiveProfile))
+        {
+            global.ActiveProfile = profile.Id;
+            await globalConfig.SaveAsync(global, CancellationToken.None).ConfigureAwait(false);
+            activated = true;
             _logger.LogInformation("Profile '{Id}' is now the active profile.", profile.Id);
         }
 
@@ -261,10 +271,14 @@ public class ProfileCreateCliCommand
                 connectionRef = profile.ConnectionRef,
                 credentialRef = profile.CredentialRef,
                 description = profile.Description,
-                active = promoted,
+                active = activated,
                 upn,
             },
             TxcJsonOptions.Default));
         return 0;
     }
+
+    private static bool IsAbsoluteHttpUrl(string? url)
+        => Uri.TryCreate(url, UriKind.Absolute, out var uri)
+           && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
 }

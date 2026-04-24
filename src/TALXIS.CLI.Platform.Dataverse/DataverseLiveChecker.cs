@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Platform.Dataverse.Runtime;
 
@@ -99,17 +100,4 @@ public sealed class DataverseLiveChecker : IDataverseLiveChecker
         => string.IsNullOrEmpty(s) ? string.Empty : (s.Length <= max ? s : s[..max] + "...");
 }
 
-/// <summary>
-/// Thin seam so tests can swap the <see cref="HttpClient"/> used by
-/// <see cref="DataverseLiveChecker"/> without standing up a real HTTP stack.
-/// </summary>
-public interface IHttpClientFactoryWrapper
-{
-    HttpClient Create();
-}
 
-internal sealed class DefaultHttpClientFactoryWrapper : IHttpClientFactoryWrapper
-{
-    public static readonly DefaultHttpClientFactoryWrapper Instance = new();
-    public HttpClient Create() => new();
-}

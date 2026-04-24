@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Core.Resolution;
@@ -85,12 +86,36 @@ public class PrecedenceTests
         Assert.Contains("ghost", ex.Message);
     }
 
+    [Fact]
+    public async Task Resolve_LogsResolvedTargetContext()
+    {
+        using var dir = new TempConfigDir();
+        var logger = new CapturingLogger<ConfigurationResolver>();
+        var (resolver, _) = await SetupAsync(
+            dir,
+            env: new(),
+            globalActive: "from-global",
+            workspaceDefault: null,
+            profiles: new[] { "from-global" },
+            log: logger);
+
+        var ctx = await resolver.ResolveAsync(null, CancellationToken.None);
+
+        Assert.Equal("from-global", ctx.Profile!.Id);
+        var entry = Assert.Single(logger.LogEntries, x => x.Level == LogLevel.Information);
+        Assert.Contains("https://x/", entry.Message);
+        Assert.Contains("from-global", entry.Message);
+        Assert.Contains("conn", entry.Message);
+        Assert.Contains("cred", entry.Message);
+    }
+
     private static async Task<(ConfigurationResolver resolver, FakeEnv env)> SetupAsync(
         TempConfigDir dir,
         Dictionary<string, string?> env,
         string? globalActive,
         string? workspaceDefault,
-        string[] profiles)
+        string[] profiles,
+        ILogger<ConfigurationResolver>? log = null)
     {
         var profileStore = new ProfileStore(dir.Paths);
         var connectionStore = new ConnectionStore(dir.Paths);
@@ -125,7 +150,7 @@ public class PrecedenceTests
         var fakeEnv = new FakeEnv(env, cwd);
         var resolver = new ConfigurationResolver(
             profileStore, connectionStore, credentialStore, globalStore,
-            new WorkspaceDiscovery(), fakeEnv);
+            new WorkspaceDiscovery(), fakeEnv, log);
         return (resolver, fakeEnv);
     }
 
@@ -136,5 +161,24 @@ public class PrecedenceTests
         public FakeEnv(Dictionary<string, string?> env, string cwd) { _env = env; _cwd = cwd; }
         public string? Get(string name) => _env.TryGetValue(name, out var v) ? v : null;
         public string GetCurrentDirectory() => _cwd;
+    }
+
+    private sealed class CapturingLogger<T> : ILogger<T>
+    {
+        public List<(LogLevel Level, string Message)> LogEntries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            LogEntries.Add((logLevel, formatter(state, exception)));
+        }
     }
 }
