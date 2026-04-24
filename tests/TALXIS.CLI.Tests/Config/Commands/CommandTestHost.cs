@@ -48,10 +48,8 @@ internal sealed class CommandTestHost : IDisposable
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Temp.Paths);
-        services.AddSingleton<IEnvironmentReader>(
-            currentDirectory is null
-                ? ProcessEnvironmentReader.Instance
-                : new FakeEnvironmentReader(currentDirectory));
+        var envReader = new FakeEnvironmentReader(currentDirectory ?? Directory.GetCurrentDirectory());
+        services.AddSingleton<IEnvironmentReader>(envReader);
         services.AddSingleton<IProfileStore, ProfileStore>();
         services.AddSingleton<IConnectionStore, ConnectionStore>();
         services.AddSingleton<ICredentialStore, CredentialStore>();
@@ -65,11 +63,7 @@ internal sealed class CommandTestHost : IDisposable
         services.AddSingleton<IPowerPlatformEnvironmentCatalog>(EnvironmentCatalog);
         services.AddSingleton(_ =>
             MsalTokenCacheBinder
-                .CreateForTestingAsync(VaultOptions.MsalTokenCache(
-                    currentDirectory is null
-                        ? ProcessEnvironmentReader.Instance
-                        : new FakeEnvironmentReader(currentDirectory)),
-                    Temp.Paths)
+                .CreateForTestingAsync(VaultOptions.MsalTokenCache(envReader), Temp.Paths)
                 .GetAwaiter()
                 .GetResult());
         services.AddSingleton<ITokenCacheStore>(sp => sp.GetRequiredService<MsalTokenCacheBinder>());
@@ -123,7 +117,14 @@ internal sealed class CommandTestHost : IDisposable
     {
         private readonly string _cwd;
         public FakeEnvironmentReader(string cwd) { _cwd = cwd; }
-        public string? Get(string name) => System.Environment.GetEnvironmentVariable(name);
+        public string? Get(string name)
+        {
+            // Force plaintext fallback so tests work on headless Linux CI
+            // where no keyring / secret service is available.
+            if (name == Core.Vault.VaultOptions.LinuxPlaintextEnvVar && OperatingSystem.IsLinux())
+                return "true";
+            return System.Environment.GetEnvironmentVariable(name);
+        }
         public string GetCurrentDirectory() => _cwd;
     }
 
