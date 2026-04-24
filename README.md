@@ -111,6 +111,36 @@ txc data pkg import ./data-package
 txc data pkg convert --input export.xlsx --output data.xml
 ```
 
+**Query Dataverse with OData:**
+```sh
+txc env data query odata accounts --select "name,revenue" --filter "revenue gt 1000000" --top 10
+```
+
+**Run a FetchXML query:**
+```sh
+txc env data query fetchxml '<fetch top="5"><entity name="contact"><attribute name="fullname"/></entity></fetch>'
+```
+
+**Run a SQL query against Dataverse:**
+```sh
+txc env data query sql "SELECT fullname, emailaddress1 FROM contact WHERE statecode = 0" --top 20
+```
+
+**Get a single record by ID:**
+```sh
+txc env data record get --entity account 00000000-0000-0000-0000-000000000001 --columns "name,revenue"
+```
+
+**Create a record:**
+```sh
+txc env data record create --entity account --data '{"name":"Contoso Ltd","revenue":5000000}'
+```
+
+**Bulk upsert records from a JSON file:**
+```sh
+txc env data bulk upsert --entity contact --file ./contacts.json
+```
+
 **List environment management settings (control plane):**
 ```sh
 txc env setting list --filter powerApps
