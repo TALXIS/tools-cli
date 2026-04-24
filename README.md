@@ -74,6 +74,32 @@ For explicit credential / connection / profile steps, repository pinning, or hea
 
 The examples below assume you have an active profile (see [above](#identity-connections--profiles)). Pass `--profile <name>` to any command to override the active profile for a single invocation.
 
+`txc` organises environment operations into three planes, mirroring how the Power Platform itself separates concerns:
+
+| Plane | What it covers | API surface | Commands |
+|-------|---------------|-------------|----------|
+| **Control plane** | Environment-level governance & feature toggles | `api.powerplatform.com/environmentmanagement` | `txc env setting …` |
+| **Application plane** | Solutions, packages, deployments | Dataverse Web API + Package Deployer | `txc env sln …`, `txc env pkg …`, `txc env deploy …` |
+| **Data plane** | Records, queries, bulk operations | Dataverse Web API (OData / FetchXML / SQL) | `txc env data …` |
+
+### Control Plane
+
+Manage environment-level settings exposed by the Power Platform admin API — feature toggles, Copilot flags, IP restrictions, and more.
+
+**List environment management settings:**
+```sh
+txc env setting list --filter powerApps
+```
+
+**Enable code-first apps (Power Apps code components):**
+```sh
+txc env setting update --name powerApps_AllowCodeApps --value true
+```
+
+### Application Plane
+
+Deploy, inspect, and manage solutions and packages in the target environment.
+
 **Deploy the latest package from NuGet:**
 ```sh
 txc env pkg import TALXIS.Controls.FileExplorer.Package
@@ -101,17 +127,11 @@ txc env deploy show --async-operation-id <asyncOperationId>
 txc env sln import ./Solutions/MySolution_managed.zip --profile customer-b-prod
 ```
 
-**Import a CMT data folder into Dataverse:**
-```sh
-txc data pkg import ./data-package
-```
+### Data Plane
 
-**Convert Excel to CMT XML:**
-```sh
-txc data pkg convert --input export.xlsx --output data.xml
-```
+Query, create, update, and bulk-operate on Dataverse records. Supports OData, FetchXML, and a T-SQL subset — all through the Dataverse Web API.
 
-**Query Dataverse with OData:**
+**Query with OData:**
 ```sh
 txc env data query odata accounts --select "name,revenue" --filter "revenue gt 1000000" --top 10
 ```
@@ -121,7 +141,7 @@ txc env data query odata accounts --select "name,revenue" --filter "revenue gt 1
 txc env data query fetchxml '<fetch top="5"><entity name="contact"><attribute name="fullname"/></entity></fetch>'
 ```
 
-**Run a SQL query against Dataverse:**
+**Run a SQL query:**
 ```sh
 txc env data query sql "SELECT fullname, emailaddress1 FROM contact WHERE statecode = 0" --top 20
 ```
@@ -141,15 +161,23 @@ txc env data record create --entity account --data '{"name":"Contoso Ltd","reven
 txc env data bulk upsert --entity contact --file ./contacts.json
 ```
 
-**List environment management settings (control plane):**
+### Offline / Local Data
+
+CMT data operations that work against local files — no live environment needed.
+
+**Import a CMT data folder into Dataverse:**
 ```sh
-txc env setting list --filter powerApps
+txc data pkg import ./data-package
 ```
 
-**Enable code-first apps (Power Apps code components):**
+**Convert Excel to CMT XML:**
 ```sh
-txc env setting update --name powerApps_AllowCodeApps --value true
+txc data pkg convert --input export.xlsx --output data.xml
 ```
+
+### Workspace Scaffolding
+
+Scaffold and manage project components from templates.
 
 **List available workspace components:**
 ```sh
@@ -172,7 +200,7 @@ txc workspace component parameter list pp-entity
 **Scaffold a Dataverse entity component:**
 ```sh
 txc workspace component create pp-entity \
-  --output "/Users/tomasprokop/Desktop/mcp-test/test" \
+  --output ./src/Declarations \
   --param Behavior=New \
   --param PublisherPrefix=tom \
   --param LogicalName=location \
