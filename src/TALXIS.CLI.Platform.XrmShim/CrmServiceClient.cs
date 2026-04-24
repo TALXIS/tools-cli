@@ -159,11 +159,11 @@ public class CrmServiceClient : ServiceClient, IDisposable
     /// <c>GetServerVersion</c>/<c>RefreshInstanceDetails</c> for
     /// <c>ExternalTokenManagement</c> auth).
     /// <para>
-    /// This override issues a <c>RetrieveVersion</c> request to obtain the
-    /// real version from the response body. If that fails, it falls back to
-    /// accessing <see cref="ServiceClient.OrganizationDetail"/> which triggers
-    /// the SDK's lazy <c>RefreshInstanceDetails</c> call — that updates the
-    /// internal <c>OrganizationVersion</c> as a side-effect.
+    /// This hidden property issues a <c>RetrieveVersion</c> request to obtain
+    /// the real version from the response body. If that fails, it falls back
+    /// to accessing <see cref="ServiceClient.OrganizationDetail"/> which
+    /// triggers the SDK's lazy <c>RefreshInstanceDetails</c> call — that
+    /// updates the internal <c>OrganizationVersion</c> as a side-effect.
     /// </para>
     /// </summary>
     public new Version ConnectedOrgVersion
