@@ -41,19 +41,98 @@ public static class InteractiveCredentialBootstrapper
 
         var result = await login.LoginAsync(tenantId, cloud, ct).ConfigureAwait(false);
 
-        var alias = string.IsNullOrWhiteSpace(explicitAlias)
-            ? await CredentialAliasResolver.ResolveForUpnAsync(store, result.Upn, ct).ConfigureAwait(false)
-            : explicitAlias!.Trim();
+        var existing = await FindExistingInteractiveCredentialAsync(
+            store,
+            result,
+            cloud,
+            explicitAlias,
+            ct).ConfigureAwait(false);
 
-        var credential = new Credential
+        var alias = existing?.Id;
+        if (string.IsNullOrWhiteSpace(alias))
         {
-            Id = alias,
-            Kind = CredentialKind.InteractiveBrowser,
-            TenantId = result.TenantId,
-            Cloud = cloud,
-            Description = $"Interactive sign-in ({result.Upn})",
-        };
+            alias = string.IsNullOrWhiteSpace(explicitAlias)
+                ? await CredentialAliasResolver.ResolveForUpnAsync(store, result.Upn, ct).ConfigureAwait(false)
+                : explicitAlias!.Trim();
+        }
+
+        var credential = existing ?? new Credential();
+        credential.Id = alias;
+        credential.Kind = CredentialKind.InteractiveBrowser;
+        credential.TenantId = result.TenantId;
+        credential.Cloud = cloud;
+        credential.ApplicationId = string.IsNullOrWhiteSpace(result.ApplicationId)
+            ? credential.ApplicationId
+            : result.ApplicationId;
+        credential.InteractiveAccountId = string.IsNullOrWhiteSpace(result.AccountId)
+            ? credential.InteractiveAccountId
+            : result.AccountId;
+        credential.InteractiveUpn = result.Upn;
+        credential.Description = $"Interactive sign-in ({result.Upn})";
+
         await store.UpsertAsync(credential, ct).ConfigureAwait(false);
         return new InteractiveCredentialResult(credential, result.Upn, result.TenantId);
+    }
+
+    private static async Task<Credential?> FindExistingInteractiveCredentialAsync(
+        ICredentialStore store,
+        InteractiveLoginResult result,
+        CloudInstance cloud,
+        string? explicitAlias,
+        CancellationToken ct)
+    {
+        var credentials = await store.ListAsync(ct).ConfigureAwait(false);
+        var candidates = credentials
+            .Where(c => c.Kind == CredentialKind.InteractiveBrowser)
+            .Where(c => string.Equals(c.TenantId, result.TenantId, StringComparison.OrdinalIgnoreCase))
+            .Where(c => c.Cloud == cloud)
+            .Where(c =>
+                string.IsNullOrWhiteSpace(result.ApplicationId)
+                || string.IsNullOrWhiteSpace(c.ApplicationId)
+                || string.Equals(c.ApplicationId, result.ApplicationId, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (!string.IsNullOrWhiteSpace(result.AccountId))
+        {
+            var exact = PickPreferredCandidate(
+                candidates.Where(c =>
+                    string.Equals(c.InteractiveAccountId, result.AccountId, StringComparison.OrdinalIgnoreCase)),
+                explicitAlias,
+                result.Upn);
+            if (exact is not null)
+                return exact;
+        }
+
+        // Backward compatibility for older credentials that predate persisted
+        // account ids: prefer stored interactive UPN, then legacy "UPN as id".
+        return PickPreferredCandidate(
+            candidates.Where(c =>
+                string.Equals(c.InteractiveUpn, result.Upn, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(c.Id, result.Upn, StringComparison.OrdinalIgnoreCase)),
+            explicitAlias,
+            result.Upn);
+    }
+
+    private static Credential? PickPreferredCandidate(
+        IEnumerable<Credential> candidates,
+        string? explicitAlias,
+        string upn)
+    {
+        var list = candidates.ToList();
+        if (list.Count == 0)
+            return null;
+
+        if (!string.IsNullOrWhiteSpace(explicitAlias))
+        {
+            var explicitMatch = list.FirstOrDefault(c =>
+                string.Equals(c.Id, explicitAlias.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (explicitMatch is not null)
+                return explicitMatch;
+        }
+
+        return list
+            .OrderBy(c => string.Equals(c.Id, upn, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+            .ThenBy(c => c.Id, StringComparer.OrdinalIgnoreCase)
+            .First();
     }
 }

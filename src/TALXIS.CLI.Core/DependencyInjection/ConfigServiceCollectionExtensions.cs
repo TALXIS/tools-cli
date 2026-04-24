@@ -22,6 +22,7 @@ public static class ConfigServiceCollectionExtensions
         services.AddSingleton<IConnectionStore, ConnectionStore>();
         services.AddSingleton<ICredentialStore, CredentialStore>();
         services.AddSingleton<IGlobalConfigStore, GlobalConfigStore>();
+        services.AddSingleton<ITokenCacheStore, NullTokenCacheStore>();
 
         services.AddSingleton<IWorkspaceDiscovery, WorkspaceDiscovery>();
         services.AddSingleton<IEnvironmentReader>(ProcessEnvironmentReader.Instance);

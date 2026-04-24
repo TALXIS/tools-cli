@@ -11,4 +11,5 @@ public interface ICredentialVault
     Task<string?> GetSecretAsync(SecretRef reference, CancellationToken ct);
     Task SetSecretAsync(SecretRef reference, string value, CancellationToken ct);
     Task<bool> DeleteSecretAsync(SecretRef reference, CancellationToken ct);
+    Task ClearAsync(CancellationToken ct);
 }

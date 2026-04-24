@@ -13,6 +13,8 @@ public sealed class Credential
     public string? TenantId { get; set; }
     public string? ApplicationId { get; set; }
     public CloudInstance? Cloud { get; set; }
+    public string? InteractiveAccountId { get; set; }
+    public string? InteractiveUpn { get; set; }
 
     public string? CertificatePath { get; set; }
 

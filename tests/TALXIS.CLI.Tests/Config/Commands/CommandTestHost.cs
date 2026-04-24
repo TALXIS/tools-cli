@@ -5,6 +5,9 @@ using TALXIS.CLI.Core.Headless;
 using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Core.Resolution;
 using TALXIS.CLI.Core.Storage;
+using TALXIS.CLI.Core.Vault;
+using TALXIS.CLI.Platform.Dataverse.Msal;
+using TALXIS.CLI.Platform.Dataverse.PowerPlatform;
 using ConnectionModel = TALXIS.CLI.Core.Model.Connection;
 
 namespace TALXIS.CLI.Tests.Config.Commands;/// <summary>
@@ -21,19 +24,26 @@ internal sealed class CommandTestHost : IDisposable
     public FakeHeadless Headless { get; }
     public FakeInteractiveLogin Login { get; }
     public FakeConnectionProvider Provider_Dataverse { get; }
+    public FakePowerPlatformEnvironmentCatalog EnvironmentCatalog { get; }
 
     public CommandTestHost(
         bool headless = false,
         InteractiveLoginResult? loginResult = null,
         string? currentDirectory = null,
-        FakeConnectionProvider? dataverseProvider = null)
+        FakeConnectionProvider? dataverseProvider = null,
+        FakePowerPlatformEnvironmentCatalog? environmentCatalog = null)
     {
         Temp = new TempConfigDir();
         Vault = new FakeVault();
         Headless = new FakeHeadless(headless);
         Login = new FakeInteractiveLogin(loginResult
-            ?? new InteractiveLoginResult("tomas@contoso.com", "tenant-guid"));
+            ?? new InteractiveLoginResult(
+                "tomas@contoso.com",
+                "tenant-guid",
+                "account-guid",
+                DataverseMsalClientFactory.PublicClientId));
         Provider_Dataverse = dataverseProvider ?? new FakeConnectionProvider(ProviderKind.Dataverse);
+        EnvironmentCatalog = environmentCatalog ?? new FakePowerPlatformEnvironmentCatalog();
 
         var services = new ServiceCollection();
         services.AddLogging();
@@ -49,7 +59,19 @@ internal sealed class CommandTestHost : IDisposable
         services.AddSingleton<TALXIS.CLI.Core.Bootstrapping.ConnectionUpsertService>();
         services.AddSingleton<ICredentialVault>(Vault);
         services.AddSingleton<IHeadlessDetector>(Headless);
+        services.AddSingleton<IWorkspaceDiscovery, WorkspaceDiscovery>();
         services.AddSingleton<IInteractiveLoginService>(Login);
+        services.AddSingleton<IPowerPlatformEnvironmentCatalog>(EnvironmentCatalog);
+        services.AddSingleton(_ =>
+            DataverseTokenCacheBinder
+                .CreateForTestingAsync(VaultOptions.MsalTokenCache(
+                    currentDirectory is null
+                        ? ProcessEnvironmentReader.Instance
+                        : new FakeEnvironmentReader(currentDirectory)),
+                    Temp.Paths)
+                .GetAwaiter()
+                .GetResult());
+        services.AddSingleton<ITokenCacheStore>(sp => sp.GetRequiredService<DataverseTokenCacheBinder>());
         services.AddSingleton<IConnectionProvider>(Provider_Dataverse);
         services.AddSingleton<
             TALXIS.CLI.Core.Bootstrapping.IConnectionProviderBootstrapper,
@@ -121,6 +143,12 @@ internal sealed class CommandTestHost : IDisposable
 
         public Task<bool> DeleteSecretAsync(SecretRef reference, CancellationToken ct)
             => Task.FromResult(_store.Remove(reference.Uri));
+
+        public Task ClearAsync(CancellationToken ct)
+        {
+            _store.Clear();
+            return Task.CompletedTask;
+        }
     }
 
     internal sealed class FakeHeadless : IHeadlessDetector
@@ -147,5 +175,39 @@ internal sealed class CommandTestHost : IDisposable
             return Task.FromResult(_result);
         }
     }
-}
 
+    internal sealed class FakePowerPlatformEnvironmentCatalog : IPowerPlatformEnvironmentCatalog
+    {
+        private readonly Dictionary<string, PowerPlatformEnvironmentSummary> _environments =
+            new(StringComparer.OrdinalIgnoreCase);
+
+        public Exception? Failure { get; set; }
+
+        public void Add(PowerPlatformEnvironmentSummary environment)
+            => _environments[Normalize(environment.EnvironmentUrl)] = environment;
+
+        public Task<IReadOnlyList<PowerPlatformEnvironmentSummary>> ListAsync(
+            ConnectionModel connection,
+            Credential credential,
+            CancellationToken ct)
+        {
+            if (Failure is not null) throw Failure;
+            IReadOnlyList<PowerPlatformEnvironmentSummary> result = _environments.Values.ToList();
+            return Task.FromResult(result);
+        }
+
+        public Task<PowerPlatformEnvironmentSummary?> TryGetByEnvironmentUrlAsync(
+            ConnectionModel connection,
+            Credential credential,
+            Uri environmentUrl,
+            CancellationToken ct)
+        {
+            if (Failure is not null) throw Failure;
+            _environments.TryGetValue(Normalize(environmentUrl), out var environment);
+            return Task.FromResult(environment);
+        }
+
+        private static string Normalize(Uri uri)
+            => uri.GetLeftPart(UriPartial.Path).TrimEnd('/') + "/";
+    }
+}

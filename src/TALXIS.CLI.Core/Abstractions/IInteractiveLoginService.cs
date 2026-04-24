@@ -8,7 +8,21 @@ namespace TALXIS.CLI.Core.Abstractions;
 /// so <c>config auth login</c> can persist a matching
 /// <see cref="Credential"/>.
 /// </summary>
-public sealed record InteractiveLoginResult(string Upn, string TenantId);
+/// <param name="Upn">User principal name returned by the identity provider.</param>
+/// <param name="TenantId">Tenant that issued the sign-in.</param>
+/// <param name="AccountId">
+/// Stable account identifier within the provider/cache boundary (for MSAL,
+/// typically <c>HomeAccountId.Identifier</c>).
+/// </param>
+/// <param name="ApplicationId">
+/// Client/application id that owns the interactive cache entry. This keeps
+/// same-user dedupe scoped to the same provider/app boundary.
+/// </param>
+public sealed record InteractiveLoginResult(
+    string Upn,
+    string TenantId,
+    string? AccountId = null,
+    string? ApplicationId = null);
 
 /// <summary>
 /// Performs an eager interactive browser sign-in against Entra, primes the

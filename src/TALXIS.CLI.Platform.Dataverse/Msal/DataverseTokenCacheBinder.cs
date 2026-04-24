@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Identity.Client.Extensions.Msal;
+using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Resolution;
 using TALXIS.CLI.Core.Storage;
 using TALXIS.CLI.Core.Vault;
@@ -19,7 +20,7 @@ namespace TALXIS.CLI.Platform.Dataverse.Msal;
 /// live in different cache files with different lifetimes, blast radiuses,
 /// and plaintext-fallback consent. Same cache-helper pattern, different file.
 /// </remarks>
-public sealed class DataverseTokenCacheBinder
+public sealed class DataverseTokenCacheBinder : ITokenCacheStore
 {
     private readonly MsalCacheHelper _helper;
 
@@ -43,6 +44,14 @@ public sealed class DataverseTokenCacheBinder
     {
         ArgumentNullException.ThrowIfNull(cache);
         _helper.RegisterCache(cache);
+    }
+
+    /// <summary>
+    /// Clears the persisted MSAL token cache file for txc.
+    /// </summary>
+    public void Clear()
+    {
+        _helper.Clear();
     }
 
     public static async Task<DataverseTokenCacheBinder> CreateAsync(

@@ -9,7 +9,7 @@ namespace TALXIS.CLI.Core.Bootstrapping;
 /// upsert of both <see cref="Credential"/> and <see cref="Connection"/>.
 /// </summary>
 public sealed record ProfileBootstrapRequest(
-    string Name,
+    string? Name,
     ProviderKind Provider,
     string EnvironmentUrl,
     CloudInstance Cloud,
@@ -22,6 +22,7 @@ public sealed record ProfileBootstrapRequest(
 /// its chosen exit code. Unexpected failures still throw.
 /// </summary>
 public sealed record ProfileBootstrapResult(
+    string ProfileName,
     Credential? Credential,
     Connection? Connection,
     string? Upn,

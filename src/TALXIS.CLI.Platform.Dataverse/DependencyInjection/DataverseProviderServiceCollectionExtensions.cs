@@ -5,6 +5,7 @@ using TALXIS.CLI.Core.Platforms.Dataverse;
 using TALXIS.CLI.Platform.Dataverse.Authority;
 using TALXIS.CLI.Platform.Dataverse.Runtime;
 using TALXIS.CLI.Platform.Dataverse.Msal;
+using TALXIS.CLI.Platform.Dataverse.PowerPlatform;
 using TALXIS.CLI.Platform.Dataverse.Services;
 using TALXIS.CLI.Core.Resolution;
 using TALXIS.CLI.Core.Storage;
@@ -35,10 +36,12 @@ public static class DataverseProviderServiceCollectionExtensions
                 .CreateAsync(paths, env, logger)
                 .GetAwaiter().GetResult();
         });
+        services.AddSingleton<ITokenCacheStore>(sp => sp.GetRequiredService<DataverseTokenCacheBinder>());
 
         services.AddSingleton<IConnectionProvider, DataverseConnectionProvider>();
         services.AddSingleton<IDataverseAccessTokenService, DataverseAccessTokenService>();
         services.AddSingleton<IDataverseConnectionFactory, DataverseConnectionFactory>();
+        services.AddSingleton<IPowerPlatformEnvironmentCatalog, PowerPlatformEnvironmentCatalog>();
         services.AddSingleton<IDataverseLiveChecker, DataverseLiveChecker>();
         services.AddSingleton<IInteractiveLoginService, DataverseInteractiveLoginService>();
         services.AddSingleton<ISolutionInventoryService, DataverseSolutionInventoryService>();
