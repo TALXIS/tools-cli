@@ -111,6 +111,16 @@ txc data pkg import ./data-package
 txc data pkg convert --input export.xlsx --output data.xml
 ```
 
+**List environment management settings (control plane):**
+```sh
+txc env setting list --filter powerApps
+```
+
+**Enable code-first apps (Power Apps code components):**
+```sh
+txc env setting update --name powerApps_AllowCodeApps --value true
+```
+
 **List available workspace components:**
 ```sh
 txc workspace component type list
