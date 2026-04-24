@@ -1,9 +1,9 @@
 using Microsoft.PowerPlatform.Dataverse.Client;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Query;
-using TALXIS.CLI.Core.Platforms.Dataverse;
+using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Platform.Dataverse.Runtime;
-using TALXIS.CLI.Platform.Dataverse;
+using TALXIS.CLI.Platform.Dataverse.Runtime;
 using TALXIS.CLI.Platform.Dataverse.Application;
 
 namespace TALXIS.CLI.Platform.Dataverse.Application.Services;

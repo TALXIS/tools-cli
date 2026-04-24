@@ -16,7 +16,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="TALXIS.CLI.Tests" />
-    <InternalsVisibleTo Include="TALXIS.CLI.Platform.Dataverse" />
+    <InternalsVisibleTo Include="TALXIS.CLI.Platform.Dataverse.Runtime" />
   </ItemGroup>
 
 </Project>

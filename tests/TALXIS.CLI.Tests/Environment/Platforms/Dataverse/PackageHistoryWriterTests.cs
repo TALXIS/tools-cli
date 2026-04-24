@@ -1,6 +1,6 @@
-using TALXIS.CLI.Platform.Dataverse;
+using TALXIS.CLI.Platform.Dataverse.Runtime;
 using TALXIS.CLI.Features.Environment;
-using TALXIS.CLI.Platform.Dataverse.Application.Platforms;
+using TALXIS.CLI.Platform.Dataverse.Application.Sdk;
 using Xunit;
 
 namespace TALXIS.CLI.Tests.Environment.Platforms.Dataverse;

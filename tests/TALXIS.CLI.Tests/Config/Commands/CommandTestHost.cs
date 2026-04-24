@@ -6,7 +6,7 @@ using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Core.Resolution;
 using TALXIS.CLI.Core.Storage;
 using TALXIS.CLI.Core.Vault;
-using TALXIS.CLI.Platform.Dataverse.Msal;
+using TALXIS.CLI.Core.Identity;
 using TALXIS.CLI.Platform.PowerPlatform.Control;
 using ConnectionModel = TALXIS.CLI.Core.Model.Connection;
 
@@ -41,7 +41,7 @@ internal sealed class CommandTestHost : IDisposable
                 "tomas@contoso.com",
                 "tenant-guid",
                 "account-guid",
-                DataverseMsalClientFactory.PublicClientId));
+                MsalClientFactory.PublicClientId));
         Provider_Dataverse = dataverseProvider ?? new FakeConnectionProvider(ProviderKind.Dataverse);
         EnvironmentCatalog = environmentCatalog ?? new FakePowerPlatformEnvironmentCatalog();
 
@@ -64,7 +64,7 @@ internal sealed class CommandTestHost : IDisposable
         services.AddSingleton<IInteractiveLoginService>(Login);
         services.AddSingleton<IPowerPlatformEnvironmentCatalog>(EnvironmentCatalog);
         services.AddSingleton(_ =>
-            DataverseTokenCacheBinder
+            MsalTokenCacheBinder
                 .CreateForTestingAsync(VaultOptions.MsalTokenCache(
                     currentDirectory is null
                         ? ProcessEnvironmentReader.Instance
@@ -72,11 +72,11 @@ internal sealed class CommandTestHost : IDisposable
                     Temp.Paths)
                 .GetAwaiter()
                 .GetResult());
-        services.AddSingleton<ITokenCacheStore>(sp => sp.GetRequiredService<DataverseTokenCacheBinder>());
+        services.AddSingleton<ITokenCacheStore>(sp => sp.GetRequiredService<MsalTokenCacheBinder>());
         services.AddSingleton<IConnectionProvider>(Provider_Dataverse);
         services.AddSingleton<
             TALXIS.CLI.Core.Bootstrapping.IConnectionProviderBootstrapper,
-            TALXIS.CLI.Platform.Dataverse.Bootstrapping.DataverseConnectionProviderBootstrapper>();
+            TALXIS.CLI.Platform.Dataverse.Runtime.Bootstrapping.DataverseConnectionProviderBootstrapper>();
 
         Provider = services.BuildServiceProvider();
         TxcServices.Initialize(Provider);

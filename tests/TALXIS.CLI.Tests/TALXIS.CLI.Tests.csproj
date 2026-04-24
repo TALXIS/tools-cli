@@ -19,7 +19,7 @@
     <ProjectReference Include="../../src/TALXIS.CLI.Core/TALXIS.CLI.Core.csproj" />
     <ProjectReference Include="../../src/TALXIS.CLI.Logging/TALXIS.CLI.Logging.csproj" />
     <ProjectReference Include="../../src/TALXIS.CLI.MCP/TALXIS.CLI.MCP.csproj" />
-    <ProjectReference Include="../../src/TALXIS.CLI.Platform.Dataverse/TALXIS.CLI.Platform.Dataverse.csproj" />
+    <ProjectReference Include="../../src/TALXIS.CLI.Platform.Dataverse.Runtime/TALXIS.CLI.Platform.Dataverse.Runtime.csproj" />
     <ProjectReference Include="../../src/TALXIS.CLI.Platform.Dataverse.Application/TALXIS.CLI.Platform.Dataverse.Application.csproj" />
     <ProjectReference Include="../../src/TALXIS.CLI.Platform.PowerPlatform.Control/TALXIS.CLI.Platform.PowerPlatform.Control.csproj" />
     <ProjectReference Include="../../src/TALXIS.CLI.Features.Environment/TALXIS.CLI.Features.Environment.csproj" />

@@ -1,7 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Logging;
-using TALXIS.CLI.Platform.Dataverse.DependencyInjection;
+using TALXIS.CLI.Platform.Dataverse.Runtime.DependencyInjection;
 
 namespace TALXIS.CLI.Platform.Dataverse.Application.DependencyInjection;
 

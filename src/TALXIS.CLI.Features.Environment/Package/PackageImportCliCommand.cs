@@ -3,8 +3,8 @@ using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Features.Config.Abstractions;
 using TALXIS.CLI.Core.DependencyInjection;
-using TALXIS.CLI.Core.Platforms.Dataverse;
-using TALXIS.CLI.Core.Platforms.Packaging;
+using TALXIS.CLI.Core.Contracts.Dataverse;
+using TALXIS.CLI.Core.Contracts.Packaging;
 using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.Package;
