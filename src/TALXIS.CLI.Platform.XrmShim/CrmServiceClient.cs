@@ -154,9 +154,17 @@ public class CrmServiceClient : ServiceClient, IDisposable
 
     /// <summary>
     /// Hides the base <see cref="ServiceClient.ConnectedOrgVersion"/> which
-    /// can return 9.0.0.0 when the token-provider constructor path is used.
-    /// This version queries the server via RetrieveVersion if the base
-    /// property returns a stale/default value.
+    /// returns the hardcoded default <c>9.0.0.0</c> when the token-provider
+    /// constructor path is used (the SDK comments out
+    /// <c>GetServerVersion</c>/<c>RefreshInstanceDetails</c> for
+    /// <c>ExternalTokenManagement</c> auth).
+    /// <para>
+    /// This override issues a <c>RetrieveVersion</c> request to obtain the
+    /// real version from the response body. If that fails, it falls back to
+    /// accessing <see cref="ServiceClient.OrganizationDetail"/> which triggers
+    /// the SDK's lazy <c>RefreshInstanceDetails</c> call — that updates the
+    /// internal <c>OrganizationVersion</c> as a side-effect.
+    /// </para>
     /// </summary>
     public new Version ConnectedOrgVersion
     {
@@ -172,7 +180,9 @@ public class CrmServiceClient : ServiceClient, IDisposable
                 return baseVersion;
             }
 
-            // Base returned 9.0.0.0 or lower — query the actual version.
+            // Base returned 9.0.0.0 or lower — the SDK hardcodes this
+            // default in the ExternalTokenManagement path and never queries
+            // the server. Issue an explicit RetrieveVersion request.
             try
             {
                 var response = Execute(new OrganizationRequest("RetrieveVersion"));
@@ -186,7 +196,28 @@ public class CrmServiceClient : ServiceClient, IDisposable
             }
             catch
             {
-                // Fall through to base version on failure.
+                // RetrieveVersion failed — fall through to the lazy-loading
+                // fallback below.
+            }
+
+            // RetrieveVersion did not yield a usable version. Trigger the
+            // SDK's own lazy-loading mechanism: accessing OrganizationDetail
+            // causes ConnectionService.RefreshInstanceDetails to run, which
+            // calls RetrieveCurrentOrganization and updates the internal
+            // OrganizationVersion field.
+            try
+            {
+                _ = OrganizationDetail;
+                var refreshedVersion = base.ConnectedOrgVersion;
+                if (refreshedVersion > new Version(9, 0, 0, 0))
+                {
+                    _cachedOrgVersion = refreshedVersion;
+                    return refreshedVersion;
+                }
+            }
+            catch
+            {
+                // OrganizationDetail may throw if the service is unreachable.
             }
 
             _cachedOrgVersion = baseVersion;

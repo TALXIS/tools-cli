@@ -123,10 +123,13 @@ public sealed class PackageDeployerRunner
                         _temporaryArtifactsDirectory);
                 }
 
+                // Always log the organization version — this also pre-warms
+                // the ConnectedOrgVersion cache before Package Deployer reads
+                // it during solution validation.
+                _logger.LogInformation("Organization version: {Version}", crmServiceClient.ConnectedOrgVersion);
                 if (_request.Verbose)
                 {
                     _logger.LogInformation("Connected to: {Url}", crmServiceClient.ConnectedOrgUriActual);
-                    _logger.LogInformation("Organization version: {Version}", crmServiceClient.ConnectedOrgVersion);
                     _logger.LogInformation("Organization ID: {OrgId}", crmServiceClient.ConnectedOrgId);
                 }
 
