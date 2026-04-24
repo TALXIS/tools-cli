@@ -80,7 +80,7 @@ The examples below assume you have an active profile (see [above](#identity-conn
 |-------|---------------|-------------|----------|
 | **Control plane** | Environment-level governance & feature toggles | `api.powerplatform.com/environmentmanagement` | `txc env setting …` |
 | **Application plane** | Solutions, packages, deployments | Dataverse Web API + Package Deployer | `txc env sln …`, `txc env pkg …`, `txc env deploy …` |
-| **Data plane** | Records, queries, bulk operations | Dataverse Web API (OData / FetchXML / SQL) | `txc env data …` |
+| **Data plane** | Records, queries, bulk operations, CMT data import | Dataverse Web API (OData / FetchXML / SQL) | `txc env data …`, `txc data …` |
 
 ### Control Plane
 
@@ -129,7 +129,7 @@ txc env sln import ./Solutions/MySolution_managed.zip --profile customer-b-prod
 
 ### Data Plane
 
-Query, create, update, and bulk-operate on Dataverse records. Supports OData, FetchXML, and a T-SQL subset — all through the Dataverse Web API.
+Query, create, update, and bulk-operate on Dataverse records. Supports OData, FetchXML, and a T-SQL subset — all through the Dataverse Web API. Also includes Configuration Migration Tool (CMT) data import and conversion.
 
 **Query with OData:**
 ```sh
@@ -160,10 +160,6 @@ txc env data record create --entity account --data '{"name":"Contoso Ltd","reven
 ```sh
 txc env data bulk upsert --entity contact --file ./contacts.json
 ```
-
-### Offline / Local Data
-
-CMT data operations that work against local files — no live environment needed.
 
 **Import a CMT data folder into Dataverse:**
 ```sh
