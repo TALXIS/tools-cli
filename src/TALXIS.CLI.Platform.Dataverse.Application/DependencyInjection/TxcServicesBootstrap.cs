@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Logging;
+using TALXIS.CLI.Platform.Dataverse.Data.DependencyInjection;
 using TALXIS.CLI.Platform.Dataverse.Runtime.DependencyInjection;
 
 namespace TALXIS.CLI.Platform.Dataverse.Application.DependencyInjection;
@@ -28,6 +29,7 @@ public static class TxcServicesBootstrap
         services.AddTxcConfigCore();
         services.AddTxcDataverseProvider();
         services.AddTxcDataverseApplication();
+        services.AddTxcDataverseData();
 
         var provider = services.BuildServiceProvider();
         TxcServices.Initialize(provider);

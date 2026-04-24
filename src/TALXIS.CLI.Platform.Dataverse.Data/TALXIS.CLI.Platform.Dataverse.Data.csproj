@@ -8,6 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.PowerPlatform.Dataverse.Client" Version="1.2.10" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\TALXIS.CLI.Core\TALXIS.CLI.Core.csproj" />
     <ProjectReference Include="..\TALXIS.CLI.Platform.Dataverse.Runtime\TALXIS.CLI.Platform.Dataverse.Runtime.csproj" />
   </ItemGroup>
