@@ -36,7 +36,7 @@ public sealed class MsalClientFactory
     /// <summary>
     /// Builds a public-client application (interactive / device-code / silent)
     /// for the given connection. Cloud precedence: explicit on
-    /// <paramref name="connection"/> → inferred from <c>EnvironmentUrl</c> →
+    /// <paramref name="connection"/> → credential cloud →
     /// <see cref="CloudInstance.Public"/>.
     /// </summary>
     public IPublicClientApplication BuildPublicClient(Connection connection)

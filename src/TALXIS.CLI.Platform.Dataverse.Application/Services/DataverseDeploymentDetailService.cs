@@ -5,7 +5,6 @@ using Microsoft.Xrm.Sdk.Query;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Platform.Dataverse.Application.Sdk;
 using TALXIS.CLI.Platform.Dataverse.Runtime;
-using TALXIS.CLI.Platform.Dataverse.Runtime;
 using TALXIS.CLI.Platform.Dataverse.Application;
 using TALXIS.CLI.Logging;
 

@@ -1,6 +1,6 @@
 # Architecture
 
-The `txc` CLI is organized around four architectural planes. Each plane maps to a distinct set of projects and responsibilities.
+The `txc` CLI is organized around five architectural planes. Each plane maps to a distinct set of projects and responsibilities.
 
 ## Planes
 
