@@ -34,10 +34,15 @@ internal static class EntityJsonConverter
             // Detect the primary key field by the common Dataverse convention
             // "{entityLogicalName}id" and set Entity.Id instead of passing a
             // raw string — the SDK expects a Guid for primary key attributes.
-            if (value is string s &&
-                Guid.TryParse(s, out var parsedGuid) &&
-                prop.Name.Equals($"{entityLogicalName}id", StringComparison.OrdinalIgnoreCase))
+            bool isPrimaryKey = prop.Name.Equals($"{entityLogicalName}id", StringComparison.OrdinalIgnoreCase);
+            if (isPrimaryKey && value is string s && Guid.TryParse(s, out var parsedGuid))
             {
+                // When an explicit id was provided by the caller (e.g. record update),
+                // validate that the JSON field matches to avoid targeting the wrong record.
+                if (id.HasValue && parsedGuid != id.Value)
+                    throw new InvalidOperationException(
+                        $"The '{prop.Name}' value '{parsedGuid}' in the JSON does not match the explicit record ID '{id.Value}'.");
+
                 entity.Id = parsedGuid;
                 entity[prop.Name] = parsedGuid;
             }

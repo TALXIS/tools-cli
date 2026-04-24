@@ -55,7 +55,7 @@ internal sealed class DataverseQueryService : IDataverseQueryService
         var response = conn.Client.ExecuteWebRequest(HttpMethod.Get, queryPath, string.Empty, headers);
 
         var records = new List<JsonElement>();
-        ParseValueArray(response, records);
+        await ParseValueArrayAsync(response, records, ct).ConfigureAwait(false);
 
         // Follow @odata.nextLink pages until exhausted or top limit reached.
         await FollowNextLinksAsync(conn, response, records, top, headers, ct).ConfigureAwait(false);
@@ -136,15 +136,19 @@ internal sealed class DataverseQueryService : IDataverseQueryService
         var response = conn.Client.ExecuteWebRequest(HttpMethod.Get, queryPath, string.Empty, headers);
 
         var records = new List<JsonElement>();
-        ParseValueArray(response, records);
+        await ParseValueArrayAsync(response, records, ct).ConfigureAwait(false);
 
-        // Only follow nextLink if the caller did not specify $top — if they
-        // did, the server-side limit already constrains the result set.
-        if (!top.HasValue)
-            await FollowNextLinksAsync(conn, response, records, top: null, headers, ct).ConfigureAwait(false);
+        // Dataverse can still return @odata.nextLink when $top is specified
+        // (for example when the requested top exceeds the server page size).
+        // Always follow pagination links and let the helper stop once the
+        // requested number of records has been accumulated.
+        await FollowNextLinksAsync(conn, response, records, top, headers, ct).ConfigureAwait(false);
 
         if (!includeAnnotations)
             StripAnnotations(records);
+
+        if (top.HasValue && records.Count > top.Value)
+            records.RemoveRange(top.Value, records.Count - top.Value);
 
         return new DataverseQueryResult(records, records.Count);
     }
@@ -206,11 +210,11 @@ internal sealed class DataverseQueryService : IDataverseQueryService
     {
         var parts = new List<string>();
         if (!string.IsNullOrWhiteSpace(select))
-            parts.Add($"$select={select}");
+            parts.Add($"$select={Uri.EscapeDataString(select)}");
         if (!string.IsNullOrWhiteSpace(filter))
-            parts.Add($"$filter={filter}");
+            parts.Add($"$filter={Uri.EscapeDataString(filter)}");
         if (!string.IsNullOrWhiteSpace(orderBy))
-            parts.Add($"$orderby={orderBy}");
+            parts.Add($"$orderby={Uri.EscapeDataString(orderBy)}");
         if (top.HasValue)
             parts.Add($"$top={top.Value}");
 
@@ -222,9 +226,12 @@ internal sealed class DataverseQueryService : IDataverseQueryService
     /// <summary>
     /// Parses the <c>value</c> array from a Web API JSON response.
     /// </summary>
-    private static void ParseValueArray(HttpResponseMessage response, List<JsonElement> target)
+    private static async Task ParseValueArrayAsync(
+        HttpResponseMessage response,
+        List<JsonElement> target,
+        CancellationToken ct)
     {
-        var content = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+        var content = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
         using var doc = JsonDocument.Parse(content);
 
         if (doc.RootElement.TryGetProperty("value", out var valueArray) &&
@@ -268,7 +275,7 @@ internal sealed class DataverseQueryService : IDataverseQueryService
             var relativePath = ExtractRelativePath(nextLinkUrl, conn);
 
             currentResponse = conn.Client.ExecuteWebRequest(HttpMethod.Get, relativePath, string.Empty, headers);
-            ParseValueArray(currentResponse, records);
+            await ParseValueArrayAsync(currentResponse, records, ct).ConfigureAwait(false);
 
             if (top.HasValue && records.Count >= top.Value)
                 break;
@@ -277,19 +284,35 @@ internal sealed class DataverseQueryService : IDataverseQueryService
 
     /// <summary>
     /// Extracts the relative path from an absolute nextLink URL by stripping
-    /// the base URI of the Dataverse environment.
+    /// the base URI and the Web API prefix so the returned path matches the
+    /// entity-relative format expected by <c>ExecuteWebRequest</c>.
     /// </summary>
     private static string ExtractRelativePath(string absoluteUrl, DataverseConnection conn)
     {
         if (Uri.TryCreate(absoluteUrl, UriKind.Absolute, out var uri))
         {
-            // The ConnectedOrgUriActual gives us the org service URL; the Web API
-            // path is relative to the org root. We strip the scheme + host portion.
-            return uri.PathAndQuery.TrimStart('/');
+            return NormalizeWebApiRelativePath(uri.PathAndQuery);
         }
 
-        // If it's already relative, just return it.
-        return absoluteUrl;
+        return NormalizeWebApiRelativePath(absoluteUrl);
+    }
+
+    /// <summary>
+    /// Normalizes a Dataverse Web API path so it matches the format expected by
+    /// <c>ExecuteWebRequest</c>, for example <c>accounts?$select=name</c> instead
+    /// of <c>api/data/v9.2/accounts?$select=name</c>.
+    /// </summary>
+    private static string NormalizeWebApiRelativePath(string path)
+    {
+        var normalizedPath = path.TrimStart('/');
+
+        // Dataverse next links can include the Web API route prefix. Strip it so
+        // pagination requests use the same relative path shape as initial requests.
+        return Regex.Replace(
+            normalizedPath,
+            @"^api/data/v\d+\.\d+/",
+            string.Empty,
+            RegexOptions.IgnoreCase);
     }
 
     /// <summary>

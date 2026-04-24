@@ -59,52 +59,6 @@ public class EnvDataRecordUpdateCliCommand : ProfiledCliCommand
         return 0;
     }
 
-    /// <summary>
-    /// Validates that exactly one of <c>--data</c> / <c>--file</c> is provided
-    /// and parses the JSON into a <see cref="JsonElement"/>.
-    /// </summary>
     private bool TryParseAttributes(out JsonElement attributes)
-    {
-        attributes = default;
-
-        bool hasData = !string.IsNullOrWhiteSpace(Data);
-        bool hasFile = !string.IsNullOrWhiteSpace(File);
-
-        if (hasData == hasFile)
-        {
-            _logger.LogError("Provide exactly one of --data or --file.");
-            return false;
-        }
-
-        string json;
-        if (hasFile)
-        {
-            if (!System.IO.File.Exists(File))
-            {
-                _logger.LogError("File not found: {Path}", File);
-                return false;
-            }
-            json = System.IO.File.ReadAllText(File!);
-        }
-        else
-        {
-            json = Data!;
-        }
-
-        try
-        {
-            attributes = JsonDocument.Parse(json).RootElement;
-            if (attributes.ValueKind != JsonValueKind.Object)
-            {
-                _logger.LogError("Expected a JSON object, got {Kind}.", attributes.ValueKind);
-                return false;
-            }
-            return true;
-        }
-        catch (JsonException ex)
-        {
-            _logger.LogError("Invalid JSON: {Error}", ex.Message);
-            return false;
-        }
-    }
+        => RecordInputHelper.TryParseAttributes(Data, File, _logger, out attributes);
 }
