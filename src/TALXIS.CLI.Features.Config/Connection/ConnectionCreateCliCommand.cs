@@ -41,6 +41,9 @@ public class ConnectionCreateCliCommand
     [CliOption(Name = "--organization-id", Aliases = new[] { "--org-id" }, Description = "Dataverse organization id (GUID). Optional.", Required = false)]
     public string? OrganizationId { get; set; }
 
+    [CliOption(Name = "--environment-id", Aliases = new[] { "--env-id" }, Description = "Power Platform environment id (GUID) used by the control plane API. Optional — resolved automatically during live check if omitted.", Required = false)]
+    public string? EnvironmentId { get; set; }
+
     [CliOption(Name = "--tenant", Description = "Entra tenant id or domain. Optional — defaults to the credential's tenant at resolve time.", Required = false)]
     public string? TenantId { get; set; }
 
@@ -58,6 +61,7 @@ public class ConnectionCreateCliCommand
                 EnvironmentUrl,
                 Cloud,
                 OrganizationId,
+                EnvironmentId,
                 TenantId,
                 Description,
                 CancellationToken.None).ConfigureAwait(false);
@@ -80,6 +84,7 @@ public class ConnectionCreateCliCommand
                     environmentUrl = connection.EnvironmentUrl,
                     cloud = connection.Cloud,
                     organizationId = connection.OrganizationId,
+                    environmentId = connection.EnvironmentId,
                     tenantId = connection.TenantId,
                     description = connection.Description,
                 },

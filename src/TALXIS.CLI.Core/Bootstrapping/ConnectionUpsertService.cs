@@ -38,6 +38,7 @@ public sealed class ConnectionUpsertService
         string? environmentUrl,
         CloudInstance? cloud,
         string? organizationId,
+        string? environmentId,
         string? tenantId,
         string? description,
         CancellationToken ct)
@@ -67,6 +68,15 @@ public sealed class ConnectionUpsertService
                 $"--organization-id must be a GUID: '{organizationId}'.");
         }
 
+        Guid? parsedEnvironmentId = null;
+        if (!string.IsNullOrWhiteSpace(environmentId))
+        {
+            if (!Guid.TryParse(environmentId, out var eid))
+                return new ConnectionUpsertResult(null,
+                    $"--environment-id must be a GUID: '{environmentId}'.");
+            parsedEnvironmentId = eid;
+        }
+
         var connection = new Connection
         {
             Id = trimmed!,
@@ -75,6 +85,7 @@ public sealed class ConnectionUpsertService
             EnvironmentUrl = envUri.ToString().TrimEnd('/'),
             Cloud = cloud ?? CloudInstance.Public,
             OrganizationId = organizationId,
+            EnvironmentId = parsedEnvironmentId,
             TenantId = tenantId,
         };
 

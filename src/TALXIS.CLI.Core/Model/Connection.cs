@@ -19,6 +19,14 @@ public sealed class Connection
     // ExtraFields below round-trips any unknown future keys without loss).
     public string? EnvironmentUrl { get; set; }
     public string? OrganizationId { get; set; }
+
+    /// <summary>
+    /// Power Platform environment GUID used by the control plane API
+    /// (<c>api.powerplatform.com/environmentmanagement/environments/{id}</c>).
+    /// Populated during live-check or explicitly via <c>--environment-id</c>.
+    /// </summary>
+    public Guid? EnvironmentId { get; set; }
+
     public CloudInstance? Cloud { get; set; }
     public string? TenantId { get; set; }
 
