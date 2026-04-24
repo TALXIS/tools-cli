@@ -1,5 +1,6 @@
+using TALXIS.CLI.Core.Identity;
 using TALXIS.CLI.Core.Model;
-using TALXIS.CLI.Platform.Dataverse.Authority;
+using TALXIS.CLI.Platform.Dataverse.Runtime.Authority;
 using Xunit;
 
 namespace TALXIS.CLI.Tests.Config.Providers.Dataverse;
@@ -14,20 +15,20 @@ public sealed class DataverseCloudMapTests
     [InlineData(CloudInstance.China, "https://login.partner.microsoftonline.cn")]
     public void GetAuthorityHost_MatchesPacMapping(CloudInstance cloud, string expected)
     {
-        Assert.Equal(expected, DataverseCloudMap.GetAuthorityHost(cloud));
+        Assert.Equal(expected, EntraCloudMap.GetAuthorityHost(cloud));
     }
 
     [Fact]
     public void BuildAuthorityUri_UsesOrganizations_WhenTenantMissing()
     {
-        var uri = DataverseCloudMap.BuildAuthorityUri(CloudInstance.Public, null);
+        var uri = EntraCloudMap.BuildAuthorityUri(CloudInstance.Public, null);
         Assert.Equal("https://login.microsoftonline.com/organizations", uri.AbsoluteUri);
     }
 
     [Fact]
     public void BuildAuthorityUri_UsesTenant_WhenProvided()
     {
-        var uri = DataverseCloudMap.BuildAuthorityUri(CloudInstance.GccHigh, "contoso.onmicrosoft.us");
+        var uri = EntraCloudMap.BuildAuthorityUri(CloudInstance.GccHigh, "contoso.onmicrosoft.us");
         Assert.Equal("https://login.microsoftonline.us/contoso.onmicrosoft.us", uri.AbsoluteUri);
     }
 

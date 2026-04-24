@@ -1,0 +1,86 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Identity.Client.Extensions.Msal;
+using TALXIS.CLI.Core.Abstractions;
+using TALXIS.CLI.Core.Resolution;
+using TALXIS.CLI.Core.Storage;
+using TALXIS.CLI.Core.Vault;
+
+namespace TALXIS.CLI.Core.Identity;
+
+/// <summary>
+/// Holds the process-wide <see cref="MsalCacheHelper"/> for the MSAL token
+/// cache file (<c>txc.msal.tokens.v1.dat</c>). Keeping this as a DI singleton
+/// is critical on macOS: every new helper instantiation is an additional
+/// Keychain prompt (see <c>session/files/keychain-prompt-research.md</c>).
+/// </summary>
+/// <remarks>
+/// This binder is distinct from <see cref="Vault.MsalBackedCredentialVault"/>:
+/// generic secrets (client secret / PAT / cert password) and refresh tokens
+/// live in different cache files with different lifetimes, blast radiuses,
+/// and plaintext-fallback consent. Same cache-helper pattern, different file.
+/// </remarks>
+public sealed class MsalTokenCacheBinder : ITokenCacheStore
+{
+    private readonly MsalCacheHelper _helper;
+
+    /// <summary>Diagnostic hook for tests.</summary>
+    internal MsalCacheHelper Helper => _helper;
+
+    public bool UsesPlaintextFallback { get; }
+
+    private MsalTokenCacheBinder(MsalCacheHelper helper, bool usesPlaintextFallback)
+    {
+        _helper = helper;
+        UsesPlaintextFallback = usesPlaintextFallback;
+    }
+
+    /// <summary>
+    /// Attach the shared MSAL token cache to a newly-built public- or
+    /// confidential-client application. Safe to call many times across clients
+    /// — the underlying helper is shared.
+    /// </summary>
+    public void Attach(Microsoft.Identity.Client.ITokenCache cache)
+    {
+        ArgumentNullException.ThrowIfNull(cache);
+        _helper.RegisterCache(cache);
+    }
+
+    /// <summary>
+    /// Clears the persisted MSAL token cache file for txc.
+    /// </summary>
+    public void Clear()
+    {
+        _helper.Clear();
+    }
+
+    public static async Task<MsalTokenCacheBinder> CreateAsync(
+        ConfigPaths paths,
+        IEnvironmentReader env,
+        ILogger<MsalTokenCacheBinder>? logger = null,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(paths);
+        ArgumentNullException.ThrowIfNull(env);
+        logger ??= NullLogger<MsalTokenCacheBinder>.Instance;
+
+        var options = VaultOptions.MsalTokenCache(env);
+        var helper = await MsalCacheHelperFactory.CreateAsync(options, paths, logger, ct).ConfigureAwait(false);
+        return new MsalTokenCacheBinder(helper, options.UsePlaintextFallback);
+    }
+
+    /// <summary>Test-only factory that accepts an explicit <see cref="VaultOptions"/>.</summary>
+    internal static async Task<MsalTokenCacheBinder> CreateForTestingAsync(
+        VaultOptions options,
+        ConfigPaths paths,
+        ILogger<MsalTokenCacheBinder>? logger = null,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(paths);
+        logger ??= NullLogger<MsalTokenCacheBinder>.Instance;
+
+        var helper = await MsalCacheHelperFactory.CreateAsync(options, paths, logger, ct).ConfigureAwait(false);
+        return new MsalTokenCacheBinder(helper, options.UsePlaintextFallback);
+    }
+}

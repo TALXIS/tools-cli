@@ -11,7 +11,7 @@
     <ProjectReference Include="..\TALXIS.CLI.Features.Workspace\TALXIS.CLI.Features.Workspace.csproj" />
     <ProjectReference Include="..\TALXIS.CLI.Core\TALXIS.CLI.Core.csproj" />
     <ProjectReference Include="..\TALXIS.CLI.Features.Config\TALXIS.CLI.Features.Config.csproj" />
-    <ProjectReference Include="..\TALXIS.CLI.Platform.Dataverse\TALXIS.CLI.Platform.Dataverse.csproj" />
+    <ProjectReference Include="..\TALXIS.CLI.Platform.Dataverse.Runtime\TALXIS.CLI.Platform.Dataverse.Runtime.csproj" />
     <ProjectReference Include="..\TALXIS.CLI.Platform.Dataverse.Application\TALXIS.CLI.Platform.Dataverse.Application.csproj" />
   </ItemGroup>
 

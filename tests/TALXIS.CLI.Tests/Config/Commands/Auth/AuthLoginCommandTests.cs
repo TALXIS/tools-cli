@@ -4,7 +4,7 @@ using TALXIS.CLI.Core.Bootstrapping;
 using TALXIS.CLI.Features.Config.Auth;
 using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Core;
-using TALXIS.CLI.Platform.Dataverse.Msal;
+using TALXIS.CLI.Core.Identity;
 using Xunit;
 
 namespace TALXIS.CLI.Tests.Config.Commands.Auth;
@@ -20,7 +20,7 @@ public sealed class AuthLoginCommandTests
                 "tomas@contoso.com",
                 "t-guid",
                 "account-guid",
-                DataverseMsalClientFactory.PublicClientId));
+                MsalClientFactory.PublicClientId));
         var store = (ICredentialStore)host.Provider.GetService(typeof(ICredentialStore))!;
 
         var sw = new StringWriter();
@@ -41,7 +41,7 @@ public sealed class AuthLoginCommandTests
         Assert.Equal(CloudInstance.Public, cred.Cloud);
         Assert.Equal("account-guid", cred.InteractiveAccountId);
         Assert.Equal("tomas@contoso.com", cred.InteractiveUpn);
-        Assert.Equal(DataverseMsalClientFactory.PublicClientId, cred.ApplicationId);
+        Assert.Equal(MsalClientFactory.PublicClientId, cred.ApplicationId);
 
         using var doc = JsonDocument.Parse(sw.ToString());
         Assert.Equal("tomas@contoso.com", doc.RootElement.GetProperty("id").GetString());
@@ -116,7 +116,7 @@ public sealed class AuthLoginCommandTests
                 "tomas@contoso.com",
                 "t-guid",
                 "account-1",
-                DataverseMsalClientFactory.PublicClientId));
+                MsalClientFactory.PublicClientId));
         var store = (ICredentialStore)host.Provider.GetService(typeof(ICredentialStore))!;
         await store.UpsertAsync(new Credential
         {
@@ -124,7 +124,7 @@ public sealed class AuthLoginCommandTests
             Kind = CredentialKind.InteractiveBrowser,
             TenantId = "t-guid",
             Cloud = CloudInstance.Public,
-            ApplicationId = DataverseMsalClientFactory.PublicClientId,
+            ApplicationId = MsalClientFactory.PublicClientId,
             InteractiveAccountId = "account-1",
             InteractiveUpn = "tomas@contoso.com",
             Description = "Interactive sign-in (tomas@contoso.com)",
@@ -153,7 +153,7 @@ public sealed class AuthLoginCommandTests
                 "tomas@contoso.com",
                 "t-guid",
                 "account-1",
-                DataverseMsalClientFactory.PublicClientId));
+                MsalClientFactory.PublicClientId));
         var store = (ICredentialStore)host.Provider.GetService(typeof(ICredentialStore))!;
         await store.UpsertAsync(new Credential
         {
@@ -171,7 +171,7 @@ public sealed class AuthLoginCommandTests
         Assert.Equal("tomas@contoso.com", cred.Id);
         Assert.Equal("account-1", cred.InteractiveAccountId);
         Assert.Equal("tomas@contoso.com", cred.InteractiveUpn);
-        Assert.Equal(DataverseMsalClientFactory.PublicClientId, cred.ApplicationId);
+        Assert.Equal(MsalClientFactory.PublicClientId, cred.ApplicationId);
     }
 
     [Fact]
@@ -182,7 +182,7 @@ public sealed class AuthLoginCommandTests
                 "tomas@contoso.com",
                 "t-guid",
                 "account-1",
-                DataverseMsalClientFactory.PublicClientId));
+                MsalClientFactory.PublicClientId));
         var store = (ICredentialStore)host.Provider.GetService(typeof(ICredentialStore))!;
         await store.UpsertAsync(new Credential
         {
@@ -190,7 +190,7 @@ public sealed class AuthLoginCommandTests
             Kind = CredentialKind.InteractiveBrowser,
             TenantId = "t-guid",
             Cloud = CloudInstance.Public,
-            ApplicationId = DataverseMsalClientFactory.PublicClientId,
+            ApplicationId = MsalClientFactory.PublicClientId,
             InteractiveAccountId = "account-1",
             InteractiveUpn = "tomas@contoso.com",
         }, default);

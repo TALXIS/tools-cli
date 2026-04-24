@@ -2,9 +2,9 @@ using System.IO.Compression;
 using System.Net;
 using System.Net.Http;
 using System.Text;
-using TALXIS.CLI.Platform.Dataverse;
+using TALXIS.CLI.Platform.Dataverse.Runtime;
 using TALXIS.CLI.Features.Environment;
-using TALXIS.CLI.Core.Platforms.Packaging;
+using TALXIS.CLI.Core.Contracts.Packaging;
 using Xunit;
 
 namespace TALXIS.CLI.IntegrationTests;

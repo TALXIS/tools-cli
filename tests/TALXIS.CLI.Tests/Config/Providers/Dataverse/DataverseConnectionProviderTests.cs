@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using TALXIS.CLI.Core.Abstractions;
+using TALXIS.CLI.Core.Identity;
 using TALXIS.CLI.Core.Model;
-using TALXIS.CLI.Platform.Dataverse;
-using TALXIS.CLI.Platform.Dataverse.Msal;
+using TALXIS.CLI.Platform.Dataverse.Runtime;
 using Xunit;
 
 namespace TALXIS.CLI.Tests.Config.Providers.Dataverse;
@@ -16,7 +16,7 @@ public sealed class DataverseConnectionProviderTests
     }
 
     private static DataverseConnectionProvider NewProvider(IDataverseLiveChecker? live = null) =>
-        new(new DataverseMsalClientFactory(),
+        new(new MsalClientFactory(),
             live ?? new StubLiveChecker(),
             NullLogger<DataverseConnectionProvider>.Instance);
 
