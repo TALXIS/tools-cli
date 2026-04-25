@@ -36,17 +36,17 @@ public class EntityAttributeCreateCliCommand : ProfiledCliCommand
 
     // === Optional for all types ===
 
-    [CliOption(Name = "--display-name", Description = "The display name (label) for the column. Defaults to the schema name.")]
+    [CliOption(Name = "--display-name", Description = "The display name (label) for the column. Defaults to the schema name.", Required = false)]
     public string? DisplayName { get; set; }
 
-    [CliOption(Name = "--description", Description = "Description for the column.")]
+    [CliOption(Name = "--description", Description = "Description for the column.", Required = false)]
     public string? Description { get; set; }
 
     [CliOption(Name = "--required", Description = "Requirement level: none, recommended, required.")]
     [DefaultValue("none")]
     public string RequiredLevel { get; set; } = "none";
 
-    [CliOption(Name = "--solution", Description = "Solution unique name to add the column to.")]
+    [CliOption(Name = "--solution", Description = "Solution unique name to add the column to.", Required = false)]
     public string? Solution { get; set; }
 
     // === String/Memo ===
@@ -54,7 +54,7 @@ public class EntityAttributeCreateCliCommand : ProfiledCliCommand
     [CliOption(Name = "--max-length", Description = "Maximum text length (string: 1-4000, memo: 1-1048576).")]
     public int? MaxLength { get; set; }
 
-    [CliOption(Name = "--string-format", Description = "String format: text, email, url, phone, textarea, tickersymbol.")]
+    [CliOption(Name = "--string-format", Description = "String format: text, email, url, phone, textarea, tickersymbol.", Required = false)]
     public string? StringFormat { get; set; }
 
     // === Number/Decimal/Float/Money ===
@@ -68,10 +68,10 @@ public class EntityAttributeCreateCliCommand : ProfiledCliCommand
     [CliOption(Name = "--precision", Description = "Decimal places (0-10 for decimal, 0-5 for float, 0-4 for money).")]
     public int? Precision { get; set; }
 
-    [CliOption(Name = "--number-format", Description = "Integer format: none, duration, timezone, language, locale.")]
+    [CliOption(Name = "--number-format", Description = "Integer format: none, duration, timezone, language, locale.", Required = false)]
     public string? NumberFormat { get; set; }
 
-    [CliOption(Name = "--precision-source", Description = "Money precision source: attribute, organization, currency.")]
+    [CliOption(Name = "--precision-source", Description = "Money precision source: attribute, organization, currency.", Required = false)]
     public string? PrecisionSource { get; set; }
 
     // === Bool ===
@@ -86,26 +86,26 @@ public class EntityAttributeCreateCliCommand : ProfiledCliCommand
 
     // === DateTime ===
 
-    [CliOption(Name = "--datetime-format", Description = "Date/time format: dateonly, dateandtime.")]
+    [CliOption(Name = "--datetime-format", Description = "Date/time format: dateonly, dateandtime.", Required = false)]
     public string? DateTimeFormat { get; set; }
 
-    [CliOption(Name = "--datetime-behavior", Description = "Date/time behavior: userlocaltime, dateonly, timezoneindependent.")]
+    [CliOption(Name = "--datetime-behavior", Description = "Date/time behavior: userlocaltime, dateonly, timezoneindependent.", Required = false)]
     public string? DateTimeBehavior { get; set; }
 
     // === Choice/Multichoice ===
 
-    [CliOption(Name = "--options", Description = "Options as 'Label1,Label2' or 'Label1:100000000,Label2:100000001'.")]
+    [CliOption(Name = "--options", Description = "Options as 'Label1,Label2' or 'Label1:100000000,Label2:100000001'.", Required = false)]
     public string? Options { get; set; }
 
-    [CliOption(Name = "--global-optionset", Description = "Reference an existing global option set by name instead of --options.")]
+    [CliOption(Name = "--global-optionset", Description = "Reference an existing global option set by name instead of --options.", Required = false)]
     public string? GlobalOptionSet { get; set; }
 
     // === Lookup ===
 
-    [CliOption(Name = "--target-entity", Description = "Target entity for lookup columns.")]
+    [CliOption(Name = "--target-entity", Description = "Target entity for lookup columns.", Required = false)]
     public string? TargetEntity { get; set; }
 
-    [CliOption(Name = "--target-entities", Description = "Comma-separated target entities for polymorphic lookup.")]
+    [CliOption(Name = "--target-entities", Description = "Comma-separated target entities for polymorphic lookup.", Required = false)]
     public string? TargetEntities { get; set; }
 
     [CliOption(Name = "--cascade-delete", Description = "Cascade delete behavior: cascade, removelink, restrict.")]
