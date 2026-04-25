@@ -17,7 +17,7 @@ namespace TALXIS.CLI.Features.Environment.Entity;
     Name = "add-option",
     Description = "Add an option value to a local or global option set."
 )]
-public class EntityOptionSetAddOptionCliCommand : ProfiledCliCommand
+public class EntityOptionSetAddOptionCliCommand : StagedCliCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EntityOptionSetAddOptionCliCommand));
 
@@ -38,6 +38,8 @@ public class EntityOptionSetAddOptionCliCommand : ProfiledCliCommand
 
     public async Task<int> RunAsync()
     {
+        ValidateExecutionMode();
+
         // Validate mutually exclusive options.
         bool hasGlobal = !string.IsNullOrWhiteSpace(GlobalOptionset);
         bool hasLocal = !string.IsNullOrWhiteSpace(Entity) || !string.IsNullOrWhiteSpace(Attribute);
@@ -58,6 +60,30 @@ public class EntityOptionSetAddOptionCliCommand : ProfiledCliCommand
         {
             _logger.LogError("Both --entity and --attribute are required for local option sets.");
             return 1;
+        }
+
+        if (Stage)
+        {
+            string stageTarget = hasGlobal ? GlobalOptionset! : $"{Entity}.{Attribute}";
+            var store = TxcServices.Get<IChangesetStore>();
+            store.Add(new StagedOperation
+            {
+                Category = "schema",
+                OperationType = "CREATE",
+                TargetType = "optionset",
+                TargetDescription = stageTarget,
+                Details = $"add option: \"{Label}\"" + (Value.HasValue ? $" ({Value})" : ""),
+                Parameters = new Dictionary<string, object?>
+                {
+                    ["entity"] = Entity,
+                    ["attribute"] = Attribute,
+                    ["globalOptionset"] = GlobalOptionset,
+                    ["label"] = Label,
+                    ["value"] = Value
+                }
+            });
+            OutputWriter.WriteLine($"Staged: ADD option '{Label}' to {stageTarget}");
+            return 0;
         }
 
         try

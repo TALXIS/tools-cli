@@ -17,7 +17,7 @@ namespace TALXIS.CLI.Features.Environment.Entity;
     Name = "create",
     Description = "Create a new entity (table) in the environment."
 )]
-public class EntityCreateCliCommand : ProfiledCliCommand
+public class EntityCreateCliCommand : StagedCliCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EntityCreateCliCommand));
 
@@ -38,6 +38,31 @@ public class EntityCreateCliCommand : ProfiledCliCommand
 
     public async Task<int> RunAsync()
     {
+        ValidateExecutionMode();
+
+        if (Stage)
+        {
+            var store = TxcServices.Get<IChangesetStore>();
+            store.Add(new StagedOperation
+            {
+                Category = "schema",
+                OperationType = "CREATE",
+                TargetType = "entity",
+                TargetDescription = Name,
+                Details = $"display: \"{DisplayName}\", plural: \"{PluralName}\"",
+                Parameters = new Dictionary<string, object?>
+                {
+                    ["name"] = Name,
+                    ["displayName"] = DisplayName,
+                    ["pluralName"] = PluralName,
+                    ["description"] = Description,
+                    ["solution"] = Solution
+                }
+            });
+            OutputWriter.WriteLine($"Staged: CREATE entity '{Name}'");
+            return 0;
+        }
+
         try
         {
             var service = TxcServices.Get<IDataverseEntityMetadataService>();

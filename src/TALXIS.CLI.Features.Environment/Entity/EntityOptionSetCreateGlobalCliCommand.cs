@@ -17,7 +17,7 @@ namespace TALXIS.CLI.Features.Environment.Entity;
     Name = "create-global",
     Description = "Create a new global option set (choice)."
 )]
-public class EntityOptionSetCreateGlobalCliCommand : ProfiledCliCommand
+public class EntityOptionSetCreateGlobalCliCommand : StagedCliCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EntityOptionSetCreateGlobalCliCommand));
 
@@ -38,6 +38,31 @@ public class EntityOptionSetCreateGlobalCliCommand : ProfiledCliCommand
 
     public async Task<int> RunAsync()
     {
+        ValidateExecutionMode();
+
+        if (Stage)
+        {
+            var store = TxcServices.Get<IChangesetStore>();
+            store.Add(new StagedOperation
+            {
+                Category = "schema",
+                OperationType = "CREATE",
+                TargetType = "optionset",
+                TargetDescription = Name,
+                Details = $"display: \"{DisplayName}\", options: \"{Options}\"",
+                Parameters = new Dictionary<string, object?>
+                {
+                    ["name"] = Name,
+                    ["displayName"] = DisplayName,
+                    ["options"] = Options,
+                    ["description"] = Description,
+                    ["solution"] = Solution
+                }
+            });
+            OutputWriter.WriteLine($"Staged: CREATE global optionset '{Name}'");
+            return 0;
+        }
+
         OptionMetadataInput[] parsed;
         try
         {

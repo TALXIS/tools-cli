@@ -17,7 +17,7 @@ namespace TALXIS.CLI.Features.Environment.Entity;
     Name = "create",
     Description = "Create a many-to-many (N:N) relationship between two entities."
 )]
-public class EntityRelationshipCreateCliCommand : ProfiledCliCommand
+public class EntityRelationshipCreateCliCommand : StagedCliCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EntityRelationshipCreateCliCommand));
 
@@ -35,6 +35,30 @@ public class EntityRelationshipCreateCliCommand : ProfiledCliCommand
 
     public async Task<int> RunAsync()
     {
+        ValidateExecutionMode();
+
+        if (Stage)
+        {
+            var store = TxcServices.Get<IChangesetStore>();
+            store.Add(new StagedOperation
+            {
+                Category = "schema",
+                OperationType = "CREATE",
+                TargetType = "relationship",
+                TargetDescription = Name,
+                Details = $"{Entity1} <-> {Entity2}",
+                Parameters = new Dictionary<string, object?>
+                {
+                    ["entity1"] = Entity1,
+                    ["entity2"] = Entity2,
+                    ["name"] = Name,
+                    ["displayName"] = DisplayName
+                }
+            });
+            OutputWriter.WriteLine($"Staged: CREATE relationship '{Name}' ({Entity1} <-> {Entity2})");
+            return 0;
+        }
+
         try
         {
             var service = TxcServices.Get<IDataverseEntityMetadataService>();

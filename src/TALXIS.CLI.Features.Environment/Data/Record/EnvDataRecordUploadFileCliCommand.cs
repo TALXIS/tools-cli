@@ -16,7 +16,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Record;
     Name = "upload-file",
     Description = "Upload a file to a file/image column on a record."
 )]
-public class EnvDataRecordUploadFileCliCommand : ProfiledCliCommand
+public class EnvDataRecordUploadFileCliCommand : StagedCliCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EnvDataRecordUploadFileCliCommand));
 
@@ -34,6 +34,30 @@ public class EnvDataRecordUploadFileCliCommand : ProfiledCliCommand
 
     public async Task<int> RunAsync()
     {
+        ValidateExecutionMode();
+
+        if (Stage)
+        {
+            var store = TxcServices.Get<IChangesetStore>();
+            store.Add(new StagedOperation
+            {
+                Category = "data",
+                OperationType = "UPLOAD",
+                TargetType = "file",
+                TargetDescription = $"{Entity}/{RecordId}/{Column}",
+                Details = $"file: {File}",
+                Parameters = new Dictionary<string, object?>
+                {
+                    ["entity"] = Entity,
+                    ["recordId"] = RecordId.ToString(),
+                    ["column"] = Column,
+                    ["file"] = File
+                }
+            });
+            OutputWriter.WriteLine($"Staged: UPLOAD file to {Entity}/{RecordId}/{Column}");
+            return 0;
+        }
+
         try
         {
             if (!System.IO.File.Exists(File))

@@ -17,7 +17,7 @@ namespace TALXIS.CLI.Features.Environment.Entity;
     Name = "delete",
     Description = "Delete an entity (table) from the environment."
 )]
-public class EntityDeleteCliCommand : ProfiledCliCommand
+public class EntityDeleteCliCommand : StagedCliCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EntityDeleteCliCommand));
 
@@ -26,6 +26,26 @@ public class EntityDeleteCliCommand : ProfiledCliCommand
 
     public async Task<int> RunAsync()
     {
+        ValidateExecutionMode();
+
+        if (Stage)
+        {
+            var store = TxcServices.Get<IChangesetStore>();
+            store.Add(new StagedOperation
+            {
+                Category = "schema",
+                OperationType = "DELETE",
+                TargetType = "entity",
+                TargetDescription = Entity,
+                Parameters = new Dictionary<string, object?>
+                {
+                    ["entity"] = Entity
+                }
+            });
+            OutputWriter.WriteLine($"Staged: DELETE entity '{Entity}'");
+            return 0;
+        }
+
         try
         {
             var service = TxcServices.Get<IDataverseEntityMetadataService>();

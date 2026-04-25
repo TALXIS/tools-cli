@@ -17,7 +17,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Record;
     Name = "update",
     Description = "Update a single record by ID from JSON attributes."
 )]
-public class EnvDataRecordUpdateCliCommand : ProfiledCliCommand
+public class EnvDataRecordUpdateCliCommand : StagedCliCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EnvDataRecordUpdateCliCommand));
 
@@ -35,6 +35,30 @@ public class EnvDataRecordUpdateCliCommand : ProfiledCliCommand
 
     public async Task<int> RunAsync()
     {
+        ValidateExecutionMode();
+
+        if (Stage)
+        {
+            var store = TxcServices.Get<IChangesetStore>();
+            store.Add(new StagedOperation
+            {
+                Category = "data",
+                OperationType = "UPDATE",
+                TargetType = "record",
+                TargetDescription = $"{Entity}/{RecordId}",
+                Details = Data is not null ? "inline JSON" : $"file: {File}",
+                Parameters = new Dictionary<string, object?>
+                {
+                    ["entity"] = Entity,
+                    ["recordId"] = RecordId.ToString(),
+                    ["data"] = Data,
+                    ["file"] = File
+                }
+            });
+            OutputWriter.WriteLine($"Staged: UPDATE record '{RecordId}' in '{Entity}'");
+            return 0;
+        }
+
         if (!TryParseAttributes(out var attributes))
             return 1;
 

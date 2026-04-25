@@ -17,7 +17,7 @@ namespace TALXIS.CLI.Features.Environment.Entity;
     Name = "delete-option",
     Description = "Delete an option value from a local or global option set."
 )]
-public class EntityOptionSetDeleteOptionCliCommand : ProfiledCliCommand
+public class EntityOptionSetDeleteOptionCliCommand : StagedCliCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EntityOptionSetDeleteOptionCliCommand));
 
@@ -35,6 +35,8 @@ public class EntityOptionSetDeleteOptionCliCommand : ProfiledCliCommand
 
     public async Task<int> RunAsync()
     {
+        ValidateExecutionMode();
+
         // Validate mutually exclusive options.
         bool hasGlobal = !string.IsNullOrWhiteSpace(GlobalOptionset);
         bool hasLocal = !string.IsNullOrWhiteSpace(Entity) || !string.IsNullOrWhiteSpace(Attribute);
@@ -55,6 +57,29 @@ public class EntityOptionSetDeleteOptionCliCommand : ProfiledCliCommand
         {
             _logger.LogError("Both --entity and --attribute are required for local option sets.");
             return 1;
+        }
+
+        if (Stage)
+        {
+            string stageTarget = hasGlobal ? GlobalOptionset! : $"{Entity}.{Attribute}";
+            var store = TxcServices.Get<IChangesetStore>();
+            store.Add(new StagedOperation
+            {
+                Category = "schema",
+                OperationType = "DELETE",
+                TargetType = "optionset",
+                TargetDescription = stageTarget,
+                Details = $"remove option value: {Value}",
+                Parameters = new Dictionary<string, object?>
+                {
+                    ["entity"] = Entity,
+                    ["attribute"] = Attribute,
+                    ["globalOptionset"] = GlobalOptionset,
+                    ["value"] = Value
+                }
+            });
+            OutputWriter.WriteLine($"Staged: DELETE option {Value} from {stageTarget}");
+            return 0;
         }
 
         try

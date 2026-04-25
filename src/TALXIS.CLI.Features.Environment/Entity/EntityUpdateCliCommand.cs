@@ -17,7 +17,7 @@ namespace TALXIS.CLI.Features.Environment.Entity;
     Name = "update",
     Description = "Update entity-level metadata (display name, plural name, description)."
 )]
-public class EntityUpdateCliCommand : ProfiledCliCommand
+public class EntityUpdateCliCommand : StagedCliCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EntityUpdateCliCommand));
 
@@ -35,10 +35,38 @@ public class EntityUpdateCliCommand : ProfiledCliCommand
 
     public async Task<int> RunAsync()
     {
+        ValidateExecutionMode();
+
         if (DisplayName is null && PluralName is null && Description is null)
         {
             _logger.LogError("At least one of --display-name, --plural-name, or --description must be provided.");
             return 1;
+        }
+
+        if (Stage)
+        {
+            var store = TxcServices.Get<IChangesetStore>();
+            store.Add(new StagedOperation
+            {
+                Category = "schema",
+                OperationType = "UPDATE",
+                TargetType = "entity",
+                TargetDescription = Entity,
+                Details = string.Join(", ", new[] {
+                    DisplayName is not null ? $"displayName: \"{DisplayName}\"" : null,
+                    PluralName is not null ? $"pluralName: \"{PluralName}\"" : null,
+                    Description is not null ? $"description: \"{Description}\"" : null
+                }.Where(s => s is not null)),
+                Parameters = new Dictionary<string, object?>
+                {
+                    ["entity"] = Entity,
+                    ["displayName"] = DisplayName,
+                    ["pluralName"] = PluralName,
+                    ["description"] = Description
+                }
+            });
+            OutputWriter.WriteLine($"Staged: UPDATE entity '{Entity}'");
+            return 0;
         }
 
         try

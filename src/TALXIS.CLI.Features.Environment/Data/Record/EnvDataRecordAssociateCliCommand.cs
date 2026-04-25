@@ -16,7 +16,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Record;
     Name = "associate",
     Description = "Link two records together through a many-to-many (N:N) relationship. You need to know the relationship schema name."
 )]
-public class EnvDataRecordAssociateCliCommand : ProfiledCliCommand
+public class EnvDataRecordAssociateCliCommand : StagedCliCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EnvDataRecordAssociateCliCommand));
 
@@ -37,6 +37,31 @@ public class EnvDataRecordAssociateCliCommand : ProfiledCliCommand
 
     public async Task<int> RunAsync()
     {
+        ValidateExecutionMode();
+
+        if (Stage)
+        {
+            var store = TxcServices.Get<IChangesetStore>();
+            store.Add(new StagedOperation
+            {
+                Category = "data",
+                OperationType = "ASSOCIATE",
+                TargetType = "record",
+                TargetDescription = $"{Entity}/{RecordId} -> {TargetEntity}/{Target}",
+                Details = $"relationship: {Relationship}",
+                Parameters = new Dictionary<string, object?>
+                {
+                    ["entity"] = Entity,
+                    ["recordId"] = RecordId.ToString(),
+                    ["targetEntity"] = TargetEntity,
+                    ["target"] = Target.ToString(),
+                    ["relationship"] = Relationship
+                }
+            });
+            OutputWriter.WriteLine($"Staged: ASSOCIATE {Entity}/{RecordId} with {TargetEntity}/{Target} via '{Relationship}'");
+            return 0;
+        }
+
         try
         {
             var service = TxcServices.Get<IDataverseRelationshipService>();

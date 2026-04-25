@@ -17,7 +17,7 @@ namespace TALXIS.CLI.Features.Environment.Entity;
     Name = "delete",
     Description = "Delete a relationship by its schema name."
 )]
-public class EntityRelationshipDeleteCliCommand : ProfiledCliCommand
+public class EntityRelationshipDeleteCliCommand : StagedCliCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EntityRelationshipDeleteCliCommand));
 
@@ -26,6 +26,26 @@ public class EntityRelationshipDeleteCliCommand : ProfiledCliCommand
 
     public async Task<int> RunAsync()
     {
+        ValidateExecutionMode();
+
+        if (Stage)
+        {
+            var store = TxcServices.Get<IChangesetStore>();
+            store.Add(new StagedOperation
+            {
+                Category = "schema",
+                OperationType = "DELETE",
+                TargetType = "relationship",
+                TargetDescription = Name,
+                Parameters = new Dictionary<string, object?>
+                {
+                    ["name"] = Name
+                }
+            });
+            OutputWriter.WriteLine($"Staged: DELETE relationship '{Name}'");
+            return 0;
+        }
+
         try
         {
             var service = TxcServices.Get<IDataverseEntityMetadataService>();

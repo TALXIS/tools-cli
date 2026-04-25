@@ -19,7 +19,7 @@ namespace TALXIS.CLI.Features.Environment.Entity;
     Name = "create",
     Description = "Create a column (attribute) on an entity. Use 'txc environment entity attribute type describe <type>' to see type-specific parameters."
 )]
-public class EntityAttributeCreateCliCommand : ProfiledCliCommand
+public class EntityAttributeCreateCliCommand : StagedCliCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EntityAttributeCreateCliCommand));
 
@@ -123,6 +123,53 @@ public class EntityAttributeCreateCliCommand : ProfiledCliCommand
 
     public async Task<int> RunAsync()
     {
+        ValidateExecutionMode();
+
+        if (Stage)
+        {
+            ValidateTypeSpecificParams();
+
+            var store = TxcServices.Get<IChangesetStore>();
+            store.Add(new StagedOperation
+            {
+                Category = "schema",
+                OperationType = "CREATE",
+                TargetType = "attribute",
+                TargetDescription = $"{Entity}.{Name}",
+                Details = $"type: {Type}",
+                Parameters = new Dictionary<string, object?>
+                {
+                    ["entity"] = Entity,
+                    ["name"] = Name,
+                    ["type"] = Type.ToString(),
+                    ["displayName"] = DisplayName,
+                    ["description"] = Description,
+                    ["requiredLevel"] = RequiredLevel,
+                    ["solution"] = Solution,
+                    ["maxLength"] = MaxLength,
+                    ["stringFormat"] = StringFormat,
+                    ["minValue"] = MinValue,
+                    ["maxValue"] = MaxValue,
+                    ["precision"] = Precision,
+                    ["numberFormat"] = NumberFormat,
+                    ["precisionSource"] = PrecisionSource,
+                    ["trueLabel"] = TrueLabel,
+                    ["falseLabel"] = FalseLabel,
+                    ["dateTimeFormat"] = DateTimeFormat,
+                    ["dateTimeBehavior"] = DateTimeBehavior,
+                    ["options"] = Options,
+                    ["globalOptionSet"] = GlobalOptionSet,
+                    ["targetEntity"] = TargetEntity,
+                    ["targetEntities"] = TargetEntities,
+                    ["cascadeDelete"] = CascadeDelete,
+                    ["maxSizeKb"] = MaxSizeKb,
+                    ["canStoreFullImage"] = CanStoreFullImage
+                }
+            });
+            OutputWriter.WriteLine($"Staged: CREATE attribute '{Entity}.{Name}' (type: {Type})");
+            return 0;
+        }
+
         try
         {
             ValidateTypeSpecificParams();

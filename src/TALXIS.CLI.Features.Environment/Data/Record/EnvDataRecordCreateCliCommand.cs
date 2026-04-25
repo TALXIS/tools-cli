@@ -17,7 +17,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Record;
     Name = "create",
     Description = "Create a single record from JSON attributes."
 )]
-public class EnvDataRecordCreateCliCommand : ProfiledCliCommand
+public class EnvDataRecordCreateCliCommand : StagedCliCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EnvDataRecordCreateCliCommand));
 
@@ -32,6 +32,29 @@ public class EnvDataRecordCreateCliCommand : ProfiledCliCommand
 
     public async Task<int> RunAsync()
     {
+        ValidateExecutionMode();
+
+        if (Stage)
+        {
+            var store = TxcServices.Get<IChangesetStore>();
+            store.Add(new StagedOperation
+            {
+                Category = "data",
+                OperationType = "CREATE",
+                TargetType = "record",
+                TargetDescription = Entity,
+                Details = Data is not null ? "inline JSON" : $"file: {File}",
+                Parameters = new Dictionary<string, object?>
+                {
+                    ["entity"] = Entity,
+                    ["data"] = Data,
+                    ["file"] = File
+                }
+            });
+            OutputWriter.WriteLine($"Staged: CREATE record in '{Entity}'");
+            return 0;
+        }
+
         if (!TryParseAttributes(out var attributes))
             return 1;
 

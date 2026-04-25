@@ -16,7 +16,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Record;
     Name = "delete",
     Description = "Delete a single record by ID."
 )]
-public class EnvDataRecordDeleteCliCommand : ProfiledCliCommand
+public class EnvDataRecordDeleteCliCommand : StagedCliCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EnvDataRecordDeleteCliCommand));
 
@@ -28,6 +28,27 @@ public class EnvDataRecordDeleteCliCommand : ProfiledCliCommand
 
     public async Task<int> RunAsync()
     {
+        ValidateExecutionMode();
+
+        if (Stage)
+        {
+            var store = TxcServices.Get<IChangesetStore>();
+            store.Add(new StagedOperation
+            {
+                Category = "data",
+                OperationType = "DELETE",
+                TargetType = "record",
+                TargetDescription = $"{Entity}/{RecordId}",
+                Parameters = new Dictionary<string, object?>
+                {
+                    ["entity"] = Entity,
+                    ["recordId"] = RecordId.ToString()
+                }
+            });
+            OutputWriter.WriteLine($"Staged: DELETE record '{RecordId}' from '{Entity}'");
+            return 0;
+        }
+
         try
         {
             var service = TxcServices.Get<IDataverseRecordService>();

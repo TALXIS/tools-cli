@@ -17,7 +17,7 @@ namespace TALXIS.CLI.Features.Environment.Entity;
     Name = "update",
     Description = "Update an existing attribute (column) on an entity."
 )]
-public class EntityAttributeUpdateCliCommand : ProfiledCliCommand
+public class EntityAttributeUpdateCliCommand : StagedCliCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EntityAttributeUpdateCliCommand));
 
@@ -38,6 +38,35 @@ public class EntityAttributeUpdateCliCommand : ProfiledCliCommand
 
     public async Task<int> RunAsync()
     {
+        ValidateExecutionMode();
+
+        if (Stage)
+        {
+            var store = TxcServices.Get<IChangesetStore>();
+            store.Add(new StagedOperation
+            {
+                Category = "schema",
+                OperationType = "UPDATE",
+                TargetType = "attribute",
+                TargetDescription = $"{Entity}.{Name}",
+                Details = string.Join(", ", new[] {
+                    DisplayName is not null ? $"displayName: \"{DisplayName}\"" : null,
+                    Description is not null ? $"description: \"{Description}\"" : null,
+                    Required is not null ? $"required: {Required}" : null
+                }.Where(s => s is not null)),
+                Parameters = new Dictionary<string, object?>
+                {
+                    ["entity"] = Entity,
+                    ["name"] = Name,
+                    ["displayName"] = DisplayName,
+                    ["description"] = Description,
+                    ["required"] = Required
+                }
+            });
+            OutputWriter.WriteLine($"Staged: UPDATE attribute '{Entity}.{Name}'");
+            return 0;
+        }
+
         try
         {
             var service = TxcServices.Get<IDataverseEntityMetadataService>();

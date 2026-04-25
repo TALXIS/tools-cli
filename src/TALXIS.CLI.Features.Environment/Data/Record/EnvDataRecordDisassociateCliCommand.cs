@@ -16,7 +16,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Record;
     Name = "disassociate",
     Description = "Remove the link between two records in a many-to-many (N:N) relationship."
 )]
-public class EnvDataRecordDisassociateCliCommand : ProfiledCliCommand
+public class EnvDataRecordDisassociateCliCommand : StagedCliCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EnvDataRecordDisassociateCliCommand));
 
@@ -37,6 +37,31 @@ public class EnvDataRecordDisassociateCliCommand : ProfiledCliCommand
 
     public async Task<int> RunAsync()
     {
+        ValidateExecutionMode();
+
+        if (Stage)
+        {
+            var store = TxcServices.Get<IChangesetStore>();
+            store.Add(new StagedOperation
+            {
+                Category = "data",
+                OperationType = "DISASSOCIATE",
+                TargetType = "record",
+                TargetDescription = $"{Entity}/{RecordId} -> {TargetEntity}/{Target}",
+                Details = $"relationship: {Relationship}",
+                Parameters = new Dictionary<string, object?>
+                {
+                    ["entity"] = Entity,
+                    ["recordId"] = RecordId.ToString(),
+                    ["targetEntity"] = TargetEntity,
+                    ["target"] = Target.ToString(),
+                    ["relationship"] = Relationship
+                }
+            });
+            OutputWriter.WriteLine($"Staged: DISASSOCIATE {Entity}/{RecordId} from {TargetEntity}/{Target} via '{Relationship}'");
+            return 0;
+        }
+
         try
         {
             var service = TxcServices.Get<IDataverseRelationshipService>();
