@@ -1,3 +1,4 @@
+#pragma warning disable TXC001 // MCP-specific in-process command — not a standard CLI leaf
 using DotMake.CommandLine;
 using System.ComponentModel;
 using TALXIS.CLI.Core;

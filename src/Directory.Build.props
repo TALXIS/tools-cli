@@ -11,8 +11,8 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
-    <!-- Treat banned API usage (RS0030) as a build error, not just a warning -->
-    <WarningsAsErrors>$(WarningsAsErrors);RS0030</WarningsAsErrors>
+    <!-- Treat banned API usage and CLI convention violations as build errors -->
+    <WarningsAsErrors>$(WarningsAsErrors);RS0030;TXC001;TXC002</WarningsAsErrors>
   </PropertyGroup>
 
   <ItemGroup>
@@ -23,5 +23,16 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
     </PackageReference>
     <AdditionalFiles Include="$(MSBuildThisFileDirectory)BannedSymbols.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Custom TALXIS CLI analyzers: TXC001 (must inherit TxcLeafCommand),
+         TXC002 (must not define RunAsync), TXC003 (must not call OutputWriter).
+         The analyzer project itself is excluded via Condition. -->
+    <ProjectReference
+      Include="$(MSBuildThisFileDirectory)TALXIS.CLI.Analyzers\TALXIS.CLI.Analyzers.csproj"
+      Condition="'$(MSBuildProjectName)' != 'TALXIS.CLI.Analyzers'"
+      OutputItemType="Analyzer"
+      ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>

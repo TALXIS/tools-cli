@@ -1,3 +1,4 @@
+#pragma warning disable TXC001 // Reserved stub — will inherit TxcLeafCommand when implemented
 // Reserved skeleton — intentionally NOT wired into any parent's `Children` array.
 //
 // `txc workspace metamodel describe` will render a human-readable description
