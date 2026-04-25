@@ -172,6 +172,12 @@ public sealed class CmtImportRunner
                 ?? throw new InvalidOperationException("ImportCrmDataHandler.CrmConnection property not found.");
             crmConnProp.SetValue(handler, crmServiceClient);
 
+            // Apply import tuning options
+            handler.EnabledBatchMode = request.BatchMode;
+            handler.RequestedBatchSize = request.BatchSize;
+            handler.OverrideDataImportSafetyChecks = request.OverrideSafetyChecks;
+            handler.PrefetchRecordLimitSize = request.PrefetchLimit;
+
             // 4. Wire progress event handlers.
             handler.AddNewProgressItem += OnAddNewProgressItem;
             handler.UpdateProgressItem += OnUpdateProgressItem;
@@ -228,7 +234,7 @@ public sealed class CmtImportRunner
 
             // 8. Import data (synchronous — blocks via internal WaitOne).
             _logger.LogInformation("Starting data import...");
-            await Task.Run(() => handler.ImportDataToCrm(workingFolder, deleteBeforeAdd: false));
+            await Task.Run(() => handler.ImportDataToCrm(workingFolder, deleteBeforeAdd: request.DeleteBeforeImport));
 
             // CMT often swallows exceptions internally and only reports
             // failures through progress events. Check whether any stages

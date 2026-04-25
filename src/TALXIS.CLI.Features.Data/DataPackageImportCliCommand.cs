@@ -23,6 +23,26 @@ public class DataPackageImportCliCommand : ProfiledCliCommand
     [DefaultValue(1)]
     public int ConnectionCount { get; set; } = 1;
 
+    [CliOption(Name = "--batch-mode", Description = "Enable batch mode for import (ExecuteMultiple/UpsertMultiple).", Required = false)]
+    [DefaultValue(false)]
+    public bool BatchMode { get; set; }
+
+    [CliOption(Name = "--batch-size", Description = "Number of records per batch request (requires --batch-mode).", Required = false)]
+    [DefaultValue(600)]
+    public int BatchSize { get; set; } = 600;
+
+    [CliOption(Name = "--override-safety-checks", Description = "Skip duplicate detection — always create records, never update existing ones.", Required = false)]
+    [DefaultValue(false)]
+    public bool OverrideSafetyChecks { get; set; }
+
+    [CliOption(Name = "--prefetch-limit", Description = "Maximum number of records to preload into cache per entity for duplicate detection.", Required = false)]
+    [DefaultValue(4000)]
+    public int PrefetchLimit { get; set; } = 4000;
+
+    [CliOption(Name = "--delete-before-import", Description = "Delete existing records before importing new data.", Required = false)]
+    [DefaultValue(false)]
+    public bool DeleteBeforeImport { get; set; }
+
     public async Task<int> RunAsync()
     {
         if (string.IsNullOrWhiteSpace(Data))
@@ -41,7 +61,7 @@ public class DataPackageImportCliCommand : ProfiledCliCommand
         DataPackageImportResult result;
         try
         {
-            result = await service.ImportAsync(Profile, Data, ConnectionCount, Verbose, CancellationToken.None).ConfigureAwait(false);
+            result = await service.ImportAsync(Profile, Data, ConnectionCount, BatchMode, BatchSize, OverrideSafetyChecks, PrefetchLimit, DeleteBeforeImport, Verbose, CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
