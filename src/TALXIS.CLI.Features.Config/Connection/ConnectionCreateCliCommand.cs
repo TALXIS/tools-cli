@@ -16,6 +16,7 @@ namespace TALXIS.CLI.Features.Config.Connection;
 /// "not implemented in v1" message so future provider packages can plug
 /// in without surface churn.
 /// </summary>
+[CliIdempotent]
 [CliCommand(
     Name = "create",
     Description = "Create a connection (service endpoint). Dataverse-only in v1."

@@ -11,6 +11,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Bulk;
 /// Upserts (creates or updates) multiple records of the same entity type in
 /// a single request using the Dataverse <c>UpsertMultiple</c> SDK message.
 /// </summary>
+[CliIdempotent]
 [CliCommand(
     Name = "upsert",
     Description = "Upsert multiple records in a single UpsertMultiple request."

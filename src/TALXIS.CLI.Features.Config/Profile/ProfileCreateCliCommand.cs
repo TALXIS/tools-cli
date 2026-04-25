@@ -32,6 +32,7 @@ namespace TALXIS.CLI.Features.Config.Profile;
 /// is auto-promoted to the global active profile — same behaviour as before.
 /// </para>
 /// </summary>
+[CliIdempotent]
 [CliCommand(
     Name = "create",
     Description = "Create a profile. Quickstart: --url <env>. Advanced: --auth <alias> --connection <name>."

@@ -5,6 +5,7 @@ using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Data;
 
+[CliReadOnly]
 [CliCommand(
     Name = "convert",
     Description = "Convert tables from an XLSX file to CMT data package XML"

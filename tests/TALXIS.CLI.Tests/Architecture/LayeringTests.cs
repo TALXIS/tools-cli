@@ -9,7 +9,7 @@ namespace TALXIS.CLI.Tests.Architecture;
 /// <summary>
 /// Tests that enforce project layering rules from CONTRIBUTING.md:
 /// - Features do NOT reference other Features (except the documented exception below)
-/// - Destructive commands with <c>--yes</c> must have <c>[McpIgnore]</c>
+/// - Destructive commands with <c>--yes</c> must have <c>[CliDestructive("…")]</c>
 /// </summary>
 public class LayeringTests
 {
@@ -53,12 +53,13 @@ public class LayeringTests
     }
 
     /// <summary>
-    /// Commands with a <c>--yes</c> flag are destructive operations. They must be
-    /// excluded from MCP agent access via <c>[McpIgnore]</c> to prevent automated
-    /// tools from performing unconfirmed destructive actions.
+    /// Commands with a <c>--yes</c> flag are destructive operations. They must carry
+    /// <c>[CliDestructive("…")]</c> so MCP clients can prompt for human-in-the-loop
+    /// confirmation before execution. The <c>--yes</c> flag itself provides
+    /// server-side defense in depth.
     /// </summary>
     [Fact]
-    public void DestructiveCommands_WithYesFlag_MustHaveMcpIgnore()
+    public void DestructiveCommands_WithYesFlag_MustHaveDestructiveAnnotation()
     {
         var commandAssemblies = new Assembly[]
         {
@@ -72,12 +73,17 @@ public class LayeringTests
             .SelectMany(a => a.GetTypes())
             .Where(t => t.GetCustomAttribute<CliCommandAttribute>() is not null && !t.IsAbstract)
             .Where(HasYesFlag)
-            .Where(t => t.GetCustomAttribute<McpIgnoreAttribute>() is null)
+            .Where(t =>
+            {
+                var destructive = t.GetCustomAttribute<CliDestructiveAttribute>();
+                return destructive is null;
+            })
             .Select(t => t.FullName)
             .ToList();
 
         Assert.True(violations.Count == 0,
-            $"Commands with --yes flag must have [McpIgnore] to prevent MCP agents from performing destructive actions:\n" +
+            $"Commands with --yes flag must have [CliDestructive(\"…\")] " +
+            $"so MCP clients prompt for confirmation:\n" +
             string.Join("\n", violations!));
     }
 

@@ -11,6 +11,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Bulk;
 /// Creates multiple records of the same entity type in a single request
 /// using the Dataverse <c>CreateMultiple</c> SDK message.
 /// </summary>
+[CliIdempotent]
 [CliCommand(
     Name = "create",
     Description = "Create multiple records in a single CreateMultiple request."

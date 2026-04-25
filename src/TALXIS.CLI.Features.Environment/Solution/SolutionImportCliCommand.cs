@@ -9,6 +9,7 @@ using TALXIS.CLI.Core;
 
 namespace TALXIS.CLI.Features.Environment.Solution;
 
+[CliIdempotent]
 [CliCommand(
     Name = "import",
     Description = "Import a solution .zip into the target environment."

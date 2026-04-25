@@ -12,6 +12,7 @@ namespace TALXIS.CLI.Features.Environment.Setting;
 /// all backends (control plane, Organization table, solution settings,
 /// copilot governance).
 /// </summary>
+[CliReadOnly]
 [CliCommand(
     Name = "list",
     Description = "List environment settings."

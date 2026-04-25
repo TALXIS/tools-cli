@@ -16,6 +16,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Query;
 ///   txc environment data query sql "SELECT name, accountnumber FROM account WHERE statecode = 0"
 ///   txc env data query sql "SELECT TOP 10 fullname FROM contact" --format json
 /// </example>
+[CliReadOnly]
 [CliCommand(
     Name = "sql",
     Description = "Execute a SQL query against the Dataverse environment."

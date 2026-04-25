@@ -18,15 +18,18 @@ namespace TALXIS.CLI.Features.Config.Auth;
 /// <c>pac auth clear</c> behaves similarly; cascading deletes would be
 /// surprising and are therefore intentionally not performed.
 /// </summary>
-[McpIgnore]
+[CliDestructive("Permanently removes the credential and its OS vault secret; referencing profiles are left orphaned.")]
 [CliCommand(
     Name = "delete",
     Description = "Delete a stored credential. Profiles referencing it are left orphaned with a warning."
 )]
-public class AuthDeleteCliCommand : TxcLeafCommand
+public class AuthDeleteCliCommand : TxcLeafCommand, IDestructiveCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(AuthDeleteCliCommand));
     protected override ILogger Logger => _logger;
+
+    [CliOption(Name = "--yes", Description = "Skip confirmation for this destructive operation.", Required = false)]
+    public bool Yes { get; set; }
 
     [CliArgument(Description = "Credential alias (id) to delete.")]
     public required string Alias { get; set; }

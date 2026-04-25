@@ -6,6 +6,7 @@ using TALXIS.CLI.Core;
 using TALXIS.CLI.Features.Workspace.TemplateEngine;
 namespace TALXIS.CLI.Features.Workspace;
 
+[CliIdempotent]
 [CliCommand(
     Description = "Scaffolds a component from a template and passes parameters",
     Name = "create")]

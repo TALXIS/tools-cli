@@ -11,6 +11,7 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 /// Describes the columns/attributes of a specific entity.
 /// Usage: <c>txc environment entity describe &lt;entity&gt; [--include-system]</c>
 /// </summary>
+[CliReadOnly]
 [CliCommand(
     Name = "describe",
     Description = "Describe columns/attributes of an entity."

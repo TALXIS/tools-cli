@@ -1,4 +1,5 @@
 #pragma warning disable TXC001 // Reserved stub — will inherit TxcLeafCommand when implemented
+#pragma warning disable TXC004 // Reserved stub — safety annotation deferred until implemented
 // Reserved skeleton — intentionally NOT wired into any parent's `Children` array.
 //
 // This class exists to pin the design: `txc workspace validate` is the planned

@@ -11,6 +11,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Bulk;
 /// Updates multiple records of the same entity type in a single request
 /// using the Dataverse <c>UpdateMultiple</c> SDK message.
 /// </summary>
+[CliIdempotent]
 [CliCommand(
     Name = "update",
     Description = "Update multiple records in a single UpdateMultiple request."

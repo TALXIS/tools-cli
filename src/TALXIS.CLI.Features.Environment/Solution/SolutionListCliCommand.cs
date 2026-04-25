@@ -7,6 +7,7 @@ using TALXIS.CLI.Core;
 
 namespace TALXIS.CLI.Features.Environment.Solution;
 
+[CliReadOnly]
 [CliCommand(
     Name = "list",
     Description = "List installed solutions in the target environment."

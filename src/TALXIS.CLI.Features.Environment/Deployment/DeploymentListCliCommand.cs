@@ -7,6 +7,7 @@ using TALXIS.CLI.Core;
 
 namespace TALXIS.CLI.Features.Environment.Deployment;
 
+[CliReadOnly]
 [CliCommand(
     Name = "list",
     Description = "List past deployment runs (package and solution) in the target environment."

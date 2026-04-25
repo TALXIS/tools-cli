@@ -11,6 +11,7 @@ namespace TALXIS.CLI.MCP
     /// is redirected by ExecuteMcpSpecificToolWithCapturedOutputAsync to capture
     /// the result data as the tool response.
     /// </summary>
+    [CliIdempotent]
     [CliCommand(
         Name = "copilot-instructions",
         Description = "Creates or updates .github/copilot-instructions.md file with TALXIS CLI instructions in the target project"

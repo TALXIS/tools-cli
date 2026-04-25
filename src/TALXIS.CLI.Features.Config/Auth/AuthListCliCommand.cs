@@ -13,6 +13,7 @@ namespace TALXIS.CLI.Features.Config.Auth;
 /// array on stdout. Secrets are held in the OS vault and are never
 /// touched by this command.
 /// </summary>
+[CliReadOnly]
 [CliCommand(
     Name = "list",
     Description = "List all stored credentials as JSON."

@@ -11,6 +11,7 @@ namespace TALXIS.CLI.Features.Environment.Setting;
 /// <c>txc environment setting update</c> — updates a single environment
 /// setting. The correct backend is resolved automatically.
 /// </summary>
+[CliIdempotent]
 [CliCommand(
     Name = "update",
     Description = "Update an environment setting."

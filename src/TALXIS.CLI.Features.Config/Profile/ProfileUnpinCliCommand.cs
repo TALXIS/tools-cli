@@ -1,6 +1,7 @@
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
+using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Core.Resolution;
 using TALXIS.CLI.Logging;
@@ -14,15 +15,19 @@ namespace TALXIS.CLI.Features.Config.Profile;
 /// calls don't break scripts. Also removes the empty <c>.txc</c>
 /// directory when the workspace file was the only thing inside it.
 /// </summary>
-[McpIgnore]
+[CliDestructive("Removes the workspace pin file; the workspace will no longer auto-resolve a profile.")]
+[CliIdempotent]
 [CliCommand(
     Name = "unpin",
     Description = "Remove <cwd>/.txc/workspace.json (no-op if absent)."
 )]
-public class ProfileUnpinCliCommand : TxcLeafCommand
+public class ProfileUnpinCliCommand : TxcLeafCommand, IDestructiveCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ProfileUnpinCliCommand));
     protected override ILogger Logger => _logger;
+
+    [CliOption(Name = "--yes", Description = "Skip confirmation for this destructive operation.", Required = false)]
+    public bool Yes { get; set; }
 
     protected override Task<int> ExecuteAsync()
     {

@@ -14,6 +14,7 @@ namespace TALXIS.CLI.Features.Config.Profile;
 /// means <c>TXC_PROFILE</c> and <c>.txc/workspace.json</c> still win
 /// per invocation; <c>select</c> only changes the fallback.
 /// </summary>
+[CliIdempotent]
 [CliCommand(
     Name = "select",
     Description = "Set the global active profile (fallback when no --profile / env / workspace override)."

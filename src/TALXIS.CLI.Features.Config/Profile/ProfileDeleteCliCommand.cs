@@ -19,15 +19,18 @@ namespace TALXIS.CLI.Features.Config.Profile;
 /// instead of silently resolving to a deleted one.
 /// </para>
 /// </summary>
-[McpIgnore]
+[CliDestructive("Deletes the profile and optionally cascades to its credential and connection.")]
 [CliCommand(
     Name = "delete",
     Description = "Delete a profile. Dependents are kept unless --cascade."
 )]
-public class ProfileDeleteCliCommand : TxcLeafCommand
+public class ProfileDeleteCliCommand : TxcLeafCommand, IDestructiveCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ProfileDeleteCliCommand));
     protected override ILogger Logger => _logger;
+
+    [CliOption(Name = "--yes", Description = "Skip confirmation for this destructive operation.", Required = false)]
+    public bool Yes { get; set; }
 
     [CliArgument(Description = "Profile name.")]
     public required string Name { get; set; }

@@ -6,6 +6,7 @@ using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Data;
 
+[CliReadOnly]
 [CliCommand(
     Name = "convert",
     Description = "Convert a Power Platform solution data model to various formats such as DBML, SQL, EDMX or Ribbon"

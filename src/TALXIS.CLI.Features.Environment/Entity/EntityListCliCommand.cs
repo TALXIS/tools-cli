@@ -11,6 +11,7 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 /// Lists entities in the connected Dataverse environment.
 /// Usage: <c>txc environment entity list [--search &lt;term&gt;] [--include-system]</c>
 /// </summary>
+[CliReadOnly]
 [CliCommand(
     Name = "list",
     Description = "List entities in the target environment."

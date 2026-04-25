@@ -11,6 +11,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Record;
 /// <summary>
 /// Retrieves a single record by entity logical name and record ID.
 /// </summary>
+[CliReadOnly]
 [CliCommand(
     Name = "get",
     Description = "Retrieve a single record by ID."

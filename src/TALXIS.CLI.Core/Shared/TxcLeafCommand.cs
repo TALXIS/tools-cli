@@ -1,5 +1,8 @@
+using System.Reflection;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
+using TALXIS.CLI.Core.Abstractions;
+using TALXIS.CLI.Core.DependencyInjection;
 
 namespace TALXIS.CLI.Core;
 
@@ -61,6 +64,10 @@ public abstract class TxcLeafCommand
         if (formatError.HasValue)
             return formatError.Value;
 
+        var confirmError = await CheckDestructiveConfirmationAsync().ConfigureAwait(false);
+        if (confirmError.HasValue)
+            return confirmError.Value;
+
         try
         {
             return await ExecuteAsync().ConfigureAwait(false);
@@ -94,6 +101,53 @@ public abstract class TxcLeafCommand
     /// You may still catch domain-specific exceptions for custom exit codes.
     /// </summary>
     protected abstract Task<int> ExecuteAsync();
+
+    /// <summary>
+    /// Checks whether this command is a destructive operation (marked with
+    /// <see cref="CliDestructiveAttribute"/> or implementing
+    /// <see cref="IDestructiveCommand"/>) and enforces confirmation. In interactive
+    /// terminals the user is prompted; in headless/CI the command fails unless
+    /// <c>--yes</c> was passed. Returns an exit code to abort, or null to proceed.
+    /// </summary>
+    private async Task<int?> CheckDestructiveConfirmationAsync()
+    {
+        var destructiveAttr = GetType().GetCustomAttribute<CliDestructiveAttribute>();
+        var dc = this as IDestructiveCommand;
+
+        // [CliDestructive] is the source of truth; IDestructiveCommand provides --yes bypass.
+        if (destructiveAttr is null && dc is null) return null;
+        if (dc?.Yes == true) return null;
+
+        var detector = TxcServices.Get<IHeadlessDetector>();
+        if (detector.IsHeadless)
+        {
+            if (dc is null)
+            {
+                Logger.LogError(
+                    "This operation is marked destructive and cannot run in non-interactive mode ({Reason}) because it does not expose --yes.",
+                    detector.Reason);
+            }
+            else
+            {
+                Logger.LogError(
+                    "This operation is destructive and requires --yes in non-interactive mode ({Reason}).",
+                    detector.Reason);
+            }
+
+            return ExitValidationError;
+        }
+
+        var prompter = TxcServices.Get<IConfirmationPrompter>();
+        var message = destructiveAttr?.Impact ?? "This operation is destructive.";
+
+        if (!await prompter.ConfirmAsync($"{message} Continue?").ConfigureAwait(false))
+        {
+            Logger.LogWarning("Operation cancelled by user.");
+            return ExitValidationError;
+        }
+
+        return null;
+    }
 
     /// <summary>
     /// Sets the ambient <see cref="OutputContext.Format"/> from the <c>--format</c>

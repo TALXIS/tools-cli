@@ -16,15 +16,18 @@ namespace TALXIS.CLI.Features.Config.Connection;
 /// <c>config auth delete</c>: the connection is removed and the
 /// referring profiles are left orphaned with a warning each.
 /// </summary>
-[McpIgnore]
+[CliDestructive("Removes the connection; referencing profiles are orphaned unless deleted first.")]
 [CliCommand(
     Name = "delete",
     Description = "Delete a connection. Fails if profiles reference it unless --force-orphan-profiles."
 )]
-public class ConnectionDeleteCliCommand : TxcLeafCommand
+public class ConnectionDeleteCliCommand : TxcLeafCommand, IDestructiveCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ConnectionDeleteCliCommand));
     protected override ILogger Logger => _logger;
+
+    [CliOption(Name = "--yes", Description = "Skip confirmation for this destructive operation.", Required = false)]
+    public bool Yes { get; set; }
 
     [CliArgument(Description = "Connection name.")]
     public required string Name { get; set; }
