@@ -41,7 +41,9 @@ public sealed class ConnectionUpsertService
         string? environmentId,
         string? tenantId,
         string? description,
-        CancellationToken ct)
+        CancellationToken ct,
+        string? displayName = null,
+        EnvironmentType? environmentType = null)
     {
         var trimmed = name?.Trim();
         if (string.IsNullOrEmpty(trimmed))
@@ -77,16 +79,24 @@ public sealed class ConnectionUpsertService
             parsedEnvironmentId = eid;
         }
 
+        // Check if a connection already exists to preserve CreatedAt.
+        var existing = await _store.GetAsync(trimmed!, ct).ConfigureAwait(false);
+        var now = DateTimeOffset.UtcNow;
+
         var connection = new Connection
         {
             Id = trimmed!,
             Provider = provider,
-            Description = description,
+            Description = description ?? displayName,
             EnvironmentUrl = envUri.ToString().TrimEnd('/'),
             Cloud = cloud ?? CloudInstance.Public,
             OrganizationId = organizationId,
             EnvironmentId = parsedEnvironmentId,
             TenantId = tenantId,
+            DisplayName = displayName,
+            EnvironmentType = environmentType,
+            CreatedAt = existing?.CreatedAt ?? now,
+            UpdatedAt = now,
         };
 
         await _store.UpsertAsync(connection, ct).ConfigureAwait(false);

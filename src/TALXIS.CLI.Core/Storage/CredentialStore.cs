@@ -31,6 +31,9 @@ public sealed class CredentialStore : ICredentialStore
         try
         {
             var collection = await JsonFile.ReadOrDefaultAsync<CredentialCollection>(_path, ct).ConfigureAwait(false);
+            var existing = collection.Credentials.FirstOrDefault(c => string.Equals(c.Id, credential.Id, StringComparison.OrdinalIgnoreCase));
+            credential.CreatedAt ??= existing?.CreatedAt ?? DateTimeOffset.UtcNow;
+            credential.UpdatedAt = DateTimeOffset.UtcNow;
             collection.Credentials.RemoveAll(c => string.Equals(c.Id, credential.Id, StringComparison.OrdinalIgnoreCase));
             collection.Credentials.Add(credential);
             await JsonFile.WriteAtomicAsync(_path, collection, ct).ConfigureAwait(false);

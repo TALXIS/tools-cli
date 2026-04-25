@@ -16,25 +16,36 @@ namespace TALXIS.CLI.Platform.Dataverse.Runtime;
 /// all credential kinds go through one code path for authority selection,
 /// scope construction, and cache attachment.
 /// </summary>
+/// <remarks>
+/// An <see cref="InMemoryTokenCache"/> sits in front of MSAL to avoid
+/// repeated disk I/O and network calls. Tokens are returned from the
+/// in-memory cache when they are still valid beyond a 2-minute proactive
+/// renewal buffer (PAC CLI uses 1 minute). Per-key <see cref="SemaphoreSlim"/>
+/// prevents stampedes when multiple threads request the same token.
+/// </remarks>
 public sealed class DataverseAccessTokenService : IDataverseAccessTokenService
 {
     private readonly MsalClientFactory _clientFactory;
     private readonly MsalTokenCacheBinder _cacheBinder;
     private readonly ICredentialVault _vault;
     private readonly IEnvironmentReader _env;
+    private readonly IHeadlessDetector _headless;
     private readonly ILogger<DataverseAccessTokenService> _logger;
+    private readonly InMemoryTokenCache _tokenCache = new();
 
     public DataverseAccessTokenService(
         MsalClientFactory clientFactory,
         MsalTokenCacheBinder cacheBinder,
         ICredentialVault vault,
         IEnvironmentReader env,
+        IHeadlessDetector headless,
         ILogger<DataverseAccessTokenService>? logger = null)
     {
         _clientFactory = clientFactory ?? throw new ArgumentNullException(nameof(clientFactory));
         _cacheBinder = cacheBinder ?? throw new ArgumentNullException(nameof(cacheBinder));
         _vault = vault ?? throw new ArgumentNullException(nameof(vault));
         _env = env ?? throw new ArgumentNullException(nameof(env));
+        _headless = headless ?? throw new ArgumentNullException(nameof(headless));
         _logger = logger ?? NullLogger<DataverseAccessTokenService>.Instance;
     }
 
@@ -62,24 +73,51 @@ public sealed class DataverseAccessTokenService : IDataverseAccessTokenService
         if (!resourceUri.IsAbsoluteUri)
             throw new ArgumentException($"Resource URI '{resourceUri}' must be absolute.", nameof(resourceUri));
 
+        // Always derive the scope from the actual resource URI. Credential.Scopes
+        // is for diagnostics only — using it here would break non-Dataverse
+        // resources (e.g. Power Platform admin API) and multi-environment credentials.
         var scope = DataverseScope.BuildDefault(resourceUri);
+        var cacheKey = InMemoryTokenCache.BuildKey(credential.Id, credential.TenantId, resourceUri.GetLeftPart(UriPartial.Authority));
 
-        return credential.Kind switch
+        // Fast path: return a cached token that is still valid beyond the
+        // proactive renewal buffer.
+        var cached = _tokenCache.TryGet(cacheKey);
+        if (cached is not null)
+            return cached;
+
+        // Slow path: serialize per-key to prevent multiple threads from hitting
+        // MSAL for the same token simultaneously.
+        var keyLock = _tokenCache.GetKeyLock(cacheKey);
+        await keyLock.WaitAsync(ct).ConfigureAwait(false);
+        try
         {
-            CredentialKind.InteractiveBrowser => await AcquirePublicClientSilentAsync(connection, credential, scope, ct).ConfigureAwait(false),
-            CredentialKind.ClientSecret => await AcquireClientSecretAsync(connection, credential, scope, ct).ConfigureAwait(false),
-            CredentialKind.ClientCertificate => await AcquireClientCertificateAsync(connection, credential, scope, ct).ConfigureAwait(false),
-            CredentialKind.WorkloadIdentityFederation => await AcquireFederatedAsync(connection, credential, scope, ct).ConfigureAwait(false),
-            CredentialKind.DeviceCode or CredentialKind.ManagedIdentity or CredentialKind.AzureCli or CredentialKind.Pat =>
-                throw new NotSupportedException(
-                    $"Credential kind {credential.Kind} is reserved but not yet wired for Dataverse token acquisition in this release. " +
-                    "Use InteractiveBrowser, ClientSecret, ClientCertificate, or WorkloadIdentityFederation."),
-            _ => throw new NotSupportedException($"Unknown credential kind: {credential.Kind}"),
-        };
+            // Double-check after acquiring the lock — another thread may have
+            // refreshed the token while we were waiting.
+            cached = _tokenCache.TryGet(cacheKey);
+            if (cached is not null)
+                return cached;
+
+            return credential.Kind switch
+            {
+                CredentialKind.InteractiveBrowser => await AcquirePublicClientSilentAsync(connection, credential, scope, cacheKey, ct).ConfigureAwait(false),
+                CredentialKind.ClientSecret => await AcquireClientSecretAsync(connection, credential, scope, cacheKey, ct).ConfigureAwait(false),
+                CredentialKind.ClientCertificate => await AcquireClientCertificateAsync(connection, credential, scope, cacheKey, ct).ConfigureAwait(false),
+                CredentialKind.WorkloadIdentityFederation => await AcquireFederatedAsync(connection, credential, scope, cacheKey, ct).ConfigureAwait(false),
+                CredentialKind.DeviceCode or CredentialKind.ManagedIdentity or CredentialKind.AzureCli or CredentialKind.Pat =>
+                    throw new NotSupportedException(
+                        $"Credential kind {credential.Kind} is reserved but not yet wired for Dataverse token acquisition in this release. " +
+                        "Use InteractiveBrowser, ClientSecret, ClientCertificate, or WorkloadIdentityFederation."),
+                _ => throw new NotSupportedException($"Unknown credential kind: {credential.Kind}"),
+            };
+        }
+        finally
+        {
+            keyLock.Release();
+        }
     }
 
     private async Task<string> AcquirePublicClientSilentAsync(
-        TALXIS.CLI.Core.Model.Connection connection, Credential credential, string scope, CancellationToken ct)
+        TALXIS.CLI.Core.Model.Connection connection, Credential credential, string scope, string cacheKey, CancellationToken ct)
     {
         var app = _clientFactory.BuildPublicClient(connection);
         _cacheBinder.Attach(app.UserTokenCache);
@@ -110,10 +148,42 @@ public sealed class DataverseAccessTokenService : IDataverseAccessTokenService
                 .AcquireTokenSilent(new[] { scope }, account)
                 .ExecuteAsync(ct)
                 .ConfigureAwait(false);
+            _tokenCache.Set(cacheKey, result);
             return result.AccessToken;
         }
         catch (MsalUiRequiredException ex)
         {
+            // In interactive sessions, attempt automatic re-authentication
+            // using AcquireTokenInteractive with the actual Dataverse scope
+            // that failed — not just identity scopes. This ensures consent
+            // is obtained for the correct resource.
+            if (!_headless.IsHeadless)
+            {
+                _logger.LogWarning(
+                    "Token for credential '{CredentialId}' expired or requires consent — launching interactive re-authentication with Dataverse scope.",
+                    credential.Id);
+
+                try
+                {
+                    var interactiveResult = await app
+                        .AcquireTokenInteractive(new[] { scope })
+                        .WithAccount(account)
+                        .WithUseEmbeddedWebView(false)
+                        .ExecuteAsync(ct)
+                        .ConfigureAwait(false);
+                    _tokenCache.Set(cacheKey, interactiveResult);
+                    return interactiveResult.AccessToken;
+                }
+                catch (OperationCanceledException)
+                {
+                    throw; // Propagate Ctrl+C / browser close cancellation.
+                }
+                catch (Exception reAuthEx)
+                {
+                    _logger.LogDebug(reAuthEx, "Automatic re-authentication failed; falling through to original error.");
+                }
+            }
+
             throw new InvalidOperationException(
                 $"Cached token for '{credential.Id}' expired or is missing consent. " +
                 "Run 'txc config auth login' and retry.", ex);
@@ -121,7 +191,7 @@ public sealed class DataverseAccessTokenService : IDataverseAccessTokenService
     }
 
     private async Task<string> AcquireClientSecretAsync(
-        TALXIS.CLI.Core.Model.Connection connection, Credential credential, string scope, CancellationToken ct)
+        TALXIS.CLI.Core.Model.Connection connection, Credential credential, string scope, string cacheKey, CancellationToken ct)
     {
         if (credential.SecretRef is null)
             throw new InvalidOperationException($"Credential '{credential.Id}' (ClientSecret) has no SecretRef.");
@@ -134,15 +204,17 @@ public sealed class DataverseAccessTokenService : IDataverseAccessTokenService
 
         var material = new ConfidentialClientMaterial { ClientSecret = secret };
         var app = _clientFactory.BuildConfidentialClient(connection, credential, material);
+        _cacheBinder.AttachAppCache(app.AppTokenCache);
         var result = await app
             .AcquireTokenForClient(new[] { scope })
             .ExecuteAsync(ct)
             .ConfigureAwait(false);
+        _tokenCache.Set(cacheKey, result);
         return result.AccessToken;
     }
 
     private async Task<string> AcquireClientCertificateAsync(
-        TALXIS.CLI.Core.Model.Connection connection, Credential credential, string scope, CancellationToken ct)
+        TALXIS.CLI.Core.Model.Connection connection, Credential credential, string scope, string cacheKey, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(credential.CertificatePath))
             throw new InvalidOperationException($"Credential '{credential.Id}' (ClientCertificate) has no CertificatePath.");
@@ -161,10 +233,12 @@ public sealed class DataverseAccessTokenService : IDataverseAccessTokenService
         {
             var material = new ConfidentialClientMaterial { Certificate = cert };
             var app = _clientFactory.BuildConfidentialClient(connection, credential, material);
+            _cacheBinder.AttachAppCache(app.AppTokenCache);
             var result = await app
                 .AcquireTokenForClient(new[] { scope })
                 .ExecuteAsync(ct)
                 .ConfigureAwait(false);
+            _tokenCache.Set(cacheKey, result);
             return result.AccessToken;
         }
         finally
@@ -174,15 +248,17 @@ public sealed class DataverseAccessTokenService : IDataverseAccessTokenService
     }
 
     private async Task<string> AcquireFederatedAsync(
-        TALXIS.CLI.Core.Model.Connection connection, Credential credential, string scope, CancellationToken ct)
+        TALXIS.CLI.Core.Model.Connection connection, Credential credential, string scope, string cacheKey, CancellationToken ct)
     {
         var callback = FederatedAssertionCallbacks.AutoSelect(_env, logger: _logger);
         var material = new ConfidentialClientMaterial { AssertionCallback = callback };
         var app = _clientFactory.BuildConfidentialClient(connection, credential, material);
+        _cacheBinder.AttachAppCache(app.AppTokenCache);
         var result = await app
             .AcquireTokenForClient(new[] { scope })
             .ExecuteAsync(ct)
             .ConfigureAwait(false);
+        _tokenCache.Set(cacheKey, result);
         return result.AccessToken;
     }
 }

@@ -6,6 +6,7 @@ using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Logging;
 
+
 namespace TALXIS.CLI.Features.Config.Profile;
 
 /// <summary>
@@ -37,6 +38,9 @@ public class ProfileValidateCliCommand : TxcLeafCommand
 
     [CliOption(Description = "Skip the live authenticated round-trip (WhoAmI); run structural checks only.")]
     public bool SkipLive { get; set; }
+
+    [CliOption(Name = "--refresh-env-type", Description = "Query the Power Platform catalog to refresh the environment type (Production/Sandbox/etc.) on the connection.")]
+    public bool RefreshEnvType { get; set; }
 
     protected override async Task<int> ExecuteAsync()
     {
@@ -81,15 +85,40 @@ public class ProfileValidateCliCommand : TxcLeafCommand
             return ExitError;
         }
 
+        EnvironmentType? refreshedEnvType = connection.EnvironmentType;
+        if (RefreshEnvType)
+        {
+            refreshedEnvType = await TryRefreshEnvironmentTypeAsync(connection, credential).ConfigureAwait(false);
+        }
+
         OutputFormatter.WriteData(new
         {
             profile = profile.Id,
             connection = connection.Id,
             credential = credential.Id,
             provider = connection.Provider.ToString().ToLowerInvariant(),
+            environmentType = refreshedEnvType?.ToString().ToLowerInvariant(),
             mode = mode.ToString().ToLowerInvariant(),
             status = "ok",
         });
         return ExitSuccess;
+    }
+
+    /// <summary>
+    /// Delegates to the registered <see cref="IEnvironmentTypeResolver"/> to
+    /// query the provider's control plane and update the connection metadata.
+    /// </summary>
+    private async Task<EnvironmentType?> TryRefreshEnvironmentTypeAsync(TALXIS.CLI.Core.Model.Connection connection, Credential credential)
+    {
+        try
+        {
+            var resolver = TxcServices.Get<IEnvironmentTypeResolver>();
+            return await resolver.RefreshAsync(connection, credential, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to refresh environment type. Current value unchanged.");
+            return connection.EnvironmentType;
+        }
     }
 }

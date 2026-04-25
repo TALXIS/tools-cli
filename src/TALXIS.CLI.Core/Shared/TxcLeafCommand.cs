@@ -64,6 +64,20 @@ public abstract class TxcLeafCommand
         if (formatError.HasValue)
             return formatError.Value;
 
+        // Production guard runs first so users aren't prompted with --yes
+        // only to be immediately blocked for missing --allow-production.
+        try
+        {
+            var guardResult = await PreExecuteAsync().ConfigureAwait(false);
+            if (guardResult.HasValue)
+                return guardResult.Value;
+        }
+        catch (Exception ex) when (ex is Abstractions.ConfigurationResolutionException)
+        {
+            // If profile resolution fails in the guard, fall through — ExecuteAsync
+            // will produce a better error message.
+        }
+
         var confirmError = await CheckDestructiveConfirmationAsync().ConfigureAwait(false);
         if (confirmError.HasValue)
             return confirmError.Value;
@@ -93,6 +107,14 @@ public abstract class TxcLeafCommand
             return ExitError;
         }
     }
+
+    /// <summary>
+    /// Pre-execution hook called before <see cref="ExecuteAsync"/>. Override
+    /// in derived base classes to add cross-cutting guards (e.g. production
+    /// environment protection). Return <c>null</c> to proceed, or an exit
+    /// code to short-circuit.
+    /// </summary>
+    protected virtual Task<int?> PreExecuteAsync() => Task.FromResult<int?>(null);
 
     /// <summary>
     /// Implement command logic here. Return <see cref="ExitSuccess"/>,
