@@ -321,6 +321,12 @@ After `PublishXml`, metadata changes typically propagate within 1–5 seconds wi
 
 ---
 
+## 9. Known Limitations
+
+- `data record create --data` JSON input passes values as-is to Dataverse. Choice (`OptionSetValue`) and `Money` fields may require server-side type conversion that isn't always automatic. For bulk data loading, prefer CMT import packages.
+
+---
+
 ## References
 
 - [Create and update column definitions using the Web API](https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/create-update-column-definitions-using-web-api)

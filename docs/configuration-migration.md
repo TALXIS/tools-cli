@@ -855,6 +855,14 @@ If entity A has a lookup to entity B, but entity B is imported *after* entity A,
 
 The `[-1,...,-1]` sentinel wrapping in `optionsetvaluecollection` values is required. If you hand-edit data.xml and omit the sentinels, the import will fail or produce incorrect values.
 
+### JSON `data record create` does not auto-coerce complex types
+
+JSON `data record create` does not auto-coerce integer values to `OptionSetValue` or `Money` types. For choice columns, the Dataverse API may reject plain integers. **Workaround:** use the CMT import for complex type handling, or ensure your data includes properly formatted values.
+
+### Connection timeout
+
+Connection timeout is 2 minutes. Long-running schema operations (entity creation) may approach this limit on heavily loaded environments.
+
 ---
 
 ## 12. Troubleshooting

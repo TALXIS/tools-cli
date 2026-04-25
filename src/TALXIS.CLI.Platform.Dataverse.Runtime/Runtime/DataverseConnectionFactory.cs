@@ -66,6 +66,9 @@ public sealed class DataverseConnectionFactory : IDataverseConnectionFactory
             useUniqueInstance: true,
             logger: null);
 
+        // Prevent indefinite hangs when token acquisition fails silently.
+        ServiceClient.MaxConnectionTimeout = TimeSpan.FromMinutes(2);
+
         if (!client.IsReady)
         {
             var error = client.LastError;
