@@ -58,16 +58,7 @@ public class DataPackageExportCliCommand : ProfiledCliCommand
         }
 
         var service = TxcServices.Get<IDataPackageService>();
-        DataPackageExportResult result;
-        try
-        {
-            result = await service.ExportAsync(Profile, Schema, Output, ExportFiles, Verbose, CancellationToken.None).ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Data export failed");
-            return ExitError;
-        }
+        var result = await service.ExportAsync(Profile, Schema, Output, ExportFiles, Verbose, CancellationToken.None).ConfigureAwait(false);
 
         if (result.InteractiveAuthRequired)
         {

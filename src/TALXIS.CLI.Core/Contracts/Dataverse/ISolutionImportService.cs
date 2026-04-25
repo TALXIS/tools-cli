@@ -9,11 +9,11 @@ public sealed record SolutionInfo(string UniqueName, Version Version, bool Manag
 public enum SolutionImportPath
 {
     /// <summary>Target environment has no solution with this unique name.</summary>
-    Install,
+    Install = 0,
     /// <summary>Plain import over an existing solution (unmanaged, or managed without single-step upgrade).</summary>
-    Update,
+    Update = 1,
     /// <summary>Single-step upgrade (<c>StageAndUpgradeRequest</c>) over an existing managed solution.</summary>
-    Upgrade,
+    Upgrade = 2,
 }
 
 public sealed record SolutionImportOptions(

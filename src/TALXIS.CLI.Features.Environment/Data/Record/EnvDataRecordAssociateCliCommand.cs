@@ -1,7 +1,6 @@
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
-using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Logging;
@@ -63,24 +62,11 @@ public class EnvDataRecordAssociateCliCommand : StagedCliCommand
             return ExitSuccess;
         }
 
-        try
-        {
-            var service = TxcServices.Get<IDataverseRelationshipService>();
-            await service.AssociateAsync(Profile, Entity, RecordId, TargetEntity, Target, Relationship, CancellationToken.None)
-                .ConfigureAwait(false);
+        var service = TxcServices.Get<IDataverseRelationshipService>();
+        await service.AssociateAsync(Profile, Entity, RecordId, TargetEntity, Target, Relationship, CancellationToken.None)
+            .ConfigureAwait(false);
 
-            OutputWriter.WriteLine($"Associated {Entity}/{RecordId} with {TargetEntity}/{Target} via '{Relationship}'");
-        }
-        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
-        {
-            Logger.LogError("{Error}", ex.Message);
-            return ExitError;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "record associate failed");
-            return ExitError;
-        }
+        OutputWriter.WriteLine($"Associated {Entity}/{RecordId} with {TargetEntity}/{Target} via '{Relationship}'");
 
         return ExitSuccess;
     }

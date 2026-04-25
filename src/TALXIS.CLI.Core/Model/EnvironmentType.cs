@@ -9,13 +9,13 @@ namespace TALXIS.CLI.Core.Model;
 public enum EnvironmentType
 {
     /// <summary>Full production environment — destructive operations are blocked by default.</summary>
-    Production,
+    Production = 0,
     /// <summary>Sandbox environment — safe for testing, no destructive guard.</summary>
-    Sandbox,
+    Sandbox = 1,
     /// <summary>Trial environment — time-limited, no destructive guard.</summary>
-    Trial,
+    Trial = 2,
     /// <summary>Developer environment — single-user dev, no destructive guard.</summary>
-    Developer,
+    Developer = 3,
     /// <summary>Default environment — auto-provisioned per tenant; treated as Production for safety.</summary>
-    Default,
+    Default = 4,
 }

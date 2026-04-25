@@ -60,23 +60,10 @@ public class EntityRelationshipCreateCliCommand : StagedCliCommand
             return ExitSuccess;
         }
 
-        try
-        {
-            var service = TxcServices.Get<IDataverseEntityMetadataService>();
-            await service.CreateManyToManyRelationshipAsync(
-                Profile, Entity1, Entity2, Name, DisplayName, CancellationToken.None
-            ).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
-        {
-            Logger.LogError("{Error}", ex.Message);
-            return ExitError;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "environment entity relationship create failed");
-            return ExitError;
-        }
+        var service = TxcServices.Get<IDataverseEntityMetadataService>();
+        await service.CreateManyToManyRelationshipAsync(
+            Profile, Entity1, Entity2, Name, DisplayName, CancellationToken.None
+        ).ConfigureAwait(false);
 
         OutputWriter.WriteLine($"Many-to-many relationship '{Name}' created between '{Entity1}' and '{Entity2}'.");
         return ExitSuccess;

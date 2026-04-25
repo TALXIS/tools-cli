@@ -54,23 +54,10 @@ public class EntityAttributeDeleteCliCommand : StagedCliCommand, IDestructiveCom
             return ExitSuccess;
         }
 
-        try
-        {
-            var service = TxcServices.Get<IDataverseEntityMetadataService>();
-            await service.DeleteAttributeAsync(
-                Profile, Entity, Name, CancellationToken.None
-            ).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException)
-        {
-            Logger.LogError("{Error}", ex.Message);
-            return ExitError;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "environment entity attribute delete failed");
-            return ExitError;
-        }
+        var service = TxcServices.Get<IDataverseEntityMetadataService>();
+        await service.DeleteAttributeAsync(
+            Profile, Entity, Name, CancellationToken.None
+        ).ConfigureAwait(false);
 
         OutputWriter.WriteLine($"Attribute '{Name}' deleted from entity '{Entity}'.");
         return ExitSuccess;

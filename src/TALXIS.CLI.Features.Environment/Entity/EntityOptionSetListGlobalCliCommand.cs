@@ -24,22 +24,8 @@ public class EntityOptionSetListGlobalCliCommand : ProfiledCliCommand
 
     protected override async Task<int> ExecuteAsync()
     {
-        IReadOnlyList<GlobalOptionSetSummaryRecord> rows;
-        try
-        {
-            var service = TxcServices.Get<IDataverseOptionSetService>();
-            rows = await service.ListGlobalOptionSetsAsync(Profile, CancellationToken.None).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
-        {
-            Logger.LogError("{Error}", ex.Message);
-            return ExitError;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "environment entity optionset list-global failed");
-            return ExitError;
-        }
+        var service = TxcServices.Get<IDataverseOptionSetService>();
+        var rows = await service.ListGlobalOptionSetsAsync(Profile, CancellationToken.None).ConfigureAwait(false);
 
         OutputFormatter.WriteList(rows, PrintOptionSetsTable);
         return ExitSuccess;

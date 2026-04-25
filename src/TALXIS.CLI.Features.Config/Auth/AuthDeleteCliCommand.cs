@@ -25,8 +25,7 @@ namespace TALXIS.CLI.Features.Config.Auth;
 )]
 public class AuthDeleteCliCommand : TxcLeafCommand, IDestructiveCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(AuthDeleteCliCommand));
-    protected override ILogger Logger => _logger;
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(AuthDeleteCliCommand));
 
     [CliOption(Name = "--yes", Description = "Skip confirmation for this destructive operation.", Required = false)]
     public bool Yes { get; set; }
@@ -38,7 +37,7 @@ public class AuthDeleteCliCommand : TxcLeafCommand, IDestructiveCommand
     {
         if (string.IsNullOrWhiteSpace(Alias))
         {
-            _logger.LogError("Credential alias must be provided.");
+            Logger.LogError("Credential alias must be provided.");
             return ExitError;
         }
 
@@ -49,7 +48,7 @@ public class AuthDeleteCliCommand : TxcLeafCommand, IDestructiveCommand
         var existing = await credStore.GetAsync(Alias, CancellationToken.None).ConfigureAwait(false);
         if (existing is null)
         {
-            _logger.LogError("Credential '{Alias}' not found.", Alias);
+            Logger.LogError("Credential '{Alias}' not found.", Alias);
             return ExitValidationError;
         }
 
@@ -59,7 +58,7 @@ public class AuthDeleteCliCommand : TxcLeafCommand, IDestructiveCommand
         foreach (var p in profiles.Where(p =>
             string.Equals(p.CredentialRef, Alias, StringComparison.OrdinalIgnoreCase)))
         {
-            _logger.LogWarning(
+            Logger.LogWarning(
                 "Profile '{ProfileId}' references credential '{Alias}' and will be orphaned. " +
                 "Update or delete the profile explicitly.",
                 p.Id, Alias);
@@ -68,28 +67,32 @@ public class AuthDeleteCliCommand : TxcLeafCommand, IDestructiveCommand
         // Best-effort secret purge — absent secret (interactive / WIF) is fine.
         if (existing.SecretRef is { } secretRef)
         {
-            try
-            {
-                await vault.DeleteSecretAsync(secretRef, CancellationToken.None).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex,
-                    "Credential '{Alias}' secret could not be removed from the vault. " +
-                    "You may need to delete it manually.",
-                    Alias);
-            }
+            await TryDeleteVaultSecretAsync(vault, secretRef, Alias).ConfigureAwait(false);
         }
 
         var removed = await credStore.DeleteAsync(Alias, CancellationToken.None).ConfigureAwait(false);
         if (!removed)
         {
-            _logger.LogError("Credential '{Alias}' disappeared during delete.", Alias);
+            Logger.LogError("Credential '{Alias}' disappeared during delete.", Alias);
             return ExitError;
         }
 
-        _logger.LogInformation("Credential '{Alias}' deleted.", Alias);
+        Logger.LogInformation("Credential '{Alias}' deleted.", Alias);
         OutputFormatter.WriteResult("succeeded", $"Credential '{Alias}' deleted.");
         return ExitSuccess;
+    }
+
+    private async Task TryDeleteVaultSecretAsync(ICredentialVault vault, SecretRef secretRef, string alias)
+    {
+        try
+        {
+            await vault.DeleteSecretAsync(secretRef, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex,
+                "Credential '{Alias}' secret could not be removed from the vault. You may need to delete it manually.",
+                alias);
+        }
     }
 }

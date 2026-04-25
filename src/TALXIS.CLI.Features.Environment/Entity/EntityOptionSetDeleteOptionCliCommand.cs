@@ -86,23 +86,10 @@ public class EntityOptionSetDeleteOptionCliCommand : StagedCliCommand, IDestruct
             return ExitSuccess;
         }
 
-        try
-        {
-            var service = TxcServices.Get<IDataverseOptionSetService>();
-            await service.DeleteOptionAsync(
-                Profile, Entity, Attribute, GlobalOptionset, Value, CancellationToken.None
-            ).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or ArgumentException)
-        {
-            Logger.LogError("{Error}", ex.Message);
-            return ExitError;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "environment entity optionset delete-option failed");
-            return ExitError;
-        }
+        var service = TxcServices.Get<IDataverseOptionSetService>();
+        await service.DeleteOptionAsync(
+            Profile, Entity, Attribute, GlobalOptionset, Value, CancellationToken.None
+        ).ConfigureAwait(false);
 
         string target = hasGlobal ? $"global option set '{GlobalOptionset}'" : $"attribute '{Attribute}' on entity '{Entity}'";
         OutputWriter.WriteLine($"Option value {Value} removed from {target}.");

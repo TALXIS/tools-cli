@@ -20,8 +20,7 @@ namespace TALXIS.CLI.Features.Config.Setting;
 )]
 public class SettingSetCliCommand : TxcLeafCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(SettingSetCliCommand));
-    protected override ILogger Logger => _logger;
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(SettingSetCliCommand));
 
     [CliArgument(Description = "Setting key (e.g. log.level).")]
     public required string Key { get; set; }
@@ -33,37 +32,28 @@ public class SettingSetCliCommand : TxcLeafCommand
     {
         if (string.IsNullOrWhiteSpace(Key))
         {
-            _logger.LogError("Setting key must be provided.");
+            Logger.LogError("Setting key must be provided.");
             return ExitValidationError;
         }
 
         var descriptor = SettingRegistry.Find(Key);
         if (descriptor is null)
         {
-            _logger.LogError(
+            Logger.LogError(
                 "Unknown setting key '{Key}'. Known keys: {Keys}.",
                 Key,
                 string.Join(", ", SettingRegistry.All.Select(d => d.Key)));
             return ExitValidationError;
         }
 
-        string normalized;
-        try
-        {
-            normalized = SettingRegistry.NormalizeValue(descriptor, Value);
-        }
-        catch (ArgumentException ex)
-        {
-            _logger.LogError("{Message}", ex.Message);
-            return ExitValidationError;
-        }
+        var normalized = SettingRegistry.NormalizeValue(descriptor, Value);
 
         var store = TxcServices.Get<IGlobalConfigStore>();
         var config = await store.LoadAsync(CancellationToken.None).ConfigureAwait(false);
         descriptor.Write(config, normalized);
         await store.SaveAsync(config, CancellationToken.None).ConfigureAwait(false);
 
-        _logger.LogInformation("Setting '{Key}' updated to '{Value}'.", descriptor.Key, normalized);
+        Logger.LogInformation("Setting '{Key}' updated to '{Value}'.", descriptor.Key, normalized);
         OutputFormatter.WriteResult("succeeded", $"Setting '{descriptor.Key}' set to '{normalized}'.");
         return ExitSuccess;
     }

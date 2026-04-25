@@ -64,34 +64,12 @@ public class EntityOptionSetCreateGlobalCliCommand : StagedCliCommand
             return ExitSuccess;
         }
 
-        OptionMetadataInput[] parsed;
-        try
-        {
-            parsed = ParseOptions(Options);
-        }
-        catch (FormatException ex)
-        {
-            Logger.LogError("{Error}", ex.Message);
-            return ExitError;
-        }
+        OptionMetadataInput[] parsed = ParseOptions(Options);
 
-        try
-        {
-            var service = TxcServices.Get<IDataverseOptionSetService>();
-            await service.CreateGlobalOptionSetAsync(
-                Profile, Name, DisplayName, Description, parsed, Solution, CancellationToken.None
-            ).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or ArgumentException)
-        {
-            Logger.LogError("{Error}", ex.Message);
-            return ExitError;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "environment entity optionset create-global failed");
-            return ExitError;
-        }
+        var service = TxcServices.Get<IDataverseOptionSetService>();
+        await service.CreateGlobalOptionSetAsync(
+            Profile, Name, DisplayName, Description, parsed, Solution, CancellationToken.None
+        ).ConfigureAwait(false);
 
         OutputWriter.WriteLine($"Global option set '{Name}' created successfully.");
         return ExitSuccess;

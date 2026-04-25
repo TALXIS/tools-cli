@@ -27,8 +27,7 @@ namespace TALXIS.CLI.Features.Config.Auth;
 )]
 public class AuthLoginCliCommand : TxcLeafCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(AuthLoginCliCommand));
-    protected override ILogger Logger => _logger;
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(AuthLoginCliCommand));
 
     [CliOption(Name = "--tenant", Description = "Entra tenant id or domain. When omitted, the user picks an org in the browser.", Required = false)]
     public string? Tenant { get; set; }
@@ -41,27 +40,19 @@ public class AuthLoginCliCommand : TxcLeafCommand
 
     protected override async Task<int> ExecuteAsync()
     {
-        try
-        {
-            var login = TxcServices.Get<IInteractiveLoginService>();
-            var store = TxcServices.Get<ICredentialStore>();
-            var headless = TxcServices.Get<IHeadlessDetector>();
-            var cloud = Cloud ?? CloudInstance.Public;
+        var login = TxcServices.Get<IInteractiveLoginService>();
+        var store = TxcServices.Get<ICredentialStore>();
+        var headless = TxcServices.Get<IHeadlessDetector>();
+        var cloud = Cloud ?? CloudInstance.Public;
 
-            _logger.LogInformation("Starting interactive sign-in...");
-            var result = await InteractiveCredentialBootstrapper.AcquireAndPersistAsync(
-                login, store, headless, Tenant, cloud, Alias, CancellationToken.None).ConfigureAwait(false);
+        Logger.LogInformation("Starting interactive sign-in...");
+        var result = await InteractiveCredentialBootstrapper.AcquireAndPersistAsync(
+            login, store, headless, Tenant, cloud, Alias, CancellationToken.None).ConfigureAwait(false);
 
-            _logger.LogInformation("Signed in as {Upn} (tenant {Tenant}). Credential '{Alias}' saved.",
-                result.Upn, result.TenantId, result.Credential.Id);
+        Logger.LogInformation("Signed in as {Upn} (tenant {Tenant}). Credential '{Alias}' saved.",
+            result.Upn, result.TenantId, result.Credential.Id);
 
-            OutputFormatter.WriteData(new { id = result.Credential.Id, upn = result.Upn, tenantId = result.TenantId, cloud });
-            return ExitSuccess;
-        }
-        catch (HeadlessAuthRequiredException ex)
-        {
-            _logger.LogError("{Message}", ex.Message);
-            return ExitError;
-        }
+        OutputFormatter.WriteData(new { id = result.Credential.Id, upn = result.Upn, tenantId = result.TenantId, cloud });
+        return ExitSuccess;
     }
 }

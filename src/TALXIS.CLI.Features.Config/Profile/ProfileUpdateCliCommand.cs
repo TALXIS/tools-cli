@@ -21,8 +21,7 @@ namespace TALXIS.CLI.Features.Config.Profile;
 )]
 public class ProfileUpdateCliCommand : TxcLeafCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ProfileUpdateCliCommand));
-    protected override ILogger Logger => _logger;
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ProfileUpdateCliCommand));
 
     [CliArgument(Description = "Profile name.")]
     public required string Name { get; set; }
@@ -40,13 +39,13 @@ public class ProfileUpdateCliCommand : TxcLeafCommand
     {
         if (string.IsNullOrWhiteSpace(Name))
         {
-            _logger.LogError("Profile name must be provided.");
+            Logger.LogError("Profile name must be provided.");
             return ExitError;
         }
 
         if (Auth is null && Connection is null && Description is null)
         {
-            _logger.LogError("Nothing to update. Pass --auth, --connection, or --description.");
+            Logger.LogError("Nothing to update. Pass --auth, --connection, or --description.");
             return ExitError;
         }
 
@@ -57,7 +56,7 @@ public class ProfileUpdateCliCommand : TxcLeafCommand
         var existing = await profileStore.GetAsync(Name, CancellationToken.None).ConfigureAwait(false);
         if (existing is null)
         {
-            _logger.LogError("Profile '{Name}' not found.", Name);
+            Logger.LogError("Profile '{Name}' not found.", Name);
             return ExitValidationError;
         }
 
@@ -66,7 +65,7 @@ public class ProfileUpdateCliCommand : TxcLeafCommand
             var cred = await credentialStore.GetAsync(Auth, CancellationToken.None).ConfigureAwait(false);
             if (cred is null)
             {
-                _logger.LogError("Credential '{Alias}' not found.", Auth);
+                Logger.LogError("Credential '{Alias}' not found.", Auth);
                 return ExitValidationError;
             }
             existing.CredentialRef = cred.Id;
@@ -77,7 +76,7 @@ public class ProfileUpdateCliCommand : TxcLeafCommand
             var conn = await connectionStore.GetAsync(Connection, CancellationToken.None).ConfigureAwait(false);
             if (conn is null)
             {
-                _logger.LogError("Connection '{Name}' not found.", Connection);
+                Logger.LogError("Connection '{Name}' not found.", Connection);
                 return ExitValidationError;
             }
             existing.ConnectionRef = conn.Id;
@@ -89,7 +88,7 @@ public class ProfileUpdateCliCommand : TxcLeafCommand
         }
 
         await profileStore.UpsertAsync(existing, CancellationToken.None).ConfigureAwait(false);
-        _logger.LogInformation("Profile '{Id}' updated.", existing.Id);
+        Logger.LogInformation("Profile '{Id}' updated.", existing.Id);
 
         OutputFormatter.WriteData(existing);
         return ExitSuccess;

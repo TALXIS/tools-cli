@@ -13,8 +13,7 @@ namespace TALXIS.CLI.Features.Workspace;
 )]
 public class ComponentTypeExplainCliCommand : TxcLeafCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ComponentTypeExplainCliCommand));
-    protected override ILogger Logger => _logger;
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ComponentTypeExplainCliCommand));
 
     [CliArgument(Description = "Type of the component to explain")]
     public required string Type { get; set; }
@@ -23,7 +22,7 @@ public class ComponentTypeExplainCliCommand : TxcLeafCommand
     {
         if (string.IsNullOrWhiteSpace(Type))
         {
-            _logger.LogError("Please provide a component type");
+            Logger.LogError("Please provide a component type");
             return ExitValidationError;
         }
 
@@ -34,7 +33,7 @@ public class ComponentTypeExplainCliCommand : TxcLeafCommand
 
         if (template == null)
         {
-            _logger.LogError("Component template {Type} not found", Type);
+            Logger.LogError("Component template {Type} not found", Type);
             return ExitValidationError;
         }
 

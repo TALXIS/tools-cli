@@ -21,8 +21,7 @@ namespace TALXIS.CLI.Features.Config;
 )]
 public sealed class ConfigClearCliCommand : TxcLeafCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ConfigClearCliCommand));
-    protected override ILogger Logger => _logger;
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ConfigClearCliCommand));
 
     protected override async Task<int> ExecuteAsync()
     {
@@ -40,10 +39,10 @@ public sealed class ConfigClearCliCommand : TxcLeafCommand
         if (Directory.Exists(paths.Root))
         {
             Directory.Delete(paths.Root, recursive: true);
-            _logger.LogDebug("Removed config root '{Path}'.", paths.Root);
+            Logger.LogDebug("Removed config root '{Path}'.", paths.Root);
         }
 
-        _logger.LogInformation("Cleared txc local configuration at '{Path}'.", paths.Root);
+        Logger.LogInformation("Cleared txc local configuration at '{Path}'.", paths.Root);
         OutputFormatter.WriteResult("succeeded", $"Cleared txc local configuration at '{paths.Root}'.");
         return ExitSuccess;
     }
@@ -55,7 +54,7 @@ public sealed class ConfigClearCliCommand : TxcLeafCommand
             return;
 
         File.Delete(resolution.WorkspaceFilePath);
-        _logger.LogInformation("Removed workspace pin at '{Path}'.", resolution.WorkspaceFilePath);
+        Logger.LogInformation("Removed workspace pin at '{Path}'.", resolution.WorkspaceFilePath);
 
         var workspaceDir = Path.GetDirectoryName(resolution.WorkspaceFilePath);
         if (!string.IsNullOrEmpty(workspaceDir) &&
@@ -63,7 +62,7 @@ public sealed class ConfigClearCliCommand : TxcLeafCommand
             !Directory.EnumerateFileSystemEntries(workspaceDir).Any())
         {
             Directory.Delete(workspaceDir);
-            _logger.LogDebug("Removed empty '{Dir}'.", workspaceDir);
+            Logger.LogDebug("Removed empty '{Dir}'.", workspaceDir);
         }
     }
 }

@@ -1,7 +1,6 @@
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
-using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Logging;
@@ -59,30 +58,17 @@ public class EnvDataRecordUploadFileCliCommand : StagedCliCommand
             return ExitSuccess;
         }
 
-        try
+        if (!System.IO.File.Exists(File))
         {
-            if (!System.IO.File.Exists(File))
-            {
-                Logger.LogError("File not found: {Path}", File);
-                return ExitError;
-            }
-
-            var service = TxcServices.Get<IDataverseFileService>();
-            await service.UploadFileAsync(Profile, Entity, RecordId, Column, File, CancellationToken.None)
-                .ConfigureAwait(false);
-
-            OutputWriter.WriteLine($"Uploaded '{Path.GetFileName(File)}' to {Entity}/{RecordId}/{Column}");
-        }
-        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
-        {
-            Logger.LogError("{Error}", ex.Message);
+            Logger.LogError("File not found: {Path}", File);
             return ExitError;
         }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "record upload-file failed");
-            return ExitError;
-        }
+
+        var service = TxcServices.Get<IDataverseFileService>();
+        await service.UploadFileAsync(Profile, Entity, RecordId, Column, File, CancellationToken.None)
+            .ConfigureAwait(false);
+
+        OutputWriter.WriteLine($"Uploaded '{Path.GetFileName(File)}' to {Entity}/{RecordId}/{Column}");
 
         return ExitSuccess;
     }

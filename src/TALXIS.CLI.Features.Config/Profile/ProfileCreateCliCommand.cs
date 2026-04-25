@@ -39,8 +39,7 @@ namespace TALXIS.CLI.Features.Config.Profile;
 )]
 public class ProfileCreateCliCommand : TxcLeafCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ProfileCreateCliCommand));
-    protected override ILogger Logger => _logger;
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ProfileCreateCliCommand));
 
     [CliOption(Name = "--name", Aliases = new[] { "-n" }, Description = "Profile name (slug). Optional — derived from the Power Platform environment name and URL host, or from --connection when omitted.", Required = false)]
     public string? Name { get; set; }
@@ -71,21 +70,13 @@ public class ProfileCreateCliCommand : TxcLeafCommand
 
     protected override async Task<int> ExecuteAsync()
     {
-        try
+        var mode = ClassifyMode();
+        return mode switch
         {
-            var mode = ClassifyMode();
-            return mode switch
-            {
-                Mode.OneLiner => await RunOneLinerAsync().ConfigureAwait(false),
-                Mode.Explicit => await RunExplicitAsync().ConfigureAwait(false),
-                _ => LogUsageError(),
-            };
-        }
-        catch (HeadlessAuthRequiredException ex)
-        {
-            _logger.LogError("{Message}", ex.Message);
-            return ExitError;
-        }
+            Mode.OneLiner => await RunOneLinerAsync().ConfigureAwait(false),
+            Mode.Explicit => await RunExplicitAsync().ConfigureAwait(false),
+            _ => LogUsageError(),
+        };
     }
 
     private enum Mode { Invalid, OneLiner, Explicit }
@@ -108,7 +99,7 @@ public class ProfileCreateCliCommand : TxcLeafCommand
 
     private int LogUsageError()
     {
-        _logger.LogError(
+        Logger.LogError(
             "Specify either --url <service-url> [--no-select] (quickstart) or --auth <alias> --connection <name> (advanced). " +
             "Example: txc config profile create --url https://contoso.crm4.dynamics.com/");
         return ExitError;
@@ -118,7 +109,7 @@ public class ProfileCreateCliCommand : TxcLeafCommand
     {
         if (!IsAbsoluteHttpUrl(Url))
         {
-            _logger.LogError("'{Url}' is not an absolute http(s) URL.", Url);
+            Logger.LogError("'{Url}' is not an absolute http(s) URL.", Url);
             return ExitError;
         }
 
@@ -126,12 +117,12 @@ public class ProfileCreateCliCommand : TxcLeafCommand
         var provider = Provider ?? inference.Provider;
         if (provider is null)
         {
-            _logger.LogError("{Message}", inference.Error);
+            Logger.LogError("{Message}", inference.Error);
             return ExitError;
         }
         if (Provider is not null && inference.Provider is not null && Provider != inference.Provider)
         {
-            _logger.LogWarning(
+            Logger.LogWarning(
                 "Explicit --provider '{Explicit}' overrides URL-inferred '{Inferred}'.",
                 Provider, inference.Provider);
         }
@@ -140,7 +131,7 @@ public class ProfileCreateCliCommand : TxcLeafCommand
         var bootstrapper = bootstrappers.FirstOrDefault(b => b.Provider == provider.Value);
         if (bootstrapper is null)
         {
-            _logger.LogError(
+            Logger.LogError(
                 "No one-liner bootstrapper is registered for provider '{Provider}'. " +
                 "Use the explicit --auth/--connection flow for this provider.",
                 provider.Value);
@@ -158,7 +149,7 @@ public class ProfileCreateCliCommand : TxcLeafCommand
         var result = await bootstrapper.BootstrapAsync(request, CancellationToken.None).ConfigureAwait(false);
         if (result.Error is not null)
         {
-            _logger.LogError("{Message}", result.Error);
+            Logger.LogError("{Message}", result.Error);
             return ExitError;
         }
 
@@ -179,21 +170,21 @@ public class ProfileCreateCliCommand : TxcLeafCommand
         var credential = await credentialStore.GetAsync(Auth!.Trim(), CancellationToken.None).ConfigureAwait(false);
         if (credential is null)
         {
-            _logger.LogError("Credential '{Alias}' not found. Run 'txc config auth list'.", Auth);
+            Logger.LogError("Credential '{Alias}' not found. Run 'txc config auth list'.", Auth);
             return ExitValidationError;
         }
 
         var connection = await connectionStore.GetAsync(Connection!.Trim(), CancellationToken.None).ConfigureAwait(false);
         if (connection is null)
         {
-            _logger.LogError("Connection '{Name}' not found. Run 'txc config connection list'.", Connection);
+            Logger.LogError("Connection '{Name}' not found. Run 'txc config connection list'.", Connection);
             return ExitValidationError;
         }
 
         var name = string.IsNullOrWhiteSpace(Name) ? connection.Id : Name!.Trim();
         if (string.IsNullOrEmpty(name))
         {
-            _logger.LogError("Profile name must not be empty.");
+            Logger.LogError("Profile name must not be empty.");
             return ExitError;
         }
 
@@ -244,17 +235,17 @@ public class ProfileCreateCliCommand : TxcLeafCommand
             global.ActiveProfile = profile.Id;
             await globalConfig.SaveAsync(global, CancellationToken.None).ConfigureAwait(false);
             activated = true;
-            _logger.LogInformation("Profile '{Id}' is now the active profile.", profile.Id);
+            Logger.LogInformation("Profile '{Id}' is now the active profile.", profile.Id);
         }
         else if (activationMode == ProfileActivationMode.IfMissing && string.IsNullOrWhiteSpace(global.ActiveProfile))
         {
             global.ActiveProfile = profile.Id;
             await globalConfig.SaveAsync(global, CancellationToken.None).ConfigureAwait(false);
             activated = true;
-            _logger.LogInformation("Profile '{Id}' is now the active profile.", profile.Id);
+            Logger.LogInformation("Profile '{Id}' is now the active profile.", profile.Id);
         }
 
-        _logger.LogInformation(
+        Logger.LogInformation(
             "Profile '{Id}' saved (auth='{Auth}', connection='{Connection}'{Upn}).",
             profile.Id, credentialId, connectionId,
             string.IsNullOrEmpty(upn) ? string.Empty : $", upn='{upn}'");

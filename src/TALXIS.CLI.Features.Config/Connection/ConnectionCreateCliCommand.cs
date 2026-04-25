@@ -23,8 +23,7 @@ namespace TALXIS.CLI.Features.Config.Connection;
 )]
 public class ConnectionCreateCliCommand : TxcLeafCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ConnectionCreateCliCommand));
-    protected override ILogger Logger => _logger;
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ConnectionCreateCliCommand));
 
     [CliArgument(Description = "Connection name.")]
     public required string Name { get; set; }
@@ -66,12 +65,12 @@ public class ConnectionCreateCliCommand : TxcLeafCommand
 
         if (upsert.Error is not null)
         {
-            _logger.LogError("{Message}", upsert.Error);
+            Logger.LogError("{Message}", upsert.Error);
             return ExitError;
         }
 
         var connection = upsert.Connection!;
-        _logger.LogInformation("Connection '{Name}' saved ({Provider} -> {Env}).",
+        Logger.LogInformation("Connection '{Name}' saved ({Provider} -> {Env}).",
             connection.Id, connection.Provider, connection.EnvironmentUrl);
 
         OutputFormatter.WriteData(new

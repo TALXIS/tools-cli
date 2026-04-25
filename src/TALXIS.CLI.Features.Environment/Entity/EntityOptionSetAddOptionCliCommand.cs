@@ -87,23 +87,10 @@ public class EntityOptionSetAddOptionCliCommand : StagedCliCommand
             return ExitSuccess;
         }
 
-        try
-        {
-            var service = TxcServices.Get<IDataverseOptionSetService>();
-            await service.InsertOptionAsync(
-                Profile, Entity, Attribute, GlobalOptionset, Label, Value, CancellationToken.None
-            ).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or ArgumentException)
-        {
-            Logger.LogError("{Error}", ex.Message);
-            return ExitError;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "environment entity optionset add-option failed");
-            return ExitError;
-        }
+        var service = TxcServices.Get<IDataverseOptionSetService>();
+        await service.InsertOptionAsync(
+            Profile, Entity, Attribute, GlobalOptionset, Label, Value, CancellationToken.None
+        ).ConfigureAwait(false);
 
         string target = hasGlobal ? $"global option set '{GlobalOptionset}'" : $"attribute '{Attribute}' on entity '{Entity}'";
         OutputWriter.WriteLine($"Option '{Label}' added to {target}.");

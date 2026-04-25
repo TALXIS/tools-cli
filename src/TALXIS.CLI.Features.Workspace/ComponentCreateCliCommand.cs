@@ -12,8 +12,7 @@ namespace TALXIS.CLI.Features.Workspace;
     Name = "create")]
 public class ComponentCreateCliCommand : TxcLeafCommand, ICliGetCompletions
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ComponentCreateCliCommand));
-    protected override ILogger Logger => _logger;
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ComponentCreateCliCommand));
 
     [CliArgument(Description = "Type of the component (e.g. 'pp-entity')")]
     public required string Type { get; set; }
@@ -45,37 +44,24 @@ public class ComponentCreateCliCommand : TxcLeafCommand, ICliGetCompletions
             parameters[key] = value;
         }
         using var scaffolder = new TemplateInvoker();
-        try
+        var (success, failedActions) = await scaffolder.ScaffoldAsync(Type, OutputPath, parameters);
+        if (success)
         {
-            var (success, failedActions) = await scaffolder.ScaffoldAsync(Type, OutputPath, parameters);
-            if (success)
+            OutputFormatter.WriteResult("succeeded", $"Component scaffolded to {OutputPath} using template {Type}");
+            return ExitSuccess;
+        }
+        else
+        {
+            Logger.LogError("Component scaffolded, but one or more post-actions failed. See errors above.");
+            if (failedActions.Count > 0)
             {
-                OutputFormatter.WriteResult("succeeded", $"Component scaffolded to {OutputPath} using template {Type}");
-                return ExitSuccess;
-            }
-            else
-            {
-                _logger.LogError("Component scaffolded, but one or more post-actions failed. See errors above.");
-                if (failedActions.Count > 0)
+                Logger.LogError("Summary of failed post-actions:");
+                foreach (var failed in failedActions)
                 {
-                    _logger.LogError("Summary of failed post-actions:");
-                    foreach (var failed in failedActions)
-                    {
-                        _logger.LogError("- {FailedAction}", failed.Description ?? failed.ActionId.ToString());
-                    }
+                    Logger.LogError("- {FailedAction}", failed.Description ?? failed.ActionId.ToString());
                 }
-                OutputFormatter.WriteResult("failed", "Component scaffolded, but one or more post-actions failed.");
-                return ExitError;
             }
-        }
-        catch (ArgumentException ex) when (ex.Message.Contains("Parameter validation failed"))
-        {
-            _logger.LogError("Error: {Message}", ex.Message);
-            return ExitError;
-        }
-        catch (InvalidOperationException ex) when (ex.Message.Contains("parameter") || ex.Message.Contains("Creation failed"))
-        {
-            _logger.LogError("Error: {Message}", ex.Message);
+            OutputFormatter.WriteResult("failed", "Component scaffolded, but one or more post-actions failed.");
             return ExitError;
         }
     }
@@ -98,7 +84,7 @@ public class ComponentCreateCliCommand : TxcLeafCommand, ICliGetCompletions
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError("Error fetching completions: {Message}", ex.Message);
+                    Logger.LogError("Error fetching completions: {Message}", ex.Message);
                 }
                 break;
         }

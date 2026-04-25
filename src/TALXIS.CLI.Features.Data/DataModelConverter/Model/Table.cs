@@ -13,9 +13,9 @@ namespace TALXIS.CLI.Features.Data.DataModelConverter.Model;
 
 public enum TableType
 {
-    InSolution,
-    NotInSolution,
-    ConnectionTable
+    InSolution = 0,
+    NotInSolution = 1,
+    ConnectionTable = 2
 }
 
 public class Table

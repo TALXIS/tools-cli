@@ -186,24 +186,11 @@ public class EntityAttributeCreateCliCommand : StagedCliCommand
             return ExitSuccess;
         }
 
-        try
-        {
-            ValidateTypeSpecificParams();
+        ValidateTypeSpecificParams();
 
-            var options = BuildCreateOptions();
-            var service = TxcServices.Get<IDataverseEntityMetadataService>();
-            await service.CreateAttributeAsync(Profile, options, CancellationToken.None).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException or ArgumentException)
-        {
-            Logger.LogError("{Error}", ex.Message);
-            return ExitError;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "environment entity attribute create failed");
-            return ExitError;
-        }
+        var createOptions = BuildCreateOptions();
+        var service = TxcServices.Get<IDataverseEntityMetadataService>();
+        await service.CreateAttributeAsync(Profile, createOptions, CancellationToken.None).ConfigureAwait(false);
 
         OutputWriter.WriteLine($"Attribute '{Name}' ({Type}) created on entity '{Entity}'.");
         return ExitSuccess;
@@ -376,20 +363,20 @@ public class EntityAttributeCreateCliCommand : StagedCliCommand
 /// </summary>
 public enum AttributeTypeArg
 {
-    String,
-    Memo,
-    Number,
-    Decimal,
-    Float,
-    Money,
-    Bool,
-    DateTime,
-    Choice,
-    Multichoice,
-    Lookup,
-    [Description("polymorphic-lookup")] PolymorphicLookup,
-    Customer,
-    Image,
-    File,
-    BigInt
+    String = 0,
+    Memo = 1,
+    Number = 2,
+    Decimal = 3,
+    Float = 4,
+    Money = 5,
+    Bool = 6,
+    DateTime = 7,
+    Choice = 8,
+    Multichoice = 9,
+    Lookup = 10,
+    [Description("polymorphic-lookup")] PolymorphicLookup = 11,
+    Customer = 12,
+    Image = 13,
+    File = 14,
+    BigInt = 15
 }

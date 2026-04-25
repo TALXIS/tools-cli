@@ -5,10 +5,10 @@ namespace TALXIS.CLI.Core.Contracts.Dataverse;
 /// </summary>
 public enum DeploymentRunKind
 {
-    Package,
-    Solution,
-    AsyncOperationInProgress,
-    AsyncOperationCompleted,
+    Package = 0,
+    Solution = 1,
+    AsyncOperationInProgress = 2,
+    AsyncOperationCompleted = 3,
 }
 
 /// <summary>

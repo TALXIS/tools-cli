@@ -50,23 +50,10 @@ public class EntityRelationshipDeleteCliCommand : StagedCliCommand, IDestructive
             return ExitSuccess;
         }
 
-        try
-        {
-            var service = TxcServices.Get<IDataverseEntityMetadataService>();
-            await service.DeleteRelationshipAsync(
-                Profile, Name, CancellationToken.None
-            ).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException)
-        {
-            Logger.LogError("{Error}", ex.Message);
-            return ExitError;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "environment entity relationship delete failed");
-            return ExitError;
-        }
+        var service = TxcServices.Get<IDataverseEntityMetadataService>();
+        await service.DeleteRelationshipAsync(
+            Profile, Name, CancellationToken.None
+        ).ConfigureAwait(false);
 
         OutputWriter.WriteLine($"Relationship '{Name}' deleted successfully.");
         return ExitSuccess;

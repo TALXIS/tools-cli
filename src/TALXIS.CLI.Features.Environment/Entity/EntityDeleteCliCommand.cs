@@ -50,23 +50,10 @@ public class EntityDeleteCliCommand : StagedCliCommand, IDestructiveCommand
             return ExitSuccess;
         }
 
-        try
-        {
-            var service = TxcServices.Get<IDataverseEntityMetadataService>();
-            await service.DeleteEntityAsync(
-                Profile, Entity, CancellationToken.None
-            ).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException)
-        {
-            Logger.LogError("{Error}", ex.Message);
-            return ExitError;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "environment entity delete failed");
-            return ExitError;
-        }
+        var service = TxcServices.Get<IDataverseEntityMetadataService>();
+        await service.DeleteEntityAsync(
+            Profile, Entity, CancellationToken.None
+        ).ConfigureAwait(false);
 
         OutputWriter.WriteLine($"Entity '{Entity}' deleted successfully.");
         return ExitSuccess;

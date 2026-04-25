@@ -6,10 +6,10 @@ namespace TALXIS.CLI.Core.Abstractions;
 public enum ValidationMode
 {
     /// <summary>Pure shape check — URLs, credential-kind compatibility, authority wiring.</summary>
-    Structural,
+    Structural = 0,
 
     /// <summary>Structural, plus a live authenticated round-trip (e.g. WhoAmI).</summary>
-    Live,
+    Live = 1,
 }
 
 /// <summary>

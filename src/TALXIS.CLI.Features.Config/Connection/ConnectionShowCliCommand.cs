@@ -19,8 +19,7 @@ namespace TALXIS.CLI.Features.Config.Connection;
 )]
 public class ConnectionShowCliCommand : TxcLeafCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ConnectionShowCliCommand));
-    protected override ILogger Logger => _logger;
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ConnectionShowCliCommand));
 
     [CliArgument(Description = "Connection name.")]
     public required string Name { get; set; }
@@ -29,7 +28,7 @@ public class ConnectionShowCliCommand : TxcLeafCommand
     {
         if (string.IsNullOrWhiteSpace(Name))
         {
-            _logger.LogError("Connection name must be provided.");
+            Logger.LogError("Connection name must be provided.");
             return ExitError;
         }
 
@@ -37,7 +36,7 @@ public class ConnectionShowCliCommand : TxcLeafCommand
         var connection = await store.GetAsync(Name, CancellationToken.None).ConfigureAwait(false);
         if (connection is null)
         {
-            _logger.LogError("Connection '{Name}' not found.", Name);
+            Logger.LogError("Connection '{Name}' not found.", Name);
             return ExitValidationError;
         }
 

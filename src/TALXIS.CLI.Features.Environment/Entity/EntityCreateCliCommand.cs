@@ -95,37 +95,24 @@ public class EntityCreateCliCommand : StagedCliCommand
             return ExitSuccess;
         }
 
-        try
+        var service = TxcServices.Get<IDataverseEntityMetadataService>();
+        var options = new CreateEntityOptions
         {
-            var service = TxcServices.Get<IDataverseEntityMetadataService>();
-            var options = new CreateEntityOptions
-            {
-                SchemaName = Name,
-                DisplayName = DisplayName,
-                PluralName = PluralName,
-                Description = Description,
-                Solution = Solution,
-                Ownership = Ownership,
-                TableType = TableType,
-                HasNotes = HasNotes,
-                HasActivities = HasActivities,
-                EnableAudit = EnableAudit,
-                EnableChangeTracking = EnableChangeTracking
-            };
-            await service.CreateEntityAsync(
-                Profile, options, CancellationToken.None
-            ).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or ArgumentException)
-        {
-            Logger.LogError("{Error}", ex.Message);
-            return ExitError;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "environment entity create failed");
-            return ExitError;
-        }
+            SchemaName = Name,
+            DisplayName = DisplayName,
+            PluralName = PluralName,
+            Description = Description,
+            Solution = Solution,
+            Ownership = Ownership,
+            TableType = TableType,
+            HasNotes = HasNotes,
+            HasActivities = HasActivities,
+            EnableAudit = EnableAudit,
+            EnableChangeTracking = EnableChangeTracking
+        };
+        await service.CreateEntityAsync(
+            Profile, options, CancellationToken.None
+        ).ConfigureAwait(false);
 
         OutputWriter.WriteLine($"Entity '{Name}' created successfully.");
         return ExitSuccess;

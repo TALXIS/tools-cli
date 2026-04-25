@@ -27,22 +27,8 @@ public class EntityRelationshipListCliCommand : ProfiledCliCommand
 
     protected override async Task<int> ExecuteAsync()
     {
-        IReadOnlyList<EntityRelationshipRecord> rows;
-        try
-        {
-            var service = TxcServices.Get<IDataverseEntityMetadataService>();
-            rows = await service.ListRelationshipsAsync(Profile, Entity, CancellationToken.None).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
-        {
-            Logger.LogError("{Error}", ex.Message);
-            return ExitError;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "environment entity relationship list failed");
-            return ExitError;
-        }
+        var service = TxcServices.Get<IDataverseEntityMetadataService>();
+        var rows = await service.ListRelationshipsAsync(Profile, Entity, CancellationToken.None).ConfigureAwait(false);
 
         OutputFormatter.WriteList(rows, PrintRelationshipsTable);
         return ExitSuccess;

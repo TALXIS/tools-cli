@@ -180,8 +180,8 @@ You work with a monorepo that contains Power Platform solutions. You must use TA
     /// </summary>
     public enum CopilotInstructionsResult
     {
-        Created,
-        Updated,
-        UpToDate
+        Created = 0,
+        Updated = 1,
+        UpToDate = 2
     }
 }

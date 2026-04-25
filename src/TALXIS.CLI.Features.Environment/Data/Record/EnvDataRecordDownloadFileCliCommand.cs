@@ -1,7 +1,6 @@
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
-using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Logging;
@@ -35,24 +34,11 @@ public class EnvDataRecordDownloadFileCliCommand : ProfiledCliCommand
 
     protected override async Task<int> ExecuteAsync()
     {
-        try
-        {
-            var service = TxcServices.Get<IDataverseFileService>();
-            var fileName = await service.DownloadFileAsync(Profile, Entity, RecordId, Column, Output, CancellationToken.None)
-                .ConfigureAwait(false);
+        var service = TxcServices.Get<IDataverseFileService>();
+        var fileName = await service.DownloadFileAsync(Profile, Entity, RecordId, Column, Output, CancellationToken.None)
+            .ConfigureAwait(false);
 
-            OutputWriter.WriteLine($"Downloaded '{fileName}' to {Output}");
-        }
-        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
-        {
-            Logger.LogError("{Error}", ex.Message);
-            return ExitError;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "record download-file failed");
-            return ExitError;
-        }
+        OutputWriter.WriteLine($"Downloaded '{fileName}' to {Output}");
 
         return ExitSuccess;
     }

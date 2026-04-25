@@ -20,23 +20,23 @@ public class CrmServiceClient : ServiceClient, IDisposable
 
     public enum ImportStatus
     {
-        NotImported,
-        InProgress,
-        Completed,
-        Failed
+        NotImported = 0,
+        InProgress = 1,
+        Completed = 2,
+        Failed = 3
     }
 
     public enum LogicalSearchOperator
     {
-        None,
-        Or,
-        And
+        None = 0,
+        Or = 1,
+        And = 2
     }
 
     public enum LogicalSortOrder
     {
-        Ascending,
-        Descending
+        Ascending = 0,
+        Descending = 1
     }
 
     public sealed class CrmSearchFilter
@@ -56,8 +56,8 @@ public class CrmServiceClient : ServiceClient, IDisposable
     {
         public enum ImportMode
         {
-            Create,
-            Update
+            Create = 0,
+            Update = 1
         }
 
         public string ImportName { get; set; } = string.Empty;
@@ -70,9 +70,9 @@ public class CrmServiceClient : ServiceClient, IDisposable
 
     public class ImportFileItem
     {
-        public enum DataDelimiterCode { DoubleQuotes = 1, None, SingleQuote }
-        public enum FieldDelimiterCode { Colon = 1, Comma, SingleQuote }
-        public enum FileTypeCode { CSV, XML }
+        public enum DataDelimiterCode { DoubleQuotes = 1, None = 2, SingleQuote = 3 }
+        public enum FieldDelimiterCode { Colon = 1, Comma = 2, SingleQuote = 3 }
+        public enum FileTypeCode { CSV = 0, XML = 1 }
 
         public string FileName { get; set; } = string.Empty;
         public FileTypeCode FileType { get; set; }

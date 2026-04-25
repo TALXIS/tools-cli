@@ -70,23 +70,10 @@ public class EntityUpdateCliCommand : StagedCliCommand
             return ExitSuccess;
         }
 
-        try
-        {
-            var service = TxcServices.Get<IDataverseEntityMetadataService>();
-            await service.UpdateEntityAsync(
-                Profile, Entity, DisplayName, PluralName, Description, CancellationToken.None
-            ).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or ArgumentException)
-        {
-            Logger.LogError("{Error}", ex.Message);
-            return ExitError;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "environment entity update failed");
-            return ExitError;
-        }
+        var service = TxcServices.Get<IDataverseEntityMetadataService>();
+        await service.UpdateEntityAsync(
+            Profile, Entity, DisplayName, PluralName, Description, CancellationToken.None
+        ).ConfigureAwait(false);
 
         OutputWriter.WriteLine($"Entity '{Entity}' updated successfully.");
         return ExitSuccess;

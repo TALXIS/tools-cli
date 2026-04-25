@@ -66,24 +66,11 @@ public class EnvDataRecordDisassociateCliCommand : StagedCliCommand, IDestructiv
             return ExitSuccess;
         }
 
-        try
-        {
-            var service = TxcServices.Get<IDataverseRelationshipService>();
-            await service.DisassociateAsync(Profile, Entity, RecordId, TargetEntity, Target, Relationship, CancellationToken.None)
-                .ConfigureAwait(false);
+        var service = TxcServices.Get<IDataverseRelationshipService>();
+        await service.DisassociateAsync(Profile, Entity, RecordId, TargetEntity, Target, Relationship, CancellationToken.None)
+            .ConfigureAwait(false);
 
-            OutputWriter.WriteLine($"Disassociated {Entity}/{RecordId} from {TargetEntity}/{Target} via '{Relationship}'");
-        }
-        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
-        {
-            Logger.LogError("{Error}", ex.Message);
-            return ExitError;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "record disassociate failed");
-            return ExitError;
-        }
+        OutputWriter.WriteLine($"Disassociated {Entity}/{RecordId} from {TargetEntity}/{Target} via '{Relationship}'");
 
         return ExitSuccess;
     }

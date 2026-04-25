@@ -20,8 +20,7 @@ namespace TALXIS.CLI.Features.Config.Setting;
 )]
 public class SettingGetCliCommand : TxcLeafCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(SettingGetCliCommand));
-    protected override ILogger Logger => _logger;
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(SettingGetCliCommand));
 
     [CliArgument(Description = "Setting key (e.g. log.level).")]
     public required string Key { get; set; }
@@ -30,14 +29,14 @@ public class SettingGetCliCommand : TxcLeafCommand
     {
         if (string.IsNullOrWhiteSpace(Key))
         {
-            _logger.LogError("Setting key must be provided.");
+            Logger.LogError("Setting key must be provided.");
             return ExitError;
         }
 
         var descriptor = SettingRegistry.Find(Key);
         if (descriptor is null)
         {
-            _logger.LogError(
+            Logger.LogError(
                 "Unknown setting key '{Key}'. Known keys: {Keys}.",
                 Key,
                 string.Join(", ", SettingRegistry.All.Select(d => d.Key)));

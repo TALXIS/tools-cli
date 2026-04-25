@@ -59,54 +59,41 @@ public class ChangesetApplyCliCommand : ProfiledCliCommand
         OutputWriter.WriteLine($"Applying {operations.Count} operations ({schemaCount} schema, {dataCount} data) with strategy '{strategy}'...");
         OutputWriter.WriteLine();
 
-        try
+        var applier = TxcServices.Get<IChangesetApplier>();
+        var result = await applier.ApplyAsync(
+            Profile, operations, strategy, ContinueOnError, CancellationToken.None
+        ).ConfigureAwait(false);
+
+        // Print per-operation results
+        foreach (var op in result.Results)
         {
-            var applier = TxcServices.Get<IChangesetApplier>();
-            var result = await applier.ApplyAsync(
-                Profile, operations, strategy, ContinueOnError, CancellationToken.None
-            ).ConfigureAwait(false);
+            string status = op.Success ? "OK" : "FAIL";
+            string line = $"  [{status}] #{op.Index}: {op.Message}";
+            if (op.Error is not null)
+                line += $" — {op.Error}";
+            OutputWriter.WriteLine(line);
+        }
 
-            // Print per-operation results
-            foreach (var op in result.Results)
-            {
-                string status = op.Success ? "OK" : "FAIL";
-                string line = $"  [{status}] #{op.Index}: {op.Message}";
-                if (op.Error is not null)
-                    line += $" — {op.Error}";
-                OutputWriter.WriteLine(line);
-            }
+        OutputWriter.WriteLine();
 
+        // Print summary
+        OutputWriter.WriteLine($"Completed in {result.Duration.TotalSeconds:F1}s");
+        OutputWriter.WriteLine($"  Total:      {result.TotalOperations}");
+        OutputWriter.WriteLine($"  Succeeded:  {result.Succeeded}");
+        OutputWriter.WriteLine($"  Failed:     {result.Failed}");
+        if (result.Skipped > 0)
+            OutputWriter.WriteLine($"  Skipped:    {result.Skipped}");
+        if (result.RolledBack > 0)
+            OutputWriter.WriteLine($"  Rolled back: {result.RolledBack}");
+
+        // Clear the changeset store on full success
+        if (result.Failed == 0)
+        {
+            store.Clear();
             OutputWriter.WriteLine();
-
-            // Print summary
-            OutputWriter.WriteLine($"Completed in {result.Duration.TotalSeconds:F1}s");
-            OutputWriter.WriteLine($"  Total:      {result.TotalOperations}");
-            OutputWriter.WriteLine($"  Succeeded:  {result.Succeeded}");
-            OutputWriter.WriteLine($"  Failed:     {result.Failed}");
-            if (result.Skipped > 0)
-                OutputWriter.WriteLine($"  Skipped:    {result.Skipped}");
-            if (result.RolledBack > 0)
-                OutputWriter.WriteLine($"  Rolled back: {result.RolledBack}");
-
-            // Clear the changeset store on full success
-            if (result.Failed == 0)
-            {
-                store.Clear();
-                OutputWriter.WriteLine();
-                OutputWriter.WriteLine("Changeset cleared.");
-            }
-
-            return result.Failed > 0 ? 1 : 0;
+            OutputWriter.WriteLine("Changeset cleared.");
         }
-        catch (Exception ex) when (ex is Core.Abstractions.ConfigurationResolutionException or InvalidOperationException or ArgumentException)
-        {
-            Logger.LogError("{Error}", ex.Message);
-            return ExitError;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "environment changeset apply failed");
-            return ExitError;
-        }
+
+        return result.Failed > 0 ? 1 : 0;
     }
 }

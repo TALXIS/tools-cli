@@ -6,12 +6,12 @@ namespace TALXIS.CLI.Core.Model;
 /// </summary>
 public enum CredentialKind
 {
-    InteractiveBrowser,
-    DeviceCode,
-    ClientSecret,
-    ClientCertificate,
-    ManagedIdentity,
-    WorkloadIdentityFederation,
-    AzureCli,
-    Pat,
+    InteractiveBrowser = 0,
+    DeviceCode = 1,
+    ClientSecret = 2,
+    ClientCertificate = 3,
+    ManagedIdentity = 4,
+    WorkloadIdentityFederation = 5,
+    AzureCli = 6,
+    Pat = 7,
 }

@@ -27,22 +27,8 @@ public class EntityGetCliCommand : ProfiledCliCommand
 
     protected override async Task<int> ExecuteAsync()
     {
-        EntityDetailRecord detail;
-        try
-        {
-            var service = TxcServices.Get<IDataverseEntityMetadataService>();
-            detail = await service.GetEntityDetailAsync(Profile, Entity, CancellationToken.None).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
-        {
-            Logger.LogError("{Error}", ex.Message);
-            return ExitError;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "environment entity get failed");
-            return ExitError;
-        }
+        var service = TxcServices.Get<IDataverseEntityMetadataService>();
+        var detail = await service.GetEntityDetailAsync(Profile, Entity, CancellationToken.None).ConfigureAwait(false);
 
         OutputFormatter.WriteData(detail, PrintDetail);
         return ExitSuccess;
