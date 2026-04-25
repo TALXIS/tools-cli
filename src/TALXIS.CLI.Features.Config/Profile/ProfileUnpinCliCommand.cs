@@ -1,6 +1,7 @@
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
+using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Core.Resolution;
 using TALXIS.CLI.Logging;
@@ -20,10 +21,13 @@ namespace TALXIS.CLI.Features.Config.Profile;
     Name = "unpin",
     Description = "Remove <cwd>/.txc/workspace.json (no-op if absent)."
 )]
-public class ProfileUnpinCliCommand : TxcLeafCommand
+public class ProfileUnpinCliCommand : TxcLeafCommand, IDestructiveCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ProfileUnpinCliCommand));
     protected override ILogger Logger => _logger;
+
+    [CliOption(Name = "--yes", Description = "Skip confirmation for this destructive operation.", Required = false)]
+    public bool Yes { get; set; }
 
     protected override Task<int> ExecuteAsync()
     {

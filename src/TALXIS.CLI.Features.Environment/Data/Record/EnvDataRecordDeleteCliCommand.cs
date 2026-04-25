@@ -1,6 +1,7 @@
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
+using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Logging;
@@ -15,8 +16,10 @@ namespace TALXIS.CLI.Features.Environment.Data.Record;
     Name = "delete",
     Description = "Delete a single record by ID."
 )]
-public class EnvDataRecordDeleteCliCommand : ProfiledCliCommand
+public class EnvDataRecordDeleteCliCommand : ProfiledCliCommand, IDestructiveCommand
 {
+    [CliOption(Name = "--yes", Description = "Skip confirmation for this destructive operation.", Required = false)]
+    public bool Yes { get; set; }
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EnvDataRecordDeleteCliCommand));
 
     [CliOption(Name = "--entity", Description = "Entity logical name (e.g. account).", Required = true)]

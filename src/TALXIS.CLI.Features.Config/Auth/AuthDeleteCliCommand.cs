@@ -23,10 +23,13 @@ namespace TALXIS.CLI.Features.Config.Auth;
     Name = "delete",
     Description = "Delete a stored credential. Profiles referencing it are left orphaned with a warning."
 )]
-public class AuthDeleteCliCommand : TxcLeafCommand
+public class AuthDeleteCliCommand : TxcLeafCommand, IDestructiveCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(AuthDeleteCliCommand));
     protected override ILogger Logger => _logger;
+
+    [CliOption(Name = "--yes", Description = "Skip confirmation for this destructive operation.", Required = false)]
+    public bool Yes { get; set; }
 
     [CliArgument(Description = "Credential alias (id) to delete.")]
     public required string Alias { get; set; }
