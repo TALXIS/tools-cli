@@ -11,6 +11,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Record;
 /// <summary>
 /// Updates a single record identified by entity logical name and record ID.
 /// </summary>
+[CliIdempotent]
 [CliCommand(
     Name = "update",
     Description = "Update a single record by ID from JSON attributes."

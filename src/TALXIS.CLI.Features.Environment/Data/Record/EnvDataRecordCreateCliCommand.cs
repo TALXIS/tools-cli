@@ -11,6 +11,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Record;
 /// <summary>
 /// Creates a single record from inline JSON or a JSON file.
 /// </summary>
+[CliIdempotent]
 [CliCommand(
     Name = "create",
     Description = "Create a single record from JSON attributes."

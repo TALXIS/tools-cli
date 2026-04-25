@@ -13,7 +13,7 @@ namespace TALXIS.CLI.Features.Environment.Package;
     Name = "uninstall",
     Description = "Uninstall all solutions belonging to a package from the target environment, in reverse import order."
 )]
-[McpToolAnnotations(DestructiveHint = true, OpenWorldHint = true)]
+[CliDestructive("Uninstalls all solutions belonging to the package from the remote environment in reverse order.")]
 public class PackageUninstallCliCommand : ProfiledCliCommand, IDestructiveCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(PackageUninstallCliCommand));

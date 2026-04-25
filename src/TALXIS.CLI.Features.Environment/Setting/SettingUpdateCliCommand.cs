@@ -11,6 +11,7 @@ namespace TALXIS.CLI.Features.Environment.Setting;
 /// <c>txc environment setting update</c> — updates a single environment
 /// management setting via the Power Platform control plane API.
 /// </summary>
+[CliIdempotent]
 [CliCommand(
     Name = "update",
     Description = "Update an environment management setting (control plane)."

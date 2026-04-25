@@ -9,7 +9,7 @@ namespace TALXIS.CLI.Tests.Architecture;
 /// <summary>
 /// Tests that enforce project layering rules from CONTRIBUTING.md:
 /// - Features do NOT reference other Features (except the documented exception below)
-/// - Destructive commands with <c>--yes</c> must have <c>[McpToolAnnotations(DestructiveHint = true)]</c>
+/// - Destructive commands with <c>--yes</c> must have <c>[CliDestructive("…")]</c>
 /// </summary>
 public class LayeringTests
 {
@@ -54,9 +54,9 @@ public class LayeringTests
 
     /// <summary>
     /// Commands with a <c>--yes</c> flag are destructive operations. They must carry
-    /// <c>[McpToolAnnotations(DestructiveHint = true)]</c> so MCP clients can prompt
-    /// for human-in-the-loop confirmation before execution. The <c>--yes</c> flag
-    /// itself provides server-side defense in depth.
+    /// <c>[CliDestructive("…")]</c> so MCP clients can prompt for human-in-the-loop
+    /// confirmation before execution. The <c>--yes</c> flag itself provides
+    /// server-side defense in depth.
     /// </summary>
     [Fact]
     public void DestructiveCommands_WithYesFlag_MustHaveDestructiveAnnotation()
@@ -75,14 +75,14 @@ public class LayeringTests
             .Where(HasYesFlag)
             .Where(t =>
             {
-                var annotations = t.GetCustomAttribute<McpToolAnnotationsAttribute>();
-                return annotations is null || !annotations.DestructiveHint;
+                var destructive = t.GetCustomAttribute<CliDestructiveAttribute>();
+                return destructive is null;
             })
             .Select(t => t.FullName)
             .ToList();
 
         Assert.True(violations.Count == 0,
-            $"Commands with --yes flag must have [McpToolAnnotations(DestructiveHint = true)] " +
+            $"Commands with --yes flag must have [CliDestructive(\"…\")] " +
             $"so MCP clients prompt for confirmation:\n" +
             string.Join("\n", violations!));
     }

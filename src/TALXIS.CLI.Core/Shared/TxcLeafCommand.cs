@@ -123,11 +123,10 @@ public abstract class TxcLeafCommand
         }
 
         var prompter = TxcServices.Get<IConfirmationPrompter>();
-        var description = GetType().GetCustomAttribute<McpToolAnnotationsAttribute>() is { } attr
-            ? "This operation is destructive"
-            : "This operation requires confirmation";
+        var destructiveAttr = GetType().GetCustomAttribute<CliDestructiveAttribute>();
+        var message = destructiveAttr?.Impact ?? "This operation is destructive";
 
-        if (!await prompter.ConfirmAsync($"{description}. Continue?").ConfigureAwait(false))
+        if (!await prompter.ConfirmAsync($"{message} Continue?").ConfigureAwait(false))
         {
             Logger.LogWarning("Operation cancelled by user.");
             return ExitValidationError;

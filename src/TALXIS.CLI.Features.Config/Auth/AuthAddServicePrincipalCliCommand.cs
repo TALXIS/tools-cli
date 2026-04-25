@@ -18,6 +18,7 @@ namespace TALXIS.CLI.Features.Config.Auth;
 /// It is then written to the OS credential vault; only a
 /// <see cref="SecretRef"/> handle is persisted in the credential store.
 /// </summary>
+[CliIdempotent]
 [CliCommand(
     Name = "add-service-principal",
     Aliases = new[] { "add-sp" },

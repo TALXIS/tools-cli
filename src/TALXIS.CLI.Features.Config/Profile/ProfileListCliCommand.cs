@@ -12,7 +12,7 @@ namespace TALXIS.CLI.Features.Config.Profile;
 /// entry carries an <c>active</c> flag so scripts can skip running
 /// <c>config profile show</c> to figure out which one is current.
 /// </summary>
-[McpToolAnnotations(ReadOnlyHint = true)]
+[CliReadOnly]
 [CliCommand(
     Name = "list",
     Description = "List profiles as JSON."

@@ -19,7 +19,7 @@ namespace TALXIS.CLI.Features.Config.Profile;
 /// instead of silently resolving to a deleted one.
 /// </para>
 /// </summary>
-[McpToolAnnotations(DestructiveHint = true)]
+[CliDestructive("Deletes the profile and optionally cascades to its credential and connection.")]
 [CliCommand(
     Name = "delete",
     Description = "Delete a profile. Dependents are kept unless --cascade."

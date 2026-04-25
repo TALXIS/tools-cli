@@ -8,6 +8,7 @@ using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Data;
 
+[CliIdempotent]
 [CliCommand(
     Name = "import",
     Description = "Import a CMT data package into a Dataverse environment"

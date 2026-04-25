@@ -11,7 +11,7 @@ namespace TALXIS.CLI.Features.Workspace;
 /// <summary>
 /// CLI command to list parameters required for a specific component template.
 /// </summary>
-[McpToolAnnotations(ReadOnlyHint = true)]
+[CliReadOnly]
 [CliCommand(
     Description = "Lists parameters for a specific component",
     Name = "list"

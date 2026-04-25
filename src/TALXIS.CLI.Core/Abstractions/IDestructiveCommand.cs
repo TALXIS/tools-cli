@@ -9,9 +9,8 @@ namespace TALXIS.CLI.Core.Abstractions;
 /// requires <c>--yes</c> in non-interactive environments.
 /// <para>
 /// This interface works in tandem with
-/// <see cref="McpToolAnnotationsAttribute"/> (<c>DestructiveHint = true</c>):
-/// the attribute drives MCP protocol annotations while this interface
-/// drives the interactive CLI confirmation gate.
+/// <see cref="CliDestructiveAttribute"/>: the attribute drives MCP protocol
+/// annotations while this interface drives the interactive CLI confirmation gate.
 /// </para>
 /// </summary>
 public interface IDestructiveCommand

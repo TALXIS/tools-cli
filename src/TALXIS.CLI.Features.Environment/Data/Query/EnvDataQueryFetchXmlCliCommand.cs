@@ -16,7 +16,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Query;
 ///   txc environment data query fetchxml "&lt;fetch&gt;&lt;entity name='account'&gt;&lt;attribute name='name'/&gt;&lt;/entity&gt;&lt;/fetch&gt;"
 ///   txc env data query fetchxml --file ./query.xml --format json
 /// </example>
-[McpToolAnnotations(ReadOnlyHint = true)]
+[CliReadOnly]
 [CliCommand(
     Name = "fetchxml",
     Description = "Execute a FetchXML query against the Dataverse environment."

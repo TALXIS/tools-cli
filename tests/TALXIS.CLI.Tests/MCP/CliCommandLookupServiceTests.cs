@@ -30,7 +30,7 @@ public class CliCommandLookupServiceTests
     [CliCommand(Description = "Root with ignored subtree", Children = new[] { typeof(IgnoredParentWithChildren) })]
     private class FakeRootWithIgnoredSubtree { public void Run() { } }
 
-    [McpToolAnnotations(DestructiveHint = true)]
+    [CliDestructive("Test impact")]
     [CliCommand(Name = "annotated", Description = "Annotated leaf")]
     private class AnnotatedChild { public void Run() { } }
 

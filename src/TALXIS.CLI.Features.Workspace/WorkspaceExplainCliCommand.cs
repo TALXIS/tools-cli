@@ -5,7 +5,7 @@ using TALXIS.CLI.Core;
 
 namespace TALXIS.CLI.Features.Workspace;
 
-[McpToolAnnotations(ReadOnlyHint = true)]
+[CliReadOnly]
 [CliCommand(
     Description = "Provides a summary of repository structure, build system, project types, components, and how they are organized for development and deployment. Use this tool whenever the user asks about organizing or understanding the workspace. This includes details about the monorepo layout, use of .NET project and solution files, supported project types (such as Dataverse solutions, plugins, packages, Power Apps components, and custom code apps), and how projects are managed and built using MSBuild. The summary also explains how solution and package projects reference and compose other components for deployment, offering flexibility in organizing code for various scenarios.",
     Name = "explain")]

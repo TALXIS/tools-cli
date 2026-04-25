@@ -10,6 +10,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Record;
 /// <summary>
 /// Deletes a single record by entity logical name and record ID.
 /// </summary>
+[CliDestructive("Permanently deletes the record from the remote environment.")]
 [CliCommand(
     Name = "delete",
     Description = "Delete a single record by ID."

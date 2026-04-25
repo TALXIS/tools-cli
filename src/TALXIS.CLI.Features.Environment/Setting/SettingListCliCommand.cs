@@ -11,7 +11,7 @@ namespace TALXIS.CLI.Features.Environment.Setting;
 /// <c>txc environment setting list</c> — lists environment management
 /// settings from the Power Platform control plane API.
 /// </summary>
-[McpToolAnnotations(ReadOnlyHint = true)]
+[CliReadOnly]
 [CliCommand(
     Name = "list",
     Description = "List environment management settings (control plane)."

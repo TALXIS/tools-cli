@@ -13,6 +13,7 @@ namespace TALXIS.CLI.Features.Config.Setting;
 /// never silently write garbage into <c>config.json</c>; values are
 /// validated against the per-key whitelist in <see cref="SettingRegistry"/>.
 /// </summary>
+[CliIdempotent]
 [CliCommand(
     Name = "set",
     Description = "Set a tool-wide preference key (e.g. log.level, log.format, telemetry.enabled)."

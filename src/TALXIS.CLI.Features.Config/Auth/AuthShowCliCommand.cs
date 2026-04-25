@@ -12,7 +12,7 @@ namespace TALXIS.CLI.Features.Config.Auth;
 /// non-secret fields as JSON. Exit code 2 if the alias is not found so
 /// scripts can distinguish "missing" from "internal error" (1).
 /// </summary>
-[McpToolAnnotations(ReadOnlyHint = true)]
+[CliReadOnly]
 [CliCommand(
     Name = "show",
     Description = "Show a stored credential's non-secret fields as JSON."

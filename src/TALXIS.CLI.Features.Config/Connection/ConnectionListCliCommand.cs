@@ -10,7 +10,7 @@ namespace TALXIS.CLI.Features.Config.Connection;
 /// <summary>
 /// <c>txc config connection list</c> — JSON dump of all connections.
 /// </summary>
-[McpToolAnnotations(ReadOnlyHint = true)]
+[CliReadOnly]
 [CliCommand(
     Name = "list",
     Description = "List connections as JSON."

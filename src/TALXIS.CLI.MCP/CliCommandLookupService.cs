@@ -54,21 +54,25 @@ namespace TALXIS.CLI.MCP
             }
         }
         /// <summary>
-        /// Reads <see cref="McpToolAnnotationsAttribute"/> from the command type and converts
-        /// it to an MCP protocol <see cref="ToolAnnotations"/> instance. Returns null when the
-        /// attribute is absent, so the protocol omits the annotations field entirely.
+        /// Reads <see cref="CliDestructiveAttribute"/>, <see cref="CliReadOnlyAttribute"/>,
+        /// and <see cref="CliIdempotentAttribute"/> from the command type and converts them
+        /// to an MCP protocol <see cref="ToolAnnotations"/> instance. Returns null when none
+        /// of the attributes are present.
         /// </summary>
         private static ToolAnnotations? BuildAnnotations(Type cmdType)
         {
-            var attr = cmdType.GetCustomAttribute<McpToolAnnotationsAttribute>();
-            if (attr is null) return null;
+            var destructive = cmdType.GetCustomAttribute<CliDestructiveAttribute>();
+            var readOnly = cmdType.GetCustomAttribute<CliReadOnlyAttribute>();
+            var idempotent = cmdType.GetCustomAttribute<CliIdempotentAttribute>();
+
+            if (destructive is null && readOnly is null && idempotent is null)
+                return null;
 
             return new ToolAnnotations
             {
-                DestructiveHint = attr.DestructiveHint ? true : null,
-                ReadOnlyHint = attr.ReadOnlyHint ? true : null,
-                IdempotentHint = attr.IdempotentHint ? true : null,
-                OpenWorldHint = attr.OpenWorldHint ? true : null,
+                DestructiveHint = destructive is not null ? true : null,
+                ReadOnlyHint = readOnly is not null ? true : null,
+                IdempotentHint = idempotent is not null ? true : null,
             };
         }
 

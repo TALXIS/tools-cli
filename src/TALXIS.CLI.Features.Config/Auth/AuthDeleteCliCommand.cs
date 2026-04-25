@@ -18,7 +18,7 @@ namespace TALXIS.CLI.Features.Config.Auth;
 /// <c>pac auth clear</c> behaves similarly; cascading deletes would be
 /// surprising and are therefore intentionally not performed.
 /// </summary>
-[McpToolAnnotations(DestructiveHint = true)]
+[CliDestructive("Permanently removes the credential and its OS vault secret; referencing profiles are left orphaned.")]
 [CliCommand(
     Name = "delete",
     Description = "Delete a stored credential. Profiles referencing it are left orphaned with a warning."
