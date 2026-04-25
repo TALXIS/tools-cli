@@ -14,6 +14,6 @@ internal static class DiagnosticIds
     /// <summary>Command code must not call OutputWriter directly — use OutputFormatter.</summary>
     public const string MustNotCallOutputWriter = "TXC003";
 
-    /// <summary>Leaf commands must declare [CliDestructive] or [CliReadOnly] (mutually exclusive).</summary>
+    /// <summary>Leaf commands must declare [CliDestructive], [CliReadOnly], or [CliIdempotent]; [CliDestructive] commands must implement IDestructiveCommand.</summary>
     public const string MustDeclareAccessLevel = "TXC004";
 }

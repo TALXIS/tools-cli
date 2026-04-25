@@ -3,8 +3,9 @@ namespace TALXIS.CLI.Core;
 /// <summary>
 /// Marks a CLI command as destructive — it may delete data, uninstall components,
 /// or irreversibly modify state. The required <paramref name="impact"/> message
-/// describes the consequences and is surfaced to both interactive CLI users
-/// (in the confirmation prompt) and MCP agent clients (in the tool description).
+/// describes the consequences and is surfaced to interactive CLI users
+/// (in the confirmation prompt) and MCP agent clients (via
+/// <c>ToolAnnotations.Title</c> alongside <c>destructiveHint: true</c>).
 /// <para>
 /// Commands carrying this attribute must also implement
 /// <see cref="Abstractions.IDestructiveCommand"/> to expose the <c>--yes</c> flag.

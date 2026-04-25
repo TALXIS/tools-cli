@@ -6,7 +6,10 @@ namespace TALXIS.CLI.Core;
 /// human-in-the-loop confirmation.
 /// <para>
 /// Mutually exclusive with <see cref="CliDestructiveAttribute"/>. Every leaf
-/// command must carry exactly one of the two — enforced at build time by TXC004.
+/// command must declare a safety posture — enforced at build time by TXC004.
+/// The requirement may be satisfied by <see cref="CliReadOnlyAttribute"/>,
+/// <see cref="CliDestructiveAttribute"/>, or <see cref="CliIdempotentAttribute"/>.
+/// <see cref="CliIdempotentAttribute"/> may be combined with either.
 /// </para>
 /// </summary>
 [AttributeUsage(AttributeTargets.Class, Inherited = false)]

@@ -5,18 +5,15 @@ using Microsoft.CodeAnalysis.Diagnostics;
 namespace TALXIS.CLI.Analyzers;
 
 /// <summary>
-/// TXC004: Every non-abstract leaf <c>[CliCommand]</c> class must carry at least one of
-/// <c>[CliDestructive("…")]</c>, <c>[CliReadOnly]</c>, or <c>[CliIdempotent]</c>.
-/// This forces developers to consciously declare the safety posture of every
-/// command at design time.
+/// TXC004: Every non-abstract leaf <c>[CliCommand]</c> class must declare a safety
+/// posture via <c>[CliDestructive("…")]</c>, <c>[CliReadOnly]</c>, or
+/// <c>[CliIdempotent]</c>. <c>[CliIdempotent]</c> may be combined with either of
+/// the other two. <c>[CliDestructive]</c> and <c>[CliReadOnly]</c> are mutually
+/// exclusive. Commands with <c>[CliDestructive]</c> must also implement
+/// <c>IDestructiveCommand</c> to expose the <c>--yes</c> flag.
 /// <para>
-/// <c>[CliDestructive]</c> and <c>[CliReadOnly]</c> remain mutually exclusive.
-/// <c>[CliIdempotent]</c> satisfies the rule on its own and may also be combined
-/// with either of the other two.
-/// </para>
-/// <para>
-/// Commands with <c>[McpIgnore]</c> are exempt (they are excluded from both MCP and
-/// the CLI confirmation pipeline).
+/// Commands with <c>[McpIgnore]</c> are exempt — they have special interactive or
+/// long-running behavior and are excluded from MCP tool enumeration.
 /// </para>
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
@@ -40,8 +37,17 @@ public sealed class MustDeclareAccessLevelAnalyzer : DiagnosticAnalyzer
         isEnabledByDefault: true,
         helpLinkUri: "https://github.com/TALXIS/tools-cli/blob/main/docs/output-contract.md");
 
+    private static readonly DiagnosticDescriptor DestructiveMustImplementInterfaceRule = new(
+        id: DiagnosticIds.MustDeclareAccessLevel,
+        title: "[CliDestructive] commands must implement IDestructiveCommand",
+        messageFormat: "'{0}' has [CliDestructive] but does not implement IDestructiveCommand. Destructive commands must implement IDestructiveCommand to expose the --yes confirmation flag.",
+        category: "TALXIS.CLI.Design",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        helpLinkUri: "https://github.com/TALXIS/tools-cli/blob/main/docs/output-contract.md");
+
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-        ImmutableArray.Create(MissingRule, BothRule);
+        ImmutableArray.Create(MissingRule, BothRule, DestructiveMustImplementInterfaceRule);
 
     public override void Initialize(AnalysisContext context)
     {
@@ -64,7 +70,8 @@ public sealed class MustDeclareAccessLevelAnalyzer : DiagnosticAnalyzer
         if (IsRoutingCommand(type))
             return;
 
-        // Commands marked [McpIgnore] are exempt — they're excluded from both pipelines.
+        // Commands marked [McpIgnore] are exempt — they have special interactive or
+        // long-running behavior and are excluded from MCP tool enumeration.
         if (HasAttribute(type, "McpIgnoreAttribute"))
             return;
 
@@ -80,6 +87,12 @@ public sealed class MustDeclareAccessLevelAnalyzer : DiagnosticAnalyzer
         {
             context.ReportDiagnostic(Diagnostic.Create(MissingRule, type.Locations[0], type.Name));
         }
+
+        // [CliDestructive] commands must implement IDestructiveCommand to expose --yes.
+        if (hasDestructive && !ImplementsInterface(type, "IDestructiveCommand"))
+        {
+            context.ReportDiagnostic(Diagnostic.Create(DestructiveMustImplementInterfaceRule, type.Locations[0], type.Name));
+        }
     }
 
     private static bool HasAttribute(INamedTypeSymbol type, string attributeName)
@@ -87,6 +100,16 @@ public sealed class MustDeclareAccessLevelAnalyzer : DiagnosticAnalyzer
         foreach (var attr in type.GetAttributes())
         {
             if (attr.AttributeClass?.Name == attributeName)
+                return true;
+        }
+        return false;
+    }
+
+    private static bool ImplementsInterface(INamedTypeSymbol type, string interfaceName)
+    {
+        foreach (var iface in type.AllInterfaces)
+        {
+            if (iface.Name == interfaceName)
                 return true;
         }
         return false;

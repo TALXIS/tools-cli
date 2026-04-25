@@ -70,6 +70,7 @@ namespace TALXIS.CLI.MCP
 
             return new ToolAnnotations
             {
+                Title = destructive?.Impact,
                 DestructiveHint = destructive is not null ? true : null,
                 ReadOnlyHint = readOnly is not null ? true : null,
                 IdempotentHint = idempotent is not null ? true : null,
