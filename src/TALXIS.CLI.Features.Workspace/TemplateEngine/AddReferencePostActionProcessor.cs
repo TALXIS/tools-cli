@@ -7,7 +7,7 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
 {
     public class AddReferencePostActionProcessor : IPostActionProcessor
     {
-        private static readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(AddReferencePostActionProcessor));
+        private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(AddReferencePostActionProcessor));
         public Guid ActionId => new Guid("B17581D1-C5C9-4489-8F0A-004BE667B814");
 
         public bool Process(IEngineEnvironmentSettings environment, IPostAction action)

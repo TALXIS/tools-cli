@@ -120,6 +120,7 @@ public class AuthAddServicePrincipalCliCommand : TxcLeafCommand
     {
         if (!string.IsNullOrWhiteSpace(secretFromEnv))
         {
+            // TODO: Replace with IEnvironmentReader once ReadSecret is refactored to an instance method.
             var value = System.Environment.GetEnvironmentVariable(secretFromEnv);
             if (string.IsNullOrEmpty(value))
             {

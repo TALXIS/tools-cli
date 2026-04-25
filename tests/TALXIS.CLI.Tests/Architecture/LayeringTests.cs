@@ -18,20 +18,11 @@ public class LayeringTests
 
     /// <summary>
     /// CONTRIBUTING.md: "No feature references another feature. Shared logic goes into Core."
-    /// 
-    /// Known exception: Features.Environment and Features.Data reference Features.Config
-    /// for ProfiledCliCommand. This should be resolved by moving ProfiledCliCommand to Core.
     /// </summary>
     [Fact]
     public void FeatureProjects_ShouldNotReferenceOtherFeatures()
     {
-        // Known exception — ProfiledCliCommand lives in Features.Config but is
-        // needed by Environment and Data. Track this as tech debt to move to Core.
-        var allowedExceptions = new HashSet<(string From, string To)>
-        {
-            ("TALXIS.CLI.Features.Environment", "TALXIS.CLI.Features.Config"),
-            ("TALXIS.CLI.Features.Data", "TALXIS.CLI.Features.Config"),
-        };
+        var allowedExceptions = new HashSet<(string From, string To)>();
 
         var featureProjects = Directory.GetFiles(SrcRoot, "TALXIS.CLI.Features.*.csproj", SearchOption.AllDirectories);
         var violations = new List<string>();

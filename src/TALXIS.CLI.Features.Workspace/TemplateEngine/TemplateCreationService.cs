@@ -13,7 +13,7 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
     /// </summary>
     public class TemplateCreationService
     {
-        private static readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(TemplateCreationService));
+        private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(TemplateCreationService));
         private readonly TemplateDiscoveryService _templateDiscoveryService;
         private readonly TemplateParameterValidator _parameterValidator;
         private readonly TemplateCreator _templateCreator;

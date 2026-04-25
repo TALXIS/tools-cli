@@ -1,7 +1,6 @@
 using DotMake.CommandLine;
-using TALXIS.CLI.Core;
 
-namespace TALXIS.CLI.Features.Config.Abstractions;
+namespace TALXIS.CLI.Core;
 
 /// <summary>
 /// Base class for every leaf command that needs a resolved (Profile,
