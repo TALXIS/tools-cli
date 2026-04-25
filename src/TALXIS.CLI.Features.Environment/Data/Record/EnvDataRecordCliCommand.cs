@@ -9,7 +9,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Record;
 [CliCommand(
     Name = "record",
     Description = "Single-record CRUD operations against the environment.",
-    Children = new[] { typeof(EnvDataRecordGetCliCommand), typeof(EnvDataRecordCreateCliCommand), typeof(EnvDataRecordUpdateCliCommand), typeof(EnvDataRecordDeleteCliCommand), typeof(EnvDataRecordDownloadFileCliCommand), typeof(EnvDataRecordUploadFileCliCommand) }
+    Children = new[] { typeof(EnvDataRecordGetCliCommand), typeof(EnvDataRecordCreateCliCommand), typeof(EnvDataRecordUpdateCliCommand), typeof(EnvDataRecordDeleteCliCommand), typeof(EnvDataRecordDownloadFileCliCommand), typeof(EnvDataRecordUploadFileCliCommand), typeof(EnvDataRecordAssociateCliCommand), typeof(EnvDataRecordDisassociateCliCommand) }
 )]
 public class EnvDataRecordCliCommand
 {
