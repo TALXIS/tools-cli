@@ -15,8 +15,8 @@ public sealed class InMemoryChangesetStore : IChangesetStore
     private readonly List<StagedOperation> _operations = new();
     private readonly object _lock = new();
     private int _nextIndex = 1;
-    private static readonly string ChangesetDir = Path.Combine(Environment.CurrentDirectory, ".txc");
-    private static readonly string ChangesetFile = Path.Combine(ChangesetDir, "changeset.json");
+    private readonly string _changesetDir;
+    private readonly string _changesetFile;
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
@@ -27,6 +27,8 @@ public sealed class InMemoryChangesetStore : IChangesetStore
 
     public InMemoryChangesetStore()
     {
+        _changesetDir = Path.Combine(Environment.CurrentDirectory, ".txc");
+        _changesetFile = Path.Combine(_changesetDir, "changeset.json");
         LoadFromDisk();
     }
 
@@ -66,9 +68,9 @@ public sealed class InMemoryChangesetStore : IChangesetStore
     {
         try
         {
-            if (File.Exists(ChangesetFile))
+            if (File.Exists(_changesetFile))
             {
-                var json = File.ReadAllText(ChangesetFile);
+                var json = File.ReadAllText(_changesetFile);
                 var ops = JsonSerializer.Deserialize<List<StagedOperation>>(json, SerializerOptions);
                 if (ops != null && ops.Count > 0)
                 {
@@ -87,13 +89,15 @@ public sealed class InMemoryChangesetStore : IChangesetStore
     {
         try
         {
-            Directory.CreateDirectory(ChangesetDir);
+            Directory.CreateDirectory(_changesetDir);
             var json = JsonSerializer.Serialize(_operations, SerializerOptions);
-            File.WriteAllText(ChangesetFile, json);
+            File.WriteAllText(_changesetFile, json);
         }
-        catch
+        catch (Exception ex)
         {
-            // Best-effort — if we can't persist, in-memory still works
+            // Log warning so user knows persistence failed
+            Console.Error.WriteLine($"Warning: Failed to persist changeset to disk: {ex.Message}");
+            Console.Error.WriteLine("Staged operations are in memory only and will be lost when the process exits.");
         }
     }
 
@@ -101,8 +105,8 @@ public sealed class InMemoryChangesetStore : IChangesetStore
     {
         try
         {
-            if (File.Exists(ChangesetFile))
-                File.Delete(ChangesetFile);
+            if (File.Exists(_changesetFile))
+                File.Delete(_changesetFile);
         }
         catch { }
     }

@@ -76,17 +76,18 @@ internal sealed class DataverseFileService : IDataverseFileService
         var initResponse = conn.Client.Execute(initRequest);
         var token = (string)initResponse["FileContinuationToken"];
 
-        // 2. Upload in chunks
-        var fileBytes = await File.ReadAllBytesAsync(filePath, ct).ConfigureAwait(false);
+        // 2. Upload in chunks using streaming to avoid loading entire file into memory
         var blockIds = new List<string>();
-
-        for (int i = 0; i <= fileBytes.Length / BlockSize; i++)
+        using var fileStream = File.OpenRead(filePath);
+        var buffer = new byte[BlockSize];
+        int bytesRead;
+        while ((bytesRead = await fileStream.ReadAsync(buffer, 0, buffer.Length, ct).ConfigureAwait(false)) > 0)
         {
             ct.ThrowIfCancellationRequested();
             var blockId = Convert.ToBase64String(Encoding.UTF8.GetBytes(Guid.NewGuid().ToString()));
             blockIds.Add(blockId);
 
-            var blockData = fileBytes.Skip(i * BlockSize).Take(BlockSize).ToArray();
+            var blockData = bytesRead == buffer.Length ? buffer : buffer[..bytesRead];
             var blockRequest = new OrganizationRequest("UploadBlock")
             {
                 ["BlockId"] = blockId,

@@ -281,7 +281,7 @@ internal sealed class ChangesetApplier : IChangesetApplier
         {
             try
             {
-                var entitiesXml = string.Join("", affectedEntities.Select(e => $"<entity>{e}</entity>"));
+                var entitiesXml = string.Join("", affectedEntities.Select(e => $"<entity>{System.Security.SecurityElement.Escape(e)}</entity>"));
                 var publishXml = $"<importexportxml><entities>{entitiesXml}</entities></importexportxml>";
                 await conn.Client.ExecuteAsync(new PublishXmlRequest
                 {
@@ -441,6 +441,26 @@ internal sealed class ChangesetApplier : IChangesetApplier
             {
                 results.Add(new OperationResult(op.Index, true,
                     $"{op.OperationType} {op.TargetType} {op.TargetDescription}"));
+            }
+        }
+
+        // When ContinueOnError=false, mark operations after the faulted index as not executed
+        if (!continueOnError)
+        {
+            var faultedIndex = response.Responses.FirstOrDefault(r => r.Fault != null)?.RequestIndex;
+            if (faultedIndex.HasValue)
+            {
+                for (int i = faultedIndex.Value + 1; i < ops.Count; i++)
+                {
+                    if (!respondedIndices.Contains(i))
+                    {
+                        var op = ops[i];
+                        results.Add(new OperationResult(op.Index, false,
+                            $"{op.OperationType} {op.TargetType} {op.TargetDescription}",
+                            "Not executed (batch aborted after earlier failure)"));
+                        respondedIndices.Add(i);
+                    }
+                }
             }
         }
 
