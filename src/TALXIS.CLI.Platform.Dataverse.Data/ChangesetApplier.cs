@@ -18,6 +18,9 @@ namespace TALXIS.CLI.Platform.Dataverse.Data;
 /// </summary>
 internal sealed class ChangesetApplier : IChangesetApplier
 {
+    // Dataverse publisher option values conventionally start custom option values at 100,000,000.
+    private const int DefaultOptionValueStart = 100_000_000;
+
     public async Task<ChangesetApplyResult> ApplyAsync(
         string? profileName,
         IReadOnlyList<StagedOperation> operations,
@@ -1041,13 +1044,12 @@ internal sealed class ChangesetApplier : IChangesetApplier
     {
         var entries = csv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         var results = new (string Label, int Value)[entries.Length];
-        int autoValue = 100_000_000;
+        int autoValue = DefaultOptionValueStart;
 
         for (int i = 0; i < entries.Length; i++)
         {
             var parts = entries[i].Split(':', 2, StringSplitOptions.TrimEntries);
             var value = parts.Length == 2 && int.TryParse(parts[1], out int parsed) ? parsed : autoValue++;
-            if (parts.Length < 2) autoValue = value + 1;
             results[i] = (parts[0], value);
         }
 
@@ -1104,7 +1106,7 @@ internal sealed class ChangesetApplier : IChangesetApplier
             return Array.Empty<OptionMetadataInput>();
 
         var results = new OptionMetadataInput[entries.Length];
-        int autoValue = 100_000_000;
+        int autoValue = DefaultOptionValueStart;
 
         for (int i = 0; i < entries.Length; i++)
         {
