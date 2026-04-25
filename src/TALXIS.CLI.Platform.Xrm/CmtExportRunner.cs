@@ -10,13 +10,7 @@ namespace TALXIS.CLI.Platform.Xrm;
 
 /// <summary>
 /// Standalone CMT data export runner — uses <c>ExportCrmDataHandler</c>
-/// from <c>Microsoft.Xrm.Tooling.Dmt.ExportProcessor</c> via reflection.
-/// Mirrors the approach of <see cref="CmtImportRunner"/>.
-///
-/// The ExportProcessor assembly is not available at compile time (it is
-/// resolved at runtime through <see cref="LegacyAssemblyRuntime"/> and
-/// the instance assembly resolver), so all interaction with
-/// <c>ExportCrmDataHandler</c> is performed reflectively.
+/// directly. Mirrors the approach of <see cref="CmtImportRunner"/>.
 ///
 /// Shared infrastructure (Cecil patching, assembly resolvers) is provided
 /// by <see cref="LegacyAssemblyRuntime"/>.
@@ -31,6 +25,11 @@ public sealed class CmtExportRunner
     private readonly Dictionary<string, Assembly> _assemblyMap;
     private readonly HashSet<string> _unresolvedAssemblies = new(StringComparer.OrdinalIgnoreCase);
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(CmtExportRunner));
+
+    /// <summary>
+    /// Tracks the number of failed stages reported by CMT progress events.
+    /// Checked after <c>ExportData</c> returns to detect silent failures.
+    /// </summary>
     private int _failedStageCount;
 
     public CmtExportRunner()
@@ -47,6 +46,10 @@ public sealed class CmtExportRunner
         return RunInternalAsync(request, () => new CrmServiceClient(connectionString), cancellationToken);
     }
 
+    /// <summary>
+    /// Token-provider overload matching
+    /// <see cref="CmtImportRunner.RunAsync(CmtImportRequest, Uri, Func{string, Task{string}}, CancellationToken)"/>.
+    /// </summary>
     public Task<CmtExportResult> RunAsync(
         CmtExportRequest request,
         Uri environmentUrl,
@@ -97,10 +100,11 @@ public sealed class CmtExportRunner
                 _logger.LogInformation("Organization version: {Version}", crmServiceClient.ConnectedOrgVersion);
             }
 
-            // 2. Load ExportCrmDataHandler via reflection.
-            // The ExportProcessor assembly is resolved at runtime through the
-            // legacy assembly resolver infrastructure rather than being available
-            // as a compile-time reference.
+            // 2. Create ExportCrmDataHandler via reflection.
+            // The ExportProcessor assembly ships as a content file (not a
+            // compile-time reference) to avoid eager assembly resolution in
+            // the parent process. LegacyAssemblyRuntime pre-loads it at
+            // initialization, and we instantiate the handler reflectively.
             object handler = CreateExportHandler(crmServiceClient);
 
             // 3. Wire progress event handlers via reflection.
@@ -110,21 +114,19 @@ public sealed class CmtExportRunner
             TryWireCmtConsoleLogging(handler, request.Verbose);
 
             // 5. Enable file column export if requested.
+            // The handler reads this from AppSettings, but we set the internal
+            // field directly since we don't control AppSettings in the subprocess.
             if (request.ExportFiles)
             {
                 TrySetExportFilesEnabled(handler);
             }
 
-            // 6. Export data.
+            // 6. Export data (synchronous — same as PAC CLI pattern).
             _logger.LogInformation("Starting data export...");
 
-            MethodInfo? exportMethod = handler.GetType()
-                .GetMethod("ExportData", BindingFlags.Public | BindingFlags.Instance);
-
-            if (exportMethod is null)
-            {
-                return new CmtExportResult(false, "ExportCrmDataHandler.ExportData method not found.");
-            }
+            MethodInfo exportMethod = handler.GetType()
+                .GetMethod("ExportData", new[] { typeof(string), typeof(string) })
+                ?? throw new InvalidOperationException("ExportCrmDataHandler.ExportData(string, string) method not found.");
 
             bool success = await Task.Run(() =>
             {
@@ -163,14 +165,20 @@ public sealed class CmtExportRunner
     }
 
     /// <summary>
+    /// Attempts to enable the ExportFiles feature on the handler by setting the
+    /// internal <c>_isExportFilesEnabled</c> field via reflection. The handler
+    /// normally reads this from AppSettings but we don't control that in the
+    /// subprocess environment.
+    /// </summary>
+    /// <summary>
     /// Loads and instantiates <c>ExportCrmDataHandler</c> from the
     /// <c>Microsoft.Xrm.Tooling.Dmt.ExportProcessor</c> assembly via
-    /// reflection, then sets the <c>CrmConnection</c> property.
+    /// reflection. The assembly is pre-loaded by <see cref="LegacyAssemblyRuntime"/>.
     /// </summary>
     private object CreateExportHandler(CrmServiceClient crmServiceClient)
     {
-        // Try to load the ExportProcessor assembly by name — the legacy
-        // runtime assembly resolver will locate it.
+        // Load the ExportProcessor assembly — it may already be in the
+        // static map, or it may be resolved lazily by the resolver chain.
         Assembly? exportAssembly = null;
         try
         {
@@ -190,41 +198,15 @@ public sealed class CmtExportRunner
             }
         }
 
-        if (exportAssembly is null)
-        {
-            throw new InvalidOperationException(
-                "Could not load assembly 'Microsoft.Xrm.Tooling.Dmt.ExportProcessor'. " +
-                "Ensure the CMT ExportProcessor DLL is available in the application base directory.");
-        }
+        Type handlerType = exportAssembly
+            ?.GetType("Microsoft.Xrm.Tooling.Dmt.ExportProcessor.DataInteraction.ExportCrmDataHandler")
+            ?? throw new InvalidOperationException(
+                "Could not find ExportCrmDataHandler. Ensure the CMT ExportProcessor DLL is available.");
 
-        Type handlerType = exportAssembly.GetType("Microsoft.Xrm.Tooling.Dmt.ExportProcessor.DataInteraction.ExportCrmDataHandler")
-            ?? throw new InvalidOperationException("ExportCrmDataHandler type not found in ExportProcessor assembly.");
-
-        // Create the handler — try constructor that accepts CrmServiceClient first.
-        object? handler = null;
-        try
-        {
-            handler = Activator.CreateInstance(handlerType, crmServiceClient);
-        }
-        catch (MissingMethodException)
-        {
-            // Fall back to default constructor and set CrmConnection via reflection.
-            handler = Activator.CreateInstance(handlerType);
-        }
-
-        if (handler is null)
-        {
-            throw new InvalidOperationException("Failed to create ExportCrmDataHandler instance.");
-        }
-
-        // Set CrmConnection property via reflection (same pattern as CmtImportRunner).
-        // The property type is the legacy strong-named CrmServiceClient, so we
-        // set it reflectively to avoid type mismatch issues.
-        var crmConnProp = handlerType.GetProperty("CrmConnection");
-        if (crmConnProp is not null)
-        {
-            crmConnProp.SetValue(handler, crmServiceClient);
-        }
+        // Constructor takes CrmServiceClient — use Activator to bypass
+        // the strong-name version mismatch with the legacy v4.0.0.0 type.
+        object handler = Activator.CreateInstance(handlerType, crmServiceClient)
+            ?? throw new InvalidOperationException("Failed to create ExportCrmDataHandler instance.");
 
         return handler;
     }
@@ -252,12 +234,6 @@ public sealed class CmtExportRunner
         }
     }
 
-    /// <summary>
-    /// Attempts to enable the ExportFiles feature on the handler by setting the
-    /// internal <c>_isExportFilesEnabled</c> field via reflection. The handler
-    /// normally reads this from AppSettings but we don't control that in the
-    /// subprocess environment.
-    /// </summary>
     private void TrySetExportFilesEnabled(object handler)
     {
         try
@@ -280,6 +256,11 @@ public sealed class CmtExportRunner
         }
     }
 
+    /// <summary>
+    /// Wires a <see cref="ConsoleTraceListener"/> to CMT's internal
+    /// TraceSource so that export progress and errors are visible in
+    /// the console output in real time.
+    /// </summary>
     private void TryWireCmtConsoleLogging(object handler, bool verbose)
     {
         try

@@ -314,20 +314,16 @@ public static class LegacyAssemblyHostSubprocess
             ApplyConfigDirectory(envelope.ConfigDirectory);
             TxcServicesBootstrap.EnsureInitialized();
 
-            using CancellationTokenSource parentWatcher = RegisterParentExitWatcher(envelope.ParentProcessId);
-            try
-            {
-                var (envUrl, tokenProvider) = await DataverseCommandBridge
-                    .BuildTokenProviderAsync(envelope.ProfileId, parentWatcher.Token)
-                    .ConfigureAwait(false);
+            // Initialize the legacy assembly runtime BEFORE the JIT
+            // encounters CmtExportRunner. ExportProcessor ships in a
+            // NuGet tools/ folder and is not probed automatically —
+            // the runtime must register it via TryPreloadAssembly.
+            // The actual runner call is in a separate method so the JIT
+            // does not try to resolve CmtExportRunner types until after
+            // LegacyAssemblyRuntime has registered the assembly.
+            LegacyAssemblyRuntime.EnsureInitialized();
 
-                CmtExportRunner runner = new();
-                result = await runner.RunAsync(envelope.Request, envUrl, tokenProvider, parentWatcher.Token).ConfigureAwait(false);
-            }
-            finally
-            {
-                parentWatcher.Cancel();
-            }
+            result = await RunCmtExportCoreAsync(envelope).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -336,6 +332,31 @@ public static class LegacyAssemblyHostSubprocess
 
         await WriteJsonAsync(resultPath, result).ConfigureAwait(false);
         return result.Succeeded ? 0 : 1;
+    }
+
+    /// <summary>
+    /// Separated from <see cref="RunCmtExportChildAsync"/> so that the JIT
+    /// defers resolution of <see cref="CmtExportRunner"/> (which depends on
+    /// the ExportProcessor assembly) until after
+    /// <see cref="LegacyAssemblyRuntime"/> has registered it.
+    /// </summary>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static async Task<CmtExportResult> RunCmtExportCoreAsync(CmtExportJob envelope)
+    {
+        using CancellationTokenSource parentWatcher = RegisterParentExitWatcher(envelope.ParentProcessId);
+        try
+        {
+            var (envUrl, tokenProvider) = await DataverseCommandBridge
+                .BuildTokenProviderAsync(envelope.ProfileId, parentWatcher.Token)
+                .ConfigureAwait(false);
+
+            CmtExportRunner runner = new();
+            return await runner.RunAsync(envelope.Request, envUrl, tokenProvider, parentWatcher.Token).ConfigureAwait(false);
+        }
+        finally
+        {
+            parentWatcher.Cancel();
+        }
     }
 
     private static void ApplyConfigDirectory(string? configDirectory)

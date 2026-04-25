@@ -54,6 +54,13 @@ public static class LegacyAssemblyRuntime
             StaticAssemblyMap["System.ServiceModel"] = typeof(System.ServiceModel.FaultException).Assembly;
             StaticAssemblyMap["System.IO.Packaging"] = typeof(System.IO.Packaging.Package).Assembly;
 
+            // ExportProcessor ships in the ConfigurationMigration.Wpf NuGet
+            // tools/ folder and is not automatically probed by the runtime.
+            // It is also built as PE32+ (x64) which fails on ARM64 — patch
+            // the PE header to AnyCPU before loading.
+            TryPatchPeArchitectureToAnyCpu("Microsoft.Xrm.Tooling.Dmt.ExportProcessor");
+            TryPreloadAssembly("Microsoft.Xrm.Tooling.Dmt.ExportProcessor");
+
             s_initialized = true;
         }
     }
@@ -234,10 +241,101 @@ public static class LegacyAssemblyRuntime
         File.WriteAllBytes(assemblyPath, patchedBytes);
     }
 
+    /// <summary>
+    /// Rewrites a PE32+ (x64) managed assembly to PE32 (AnyCPU) so it can
+    /// load on ARM64 runtimes. No-ops if the assembly is already PE32 or
+    /// if the DLL does not exist. Uses Cecil to re-emit the module with
+    /// <c>TargetArchitecture.I386</c> and 32-bit headers.
+    /// </summary>
+    private static void TryPatchPeArchitectureToAnyCpu(string assemblyName)
+    {
+        string candidate = Path.Combine(AppContext.BaseDirectory, assemblyName + ".dll");
+        if (!File.Exists(candidate))
+            return;
+
+        try
+        {
+            using var cecilAssembly = AssemblyDefinition.ReadAssembly(candidate,
+                new ReaderParameters { ReadingMode = ReadingMode.Immediate });
+
+            var module = cecilAssembly.MainModule;
+            if (module.Architecture == TargetArchitecture.AMD64 ||
+                module.Architecture == TargetArchitecture.IA64)
+            {
+                module.Architecture = TargetArchitecture.I386;
+                module.Attributes &= ~ModuleAttributes.ILLibrary;
+                module.Attributes |= ModuleAttributes.ILOnly;
+
+                using var ms = new MemoryStream();
+                cecilAssembly.Write(ms);
+                File.WriteAllBytes(candidate, ms.ToArray());
+            }
+        }
+        catch
+        {
+            // Best-effort — if the patch fails, TryPreloadAssembly will
+            // report the failure when it tries to load the DLL.
+        }
+    }
+
+    /// <summary>
+    /// Registers an assembly from <c>AppContext.BaseDirectory</c> so that
+    /// the static resolver can find it when the JIT first needs it.
+    /// Unlike assemblies in <c>lib/</c> NuGet folders, assemblies from
+    /// <c>tools/</c> folders are not probed automatically by the runtime.
+    /// </summary>
+    private static void TryPreloadAssembly(string assemblyName)
+    {
+        string candidate = Path.Combine(AppContext.BaseDirectory, assemblyName + ".dll");
+        if (!File.Exists(candidate))
+            return;
+
+        try
+        {
+            // Use LoadFrom which loads the assembly and all its dependencies
+            // through the registered resolvers (which are already wired at
+            // this point in the initialization sequence).
+            Assembly loaded = Assembly.LoadFrom(candidate);
+            StaticAssemblyMap[assemblyName] = loaded;
+        }
+        catch
+        {
+            // The assembly may have unresolved dependencies at this point.
+            // Fall back to a lazy load approach — store the path and resolve
+            // on first request via the static resolver.
+            s_deferredAssemblyPaths[assemblyName] = candidate;
+        }
+    }
+
+    /// <summary>
+    /// Paths for assemblies whose eager load failed and must be retried
+    /// lazily when first requested through the resolver.
+    /// </summary>
+    private static readonly Dictionary<string, string> s_deferredAssemblyPaths = new(StringComparer.OrdinalIgnoreCase);
+
     private static Assembly? StaticResolve(string key)
     {
-        StaticAssemblyMap.TryGetValue(key, out Assembly? assembly);
-        return assembly;
+        if (StaticAssemblyMap.TryGetValue(key, out Assembly? assembly))
+            return assembly;
+
+        // Try deferred load — the assembly was found on disk but its eager
+        // load failed (likely due to missing dependencies that are now
+        // available because the resolver chain is fully wired).
+        if (s_deferredAssemblyPaths.TryGetValue(key, out string? path))
+        {
+            try
+            {
+                assembly = Assembly.LoadFrom(path);
+                StaticAssemblyMap[key] = assembly;
+                s_deferredAssemblyPaths.Remove(key);
+                return assembly;
+            }
+            catch
+            {
+            }
+        }
+
+        return null;
     }
 
     private static Assembly? StaticOnResolveAssembly(object? sender, ResolveEventArgs args)

@@ -22,6 +22,7 @@
   <!-- PackageDeployment.Core assemblies (net462, loaded at runtime) -->
   <ItemGroup>
     <PackageDownload Include="Microsoft.CrmSdk.XrmTooling.PackageDeployment.Core" Version="[9.1.0.184]" />
+    <PackageDownload Include="Microsoft.CrmSdk.XrmTooling.ConfigurationMigration.Wpf" Version="[9.1.0.185]" />
   </ItemGroup>
 
   <ItemGroup>
@@ -46,6 +47,15 @@
     <Reference Include="Microsoft.Xrm.Tooling.Dmt.MetadataHandler">
       <HintPath>$(NuGetPackageRoot)microsoft.crmsdk.xrmtooling.packagedeployment.core/9.1.0.184/lib/net462/Microsoft.Xrm.Tooling.Dmt.MetadataHandler.dll</HintPath>
     </Reference>
+    <!-- ExportProcessor is loaded at runtime via reflection (CmtExportRunner)
+         to avoid eager assembly resolution that breaks the parent process.
+         We copy the DLL and its telemetry dependency to the output directory. -->
+    <None Include="$(NuGetPackageRoot)microsoft.crmsdk.xrmtooling.configurationmigration.wpf/9.1.0.185/tools/Microsoft.Xrm.Tooling.Dmt.ExportProcessor.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          Link="Microsoft.Xrm.Tooling.Dmt.ExportProcessor.dll" />
+    <None Include="$(NuGetPackageRoot)microsoft.crmsdk.xrmtooling.configurationmigration.wpf/9.1.0.185/tools/Microsoft.PowerPlatform.Tooling.BatchedTelemetry.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          Link="Microsoft.PowerPlatform.Tooling.BatchedTelemetry.dll" />
     <Reference Include="Microsoft.Xrm.Tooling.PackageDeployment.CrmPackageCore">
       <HintPath>$(NuGetPackageRoot)microsoft.crmsdk.xrmtooling.packagedeployment.core/9.1.0.184/lib/net462/Microsoft.Xrm.Tooling.PackageDeployment.CrmPackageCore.dll</HintPath>
     </Reference>
