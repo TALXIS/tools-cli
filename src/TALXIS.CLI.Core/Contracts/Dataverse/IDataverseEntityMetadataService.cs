@@ -58,7 +58,10 @@ public sealed record EntityDetailRecord(
     bool ChangeTrackingEnabled,
     string? EntitySetName,
     string? CollectionSchemaName,
-    bool IsCustomizable);
+    bool IsCustomizable,
+    string? TableType,
+    bool HasNotes,
+    bool HasActivities);
 
 /// <summary>
 /// Schema/metadata introspection for Dataverse entities. All calls go
@@ -114,15 +117,11 @@ public interface IDataverseEntityMetadataService
         CancellationToken ct);
 
     /// <summary>
-    /// Creates a new entity (table) in Dataverse with the given schema and display names.
+    /// Creates a new entity (table) in Dataverse using the given options.
     /// </summary>
     Task CreateEntityAsync(
         string? profileName,
-        string schemaName,
-        string displayName,
-        string pluralName,
-        string? description,
-        string? solution,
+        CreateEntityOptions options,
         CancellationToken ct);
 
     /// <summary>

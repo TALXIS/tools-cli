@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
@@ -37,6 +38,30 @@ public class EntityCreateCliCommand : StagedCliCommand
     [CliOption(Name = "--solution", Description = "The unique name of the solution to add the entity to.", Required = false)]
     public string? Solution { get; set; }
 
+    [CliOption(Name = "--ownership", Description = "Table ownership: 'user' (default) — records owned by users/teams; 'organization' — records owned by the org (no user-level access control).", Required = false)]
+    [DefaultValue("user")]
+    public string Ownership { get; set; } = "user";
+
+    [CliOption(Name = "--type", Description = "Table type: 'standard' (default) — SQL-backed table; 'activity' — activity table with subject, dates, parties; 'elastic' — Azure Cosmos DB-backed for very large datasets.", Required = false)]
+    [DefaultValue("standard")]
+    public string TableType { get; set; } = "standard";
+
+    [CliOption(Name = "--has-notes", Description = "Enable notes and file attachments on this table.", Required = false)]
+    [DefaultValue(false)]
+    public bool HasNotes { get; set; }
+
+    [CliOption(Name = "--has-activities", Description = "Enable associating activities (emails, tasks, appointments) with records in this table.", Required = false)]
+    [DefaultValue(false)]
+    public bool HasActivities { get; set; }
+
+    [CliOption(Name = "--enable-audit", Description = "Enable auditing for this table to track data changes.", Required = false)]
+    [DefaultValue(false)]
+    public bool EnableAudit { get; set; }
+
+    [CliOption(Name = "--enable-change-tracking", Description = "Enable change tracking for data synchronization scenarios.", Required = false)]
+    [DefaultValue(false)]
+    public bool EnableChangeTracking { get; set; }
+
     protected override async Task<int> ExecuteAsync()
     {
         ValidateExecutionMode();
@@ -57,7 +82,13 @@ public class EntityCreateCliCommand : StagedCliCommand
                     ["displayName"] = DisplayName,
                     ["pluralName"] = PluralName,
                     ["description"] = Description,
-                    ["solution"] = Solution
+                    ["solution"] = Solution,
+                    ["ownership"] = Ownership,
+                    ["tableType"] = TableType,
+                    ["hasNotes"] = HasNotes,
+                    ["hasActivities"] = HasActivities,
+                    ["enableAudit"] = EnableAudit,
+                    ["enableChangeTracking"] = EnableChangeTracking
                 }
             });
             OutputWriter.WriteLine($"Staged: CREATE entity '{Name}'");
@@ -67,8 +98,22 @@ public class EntityCreateCliCommand : StagedCliCommand
         try
         {
             var service = TxcServices.Get<IDataverseEntityMetadataService>();
+            var options = new CreateEntityOptions
+            {
+                SchemaName = Name,
+                DisplayName = DisplayName,
+                PluralName = PluralName,
+                Description = Description,
+                Solution = Solution,
+                Ownership = Ownership,
+                TableType = TableType,
+                HasNotes = HasNotes,
+                HasActivities = HasActivities,
+                EnableAudit = EnableAudit,
+                EnableChangeTracking = EnableChangeTracking
+            };
             await service.CreateEntityAsync(
-                Profile, Name, DisplayName, PluralName, Description, Solution, CancellationToken.None
+                Profile, options, CancellationToken.None
             ).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or ArgumentException)

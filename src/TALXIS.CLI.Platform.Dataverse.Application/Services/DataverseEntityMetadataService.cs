@@ -383,27 +383,43 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
     /// <inheritdoc />
     public async Task CreateEntityAsync(
         string? profileName,
-        string schemaName,
-        string displayName,
-        string pluralName,
-        string? description,
-        string? solution,
+        CreateEntityOptions options,
         CancellationToken ct)
     {
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
 
         var entity = new EntityMetadata
         {
-            SchemaName = schemaName,
-            DisplayName = new Label(displayName, 1033),
-            DisplayCollectionName = new Label(pluralName, 1033),
-            Description = description != null ? new Label(description, 1033) : null,
-            OwnershipType = OwnershipTypes.UserOwned,
-            IsActivity = false
+            SchemaName = options.SchemaName,
+            DisplayName = new Label(options.DisplayName, 1033),
+            DisplayCollectionName = new Label(options.PluralName, 1033),
+            Description = options.Description != null ? new Label(options.Description, 1033) : null,
+
+            // Ownership
+            OwnershipType = options.Ownership.ToLowerInvariant() switch
+            {
+                "organization" or "org" => OwnershipTypes.OrganizationOwned,
+                _ => OwnershipTypes.UserOwned
+            },
+
+            // Table type — activity tables use the IsActivity flag
+            IsActivity = options.TableType.ToLowerInvariant() == "activity",
+
+            // Features
+            HasNotes = options.HasNotes,
+            HasActivities = options.HasActivities,
+            IsAuditEnabled = new BooleanManagedProperty(options.EnableAudit),
+            ChangeTrackingEnabled = options.EnableChangeTracking
         };
 
+        // For elastic tables, set the TableType property
+        if (options.TableType.ToLowerInvariant() == "elastic")
+        {
+            entity.TableType = "Elastic";
+        }
+
         // Primary name attribute is required when creating an entity.
-        var prefix = schemaName.Contains('_') ? schemaName[..schemaName.IndexOf('_')] : schemaName;
+        var prefix = options.SchemaName.Contains('_') ? options.SchemaName[..options.SchemaName.IndexOf('_')] : options.SchemaName;
         var primaryAttribute = new StringAttributeMetadata
         {
             SchemaName = $"{prefix}_name",
@@ -418,12 +434,12 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
             PrimaryAttribute = primaryAttribute
         };
 
-        if (!string.IsNullOrEmpty(solution))
-            request["SolutionUniqueName"] = solution;
+        if (!string.IsNullOrEmpty(options.Solution))
+            request["SolutionUniqueName"] = options.Solution;
 
         await conn.Client.ExecuteAsync(request, ct).ConfigureAwait(false);
 
-        await PublishEntityAsync(conn, schemaName.ToLowerInvariant(), ct).ConfigureAwait(false);
+        await PublishEntityAsync(conn, options.SchemaName.ToLowerInvariant(), ct).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -755,7 +771,10 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
             ChangeTrackingEnabled: e.ChangeTrackingEnabled == true,
             EntitySetName: e.EntitySetName,
             CollectionSchemaName: e.CollectionSchemaName,
-            IsCustomizable: e.IsCustomizable?.Value == true);
+            IsCustomizable: e.IsCustomizable?.Value == true,
+            TableType: e.TableType,
+            HasNotes: e.HasNotes == true,
+            HasActivities: e.HasActivities == true);
     }
 
     /// <inheritdoc />

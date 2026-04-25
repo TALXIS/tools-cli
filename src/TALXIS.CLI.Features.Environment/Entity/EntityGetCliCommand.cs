@@ -73,8 +73,11 @@ public class EntityGetCliCommand : ProfiledCliCommand
         OutputWriter.WriteLine($"{"Primary Name Field:",labelWidth}{d.PrimaryNameAttribute ?? "-"}");
         OutputWriter.WriteLine($"{"Entity Set Name:",labelWidth}{d.EntitySetName ?? "-"}");
         OutputWriter.WriteLine($"{"Collection Schema:",labelWidth}{d.CollectionSchemaName ?? "-"}");
+        OutputWriter.WriteLine($"{"Table Type:",labelWidth}{d.TableType ?? "-"}");
         OutputWriter.WriteLine($"{"Is Custom:",labelWidth}{BoolStr(d.IsCustomEntity)}");
         OutputWriter.WriteLine($"{"Is Activity:",labelWidth}{BoolStr(d.IsActivity)}");
+        OutputWriter.WriteLine($"{"Has Notes:",labelWidth}{BoolStr(d.HasNotes)}");
+        OutputWriter.WriteLine($"{"Has Activities:",labelWidth}{BoolStr(d.HasActivities)}");
         OutputWriter.WriteLine($"{"Audit Enabled:",labelWidth}{BoolStr(d.IsAuditEnabled)}");
         OutputWriter.WriteLine($"{"Change Tracking:",labelWidth}{BoolStr(d.ChangeTrackingEnabled)}");
         OutputWriter.WriteLine($"{"Is Customizable:",labelWidth}{BoolStr(d.IsCustomizable)}");

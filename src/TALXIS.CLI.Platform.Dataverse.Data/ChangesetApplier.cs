@@ -132,15 +132,32 @@ internal sealed class ChangesetApplier : IChangesetApplier
                     var pluralName = GetParamOrDefault<string?>(entityOp, "pluralName") ?? displayName + "s";
                     var description = GetParamOrDefault<string?>(entityOp, "description");
                     var solution = GetParamOrDefault<string?>(entityOp, "solution");
+                    var ownership = GetParamOrDefault<string?>(entityOp, "ownership") ?? "user";
+                    var tableType = GetParamOrDefault<string?>(entityOp, "tableType") ?? "standard";
+                    var hasNotes = GetParamOrDefault<bool>(entityOp, "hasNotes");
+                    var hasActivities = GetParamOrDefault<bool>(entityOp, "hasActivities");
+                    var enableAudit = GetParamOrDefault<bool>(entityOp, "enableAudit");
+                    var enableChangeTracking = GetParamOrDefault<bool>(entityOp, "enableChangeTracking");
 
                     var entityMeta = new EntityMetadata
                     {
                         SchemaName = entityName,
                         DisplayName = new Label(displayName, 1033),
                         DisplayCollectionName = new Label(pluralName, 1033),
-                        OwnershipType = OwnershipTypes.UserOwned,
-                        IsActivity = false
+                        OwnershipType = ownership.ToLowerInvariant() switch
+                        {
+                            "organization" or "org" => OwnershipTypes.OrganizationOwned,
+                            _ => OwnershipTypes.UserOwned
+                        },
+                        IsActivity = tableType.ToLowerInvariant() == "activity",
+                        HasNotes = hasNotes,
+                        HasActivities = hasActivities,
+                        IsAuditEnabled = new BooleanManagedProperty(enableAudit),
+                        ChangeTrackingEnabled = enableChangeTracking
                     };
+
+                    if (tableType.ToLowerInvariant() == "elastic")
+                        entityMeta.TableType = "Elastic";
 
                     if (description is not null)
                         entityMeta.Description = new Label(description, 1033);
@@ -313,11 +330,20 @@ internal sealed class ChangesetApplier : IChangesetApplier
             case ("entity", "CREATE"):
                 await metadataService.CreateEntityAsync(
                     profileName,
-                    GetParam<string>(op, "schemaName"),
-                    GetParam<string>(op, "displayName"),
-                    GetParam<string>(op, "pluralName"),
-                    GetParamOrDefault<string?>(op, "description"),
-                    GetParamOrDefault<string?>(op, "solution"),
+                    new CreateEntityOptions
+                    {
+                        SchemaName = GetParam<string>(op, "schemaName"),
+                        DisplayName = GetParam<string>(op, "displayName"),
+                        PluralName = GetParam<string>(op, "pluralName"),
+                        Description = GetParamOrDefault<string?>(op, "description"),
+                        Solution = GetParamOrDefault<string?>(op, "solution"),
+                        Ownership = GetParamOrDefault<string?>(op, "ownership") ?? "user",
+                        TableType = GetParamOrDefault<string?>(op, "tableType") ?? "standard",
+                        HasNotes = GetParamOrDefault<bool>(op, "hasNotes"),
+                        HasActivities = GetParamOrDefault<bool>(op, "hasActivities"),
+                        EnableAudit = GetParamOrDefault<bool>(op, "enableAudit"),
+                        EnableChangeTracking = GetParamOrDefault<bool>(op, "enableChangeTracking")
+                    },
                     ct).ConfigureAwait(false);
                 break;
 
