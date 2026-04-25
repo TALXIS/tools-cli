@@ -13,11 +13,15 @@ namespace TALXIS.CLI.Core.Headless;
 /// </summary>
 internal sealed class ConsoleConfirmationPrompter : IConfirmationPrompter
 {
-    public Task<bool> ConfirmAsync(string message, CancellationToken ct = default)
+    public async Task<bool> ConfirmAsync(string message, CancellationToken ct = default)
     {
+        ct.ThrowIfCancellationRequested();
+
         Console.Error.Write($"{message} [y/N]: ");
-        var response = Console.ReadLine();
-        var confirmed = response?.Trim().Equals("y", StringComparison.OrdinalIgnoreCase) == true;
-        return Task.FromResult(confirmed);
+
+        // Read stdin on a background thread so the cancellation token can
+        // abort the wait if the caller cancels before the user types.
+        var response = await Task.Run(() => Console.ReadLine(), ct).ConfigureAwait(false);
+        return response?.Trim().Equals("y", StringComparison.OrdinalIgnoreCase) == true;
     }
 }
