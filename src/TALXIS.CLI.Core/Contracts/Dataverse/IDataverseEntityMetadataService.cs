@@ -96,4 +96,54 @@ public interface IDataverseEntityMetadataService
         string? profileName,
         string entityLogicalName,
         CancellationToken ct);
+
+    /// <summary>
+    /// Creates a new entity (table) in Dataverse with the given schema and display names.
+    /// </summary>
+    Task CreateEntityAsync(
+        string? profileName,
+        string schemaName,
+        string displayName,
+        string pluralName,
+        string? description,
+        string? solution,
+        CancellationToken ct);
+
+    /// <summary>
+    /// Deletes an entity (table) from Dataverse by its logical name.
+    /// </summary>
+    Task DeleteEntityAsync(
+        string? profileName,
+        string entityLogicalName,
+        CancellationToken ct);
+
+    /// <summary>
+    /// Updates an existing attribute (column) on a Dataverse entity.
+    /// Only the fields that are explicitly provided (non-null) are modified.
+    /// </summary>
+    Task UpdateAttributeAsync(
+        string? profileName,
+        string entityLogicalName,
+        string attributeLogicalName,
+        string? displayName,
+        string? description,
+        string? requiredLevel,
+        CancellationToken ct);
+
+    /// <summary>
+    /// Deletes an attribute (column) from a Dataverse entity.
+    /// </summary>
+    Task DeleteAttributeAsync(
+        string? profileName,
+        string entityLogicalName,
+        string attributeLogicalName,
+        CancellationToken ct);
+
+    /// <summary>
+    /// Deletes a relationship from Dataverse by its schema name.
+    /// </summary>
+    Task DeleteRelationshipAsync(
+        string? profileName,
+        string relationshipSchemaName,
+        CancellationToken ct);
 }

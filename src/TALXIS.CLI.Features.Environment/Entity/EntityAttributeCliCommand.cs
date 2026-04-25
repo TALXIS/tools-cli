@@ -9,7 +9,7 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 [CliCommand(
     Name = "attribute",
     Description = "Create and manage entity attributes (columns).",
-    Children = new[] { typeof(EntityAttributeCreateCliCommand) }
+    Children = new[] { typeof(EntityAttributeCreateCliCommand), typeof(EntityAttributeUpdateCliCommand), typeof(EntityAttributeDeleteCliCommand) }
 )]
 public class EntityAttributeCliCommand
 {

@@ -400,6 +400,148 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
             .ToList();
     }
 
+    /// <inheritdoc />
+    public async Task CreateEntityAsync(
+        string? profileName,
+        string schemaName,
+        string displayName,
+        string pluralName,
+        string? description,
+        string? solution,
+        CancellationToken ct)
+    {
+        using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+
+        var entity = new EntityMetadata
+        {
+            SchemaName = schemaName,
+            DisplayName = new Label(displayName, 1033),
+            DisplayCollectionName = new Label(pluralName, 1033),
+            Description = description != null ? new Label(description, 1033) : null,
+            OwnershipType = OwnershipTypes.UserOwned,
+            IsActivity = false
+        };
+
+        // Primary name attribute is required when creating an entity.
+        var prefix = schemaName.Contains('_') ? schemaName[..schemaName.IndexOf('_')] : schemaName;
+        var primaryAttribute = new StringAttributeMetadata
+        {
+            SchemaName = $"{prefix}_name",
+            MaxLength = 200,
+            RequiredLevel = new AttributeRequiredLevelManagedProperty(AttributeRequiredLevel.ApplicationRequired),
+            DisplayName = new Label("Name", 1033)
+        };
+
+        var request = new CreateEntityRequest
+        {
+            Entity = entity,
+            PrimaryAttribute = primaryAttribute
+        };
+
+        if (!string.IsNullOrEmpty(solution))
+            request["SolutionUniqueName"] = solution;
+
+        await conn.Client.ExecuteAsync(request, ct).ConfigureAwait(false);
+
+        await PublishEntityAsync(conn, schemaName.ToLowerInvariant(), ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task DeleteEntityAsync(
+        string? profileName,
+        string entityLogicalName,
+        CancellationToken ct)
+    {
+        using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+
+        await conn.Client.ExecuteAsync(new DeleteEntityRequest
+        {
+            LogicalName = entityLogicalName
+        }, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task UpdateAttributeAsync(
+        string? profileName,
+        string entityLogicalName,
+        string attributeLogicalName,
+        string? displayName,
+        string? description,
+        string? requiredLevel,
+        CancellationToken ct)
+    {
+        using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+
+        // Retrieve the current attribute metadata so we only change what was requested.
+        var retrieveResponse = (RetrieveAttributeResponse)await conn.Client.ExecuteAsync(
+            new RetrieveAttributeRequest
+            {
+                EntityLogicalName = entityLogicalName,
+                LogicalName = attributeLogicalName,
+                RetrieveAsIfPublished = true
+            }, ct).ConfigureAwait(false);
+
+        var attribute = retrieveResponse.AttributeMetadata;
+
+        if (displayName is not null)
+            attribute.DisplayName = new Label(displayName, 1033);
+
+        if (description is not null)
+            attribute.Description = new Label(description, 1033);
+
+        if (requiredLevel is not null)
+        {
+            var level = requiredLevel.ToLowerInvariant() switch
+            {
+                "none" => AttributeRequiredLevel.None,
+                "recommended" => AttributeRequiredLevel.Recommended,
+                "required" => AttributeRequiredLevel.ApplicationRequired,
+                _ => throw new ArgumentException($"Invalid required level '{requiredLevel}'. Use: none, recommended, required.")
+            };
+            attribute.RequiredLevel = new AttributeRequiredLevelManagedProperty(level);
+        }
+
+        await conn.Client.ExecuteAsync(new UpdateAttributeRequest
+        {
+            EntityName = entityLogicalName,
+            Attribute = attribute
+        }, ct).ConfigureAwait(false);
+
+        await PublishEntityAsync(conn, entityLogicalName, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task DeleteAttributeAsync(
+        string? profileName,
+        string entityLogicalName,
+        string attributeLogicalName,
+        CancellationToken ct)
+    {
+        using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+
+        await conn.Client.ExecuteAsync(new DeleteAttributeRequest
+        {
+            EntityLogicalName = entityLogicalName,
+            LogicalName = attributeLogicalName
+        }, ct).ConfigureAwait(false);
+
+        await PublishEntityAsync(conn, entityLogicalName, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task DeleteRelationshipAsync(
+        string? profileName,
+        string relationshipSchemaName,
+        CancellationToken ct)
+    {
+        using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+
+        await conn.Client.ExecuteAsync(new DeleteRelationshipRequest
+        {
+            Name = relationshipSchemaName
+        }, ct).ConfigureAwait(false);
+    }
+
     /// <summary>Case-insensitive contains check that handles null values safely.</summary>
     private static bool Contains(string? value, string search) =>
         value is not null && value.Contains(search, StringComparison.OrdinalIgnoreCase);
