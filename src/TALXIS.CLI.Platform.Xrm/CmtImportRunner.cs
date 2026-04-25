@@ -183,9 +183,11 @@ public sealed class CmtImportRunner
             handler.UpdateProgressItem += OnUpdateProgressItem;
 
             // 5. Create clone connections for parallel import.
+            // ImportConnections expects Dictionary<int, CrmServiceClient> where
+            // keys are 1-based connection indices.
             if (request.ConnectionCount > 1)
             {
-                var clones = new List<object>();
+                var clones = new Dictionary<int, CrmServiceClient>();
                 for (int i = 1; i < request.ConnectionCount; i++)
                 {
                     try
@@ -197,7 +199,7 @@ public sealed class CmtImportRunner
 
                         if (clone.IsReady)
                         {
-                            clones.Add(clone);
+                            clones.Add(i, clone);
                         }
                     }
                     catch (Exception ex)
