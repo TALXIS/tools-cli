@@ -29,6 +29,9 @@ TALXIS CLI (`txc`) is a modular, extensible .NET global tool for automating deve
 - [Versioning & Release](#versioning--release)
 - [Collaboration](#collaboration)
 
+**Detailed guides:**
+[Schema Management](docs/schema-management.md) · [Changeset Staging](docs/changeset-staging.md) · [Architecture](docs/architecture.md) · [Profiles & Auth](docs/profiles-and-authentication.md) · [Output Contract](docs/output-contract.md)
+
 ---
 
 ## Installation
@@ -80,7 +83,9 @@ The examples below assume you have an active profile (see [above](#identity-conn
 |-------|---------------|-------------|----------|
 | **Control plane** | Environment-level governance & feature toggles | `api.powerplatform.com/environmentmanagement` | `txc env setting …` |
 | **Application plane** | Solutions, packages, deployments | Dataverse Web API + Package Deployer | `txc env sln …`, `txc env pkg …`, `txc env deploy …` |
-| **Data plane** | Records, queries, bulk operations, CMT data import | Dataverse Web API (OData / FetchXML / SQL) | `txc env data …`, `txc data …` |
+| **Data plane** | Records, queries, bulk operations, CMT data import/export | Dataverse Web API (OData / FetchXML / SQL) | `txc env data …`, `txc data …` |
+| **Schema** | Entity, attribute, relationship, option-set management | Dataverse Web API + SDK | `txc env entity …` |
+| **Changeset** | Stage mutations locally, apply in optimised batches | Local `.txc/changeset.json` → Dataverse | `txc env changeset …` |
 
 ### Control Plane
 
@@ -166,9 +171,93 @@ txc env data bulk upsert --entity contact --file ./contacts.json
 txc data pkg import ./data-package
 ```
 
+**Export a CMT data package from Dataverse:**
+```sh
+txc data pkg export --schema ./data_schema.xml --output ./export.zip
+```
+
 **Convert Excel to CMT XML:**
 ```sh
 txc data pkg convert --input export.xlsx --output data.xml
+```
+
+**Update a record:**
+```sh
+txc env data record update --entity account 00000000-0000-0000-0000-000000000001 \
+  --data '{"name":"Contoso International"}'  --apply
+```
+
+**Delete a record:**
+```sh
+txc env data record delete --entity account 00000000-0000-0000-0000-000000000001 --yes --apply
+```
+
+**Upload a file to a file/image column:**
+```sh
+txc env data record upload-file --entity account 00000000-0000-0000-0000-000000000001 \
+  --column logo --file ./logo.png --apply
+```
+
+**Download a file from a file/image column:**
+```sh
+txc env data record download-file --entity account 00000000-0000-0000-0000-000000000001 \
+  --column logo --output ./logo.png
+```
+
+**Associate two records (N:N relationship):**
+```sh
+txc env data record associate 00000000-0000-0000-0000-000000000001 \
+  --entity account --target 00000000-0000-0000-0000-000000000002 \
+  --target-entity contact --relationship accountleads_association --apply
+```
+
+**Disassociate two records:**
+```sh
+txc env data record disassociate 00000000-0000-0000-0000-000000000001 \
+  --entity account --target 00000000-0000-0000-0000-000000000002 \
+  --target-entity contact --relationship accountleads_association --yes --apply
+```
+
+### Schema
+
+Create, inspect, and manage Dataverse entities, attributes, relationships, and option sets directly from the CLI. All schema commands support the `--apply` / `--stage` execution mode — see [Changeset Staging](#changeset-staging) below.
+
+For the full command reference, see [docs/schema-management.md](docs/schema-management.md).
+
+**Create an entity:**
+```sh
+txc env entity create --name tom_project \
+  --display-name "Project" --plural-name "Projects" \
+  --ownership user --apply
+```
+
+**Add a column:**
+```sh
+txc env entity attribute create --entity tom_project \
+  --name tom_budget --type money --display-name "Budget" --apply
+```
+
+**List relationships:**
+```sh
+txc env entity relationship list --entity account
+```
+
+### Changeset Staging
+
+Stage multiple mutations locally and apply them in a single optimised batch — reducing round-trips and publish calls.
+
+For the full workflow guide, see [docs/changeset-staging.md](docs/changeset-staging.md).
+
+```sh
+# Stage several changes
+txc env entity create --name tom_invoice \
+  --display-name "Invoice" --plural-name "Invoices" --stage
+txc env entity attribute create --entity tom_invoice \
+  --name tom_amount --type money --display-name "Amount" --stage
+
+# Review and apply
+txc env changeset status
+txc env changeset apply --strategy batch
 ```
 
 ### Workspace Scaffolding

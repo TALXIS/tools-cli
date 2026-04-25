@@ -28,6 +28,8 @@ After creation, any *subsequent* modifications (adding columns, changing forms) 
 
 ### Batch Approach: `CreateEntities` Action
 
+> **CLI usage:** `txc env entity create` uses this API internally when creating entities. When multiple entity creations are staged in a changeset, `txc env changeset apply` batches them via `ExecuteMultiple` with inline attributes in Phase 1a of the [changeset apply pipeline](changeset-staging.md#the-4-phase-apply-pipeline).
+
 Available as an Organization Service message:
 
 ```csharp
@@ -200,6 +202,8 @@ Publishing 10 entities in one call is roughly **10× faster** than 10 separate p
 `PublishAllXml` uses a heavier exclusive lock, loads ALL entities, and processes every component type across the entire organization. Always use `PublishXml` with specific entity names.
 
 #### 3. Batch All Changes First, Publish Once at the End
+
+> **CLI usage:** The [changeset apply pipeline](changeset-staging.md#the-4-phase-apply-pipeline) implements this pattern automatically — all schema mutations in a changeset are applied first, then a single targeted `PublishXml` is issued for all affected entities at the end of Phase 1b.
 
 Instead of:
 > Create attr → Publish → Create attr → Publish → Create attr → Publish

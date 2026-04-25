@@ -173,6 +173,31 @@ Rules:
 
 ---
 
+## Safety annotations
+
+Every leaf command **must** declare exactly one of three safety attributes. The `TXC004` analyzer enforces this as a build error.
+
+| Attribute | Meaning | MCP behaviour |
+|-----------|---------|---------------|
+| `[CliReadOnly]` | No side effects — pure read | Auto-approved; no human confirmation needed |
+| `[CliIdempotent]` | Safe to retry; produces the same result on re-execution | MCP clients may auto-retry on transient failures |
+| `[CliDestructive("impact message")]` | Irreversible or dangerous operation | Always requires confirmation |
+
+**Rules:**
+
+- `[CliDestructive]` requires a non-empty `impact` string describing consequences. The message is shown in interactive prompts and in MCP `ToolAnnotations.Title`.
+- Commands annotated with `[CliDestructive]` **must also implement `IDestructiveCommand`**, which exposes the `--yes` flag. Without `--yes`, the CLI prompts interactively; in headless/CI environments the command fails with `ExitValidationError`.
+- `[CliIdempotent]` can be combined with `[CliDestructive]` (e.g. an overwrite that is safe to retry but still destructive).
+- `[CliReadOnly]` and `[CliDestructive]` are mutually exclusive.
+
+## `--apply` / `--stage` execution mode
+
+Mutating commands that extend `StagedCliCommand` expose two flags: `--apply` (execute immediately) and `--stage` (queue in the local changeset). Exactly one must be provided.
+
+This pattern decouples _intent_ (what the user wants to change) from _execution_ (when/how the change reaches the server), enabling the changeset staging workflow described in [docs/changeset-staging.md](docs/changeset-staging.md).
+
+---
+
 ## Adding a command
 
 1. Create a class with `[CliCommand]` extending `TxcLeafCommand` (or `ProfiledCliCommand` for environment-facing commands).
