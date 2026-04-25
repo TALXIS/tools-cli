@@ -13,9 +13,13 @@ namespace TALXIS.CLI.Analyzers;
 /// not call <c>OutputWriter.Write</c> or <c>OutputWriter.WriteLine</c> directly.
 /// Use <c>OutputFormatter</c> instead, which respects the <c>--format</c> flag.
 /// <para>
-/// Exception: text-renderer callbacks passed to <c>OutputFormatter.WriteList</c> etc.
-/// legitimately call <c>OutputWriter</c> — those are allowed because they're only
-/// invoked in text mode. This analyzer flags calls in the main execution path.
+/// Exception: <c>OutputWriter</c> calls inside <b>lambda/anonymous method</b> text-renderer
+/// callbacks passed to <c>OutputFormatter.WriteList</c>, <c>WriteData</c>, <c>WriteRaw</c>,
+/// or <c>WriteDynamicTable</c> are automatically suppressed — they're only invoked in text mode.
+/// </para>
+/// <para>
+/// <b>Named methods</b> passed as method-group text renderers (e.g., <c>OutputFormatter.WriteList(items, PrintTable)</c>)
+/// are NOT auto-suppressed. Use <c>#pragma warning disable TXC003</c> on those methods with a comment.
 /// </para>
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]

@@ -33,7 +33,7 @@ public class SettingSetCliCommand : TxcLeafCommand
         if (string.IsNullOrWhiteSpace(Key))
         {
             _logger.LogError("Setting key must be provided.");
-            return ExitError;
+            return ExitValidationError;
         }
 
         var descriptor = SettingRegistry.Find(Key);

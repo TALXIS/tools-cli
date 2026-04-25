@@ -2,19 +2,26 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Security.Cryptography;
-using TALXIS.CLI.Core.Storage;
 
 namespace TALXIS.CLI.Features.Data.DataServer;
 
 public class ComputePrimaryKeyController
 {
+    // HTTP endpoint accepts external input with unpredictable casing — needs case-insensitive deserialization.
+#pragma warning disable RS0030
+    private static readonly JsonSerializerOptions HttpInputOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+    };
+#pragma warning restore RS0030
+
     public static async Task<bool> TryHandle(HttpListenerContext context)
     {
         if (context.Request.HttpMethod == "POST" && context.Request.Url?.AbsolutePath == "/ComputePrimaryKey")
         {
             using var reader = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding);
             var body = await reader.ReadToEndAsync();
-            var input = JsonSerializer.Deserialize<ComputePrimaryKeyRequest>(body, TxcJsonOptions.Default);
+            var input = JsonSerializer.Deserialize<ComputePrimaryKeyRequest>(body, HttpInputOptions);
             if (string.IsNullOrWhiteSpace(input?.Entity) || input?.AlternateKeys == null || input.AlternateKeys.Count == 0)
             {
                 context.Response.StatusCode = 400;

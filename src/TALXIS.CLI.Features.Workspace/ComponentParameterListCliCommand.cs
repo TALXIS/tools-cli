@@ -29,9 +29,8 @@ public class ComponentParameterListCliCommand : TxcLeafCommand
         var parameters = await scaffolder.ListParametersForTemplateAsync(ShortName);
         if (parameters == null || parameters.Count == 0)
         {
-#pragma warning disable TXC003 // TODO: Refactor to use OutputFormatter
-            OutputWriter.WriteLine($"No parameters found for template {ShortName}");
-#pragma warning restore TXC003
+            OutputFormatter.WriteList(Array.Empty<object>(), _ =>
+                OutputWriter.WriteLine($"No parameters found for template {ShortName}"));
             return ExitSuccess;
         }
 

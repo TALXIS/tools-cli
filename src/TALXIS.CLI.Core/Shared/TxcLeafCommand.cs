@@ -57,7 +57,9 @@ public abstract class TxcLeafCommand
     /// </summary>
     public async Task<int> RunAsync()
     {
-        ApplyOutputFormat();
+        var formatError = ApplyOutputFormat();
+        if (formatError.HasValue)
+            return formatError.Value;
 
         try
         {
@@ -93,13 +95,24 @@ public abstract class TxcLeafCommand
     /// flag. When the flag is omitted, TTY auto-detection kicks in
     /// (JSON when stdout is redirected, text for interactive terminals).
     /// </summary>
-    private void ApplyOutputFormat()
+    private int? ApplyOutputFormat()
     {
+        // Reset any previously-set format from a prior invocation in the same
+        // async flow (defensive against in-process hosting and unit tests).
+        OutputContext.Reset();
+
         if (Format is not null)
         {
-            OutputContext.Format = Format.Equals("text", StringComparison.OrdinalIgnoreCase)
-                ? OutputFormat.Text
-                : OutputFormat.Json;
+            if (Format.Equals("json", StringComparison.OrdinalIgnoreCase))
+                OutputContext.Format = OutputFormat.Json;
+            else if (Format.Equals("text", StringComparison.OrdinalIgnoreCase))
+                OutputContext.Format = OutputFormat.Text;
+            else
+            {
+                Logger.LogError("Unknown output format '{Format}'. Valid values: json, text.", Format);
+                return ExitValidationError;
+            }
         }
+        return null;
     }
 }

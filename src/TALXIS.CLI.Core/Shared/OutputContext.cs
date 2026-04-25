@@ -22,4 +22,11 @@ public static class OutputContext
 
     /// <summary>Whether the active format is JSON.</summary>
     public static bool IsJson => Format == OutputFormat.Json;
+
+    /// <summary>
+    /// Clears any explicitly-set format, reverting to TTY auto-detection.
+    /// Called at the start of each command invocation to prevent stale state
+    /// from a prior invocation in the same async flow (unit tests, in-process hosting).
+    /// </summary>
+    public static void Reset() => _format.Value = null;
 }
