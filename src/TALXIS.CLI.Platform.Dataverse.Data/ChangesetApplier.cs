@@ -1,8 +1,10 @@
 using System.Diagnostics;
 using System.ServiceModel;
 using System.Text.Json;
+using Microsoft.Crm.Sdk.Messages;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Messages;
+using Microsoft.Xrm.Sdk.Metadata;
 using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
@@ -80,19 +82,183 @@ internal sealed class ChangesetApplier : IChangesetApplier
     }
 
     /// <summary>
-    /// Applies schema operations sequentially using existing service methods.
-    /// Tracks affected entities for a single publish pass at the end.
+    /// Applies schema operations using batched APIs where possible.
+    /// Phase 1a: Batch-creates new entities + their simple attributes via ExecuteMultiple
+    ///           (one CreateEntityRequest per entity, then CreateAttributeRequest per attribute).
+    /// Phase 1b: Remaining operations dispatch individually.
+    /// Phase 2: Single PublishXml for all affected entities.
     /// </summary>
     private async Task<List<OperationResult>> ApplySchemaOperationsAsync(
         string? profileName, IReadOnlyList<StagedOperation> ops, CancellationToken ct)
     {
+        using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
         var results = new List<OperationResult>();
         var affectedEntities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         var metadataService = TxcServices.Get<IDataverseEntityMetadataService>();
         var optionSetService = TxcServices.Get<IDataverseOptionSetService>();
 
-        foreach (var op in ops)
+        // Identify new-entity ops and their associated inline-eligible attribute ops
+        var newEntityOps = ops.Where(o => o.TargetType == "entity" && o.OperationType == "CREATE").ToList();
+        var newEntityNames = newEntityOps
+            .Select(o => GetParamOrDefault<string?>(o, "schemaName")?.ToLowerInvariant())
+            .Where(n => n is not null)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        // Only simple attribute types can be batched; complex types (choice, multichoice, lookup) fall through to Phase 1b
+        var batchableAttrTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            { "string", "number", "money", "bool", "datetime", "decimal", "float", "file", "image" };
+
+        var newEntityAttrOps = ops.Where(o =>
+            o.TargetType == "attribute" && o.OperationType == "CREATE"
+            && batchableAttrTypes.Contains(GetParamOrDefault<string?>(o, "type")?.ToLowerInvariant() ?? "")
+            && newEntityNames.Contains(GetParamOrDefault<string?>(o, "entity")?.ToLowerInvariant())).ToList();
+
+        var remainingOps = ops.Except(newEntityOps).Except(newEntityAttrOps).ToList();
+
+        // Phase 1a: Batch-create new entities + their attributes via ExecuteMultiple
+        if (newEntityOps.Count > 0)
+        {
+            try
+            {
+                var batchRequests = new OrganizationRequestCollection();
+                // Track which staged operations map to which batch request index
+                var batchOpMap = new List<StagedOperation>();
+
+                foreach (var entityOp in newEntityOps)
+                {
+                    var entityName = GetParam<string>(entityOp, "schemaName");
+                    var displayName = GetParamOrDefault<string?>(entityOp, "displayName") ?? entityName;
+                    var pluralName = GetParamOrDefault<string?>(entityOp, "pluralName") ?? displayName + "s";
+                    var description = GetParamOrDefault<string?>(entityOp, "description");
+                    var solution = GetParamOrDefault<string?>(entityOp, "solution");
+
+                    var entityMeta = new EntityMetadata
+                    {
+                        SchemaName = entityName,
+                        DisplayName = new Label(displayName, 1033),
+                        DisplayCollectionName = new Label(pluralName, 1033),
+                        OwnershipType = OwnershipTypes.UserOwned,
+                        IsActivity = false
+                    };
+
+                    if (description is not null)
+                        entityMeta.Description = new Label(description, 1033);
+
+                    // Primary name attribute (required when creating an entity)
+                    var prefix = entityName.Contains('_') ? entityName[..entityName.IndexOf('_')] : entityName;
+                    var primaryAttribute = new StringAttributeMetadata
+                    {
+                        SchemaName = $"{prefix}_name",
+                        MaxLength = 200,
+                        RequiredLevel = new AttributeRequiredLevelManagedProperty(AttributeRequiredLevel.ApplicationRequired),
+                        DisplayName = new Label("Name", 1033)
+                    };
+
+                    var createRequest = new CreateEntityRequest
+                    {
+                        Entity = entityMeta,
+                        PrimaryAttribute = primaryAttribute
+                    };
+
+                    if (!string.IsNullOrEmpty(solution))
+                        createRequest["SolutionUniqueName"] = solution;
+
+                    batchRequests.Add(createRequest);
+                    batchOpMap.Add(entityOp);
+                    affectedEntities.Add(entityName.ToLowerInvariant());
+                }
+
+                // Add CreateAttributeRequest for each batched attribute
+                foreach (var attrOp in newEntityAttrOps)
+                {
+                    var entityLogicalName = GetParam<string>(attrOp, "entity");
+                    var attrMeta = BuildAttributeMetadataFromStagedOp(attrOp);
+                    if (attrMeta is null) continue;
+
+                    var attrRequest = new CreateAttributeRequest
+                    {
+                        EntityName = entityLogicalName,
+                        Attribute = attrMeta
+                    };
+
+                    var solution = GetParamOrDefault<string?>(attrOp, "solution");
+                    if (!string.IsNullOrEmpty(solution))
+                        attrRequest["SolutionUniqueName"] = solution;
+
+                    batchRequests.Add(attrRequest);
+                    batchOpMap.Add(attrOp);
+                }
+
+                // Execute all entity + attribute creates in a single round-trip
+                var stopwatch = Stopwatch.StartNew();
+                var response = (ExecuteMultipleResponse)await conn.Client.ExecuteAsync(
+                    new ExecuteMultipleRequest
+                    {
+                        Settings = new ExecuteMultipleSettings
+                        {
+                            ContinueOnError = false,
+                            ReturnResponses = true
+                        },
+                        Requests = batchRequests
+                    }, ct).ConfigureAwait(false);
+                stopwatch.Stop();
+
+                // Process batch results
+                var faultedIndices = new HashSet<int>();
+                foreach (var item in response.Responses)
+                {
+                    if (item.Fault is not null)
+                        faultedIndices.Add(item.RequestIndex);
+                }
+
+                if (faultedIndices.Count == 0)
+                {
+                    // All succeeded
+                    foreach (var op in newEntityOps)
+                        results.Add(new OperationResult(op.Index, true, $"CREATE entity {op.TargetDescription} (batched)"));
+                    foreach (var op in newEntityAttrOps)
+                        results.Add(new OperationResult(op.Index, true, $"CREATE attribute {op.TargetDescription} (batched with entity)"));
+
+                    OutputWriter.WriteLine($"Created {newEntityOps.Count} entities with {newEntityAttrOps.Count} attributes via ExecuteMultiple in {stopwatch.ElapsedMilliseconds}ms");
+                }
+                else
+                {
+                    // Partial failure — report per-operation results and fall back for the rest
+                    var handledOps = new HashSet<StagedOperation>();
+                    for (int i = 0; i < batchOpMap.Count; i++)
+                    {
+                        var op = batchOpMap[i];
+                        if (faultedIndices.Contains(i))
+                        {
+                            var fault = response.Responses.First(r => r.RequestIndex == i).Fault;
+                            results.Add(new OperationResult(op.Index, false,
+                                $"{op.OperationType} {op.TargetType} {op.TargetDescription}", fault?.Message));
+                        }
+                        else
+                        {
+                            results.Add(new OperationResult(op.Index, true,
+                                $"{op.OperationType} {op.TargetType} {op.TargetDescription} (batched)"));
+                        }
+                        handledOps.Add(op);
+                    }
+
+                    // Remove handled ops from remaining so they aren't processed again
+                    remainingOps = ops.Except(handledOps).ToList();
+                }
+            }
+            catch (Exception ex)
+            {
+                // Fallback: if batch fails entirely, process all individually
+                OutputWriter.WriteLine($"Batched schema creation failed: {ex.Message}. Falling back to individual creates.");
+                remainingOps = ops.ToList();
+                results.Clear();
+                affectedEntities.Clear();
+            }
+        }
+
+        // Phase 1b: Process remaining schema operations individually
+        foreach (var op in remainingOps)
         {
             try
             {
@@ -110,12 +276,23 @@ internal sealed class ChangesetApplier : IChangesetApplier
             }
         }
 
-        // Single publish for all affected entities.
-        // Note: individual service methods may already publish; we'll optimize
-        // to skip per-operation publish in a future PR.
+        // Phase 2: Single PublishXml for all affected entities
         if (affectedEntities.Count > 0)
         {
-            OutputWriter.WriteLine($"Publishing: {affectedEntities.Count} affected entities...");
+            try
+            {
+                var entitiesXml = string.Join("", affectedEntities.Select(e => $"<entity>{e}</entity>"));
+                var publishXml = $"<importexportxml><entities>{entitiesXml}</entities></importexportxml>";
+                await conn.Client.ExecuteAsync(new PublishXmlRequest
+                {
+                    ParameterXml = publishXml
+                }, ct).ConfigureAwait(false);
+                OutputWriter.WriteLine($"Published {affectedEntities.Count} entities in single PublishXml call");
+            }
+            catch (Exception ex)
+            {
+                OutputWriter.WriteLine($"Publish failed: {ex.Message}");
+            }
         }
 
         return results;
@@ -428,6 +605,59 @@ internal sealed class ChangesetApplier : IChangesetApplier
         return results;
     }
 
+    // ── CreateEntities helpers ──────────────────────────────────────────
+
+    /// <summary>
+    /// Converts a staged attribute CREATE operation into an <see cref="AttributeMetadata"/>
+    /// for inline creation with <c>CreateEntities</c>. Only simple types are supported;
+    /// complex types (choice, multichoice, lookup) return <c>null</c>.
+    /// </summary>
+    private static AttributeMetadata? BuildAttributeMetadataFromStagedOp(StagedOperation op)
+    {
+        var name = GetParamOrDefault<string?>(op, "schemaName");
+        var type = GetParamOrDefault<string?>(op, "type")?.ToLowerInvariant();
+        var displayName = GetParamOrDefault<string?>(op, "displayName") ?? name;
+
+        if (name is null || type is null) return null;
+
+        AttributeMetadata? attr = type switch
+        {
+            "string" => new StringAttributeMetadata
+            {
+                MaxLength = GetParamOrDefault<int?>(op, "maxLength") ?? 200,
+            },
+            "number" => new IntegerAttributeMetadata(),
+            "money" => new MoneyAttributeMetadata(),
+            "bool" => new BooleanAttributeMetadata
+            {
+                OptionSet = new BooleanOptionSetMetadata(
+                    new OptionMetadata(new Label(GetParamOrDefault<string?>(op, "trueLabel") ?? "Yes", 1033), 1),
+                    new OptionMetadata(new Label(GetParamOrDefault<string?>(op, "falseLabel") ?? "No", 1033), 0))
+            },
+            "datetime" => new DateTimeAttributeMetadata { Format = DateTimeFormat.DateAndTime },
+            "decimal" => new DecimalAttributeMetadata(),
+            "float" => new DoubleAttributeMetadata(),
+            "file" => new FileAttributeMetadata { MaxSizeInKB = GetParamOrDefault<int?>(op, "maxSizeKb") ?? 131072 },
+            "image" => new ImageAttributeMetadata(),
+            _ => null
+        };
+
+        if (attr is null) return null;
+
+        attr.SchemaName = name;
+        attr.DisplayName = new Label(displayName, 1033);
+
+        var requiredLevel = GetParamOrDefault<string?>(op, "requiredLevel")?.ToLowerInvariant() switch
+        {
+            "required" or "applicationrequired" => AttributeRequiredLevel.ApplicationRequired,
+            "recommended" => AttributeRequiredLevel.Recommended,
+            _ => AttributeRequiredLevel.None
+        };
+        attr.RequiredLevel = new AttributeRequiredLevelManagedProperty(requiredLevel);
+
+        return attr;
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────
 
     /// <summary>
@@ -457,9 +687,10 @@ internal sealed class ChangesetApplier : IChangesetApplier
     {
         var entityName = op.Parameters["entity"]!.ToString()!;
 
-        // The "attributes" parameter holds either a JsonElement or a serialized JSON string
+        // The "attributes" (or "data") parameter holds either a JsonElement or a serialized JSON string
         JsonElement attributesJson;
-        var rawAttributes = op.Parameters.GetValueOrDefault("attributes");
+        var rawAttributes = op.Parameters.GetValueOrDefault("attributes")
+                         ?? op.Parameters.GetValueOrDefault("data");
         if (rawAttributes is JsonElement je)
         {
             attributesJson = je;
