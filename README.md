@@ -132,41 +132,63 @@ txc env sln import ./Solutions/MySolution_managed.zip --profile customer-b-prod
 
 ### Data Plane
 
-Query, create, update, and bulk-operate on Dataverse records. Three query languages, full record CRUD with file/image columns, N:N relationship management, and Configuration Migration Tool (CMT) data import/export — all cross-platform on modern .NET.
+Query, create, update, and bulk-operate on Dataverse records — all cross-platform on modern .NET.
+
+**Three query languages — pick the one you think in:**
 
 ```sh
-# Query with OData, FetchXML, or SQL — your choice
+# OData — familiar, filterable, composable
 txc env data query odata accounts --select "name,revenue" --filter "revenue gt 1000000" --top 10
-txc env data query fetchxml '<fetch top="5"><entity name="contact"><attribute name="fullname"/></entity></fetch>'
-txc env data query sql "SELECT fullname, emailaddress1 FROM contact WHERE statecode = 0" --top 20
 
-# Full record lifecycle
+# FetchXML — full aggregation, linked entities, fiscal date filters
+txc env data query fetchxml '<fetch top="5"><entity name="contact"><attribute name="fullname"/></entity></fetch>'
+
+# T-SQL — because sometimes you just want SELECT ... WHERE
+txc env data query sql "SELECT fullname, emailaddress1 FROM contact WHERE statecode = 0" --top 20
+```
+
+**Record CRUD, file/image columns, N:N relationships:**
+
+```sh
 txc env data record get --entity account $ID --columns "name,revenue"
 txc env data record create --entity account --data '{"name":"Contoso Ltd","revenue":5000000}' --apply
 txc env data record update --entity account $ID --data '{"name":"Contoso International"}' --apply
 txc env data record delete --entity account $ID --yes --apply
 
-# File & image columns — chunked streaming, not memory-bound
+# Chunked streaming for file & image columns — not memory-bound
 txc env data record upload-file --entity account $ID --column logo --file ./logo.png --apply
 txc env data record download-file --entity account $ID --column logo --output ./logo.png
 
 # N:N relationship management
 txc env data record associate $ID --entity account \
   --target $TARGET_ID --target-entity contact --relationship accountleads_association --apply
+```
 
-# Bulk operations
+**Bulk upsert — CreateMultiple/UpdateMultiple/UpsertMultiple under the hood:**
+
+```sh
 txc env data bulk upsert --entity contact --file ./contacts.json
 ```
 
-**Configuration Migration Tool (CMT)** — import, export, convert. Runs CMT natively on macOS/Linux (no Windows VM needed):
+**Configuration Migration Tool (CMT)** — import, export, convert. Runs natively on macOS/Linux (no Windows VM needed). Exports to a folder by default so you can commit data directly to your repo:
 
 ```sh
+# Export → folder → edit → import round-trip
 txc data pkg export --schema ./data_schema.xml --output ./data-package --export-files
-txc data pkg import ./data-package --batch-mode --batch-size 500 --connection-count 4
+txc data pkg import ./data-package
+
+# Tuning options not exposed by PAC CLI or CMT GUI — undocumented AppSettings we found by decompiling:
+txc data pkg import ./data-package \
+  --batch-mode                  # ExecuteMultiple batching (vs one-by-one) \
+  --batch-size 500              # records per batch (default: 200) \
+  --connection-count 4          # parallel service channels \
+  --override-safety-checks      # skip duplicate detection \
+  --prefetch-limit 100          # pre-cache record lookups
+
 txc data pkg convert --input export.xlsx --output data.xml
 ```
 
-See [docs/configuration-migration.md](docs/configuration-migration.md) for tuning options and deep-dive into CMT internals.
+See [docs/configuration-migration.md](docs/configuration-migration.md) for the full deep-dive into CMT internals, deduplication logic, and tuning strategies.
 
 ### Application Plane — Schema Management
 
