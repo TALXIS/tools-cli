@@ -19,8 +19,7 @@ namespace TALXIS.CLI.Features.Config.Auth;
 )]
 public class AuthListCliCommand : TxcLeafCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(AuthListCliCommand));
-    protected override ILogger Logger => _logger;
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(AuthListCliCommand));
 
     protected override async Task<int> ExecuteAsync()
     {

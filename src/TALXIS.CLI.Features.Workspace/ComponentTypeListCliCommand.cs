@@ -12,8 +12,7 @@ namespace TALXIS.CLI.Features.Workspace;
 )]
 public class ComponentTypeListCliCommand : TxcLeafCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ComponentTypeListCliCommand));
-    protected override ILogger Logger => _logger;
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ComponentTypeListCliCommand));
 
     protected override async Task<int> ExecuteAsync()
     {

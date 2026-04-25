@@ -1,4 +1,3 @@
-using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
@@ -36,19 +35,12 @@ public class SettingListCliCommand : ProfiledCliCommand
                 .ToList();
         }
 
-        // TODO: Refactor to use OutputFormatter instead of manual OutputContext.IsJson branching.
-#pragma warning disable TXC003
-        if (OutputContext.IsJson)
-        {
-            var dict = settings.ToDictionary(s => s.Name, s => s.Value);
-            OutputWriter.WriteLine(JsonSerializer.Serialize(dict, TxcOutputJsonOptions.Default));
-            return ExitSuccess;
-        }
-
-        PrintSettingsTable(settings);
+        OutputFormatter.WriteList(settings, PrintSettingsTable);
         return ExitSuccess;
     }
 
+    // Text-renderer callback invoked by OutputFormatter.WriteList — OutputWriter usage is intentional.
+#pragma warning disable TXC003
     private static void PrintSettingsTable(IReadOnlyList<EnvironmentManagementSetting> settings)
     {
         if (settings.Count == 0)

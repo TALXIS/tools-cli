@@ -80,7 +80,7 @@ public sealed class MustNotCallOutputWriterAnalyzer : DiagnosticAnalyzer
 
         // Suppress if the call is inside a lambda/anonymous method passed as
         // an argument to an OutputFormatter renderer method (WriteData, WriteList, etc.)
-        if (IsInsideOutputFormatterRendererLambda(invocation, context.Compilation))
+        if (IsInsideOutputFormatterRendererLambda(invocation, context.Operation.SemanticModel!))
             return;
 
         context.ReportDiagnostic(Diagnostic.Create(
@@ -97,7 +97,7 @@ public sealed class MustNotCallOutputWriterAnalyzer : DiagnosticAnalyzer
     /// </summary>
     private static bool IsInsideOutputFormatterRendererLambda(
         IInvocationOperation outputWriterCall,
-        Compilation compilation)
+        SemanticModel semanticModel)
     {
         var syntaxNode = outputWriterCall.Syntax;
 
@@ -111,7 +111,7 @@ public sealed class MustNotCallOutputWriterAnalyzer : DiagnosticAnalyzer
             // Expected tree: Lambda → Argument → ArgumentList → InvocationExpression
             if (ancestor.Parent is ArgumentSyntax { Parent: ArgumentListSyntax { Parent: InvocationExpressionSyntax parentInvocation } })
             {
-                if (IsOutputFormatterRendererCall(parentInvocation, compilation))
+                if (IsOutputFormatterRendererCall(parentInvocation, semanticModel))
                     return true;
             }
 
@@ -129,7 +129,7 @@ public sealed class MustNotCallOutputWriterAnalyzer : DiagnosticAnalyzer
     /// </summary>
     private static bool IsOutputFormatterRendererCall(
         InvocationExpressionSyntax invocation,
-        Compilation compilation)
+        SemanticModel semanticModel)
     {
         // Resolve the method name from the invocation expression syntax
         string? methodName = invocation.Expression switch
@@ -143,7 +143,6 @@ public sealed class MustNotCallOutputWriterAnalyzer : DiagnosticAnalyzer
             return false;
 
         // Verify the containing type is actually OutputFormatter via the semantic model
-        var semanticModel = compilation.GetSemanticModel(invocation.SyntaxTree);
         var symbolInfo = semanticModel.GetSymbolInfo(invocation);
         var targetMethod = symbolInfo.Symbol as IMethodSymbol ?? symbolInfo.CandidateSymbols.OfType<IMethodSymbol>().FirstOrDefault();
 

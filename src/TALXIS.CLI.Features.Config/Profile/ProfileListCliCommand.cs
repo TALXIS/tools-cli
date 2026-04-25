@@ -18,8 +18,7 @@ namespace TALXIS.CLI.Features.Config.Profile;
 )]
 public class ProfileListCliCommand : TxcLeafCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ProfileListCliCommand));
-    protected override ILogger Logger => _logger;
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ProfileListCliCommand));
 
     protected override async Task<int> ExecuteAsync()
     {

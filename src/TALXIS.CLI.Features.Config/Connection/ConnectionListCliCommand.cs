@@ -16,8 +16,7 @@ namespace TALXIS.CLI.Features.Config.Connection;
 )]
 public class ConnectionListCliCommand : TxcLeafCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ConnectionListCliCommand));
-    protected override ILogger Logger => _logger;
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ConnectionListCliCommand));
 
     protected override async Task<int> ExecuteAsync()
     {

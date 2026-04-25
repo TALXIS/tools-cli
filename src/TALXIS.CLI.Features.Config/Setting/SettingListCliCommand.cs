@@ -19,8 +19,7 @@ namespace TALXIS.CLI.Features.Config.Setting;
 )]
 public class SettingListCliCommand : TxcLeafCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(SettingListCliCommand));
-    protected override ILogger Logger => _logger;
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(SettingListCliCommand));
 
     protected override async Task<int> ExecuteAsync()
     {

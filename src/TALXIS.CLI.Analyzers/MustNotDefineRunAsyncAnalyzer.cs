@@ -39,7 +39,7 @@ public sealed class MustNotDefineRunAsyncAnalyzer : DiagnosticAnalyzer
             return;
 
         // Only check classes that inherit TxcLeafCommand
-        if (!InheritsFrom(type, "TALXIS.CLI.Core.TxcLeafCommand"))
+        if (!RoslynHelpers.InheritsFrom(type, "TALXIS.CLI.Core.TxcLeafCommand"))
             return;
 
         // Check for RunAsync() declared directly on this type (not inherited)
@@ -55,15 +55,4 @@ public sealed class MustNotDefineRunAsyncAnalyzer : DiagnosticAnalyzer
         }
     }
 
-    private static bool InheritsFrom(INamedTypeSymbol type, string fullName)
-    {
-        var current = type.BaseType;
-        while (current != null)
-        {
-            if (current.ToDisplayString() == fullName)
-                return true;
-            current = current.BaseType;
-        }
-        return false;
-    }
 }

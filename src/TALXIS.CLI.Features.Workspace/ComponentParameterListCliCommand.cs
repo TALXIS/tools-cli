@@ -17,8 +17,7 @@ namespace TALXIS.CLI.Features.Workspace;
 )]
 public class ComponentParameterListCliCommand : TxcLeafCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ComponentParameterListCliCommand));
-    protected override ILogger Logger => _logger;
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ComponentParameterListCliCommand));
 
     [CliArgument(Description = "Short name of the component.")]
     public required string ShortName { get; set; }

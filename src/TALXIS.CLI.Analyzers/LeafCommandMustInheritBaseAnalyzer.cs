@@ -48,7 +48,7 @@ public sealed class LeafCommandMustInheritBaseAnalyzer : DiagnosticAnalyzer
             return;
 
         // Must inherit TxcLeafCommand
-        if (InheritsFrom(type, "TALXIS.CLI.Core.TxcLeafCommand"))
+        if (RoslynHelpers.InheritsFrom(type, "TALXIS.CLI.Core.TxcLeafCommand"))
             return;
 
         context.ReportDiagnostic(Diagnostic.Create(Rule, type.Locations[0], type.Name));
@@ -80,15 +80,4 @@ public sealed class LeafCommandMustInheritBaseAnalyzer : DiagnosticAnalyzer
         return false;
     }
 
-    private static bool InheritsFrom(INamedTypeSymbol type, string fullName)
-    {
-        var current = type.BaseType;
-        while (current != null)
-        {
-            if (current.ToDisplayString() == fullName)
-                return true;
-            current = current.BaseType;
-        }
-        return false;
-    }
 }
