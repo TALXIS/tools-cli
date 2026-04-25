@@ -17,7 +17,9 @@
 
 ---
 
-TALXIS CLI (`txc`) is a modular, extensible .NET global tool for automating development, data, and solution management tasks - especially for Power Platform and enterprise projects. It helps developers scaffold, transform, and manage code and data in local repositories.
+TALXIS CLI (`txc`) is a modular, extensible .NET global tool for Power Platform and Dataverse development. It's built around a **workspace-first** philosophy: scaffold and manage components locally in your repo — fast, offline, and agent-friendly — then synchronize to a live environment when you're ready.
+
+This makes `txc` ideal for **coding agents** and CI/CD pipelines where hitting a live environment on every operation is too slow and too fragile. Work locally, sync once.
 
 ---
 
@@ -73,17 +75,51 @@ For explicit credential / connection / profile steps, repository pinning, or hea
 ## Example Usage
 
 > [!IMPORTANT]
-> `txc` runs both **Dataverse Package Deployer** and **Configuration Migration Tool (CMT)** on **modern .NET**, including **macOS** and **Linux**. The goal is a better developer experience: cross-platform automation, simpler happy-path commands, and better visibility into what happened during deploys.
+> `txc` runs on **modern .NET** across **macOS**, **Linux**, and **Windows** — including Dataverse Package Deployer and Configuration Migration Tool (CMT), which traditionally require Windows.
 
-The examples below assume you have an active profile (see [above](#identity-connections--profiles)). Pass `--profile <name>` to any command to override the active profile for a single invocation.
+`txc` commands fall into two layers:
 
-`txc` organises environment operations into three planes, mirroring how the Power Platform itself separates concerns:
+| Layer | Purpose | Speed | Commands |
+|-------|---------|-------|----------|
+| **Workspace** | Scaffold & manage components locally in your repo | ⚡ Instant (no network) | `txc workspace …` |
+| **Environment** | Synchronize with and operate on a live Dataverse environment | 🌐 Network-bound | `txc env …`, `txc data …` |
 
-| Plane | What it covers | API surface | Commands |
-|-------|---------------|-------------|----------|
-| **Control plane** | Environment-level governance & feature toggles | `api.powerplatform.com/environmentmanagement` | `txc env setting …` |
-| **Application plane** | Solutions, packages, deployments, schema management | Dataverse Web API + SDK + Package Deployer | `txc env sln …`, `txc env pkg …`, `txc env deploy …`, `txc env entity …` |
-| **Data plane** | Records, queries, bulk operations, CMT data import/export | Dataverse Web API (OData / FetchXML / SQL) | `txc env data …`, `txc data …` |
+**The recommended workflow:** Use `txc workspace` to create and modify components locally (entities, attributes, solution structures), then deploy to the environment with `txc env`. This is dramatically faster than round-tripping every change through a live org — especially for coding agents that make dozens of changes per session.
+
+The environment layer is organised into three planes:
+
+| Plane | What it covers | Commands |
+|-------|---------------|----------|
+| **Control** | Environment settings, feature toggles, governance | `txc env setting …` |
+| **Application** | Solutions, packages, deployments, schema management | `txc env sln …`, `txc env pkg …`, `txc env deploy …`, `txc env entity …` |
+| **Data** | Records, queries, bulk operations, CMT import/export | `txc env data …`, `txc data …` |
+
+### Workspace — Local-First Development
+
+The fastest way to build Dataverse components. Everything happens locally in your repo — no environment round-trips, no publish waits. Ideal for coding agents that need to scaffold dozens of components in a session.
+
+```sh
+# Explore available component types and their parameters
+txc workspace component type list
+txc workspace component explain pp-entity
+
+# Scaffold a Dataverse entity — instant, local, no environment needed
+txc workspace component create pp-entity \
+  --param Behavior=New \
+  --param PublisherPrefix=tom \
+  --param LogicalName=location \
+  --param DisplayName=Location \
+  --param DisplayNamePlural=Locations \
+  --param SolutionRootPath=Declarations
+
+# When ready, deploy the solution to a live environment
+txc env sln import ./out/MySolution_managed.zip
+```
+
+> [!IMPORTANT]
+> Component scaffolding relies on the [TALXIS/tools-devkit-templates](https://github.com/TALXIS/tools-devkit-templates) repository, where all component types, metadata, and definitions are maintained.
+
+The environment commands below assume you have an active profile (see [above](#identity-connections--profiles)). Pass `--profile <name>` to override for a single call.
 
 ### Control Plane
 
@@ -188,41 +224,6 @@ txc env changeset apply --strategy batch   # one batch, one publish
 ```
 
 Changeset staging batches entity creation via the `CreateEntities` SDK action and consolidates all publishes into a single `PublishXml` call — dramatically faster than sequential operations. See [docs/changeset-staging.md](docs/changeset-staging.md).
-
-### Workspace Scaffolding
-
-Scaffold and manage project components from templates.
-
-**List available workspace components:**
-```sh
-txc workspace component type list
-```
-
-> [!IMPORTANT]
-> Component scaffolding in this CLI relies on the [TALXIS/tools-devkit-templates](https://github.com/TALXIS/tools-devkit-templates) repository, where all component types, metadata, and definitions are maintained.
-
-**Show details about a component:**
-```sh
-txc workspace component explain pp-entity
-```
-
-**List parameters required for a specific component template:**
-```sh
-txc workspace component parameter list pp-entity
-```
-
-**Scaffold a Dataverse entity component:**
-```sh
-txc workspace component create pp-entity \
-  --output "/Users/tomasprokop/Desktop/mcp-test/test" \
-  --param Behavior=New \
-  --param PublisherPrefix=tom \
-  --param LogicalName=location \
-  --param LogicalNamePlural=locations \
-  --param DisplayName=Location \
-  --param DisplayNamePlural=Locations \
-  --param SolutionRootPath=Declarations
-```
 
 > [!NOTE]
 > Run `txc --help` or `txc <command> --help` for the full command reference.
