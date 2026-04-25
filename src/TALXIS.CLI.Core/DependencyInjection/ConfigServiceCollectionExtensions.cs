@@ -1,6 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core.Abstractions;
+using TALXIS.CLI.Core.Changeset;
+using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.Headless;
 using TALXIS.CLI.Core.Resolution;
 using TALXIS.CLI.Core.Storage;
@@ -30,6 +32,8 @@ public static class ConfigServiceCollectionExtensions
         services.AddSingleton<IConfigurationResolver, ConfigurationResolver>();
         services.AddSingleton<IHeadlessDetector, HeadlessDetector>();
         services.AddSingleton<TALXIS.CLI.Core.Bootstrapping.ConnectionUpsertService>();
+
+        services.AddSingleton<IChangesetStore, InMemoryChangesetStore>();
 
         // Singleton so MsalCacheHelper (and its CrossPlatLock) is instantiated
         // once per process per cache file. See `session/files/keychain-prompt-research.md`:
