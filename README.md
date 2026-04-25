@@ -81,8 +81,8 @@ For explicit credential / connection / profile steps, repository pinning, or hea
 
 | Layer | Purpose | Speed | Commands |
 |-------|---------|-------|----------|
-| **Workspace** | Scaffold & manage components locally in your repo | ⚡ Instant (no network) | `txc workspace …` |
-| **Environment** | Synchronize with and operate on a live Dataverse environment | 🌐 Network-bound | `txc env …`, `txc data …` |
+| **Workspace** | Scaffold & manage components locally in your repo | Instant (local) | `txc workspace …` |
+| **Environment** | Synchronize with and operate on a live Dataverse environment | Minutes | `txc env …`, `txc data …` |
 
 **The recommended workflow:** Use `txc workspace` to create and modify components locally (entities, attributes, solution structures), then deploy to the environment with `txc env`. This is dramatically faster than round-tripping every change through a live org — especially for coding agents that make dozens of changes per session.
 
