@@ -4,7 +4,7 @@ using Microsoft.Xrm.Sdk.Metadata;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Platform.Dataverse.Runtime;
 
-namespace TALXIS.CLI.Platform.Dataverse.Data;
+namespace TALXIS.CLI.Platform.Dataverse.Application.Services;
 
 /// <summary>
 /// Dataverse implementation of <see cref="IDataverseOptionSetService"/>.
