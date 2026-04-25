@@ -1025,9 +1025,9 @@ internal sealed class ChangesetApplier : IChangesetApplier
             if (je.ValueKind == JsonValueKind.Array)
             {
                 return je.EnumerateArray()
-                    .Select(e => (
-                        e.GetProperty("label").GetString()!,
-                        e.GetProperty("value").GetInt32()))
+                    .Select((e, index) => (
+                        GetOptionLabel(e, index),
+                        GetOptionValue(e, index)))
                     .ToArray();
             }
 
@@ -1049,11 +1049,54 @@ internal sealed class ChangesetApplier : IChangesetApplier
         for (int i = 0; i < entries.Length; i++)
         {
             var parts = entries[i].Split(':', 2, StringSplitOptions.TrimEntries);
-            var value = parts.Length == 2 && int.TryParse(parts[1], out int parsed) ? parsed : autoValue++;
+            int value;
+            if (parts.Length == 2 && int.TryParse(parts[1], out int parsed))
+            {
+                value = parsed;
+            }
+            else
+            {
+                value = autoValue;
+                autoValue++;
+            }
+
             results[i] = (parts[0], value);
         }
 
         return results;
+    }
+
+    private static string GetOptionLabel(JsonElement option, int index)
+    {
+        if (!TryGetProperty(option, "label", out var labelProp)
+            || labelProp.ValueKind != JsonValueKind.String
+            || string.IsNullOrWhiteSpace(labelProp.GetString()))
+        {
+            throw new InvalidOperationException($"Option at index {index} is missing a non-empty 'label' property.");
+        }
+
+        return labelProp.GetString()!;
+    }
+
+    private static int GetOptionValue(JsonElement option, int index)
+    {
+        if (!TryGetProperty(option, "value", out var valueProp)
+            || valueProp.ValueKind != JsonValueKind.Number
+            || !valueProp.TryGetInt32(out var value))
+        {
+            throw new InvalidOperationException($"Option at index {index} is missing an integer 'value' property.");
+        }
+
+        return value;
+    }
+
+    private static bool TryGetProperty(JsonElement element, string propertyName, out JsonElement value)
+    {
+        if (element.TryGetProperty(propertyName, out value))
+            return true;
+
+        var pascalName = char.ToUpperInvariant(propertyName[0]) + propertyName[1..];
+        return element.TryGetProperty(pascalName, out value);
     }
 
     /// <summary>
