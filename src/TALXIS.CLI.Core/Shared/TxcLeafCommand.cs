@@ -102,7 +102,19 @@ public abstract class TxcLeafCommand
             // at Debug (only visible with --verbose / TXC_LOG_LEVEL=Debug).
             // This keeps the default terminal output clean while preserving
             // full diagnostics for troubleshooting.
-            Logger.LogError("Command failed: {Error}", ex.Message);
+            // Surface the innermost exception message when it differs from the
+            // outer one — it typically contains the actionable root cause
+            // (e.g. "Run 'txc config auth login' and retry.").
+            var root = GetInnermostException(ex);
+            if (root != ex && !string.Equals(root.Message, ex.Message, StringComparison.Ordinal))
+            {
+                Logger.LogError("Command failed: {Error}", ex.Message);
+                Logger.LogError("Cause: {RootCause}", root.Message);
+            }
+            else
+            {
+                Logger.LogError("Command failed: {Error}", ex.Message);
+            }
             Logger.LogDebug(ex, "Full exception details:");
             return ExitError;
         }
@@ -169,6 +181,18 @@ public abstract class TxcLeafCommand
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Walks the <see cref="Exception.InnerException"/> chain and returns the
+    /// deepest (innermost) exception. This is the one that usually contains the
+    /// actionable root-cause message.
+    /// </summary>
+    private static Exception GetInnermostException(Exception ex)
+    {
+        while (ex.InnerException is not null)
+            ex = ex.InnerException;
+        return ex;
     }
 
     /// <summary>
