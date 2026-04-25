@@ -152,22 +152,31 @@ Rules:
 
 ---
 
-## Output conventions
+## Output contract
 
-- **`OutputWriter` for command result data on stdout.** Anything a script might parse or a user might pipe.
-- **`ILogger` for diagnostics, progress, warnings, and errors.** Goes to stderr. Respects `TXC_LOG_FORMAT` and `TXC_LOG_LEVEL`.
+**See [`docs/output-contract.md`](docs/output-contract.md) for the full specification.** Summary:
+
+- **stdout = result data, stderr = diagnostics.** Never mix them.
+- **`OutputFormatter`** is the only API commands use for stdout output — not `OutputWriter` directly, not `Console.Write`.
+- **`ILogger`** (via `TxcLoggerFactory`) for diagnostics, progress, warnings, and errors. Always goes to stderr.
+- **`--format json|text`** inherited by every leaf command from `TxcLeafCommand`. Defaults to text in terminals, JSON when piped.
+- **Exit codes:** `0` = success, `1` = runtime error, `2` = input/validation error.
 - **Plain ASCII only.** No emojis, no unicode icons, no box-drawing characters. Status labels are words like `OK`, `FAILED`, `STUCK`.
 - **`TXC_LOG_FORMAT=json`** (or stdout redirected to a non-TTY) switches logging to structured JSON on stderr.
+- **`BannedApiAnalyzers`** enforces `Console.Write*` and `Console.ReadKey` are never used in command code (build error).
+- **`CommandConventionTests`** enforces all leaf commands inherit `TxcLeafCommand`, implement `ExecuteAsync()`, and have no stale `--json` flags.
 
 ---
 
 ## Adding a command
 
-1. Create a class with `[CliCommand]` in the appropriate project and folder.
-2. Wire it into its parent's `Children = new[] { typeof(...) }` array.
-3. If it is long-running and the MCP adapter should surface it as a task, add it to `McpToolRegistry._longRunningCommandTypes`.
+1. Create a class with `[CliCommand]` extending `TxcLeafCommand` (or `ProfiledCliCommand` for environment-facing commands).
+2. Implement `protected override ILogger Logger { get; }` and `protected override Task<int> ExecuteAsync()`.
+3. Use `OutputFormatter` for all stdout output. Use `ExitSuccess`/`ExitError`/`ExitValidationError` return values.
+4. Wire it into its parent's `Children = new[] { typeof(...) }` array.
+5. If it is long-running and the MCP adapter should surface it as a task, add it to `McpToolRegistry._longRunningCommandTypes`.
 
-DotMake and the MCP adapter discover the rest from the tree. You do not register the command in two places.
+DotMake and the MCP adapter discover the rest from the tree. You do not register the command in two places. See [`docs/output-contract.md`](docs/output-contract.md) for the full output specification.
 
 ---
 
