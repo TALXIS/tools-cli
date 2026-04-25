@@ -1,8 +1,6 @@
-using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
-using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Features.Config.Abstractions;
@@ -12,7 +10,7 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 
 /// <summary>
 /// Lists entities in the connected Dataverse environment.
-/// Usage: <c>txc environment entity list [--search &lt;term&gt;] [--include-system] [--json]</c>
+/// Usage: <c>txc environment entity list [--search &lt;term&gt;] [--include-system]</c>
 /// </summary>
 [CliCommand(
     Name = "list",
@@ -20,7 +18,7 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 )]
 public class EntityListCliCommand : ProfiledCliCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EntityListCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EntityListCliCommand));
 
     [CliOption(Name = "--search", Description = "Filter entities by logical name, schema name, or display name.", Required = false)]
     public string? Search { get; set; }
@@ -28,36 +26,13 @@ public class EntityListCliCommand : ProfiledCliCommand
     [CliOption(Name = "--include-system", Description = "Include non-customizable system entities in the output.", Required = false)]
     public bool IncludeSystem { get; set; }
 
-    [CliOption(Name = "--json", Description = "Emit the list as indented JSON instead of a text table.", Required = false)]
-    public bool Json { get; set; }
-
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
-        IReadOnlyList<EntitySummaryRecord> rows;
-        try
-        {
-            var service = TxcServices.Get<IDataverseEntityMetadataService>();
-            rows = await service.ListEntitiesAsync(Profile, Search, IncludeSystem, CancellationToken.None).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
-        {
-            _logger.LogError("{Error}", ex.Message);
-            return 1;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "environment entity list failed");
-            return 1;
-        }
+        var service = TxcServices.Get<IDataverseEntityMetadataService>();
+        var rows = await service.ListEntitiesAsync(Profile, Search, IncludeSystem, CancellationToken.None).ConfigureAwait(false);
 
-        if (Json)
-        {
-            OutputWriter.WriteLine(JsonSerializer.Serialize(rows, JsonOptions));
-            return 0;
-        }
-
-        PrintEntitiesTable(rows);
-        return 0;
+        OutputFormatter.WriteList(rows, PrintEntitiesTable);
+        return ExitSuccess;
     }
 
     private static void PrintEntitiesTable(IReadOnlyList<EntitySummaryRecord> rows)
@@ -104,8 +79,4 @@ public class EntityListCliCommand : ProfiledCliCommand
     private static string Truncate(string value, int maxWidth) =>
         value.Length > maxWidth ? value[..(maxWidth - 1)] + "." : value;
 
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
-    {
-        WriteIndented = true,
-    };
 }

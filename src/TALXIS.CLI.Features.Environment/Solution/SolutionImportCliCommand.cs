@@ -2,7 +2,6 @@ using System.ComponentModel;
 using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
-using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Features.Config.Abstractions;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Core.Contracts.Dataverse;
@@ -17,7 +16,7 @@ namespace TALXIS.CLI.Features.Environment.Solution;
 )]
 public class SolutionImportCliCommand : ProfiledCliCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(SolutionImportCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(SolutionImportCliCommand));
 
     [CliArgument(Name = "solution-zip", Description = "Path to the solution .zip to import.", Required = true)]
     public required string SolutionZip { get; set; }
@@ -41,22 +40,19 @@ public class SolutionImportCliCommand : ProfiledCliCommand
     [CliOption(Name = "--wait", Description = "Wait for completion. By default solution imports return after queueing.", Required = false)]
     public bool Wait { get; set; }
 
-    [CliOption(Name = "--json", Description = "Emit import result as JSON.", Required = false)]
-    public bool Json { get; set; }
-
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         if (string.IsNullOrWhiteSpace(SolutionZip))
         {
-            _logger.LogError("'solution-zip' argument is required.");
-            return 1;
+            Logger.LogError("'solution-zip' argument is required.");
+            return ExitValidationError;
         }
 
         string solutionPath = Path.GetFullPath(SolutionZip);
         if (!File.Exists(solutionPath))
         {
-            _logger.LogError("Solution file not found: {Path}", solutionPath);
-            return 1;
+            Logger.LogError("Solution file not found: {Path}", solutionPath);
+            return ExitValidationError;
         }
 
         var options = new SolutionImportOptions(
@@ -67,24 +63,10 @@ public class SolutionImportCliCommand : ProfiledCliCommand
             SkipLowerVersion: SkipLowerVersion,
             Async: !Wait);
 
-        SolutionImportResult result;
-        try
-        {
-            var service = TxcServices.Get<ISolutionImportService>();
-            result = await service.ImportAsync(Profile, solutionPath, options, CancellationToken.None).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException or FileNotFoundException)
-        {
-            _logger.LogError("{Error}", ex.Message);
-            return 1;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Solution import failed");
-            return 1;
-        }
+        var service = TxcServices.Get<ISolutionImportService>();
+        var result = await service.ImportAsync(Profile, solutionPath, options, CancellationToken.None).ConfigureAwait(false);
 
-        if (Json)
+        if (OutputContext.IsJson)
         {
             var payload = new
             {
@@ -101,23 +83,23 @@ public class SolutionImportCliCommand : ProfiledCliCommand
                 smartDiffExpected = result.SmartDiffExpected,
                 status = result.Status,
             };
-            OutputWriter.WriteLine(JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }));
+            OutputWriter.WriteLine(JsonSerializer.Serialize(payload, TxcOutputJsonOptions.Default));
         }
 
-        _logger.LogInformation("Import path: {Path}", FormatPath(result.Path));
-        _logger.LogInformation("Status: {Status}", result.Status);
-        _logger.LogInformation("ImportJobId: {ImportJobId}", result.ImportJobId);
+        Logger.LogInformation("Import path: {Path}", FormatPath(result.Path));
+        Logger.LogInformation("Status: {Status}", result.Status);
+        Logger.LogInformation("ImportJobId: {ImportJobId}", result.ImportJobId);
         if (result.AsyncOperationId is { } asyncId)
         {
-            _logger.LogInformation("AsyncOperationId: {AsyncOperationId}", asyncId);
+            Logger.LogInformation("AsyncOperationId: {AsyncOperationId}", asyncId);
         }
-        _logger.LogInformation("Started (UTC): {Start}", result.StartedAtUtc.ToString("O"));
+        Logger.LogInformation("Started (UTC): {Start}", result.StartedAtUtc.ToString("O"));
         if (result.CompletedAtUtc is { } completed)
         {
-            _logger.LogInformation("Completed (UTC): {End}", completed.ToString("O"));
+            Logger.LogInformation("Completed (UTC): {End}", completed.ToString("O"));
         }
 
-        return 0;
+        return ExitSuccess;
     }
 
     private static string FormatPath(SolutionImportPath path) => path switch

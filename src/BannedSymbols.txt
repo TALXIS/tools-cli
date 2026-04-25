@@ -1,0 +1,24 @@
+# Banned APIs for txc CLI command code.
+# Use OutputWriter / OutputFormatter for tool result output.
+# Use ILogger (via TxcLoggerFactory) for diagnostic messages.
+# Infrastructure projects (Logging, MCP, Core) opt out of this check.
+
+# Console.Write / Console.WriteLine — use OutputWriter instead
+M:System.Console.Write(System.String);Use OutputWriter.Write() or OutputFormatter for command output
+M:System.Console.Write(System.Boolean);Use OutputWriter.Write() or OutputFormatter for command output
+M:System.Console.Write(System.Char);Use OutputWriter.Write() or OutputFormatter for command output
+M:System.Console.Write(System.Object);Use OutputWriter.Write() or OutputFormatter for command output
+M:System.Console.Write(System.String,System.Object);Use OutputWriter.Write() or OutputFormatter for command output
+M:System.Console.Write(System.String,System.Object[]);Use OutputWriter.Write() or OutputFormatter for command output
+M:System.Console.WriteLine;Use OutputWriter.WriteLine() or OutputFormatter for command output
+M:System.Console.WriteLine(System.String);Use OutputWriter.WriteLine() or OutputFormatter for command output
+M:System.Console.WriteLine(System.Boolean);Use OutputWriter.WriteLine() or OutputFormatter for command output
+M:System.Console.WriteLine(System.Object);Use OutputWriter.WriteLine() or OutputFormatter for command output
+M:System.Console.WriteLine(System.String,System.Object);Use OutputWriter.WriteLine() or OutputFormatter for command output
+M:System.Console.WriteLine(System.String,System.Object[]);Use OutputWriter.WriteLine() or OutputFormatter for command output
+
+# Console.ReadKey / Console.ReadLine — interactive I/O forbidden in command code
+# Use IHeadlessDetector to guard interactive flows and prompt via a dedicated abstraction.
+M:System.Console.ReadKey;Use IHeadlessDetector and a prompt abstraction instead
+M:System.Console.ReadKey(System.Boolean);Use IHeadlessDetector and a prompt abstraction instead
+M:System.Console.ReadLine;Use IHeadlessDetector and a prompt abstraction instead

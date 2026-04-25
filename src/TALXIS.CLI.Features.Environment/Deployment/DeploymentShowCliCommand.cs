@@ -1,7 +1,6 @@
 using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
-using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Features.Config.Abstractions;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Core.Contracts.Dataverse;
@@ -16,7 +15,7 @@ namespace TALXIS.CLI.Features.Environment.Deployment;
 )]
 public class DeploymentShowCliCommand : ProfiledCliCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(DeploymentShowCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(DeploymentShowCliCommand));
 
     [CliOption(Name = "--package-run-id", Description = "GUID of a package deployment run (packagehistory row).", Required = false)]
     public string? PackageRunId { get; set; }
@@ -39,10 +38,7 @@ public class DeploymentShowCliCommand : ProfiledCliCommand
     [CliOption(Name = "--full", Description = "Include every correlated solution and the formatted import log (solution mode). Default output is compact.", Required = false)]
     public bool Full { get; set; }
 
-    [CliOption(Name = "--json", Description = "Emit the full structured record as indented JSON (always unbounded).", Required = false)]
-    public bool Json { get; set; }
-
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         int specified =
             (PackageRunId is not null ? 1 : 0) +
@@ -54,44 +50,30 @@ public class DeploymentShowCliCommand : ProfiledCliCommand
 
         if (specified == 0)
         {
-            _logger.LogError("Specify exactly one of --package-run-id, --solution-run-id, --async-operation-id, --package-name, --solution-name, or --latest.");
-            return 1;
+            Logger.LogError("Specify exactly one of --package-run-id, --solution-run-id, --async-operation-id, --package-name, --solution-name, or --latest.");
+            return ExitValidationError;
         }
         if (specified > 1)
         {
-            _logger.LogError("--package-run-id, --solution-run-id, --async-operation-id, --package-name, --solution-name, and --latest are mutually exclusive. Specify only one.");
-            return 1;
+            Logger.LogError("--package-run-id, --solution-run-id, --async-operation-id, --package-name, --solution-name, and --latest are mutually exclusive. Specify only one.");
+            return ExitValidationError;
         }
 
         Guid packageRunGuid = Guid.Empty, solutionRunGuid = Guid.Empty, asyncOpGuid = Guid.Empty;
-        if (PackageRunId is not null && !TryParseGuid(PackageRunId, "--package-run-id", out packageRunGuid)) return 1;
-        if (SolutionRunId is not null && !TryParseGuid(SolutionRunId, "--solution-run-id", out solutionRunGuid)) return 1;
-        if (AsyncOperationId is not null && !TryParseGuid(AsyncOperationId, "--async-operation-id", out asyncOpGuid)) return 1;
-        if (PackageName is not null && string.IsNullOrWhiteSpace(PackageName)) { _logger.LogError("--package-name must not be empty."); return 1; }
-        if (SolutionName is not null && string.IsNullOrWhiteSpace(SolutionName)) { _logger.LogError("--solution-name must not be empty."); return 1; }
+        if (PackageRunId is not null && !TryParseGuid(PackageRunId, "--package-run-id", out packageRunGuid)) return ExitValidationError;
+        if (SolutionRunId is not null && !TryParseGuid(SolutionRunId, "--solution-run-id", out solutionRunGuid)) return ExitValidationError;
+        if (AsyncOperationId is not null && !TryParseGuid(AsyncOperationId, "--async-operation-id", out asyncOpGuid)) return ExitValidationError;
+        if (PackageName is not null && string.IsNullOrWhiteSpace(PackageName)) { Logger.LogError("--package-name must not be empty."); return ExitValidationError; }
+        if (SolutionName is not null && string.IsNullOrWhiteSpace(SolutionName)) { Logger.LogError("--solution-name must not be empty."); return ExitValidationError; }
 
-        DeploymentDetailResult? result;
-        try
-        {
-            var service = TxcServices.Get<IDeploymentDetailService>();
-            var ct = CancellationToken.None;
-            result = PackageRunId is not null ? await service.GetByPackageRunIdAsync(Profile, packageRunGuid, ct).ConfigureAwait(false)
-                : SolutionRunId is not null ? await service.GetBySolutionRunIdAsync(Profile, solutionRunGuid, Full, ct).ConfigureAwait(false)
-                : AsyncOperationId is not null ? await service.GetByAsyncOperationIdAsync(Profile, asyncOpGuid, Full, ct).ConfigureAwait(false)
-                : PackageName is not null ? await service.GetLatestByPackageNameAsync(Profile, PackageName!.Trim(), ct).ConfigureAwait(false)
-                : SolutionName is not null ? await service.GetLatestBySolutionNameAsync(Profile, SolutionName!.Trim(), Full, ct).ConfigureAwait(false)
-                : await service.GetLatestAsync(Profile, Full, ct).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
-        {
-            _logger.LogError("{Error}", ex.Message);
-            return 1;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "environment deployment show failed");
-            return 1;
-        }
+        var service = TxcServices.Get<IDeploymentDetailService>();
+        var ct = CancellationToken.None;
+        var result = PackageRunId is not null ? await service.GetByPackageRunIdAsync(Profile, packageRunGuid, ct).ConfigureAwait(false)
+            : SolutionRunId is not null ? await service.GetBySolutionRunIdAsync(Profile, solutionRunGuid, Full, ct).ConfigureAwait(false)
+            : AsyncOperationId is not null ? await service.GetByAsyncOperationIdAsync(Profile, asyncOpGuid, Full, ct).ConfigureAwait(false)
+            : PackageName is not null ? await service.GetLatestByPackageNameAsync(Profile, PackageName!.Trim(), ct).ConfigureAwait(false)
+            : SolutionName is not null ? await service.GetLatestBySolutionNameAsync(Profile, SolutionName!.Trim(), Full, ct).ConfigureAwait(false)
+            : await service.GetLatestAsync(Profile, Full, ct).ConfigureAwait(false);
 
         if (result is null)
         {
@@ -101,8 +83,8 @@ public class DeploymentShowCliCommand : ProfiledCliCommand
                 : PackageName is not null ? $"No package run matched --package-name '{PackageName}'."
                 : SolutionName is not null ? $"No solution run matched --solution-name '{SolutionName}'."
                 : "No deployment runs found.";
-            _logger.LogError("{Message}", hint);
-            return 1;
+            Logger.LogError("{Message}", hint);
+            return ExitError;
         }
 
         return result.Kind switch
@@ -111,14 +93,14 @@ public class DeploymentShowCliCommand : ProfiledCliCommand
             DeploymentRunKind.Solution => RenderSolution(result),
             DeploymentRunKind.AsyncOperationInProgress => RenderAsyncInProgress(result),
             DeploymentRunKind.AsyncOperationCompleted => RenderAsyncCompleted(result),
-            _ => 1,
+            _ => ExitError,
         };
     }
 
     private bool TryParseGuid(string value, string optionName, out Guid guid)
     {
         if (Guid.TryParse(value, out guid)) return true;
-        _logger.LogError("{Option} must be a full GUID.", optionName);
+        Logger.LogError("{Option} must be a full GUID.", optionName);
         return false;
     }
 
@@ -126,7 +108,7 @@ public class DeploymentShowCliCommand : ProfiledCliCommand
     {
         var pkg = r.Package!;
         var correlated = r.CorrelatedSolutions;
-        if (Json)
+        if (OutputContext.IsJson)
         {
             OutputWriter.WriteLine(JsonSerializer.Serialize(new
             {
@@ -156,19 +138,19 @@ public class DeploymentShowCliCommand : ProfiledCliCommand
                     result = s.Result,
                 }).ToList<object>(),
                 findings = r.Findings,
-            }, JsonOptions));
-            return 0;
+            }, TxcOutputJsonOptions.Default));
+            return ExitSuccess;
         }
         PrintPackage(pkg, correlated);
         WriteFindings(r.Findings);
-        return 0;
+        return ExitSuccess;
     }
 
     private int RenderSolution(DeploymentDetailResult r)
     {
         var sol = r.Solution!;
         var parent = r.ParentPackage;
-        if (Json)
+        if (OutputContext.IsJson)
         {
             OutputWriter.WriteLine(JsonSerializer.Serialize(new
             {
@@ -188,8 +170,8 @@ public class DeploymentShowCliCommand : ProfiledCliCommand
                 parentPackage = parent is null ? null : new { id = parent.Id, name = parent.Name, status = parent.Status },
                 formattedImportLog = r.FormattedImportLog,
                 findings = r.Findings,
-            }, JsonOptions));
-            return 0;
+            }, TxcOutputJsonOptions.Default));
+            return ExitSuccess;
         }
         PrintSolution(sol, parent);
         if (Full && r.FormattedImportLog is not null)
@@ -199,13 +181,13 @@ public class DeploymentShowCliCommand : ProfiledCliCommand
             OutputWriter.WriteLine(r.FormattedImportLog);
         }
         WriteFindings(r.Findings);
-        return 0;
+        return ExitSuccess;
     }
 
     private int RenderAsyncInProgress(DeploymentDetailResult r)
     {
         var op = r.AsyncOperation!;
-        if (Json)
+        if (OutputContext.IsJson)
         {
             OutputWriter.WriteLine(JsonSerializer.Serialize(new
             {
@@ -215,7 +197,7 @@ public class DeploymentShowCliCommand : ProfiledCliCommand
                 statecode = op.StateCode,
                 statuscode = op.StatusCode,
                 completed = false,
-            }, JsonOptions));
+            }, TxcOutputJsonOptions.Default));
         }
         else
         {
@@ -223,13 +205,13 @@ public class DeploymentShowCliCommand : ProfiledCliCommand
             OutputWriter.WriteLine($"  asyncOperationId: {op.Id}");
             OutputWriter.WriteLine($"  Run again to refresh or use `txc environment deployment show --async-operation-id {op.Id}` when done.");
         }
-        return 0;
+        return ExitSuccess;
     }
 
     private int RenderAsyncCompleted(DeploymentDetailResult r)
     {
         var op = r.AsyncOperation!;
-        if (Json)
+        if (OutputContext.IsJson)
         {
             OutputWriter.WriteLine(JsonSerializer.Serialize(new
             {
@@ -241,7 +223,7 @@ public class DeploymentShowCliCommand : ProfiledCliCommand
                 completed = true,
                 succeeded = op.Succeeded,
                 message = op.Message,
-            }, JsonOptions));
+            }, TxcOutputJsonOptions.Default));
         }
         else
         {
@@ -254,7 +236,7 @@ public class DeploymentShowCliCommand : ProfiledCliCommand
             }
             OutputWriter.WriteLine("  (Solution history record not yet available -- re-run shortly to get full details.)");
         }
-        return op.Succeeded ? 0 : 1;
+        return op.Succeeded ? ExitSuccess : ExitError;
     }
 
     private static void PrintPackage(PackageHistoryRecord record, IReadOnlyList<SolutionHistoryRecord> correlated)
@@ -336,8 +318,4 @@ public class DeploymentShowCliCommand : ProfiledCliCommand
         ? $"{span.TotalSeconds:0.#}s"
         : $"{(int)span.TotalMinutes}m {span.Seconds}s";
 
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
-    {
-        WriteIndented = true,
-    };
 }

@@ -1,7 +1,6 @@
 using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
-using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Features.Config.Abstractions;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Core.Contracts.Dataverse;
@@ -16,7 +15,7 @@ namespace TALXIS.CLI.Features.Environment.Solution;
 )]
 public class SolutionUninstallCliCommand : ProfiledCliCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(SolutionUninstallCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(SolutionUninstallCliCommand));
 
     [CliArgument(Name = "name", Description = "Solution unique name.", Required = true)]
     public required string Name { get; set; }
@@ -24,52 +23,35 @@ public class SolutionUninstallCliCommand : ProfiledCliCommand
     [CliOption(Name = "--yes", Description = "Confirm destructive uninstall action.", Required = false)]
     public bool Yes { get; set; }
 
-    [CliOption(Name = "--json", Description = "Emit uninstall result as JSON.", Required = false)]
-    public bool Json { get; set; }
-
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         if (!Yes)
         {
-            _logger.LogError("Uninstall is destructive. Pass --yes to confirm.");
-            return 1;
+            Logger.LogError("Uninstall is destructive. Pass --yes to confirm.");
+            return ExitValidationError;
         }
 
         if (string.IsNullOrWhiteSpace(Name))
         {
-            _logger.LogError("'name' argument is required.");
-            return 1;
+            Logger.LogError("'name' argument is required.");
+            return ExitValidationError;
         }
 
-        SolutionUninstallOutcome outcome;
-        try
-        {
-            var service = TxcServices.Get<ISolutionUninstallService>();
-            outcome = await service.UninstallByUniqueNameAsync(Profile, Name, CancellationToken.None).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
-        {
-            _logger.LogError("{Error}", ex.Message);
-            return 1;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "environment solution uninstall failed");
-            return 1;
-        }
+        var service = TxcServices.Get<ISolutionUninstallService>();
+        var outcome = await service.UninstallByUniqueNameAsync(Profile, Name, CancellationToken.None).ConfigureAwait(false);
 
         return RenderSingle(outcome);
     }
 
     private int RenderSingle(SolutionUninstallOutcome outcome)
     {
-        if (Json)
+        if (OutputContext.IsJson)
         {
             OutputWriter.WriteLine(JsonSerializer.Serialize(new
             {
                 mode = "solution",
                 outcome,
-            }, JsonOptions));
+            }, TxcOutputJsonOptions.Default));
         }
         else
         {
@@ -82,11 +64,6 @@ public class SolutionUninstallCliCommand : ProfiledCliCommand
             OutputWriter.WriteLine($"  message: {outcome.Message}");
         }
 
-        return outcome.Status == SolutionUninstallStatus.Success ? 0 : 1;
+        return outcome.Status == SolutionUninstallStatus.Success ? ExitSuccess : ExitError;
     }
-
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
-    {
-        WriteIndented = true,
-    };
 }

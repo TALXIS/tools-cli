@@ -7,7 +7,13 @@
     <RootNamespace>TALXIS.CLI.Core</RootNamespace>
   </PropertyGroup>
 
+  <!-- Infrastructure project: legitimate Console usage in OutputWriter, HeadlessDetector, etc. -->
   <ItemGroup>
+    <AdditionalFiles Remove="$(MSBuildThisFileDirectory)BannedSymbols.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DotMake.CommandLine" Version="2.6.7" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.5" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.5" />
     <PackageReference Include="Microsoft.Identity.Client" Version="4.83.3" />

@@ -2,7 +2,6 @@ using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
-using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Features.Config.Abstractions;
@@ -19,7 +18,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Record;
 )]
 public class EnvDataRecordGetCliCommand : ProfiledCliCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EnvDataRecordGetCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EnvDataRecordGetCliCommand));
 
     [CliOption(Name = "--entity", Description = "Entity logical name (e.g. account).", Required = true)]
     public string Entity { get; set; } = null!;
@@ -33,43 +32,18 @@ public class EnvDataRecordGetCliCommand : ProfiledCliCommand
     [CliOption(Name = "--include-annotations", Description = "Include formatted values / OData annotations.", Required = false)]
     public bool IncludeAnnotations { get; set; }
 
-    [CliOption(Name = "--json", Description = "Emit the record as indented JSON.", Required = false)]
-    public bool Json { get; set; }
-
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
-        JsonElement result;
-        try
-        {
-            var columns = string.IsNullOrWhiteSpace(Columns)
-                ? null
-                : Columns.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var columns = string.IsNullOrWhiteSpace(Columns)
+            ? null
+            : Columns.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-            var service = TxcServices.Get<IDataverseRecordService>();
-            result = await service.GetAsync(Profile, Entity, RecordId, columns, IncludeAnnotations, CancellationToken.None)
-                .ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
-        {
-            _logger.LogError("{Error}", ex.Message);
-            return 1;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "record get failed");
-            return 1;
-        }
+        var service = TxcServices.Get<IDataverseRecordService>();
+        var result = await service.GetAsync(Profile, Entity, RecordId, columns, IncludeAnnotations, CancellationToken.None)
+            .ConfigureAwait(false);
 
-        if (Json)
-        {
-            OutputWriter.WriteLine(JsonSerializer.Serialize(result, JsonOptions));
-        }
-        else
-        {
-            PrintKeyValuePairs(result);
-        }
-
-        return 0;
+        OutputFormatter.WriteData(result, PrintKeyValuePairs);
+        return ExitSuccess;
     }
 
     private static void PrintKeyValuePairs(JsonElement element)
@@ -96,5 +70,4 @@ public class EnvDataRecordGetCliCommand : ProfiledCliCommand
         _ => value.GetRawText(),
     };
 
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };
 }

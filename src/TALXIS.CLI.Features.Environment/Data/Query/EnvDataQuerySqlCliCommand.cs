@@ -2,7 +2,6 @@ using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
-using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Features.Config.Abstractions;
@@ -16,7 +15,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Query;
 /// </summary>
 /// <example>
 ///   txc environment data query sql "SELECT name, accountnumber FROM account WHERE statecode = 0"
-///   txc env data query sql "SELECT TOP 10 fullname FROM contact" --json
+///   txc env data query sql "SELECT TOP 10 fullname FROM contact" --format json
 /// </example>
 [CliCommand(
     Name = "sql",
@@ -24,7 +23,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Query;
 )]
 public class EnvDataQuerySqlCliCommand : ProfiledCliCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EnvDataQuerySqlCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EnvDataQuerySqlCliCommand));
 
     [CliArgument(Description = "The SQL query to execute (SELECT only).")]
     public string Sql { get; set; } = string.Empty;
@@ -35,52 +34,29 @@ public class EnvDataQuerySqlCliCommand : ProfiledCliCommand
     [CliOption(Name = "--include-annotations", Description = "Include OData annotations in the output.", Required = false)]
     public bool IncludeAnnotations { get; set; }
 
-    [CliOption(Name = "--json", Description = "Emit the result as indented JSON instead of a text table.", Required = false)]
-    public bool Json { get; set; }
-
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
-        DataverseQueryResult result;
-        try
-        {
-            var service = TxcServices.Get<IDataverseQueryService>();
-            result = await service.QuerySqlAsync(Profile, Sql, Top, IncludeAnnotations, CancellationToken.None)
-                .ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
-        {
-            _logger.LogError("{Error}", ex.Message);
-            return 1;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "environment data query sql failed");
-            return 1;
-        }
+        var service = TxcServices.Get<IDataverseQueryService>();
+        var result = await service.QuerySqlAsync(Profile, Sql, Top, IncludeAnnotations, CancellationToken.None)
+            .ConfigureAwait(false);
 
-        OutputQueryResult(result, Json);
-        return 0;
+        OutputQueryResult(result);
+        return ExitSuccess;
     }
 
     /// <summary>
     /// Outputs query results as JSON or as a dynamic text table.
     /// Shared across all query leaf commands.
     /// </summary>
-    internal static void OutputQueryResult(DataverseQueryResult result, bool json)
+    internal static void OutputQueryResult(DataverseQueryResult result)
     {
-        if (json)
-        {
-            OutputWriter.WriteLine(JsonSerializer.Serialize(result.Records, JsonOptions));
-            return;
-        }
-
-        if (result.Records.Count == 0)
+        if (result.Records.Count == 0 && !OutputContext.IsJson)
         {
             OutputWriter.WriteLine("No records returned.");
             return;
         }
 
-        PrintDynamicTable(result.Records);
+        OutputFormatter.WriteDynamicTable(result.Records, PrintDynamicTable);
     }
 
     /// <summary>
@@ -154,8 +130,4 @@ public class EnvDataQuerySqlCliCommand : ProfiledCliCommand
         };
     }
 
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
-    {
-        WriteIndented = true,
-    };
 }

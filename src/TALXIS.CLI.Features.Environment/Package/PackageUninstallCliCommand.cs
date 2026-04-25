@@ -1,7 +1,6 @@
 using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
-using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Features.Config.Abstractions;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Core.Contracts.Dataverse;
@@ -16,7 +15,7 @@ namespace TALXIS.CLI.Features.Environment.Package;
 )]
 public class PackageUninstallCliCommand : ProfiledCliCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(PackageUninstallCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(PackageUninstallCliCommand));
 
     [CliArgument(Name = "package", Description = "NuGet package name, local .pdpkg.zip/.pdpkg/.zip archive path, or extracted package folder path.", Required = true)]
     public required string Package { get; set; }
@@ -30,51 +29,34 @@ public class PackageUninstallCliCommand : ProfiledCliCommand
     [CliOption(Name = "--yes", Description = "Confirm destructive uninstall actions.", Required = false)]
     public bool Yes { get; set; }
 
-    [CliOption(Name = "--json", Description = "Emit uninstall result as JSON.", Required = false)]
-    public bool Json { get; set; }
-
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         if (!Yes)
         {
-            _logger.LogError("Uninstall is destructive. Pass --yes to confirm.");
-            return 1;
+            Logger.LogError("Uninstall is destructive. Pass --yes to confirm.");
+            return ExitValidationError;
         }
 
         if (string.IsNullOrWhiteSpace(Package))
         {
-            _logger.LogError("'package' argument is required.");
-            return 1;
+            Logger.LogError("'package' argument is required.");
+            return ExitValidationError;
         }
 
-        PackageUninstallResult result;
-        try
-        {
-            var service = TxcServices.Get<IPackageUninstallService>();
-            result = await service.UninstallAsync(new PackageUninstallRequest(
-                ProfileName: Profile,
-                PackageSource: Package,
-                PackageVersion: PackageVersion,
-                OutputDirectory: OutputDirectory), CancellationToken.None).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
-        {
-            _logger.LogError("{Error}", ex.Message);
-            return 1;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "environment package uninstall failed");
-            return 1;
-        }
+        var service = TxcServices.Get<IPackageUninstallService>();
+        var result = await service.UninstallAsync(new PackageUninstallRequest(
+            ProfileName: Profile,
+            PackageSource: Package,
+            PackageVersion: PackageVersion,
+            OutputDirectory: OutputDirectory), CancellationToken.None).ConfigureAwait(false);
 
         if (result.UninstallOrder.Count == 0)
         {
-            _logger.LogError("No uninstallable solutions were resolved from package '{Source}'.", Package);
-            return 1;
+            Logger.LogError("No uninstallable solutions were resolved from package '{Source}'.", Package);
+            return ExitError;
         }
 
-        if (Json)
+        if (OutputContext.IsJson)
         {
             OutputWriter.WriteLine(JsonSerializer.Serialize(new
             {
@@ -84,7 +66,7 @@ public class PackageUninstallCliCommand : ProfiledCliCommand
                 solutionCount = result.UninstallOrder.Count,
                 uninstallOrder = result.UninstallOrder,
                 outcomes = result.Outcomes,
-            }, JsonOptions));
+            }, TxcOutputJsonOptions.Default));
         }
         else
         {
@@ -102,13 +84,8 @@ public class PackageUninstallCliCommand : ProfiledCliCommand
             }
         }
 
-        return result.Outcomes.All(o => o.Status == SolutionUninstallStatus.Success) ? 0 : 1;
+        return result.Outcomes.All(o => o.Status == SolutionUninstallStatus.Success) ? ExitSuccess : ExitError;
     }
-
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
-    {
-        WriteIndented = true,
-    };
 
     /// <summary>
     /// Pure helper kept for test coverage: derives the reverse uninstall order from an

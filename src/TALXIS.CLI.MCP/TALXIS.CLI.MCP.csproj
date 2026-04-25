@@ -23,6 +23,11 @@
     <Copyright>© 2025 NETWORG Corporation - MIT License</Copyright>
   </PropertyGroup>
 
+  <!-- Infrastructure project: legitimate Console usage in MCP server hosting -->
+  <ItemGroup>
+    <AdditionalFiles Remove="$(MSBuildThisFileDirectory)BannedSymbols.txt" />
+  </ItemGroup>
+
   <ItemGroup>
     <InternalsVisibleTo Include="TALXIS.CLI.Tests" />
   </ItemGroup>

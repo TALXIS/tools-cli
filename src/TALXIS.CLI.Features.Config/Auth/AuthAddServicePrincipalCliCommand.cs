@@ -160,6 +160,10 @@ public class AuthAddServicePrincipalCliCommand
         return null;
     }
 
+    // Interactive masked-password prompt — legitimate Console usage guarded by
+    // the headless/redirect check in ResolveClientSecret(). Suppressed from
+    // BannedApiAnalyzers because this is TTY I/O, not command output.
+#pragma warning disable RS0030
     private static string PromptMaskedSecret()
     {
         Console.Write("Client secret: ");
@@ -184,4 +188,5 @@ public class AuthAddServicePrincipalCliCommand
         }
         return buffer.ToString();
     }
+#pragma warning restore RS0030
 }

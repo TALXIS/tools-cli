@@ -11,5 +11,17 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+    <!-- Treat banned API usage (RS0030) as a build error, not just a warning -->
+    <WarningsAsErrors>$(WarningsAsErrors);RS0030</WarningsAsErrors>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Banned API analyzer: prevents Console.Write*/ReadKey/ReadLine in command code.
+         Infrastructure projects (Logging, MCP, Core) opt out via their own .csproj. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="3.3.4">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)BannedSymbols.txt" />
+  </ItemGroup>
 </Project>
