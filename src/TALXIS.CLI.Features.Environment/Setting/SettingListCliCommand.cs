@@ -8,12 +8,13 @@ using TALXIS.CLI.Logging;
 namespace TALXIS.CLI.Features.Environment.Setting;
 
 /// <summary>
-/// <c>txc environment setting list</c> — lists environment management
-/// settings from the Power Platform control plane API.
+/// <c>txc environment setting list</c> — lists environment settings from
+/// all backends (control plane, Organization table, solution settings,
+/// copilot governance).
 /// </summary>
 [CliCommand(
     Name = "list",
-    Description = "List environment management settings (control plane)."
+    Description = "List environment settings."
 )]
 public class SettingListCliCommand : ProfiledCliCommand
 {
@@ -24,8 +25,8 @@ public class SettingListCliCommand : ProfiledCliCommand
 
     protected override async Task<int> ExecuteAsync()
     {
-        var service = TxcServices.Get<IEnvironmentManagementSettingsService>();
-        IReadOnlyList<EnvironmentManagementSetting> settings = await service.ListAsync(Profile, selectFilter: null, CancellationToken.None)
+        var service = TxcServices.Get<IEnvironmentSettingsService>();
+        IReadOnlyList<EnvironmentSetting> settings = await service.ListAsync(Profile, CancellationToken.None)
             .ConfigureAwait(false);
 
         if (!string.IsNullOrWhiteSpace(Filter))
@@ -41,11 +42,11 @@ public class SettingListCliCommand : ProfiledCliCommand
 
     // Text-renderer callback invoked by OutputFormatter.WriteList — OutputWriter usage is intentional.
 #pragma warning disable TXC003
-    private static void PrintSettingsTable(IReadOnlyList<EnvironmentManagementSetting> settings)
+    private static void PrintSettingsTable(IReadOnlyList<EnvironmentSetting> settings)
     {
         if (settings.Count == 0)
         {
-            OutputWriter.WriteLine("No environment management settings found.");
+            OutputWriter.WriteLine("No environment settings found.");
             return;
         }
 
