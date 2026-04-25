@@ -971,13 +971,28 @@ public class CrmServiceClient : ServiceClient, IDisposable
         return dict;
     }
 
+    /// <summary>
+    /// Populates an <see cref="Entity"/> from <see cref="CrmDataTypeWrapper"/> values.
+    /// Skips <c>File</c>, <c>Image</c> and <c>Key</c> types — the original
+    /// <c>AddValueToPropertyList</c> ignores these (they are handled through
+    /// separate API workflows like <c>InitFileUpload</c>/<c>UploadFileBlock</c>).
+    /// </summary>
     private static void PopulateEntityFromDataTypeWrappers(Entity entity, Dictionary<string, CrmDataTypeWrapper> valueArray)
     {
         if (valueArray == null) return;
 
         foreach (var kvp in valueArray)
         {
-            entity[kvp.Key] = ConvertCrmDataTypeValue(kvp.Value);
+            // File, Image and Key are skipped by the original connector.
+            // CMT handles file uploads separately via UpdateFileColumns.
+            if (kvp.Value.Type is CrmFieldType.File or CrmFieldType.Image or CrmFieldType.Key)
+                continue;
+
+            var converted = ConvertCrmDataTypeValue(kvp.Value);
+            if (converted != null)
+            {
+                entity[kvp.Key] = converted;
+            }
         }
     }
 
@@ -993,13 +1008,15 @@ public class CrmServiceClient : ServiceClient, IDisposable
             CrmFieldType.CrmFloat => Convert.ToDouble(wrapper.Value),
             CrmFieldType.CrmMoney => new Money(Convert.ToDecimal(wrapper.Value)),
             CrmFieldType.CrmNumber => Convert.ToInt32(wrapper.Value),
-            CrmFieldType.Key or CrmFieldType.UniqueIdentifier => wrapper.Value is Guid g ? g : Guid.Parse(wrapper.Value.ToString()!),
+            CrmFieldType.UniqueIdentifier => wrapper.Value is Guid g ? g : Guid.Parse(wrapper.Value.ToString()!),
             CrmFieldType.Picklist => new OptionSetValue(Convert.ToInt32(wrapper.Value)),
             CrmFieldType.String => wrapper.Value.ToString(),
             CrmFieldType.Customer or CrmFieldType.Lookup => wrapper.Value is EntityReference er
-            ? er
-            : new EntityReference(wrapper.ReferencedEntity ?? string.Empty,
-                wrapper.Value is Guid g2 ? g2 : Guid.Parse(wrapper.Value.ToString()!)),
+                ? er
+                : new EntityReference(wrapper.ReferencedEntity ?? string.Empty,
+                    wrapper.Value is Guid g2 ? g2 : Guid.Parse(wrapper.Value.ToString()!)),
+            // Raw: pass through as-is — CMT already creates the correct SDK type
+            // (OptionSetValue, OptionSetValueCollection, EntityCollection, byte[], etc.)
             _ => wrapper.Value
         };
     }
