@@ -70,6 +70,10 @@ public abstract class TxcLeafCommand
 
         try
         {
+            var guardResult = await PreExecuteAsync().ConfigureAwait(false);
+            if (guardResult.HasValue)
+                return guardResult.Value;
+
             return await ExecuteAsync().ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is Abstractions.ConfigurationResolutionException)
@@ -93,6 +97,14 @@ public abstract class TxcLeafCommand
             return ExitError;
         }
     }
+
+    /// <summary>
+    /// Pre-execution hook called before <see cref="ExecuteAsync"/>. Override
+    /// in derived base classes to add cross-cutting guards (e.g. production
+    /// environment protection). Return <c>null</c> to proceed, or an exit
+    /// code to short-circuit.
+    /// </summary>
+    protected virtual Task<int?> PreExecuteAsync() => Task.FromResult<int?>(null);
 
     /// <summary>
     /// Implement command logic here. Return <see cref="ExitSuccess"/>,

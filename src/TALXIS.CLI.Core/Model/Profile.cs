@@ -1,3 +1,6 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 namespace TALXIS.CLI.Core.Model;
 
 /// <summary>
@@ -10,4 +13,14 @@ public sealed class Profile
     public string ConnectionRef { get; set; } = string.Empty;
     public string CredentialRef { get; set; } = string.Empty;
     public string? Description { get; set; }
+
+    /// <summary>When the profile was first persisted.</summary>
+    public DateTimeOffset? CreatedAt { get; set; }
+
+    /// <summary>When the profile was last updated.</summary>
+    public DateTimeOffset? UpdatedAt { get; set; }
+
+    /// <summary>Captured but unprocessed fields (forward-compat).</summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? ExtraFields { get; set; }
 }

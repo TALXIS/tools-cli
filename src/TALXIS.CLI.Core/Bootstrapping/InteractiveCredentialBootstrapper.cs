@@ -56,7 +56,8 @@ public static class InteractiveCredentialBootstrapper
                 : explicitAlias!.Trim();
         }
 
-        var credential = existing ?? new Credential();
+        var now = DateTimeOffset.UtcNow;
+        var credential = existing ?? new Credential { CreatedAt = now };
         credential.Id = alias;
         credential.Kind = CredentialKind.InteractiveBrowser;
         credential.TenantId = result.TenantId;
@@ -69,6 +70,7 @@ public static class InteractiveCredentialBootstrapper
             : result.AccountId;
         credential.InteractiveUpn = result.Upn;
         credential.Description = $"Interactive sign-in ({result.Upn})";
+        credential.UpdatedAt = now;
 
         await store.UpsertAsync(credential, ct).ConfigureAwait(false);
         return new InteractiveCredentialResult(credential, result.Upn, result.TenantId);

@@ -89,6 +89,27 @@ public sealed record VaultOptions
     }
 
     /// <summary>
+    /// Options for the MSAL confidential-client (SPN) token cache
+    /// (<c>txc.msal.spn-tokens.v1.dat</c>). Separate from the user token cache
+    /// so that app-token lifetimes and blast radius are independent, matching
+    /// the PAC CLI layout (<c>tokencache_spn_msalv3.dat</c>).
+    /// </summary>
+    public static VaultOptions MsalSpnTokenCache(IEnvironmentReader env)
+    {
+        ArgumentNullException.ThrowIfNull(env);
+        var (plaintext, reason) = ResolvePlaintextOptIn(env);
+        return new VaultOptions
+        {
+            CacheFileName = "txc.msal.spn-tokens.v1.dat",
+            KeychainAccount = "msal-spn-tokens",
+            LinuxKeyringLabel = "TALXIS CLI MSAL SPN token cache",
+            LinuxCacheKind = "TXC_Msal_Spn_Token_Cache",
+            UsePlaintextFallback = plaintext,
+            PlaintextReason = reason,
+        };
+    }
+
+    /// <summary>
     /// Env var names honored to pick plaintext / file-based storage. Intentionally
     /// public so the (future) `--plaintext-fallback` flag can set the same value.
     /// </summary>

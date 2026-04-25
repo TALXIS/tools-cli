@@ -87,11 +87,13 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
             request.Provider,
             request.EnvironmentUrl,
             cloud,
-            organizationId: null,
+            organizationId: names.OrganizationId?.ToString(),
             environmentId: names.EnvironmentId?.ToString(),
             tenantId: request.TenantId ?? acquired.TenantId,
             description: request.Description,
-            ct).ConfigureAwait(false);
+            ct,
+            displayName: names.DisplayName,
+            environmentType: names.EnvironmentType).ConfigureAwait(false);
 
         if (upsert.Error is not null)
             return new ProfileBootstrapResult(names.ProfileName, acquired.Credential, null, acquired.Upn, upsert.Error);
@@ -99,7 +101,13 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
         return new ProfileBootstrapResult(names.ProfileName, acquired.Credential, upsert.Connection, acquired.Upn, null);
     }
 
-    private sealed record BindingNames(string ProfileName, string ConnectionName, Guid? EnvironmentId = null);
+    private sealed record BindingNames(
+        string ProfileName,
+        string ConnectionName,
+        Guid? EnvironmentId = null,
+        string? DisplayName = null,
+        EnvironmentType? EnvironmentType = null,
+        Guid? OrganizationId = null);
 
     private async Task<BindingNames?> ResolveBindingNamesAsync(
         ProfileBootstrapRequest request,
@@ -122,6 +130,9 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
 
         string? preferredBase = null;
         Guid? resolvedEnvironmentId = null;
+        string? resolvedDisplayName = null;
+        EnvironmentType? resolvedEnvironmentType = null;
+        Guid? resolvedOrganizationId = null;
         var ephemeralConnection = new Connection
         {
             Id = "(ephemeral)",
@@ -138,8 +149,14 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
                 .ConfigureAwait(false);
             if (environment is not null)
             {
-                preferredBase = ProviderUrlResolver.DeriveDefaultName(environment.DisplayName, request.EnvironmentUrl);
+                // Include tenant domain in the slug so multi-customer users can
+                // distinguish environments across tenants at a glance.
+                var tenantDomain = CredentialAliasResolver.ExtractTenantShortName(acquired.Upn);
+                preferredBase = ProviderUrlResolver.DeriveDefaultName(environment.DisplayName, request.EnvironmentUrl, tenantDomain);
                 resolvedEnvironmentId = environment.EnvironmentId;
+                resolvedDisplayName = environment.DisplayName;
+                resolvedEnvironmentType = environment.EnvironmentType;
+                resolvedOrganizationId = environment.OrganizationId;
             }
         }
         catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException)
@@ -150,7 +167,11 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
                 request.EnvironmentUrl);
         }
 
-        preferredBase ??= ProviderUrlResolver.DeriveDefaultName(request.EnvironmentUrl);
+        if (string.IsNullOrEmpty(preferredBase))
+        {
+            var tenantDomain = CredentialAliasResolver.ExtractTenantShortName(acquired.Upn);
+            preferredBase = ProviderUrlResolver.DeriveDefaultName(null, request.EnvironmentUrl, tenantDomain);
+        }
         if (string.IsNullOrEmpty(preferredBase))
             return null;
 
@@ -162,7 +183,8 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
                     await _profiles.GetAsync(candidate, existsCt).ConfigureAwait(false) is not null,
                 ct).ConfigureAwait(false);
 
-            return new BindingNames(profileName, existingConnection.Id, resolvedEnvironmentId);
+            return new BindingNames(profileName, existingConnection.Id, resolvedEnvironmentId,
+                resolvedDisplayName, resolvedEnvironmentType, resolvedOrganizationId);
         }
 
         // Keep profile + connection names aligned so the mental model is
@@ -174,7 +196,8 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
                 || await _connectionStore.GetAsync(candidate, existsCt).ConfigureAwait(false) is not null,
             ct).ConfigureAwait(false);
 
-        return new BindingNames(sharedName, sharedName, resolvedEnvironmentId);
+        return new BindingNames(sharedName, sharedName, resolvedEnvironmentId,
+            resolvedDisplayName, resolvedEnvironmentType, resolvedOrganizationId);
     }
 
     private async Task<Connection?> FindExistingConnectionAsync(

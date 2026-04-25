@@ -222,12 +222,17 @@ public class ProfileCreateCliCommand : TxcLeafCommand
         var profileStore = TxcServices.Get<IProfileStore>();
         var globalConfig = TxcServices.Get<IGlobalConfigStore>();
 
+        var existingProfile = await profileStore.GetAsync(name, CancellationToken.None).ConfigureAwait(false);
+        var now = DateTimeOffset.UtcNow;
+
         var profile = new ProfileModel
         {
             Id = name,
             ConnectionRef = connectionId,
             CredentialRef = credentialId,
-            Description = Description,
+            Description = Description ?? (upn is not null ? $"{upn} → {connectionId}" : null),
+            CreatedAt = existingProfile?.CreatedAt ?? now,
+            UpdatedAt = now,
         };
 
         await profileStore.UpsertAsync(profile, CancellationToken.None).ConfigureAwait(false);
