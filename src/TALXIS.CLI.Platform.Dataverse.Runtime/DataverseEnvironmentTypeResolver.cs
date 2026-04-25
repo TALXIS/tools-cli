@@ -58,7 +58,10 @@ public sealed class DataverseEnvironmentTypeResolver : IEnvironmentTypeResolver
                 newType?.ToString() ?? "(null)",
                 environment.DisplayName);
 
-            connection.EnvironmentType = newType;
+            // Only overwrite EnvironmentType when the API returned a value;
+            // a null SKU should not clear a previously-set type.
+            if (newType is not null)
+                connection.EnvironmentType = newType;
             connection.DisplayName = environment.DisplayName;
             if (environment.OrganizationId is { } orgId)
                 connection.OrganizationId = orgId.ToString();

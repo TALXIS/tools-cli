@@ -82,6 +82,20 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
                 $"Cannot derive a profile name from environment '{request.EnvironmentUrl}'. Pass --name explicitly.");
         }
 
+        // Now that the environment URL is confirmed, capture the audience
+        // and scopes on the credential so token acquisition can use them
+        // and diagnostics can report what the credential was consented for.
+        if (Uri.TryCreate(request.EnvironmentUrl, UriKind.Absolute, out var envUriForScopes))
+        {
+            var authority = envUriForScopes.GetLeftPart(UriPartial.Authority);
+            if (string.IsNullOrEmpty(acquired.Credential.Audience))
+            {
+                acquired.Credential.Audience = authority;
+                acquired.Credential.Scopes = new[] { authority + "//.default" };
+                await _credentials.UpsertAsync(acquired.Credential, ct).ConfigureAwait(false);
+            }
+        }
+
         var upsert = await _connectionUpserts.ValidateAndUpsertAsync(
             names.ConnectionName,
             request.Provider,
