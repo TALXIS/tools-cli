@@ -1,3 +1,4 @@
+using System.Configuration;
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.Loader;
@@ -114,12 +115,10 @@ public sealed class CmtExportRunner
             TryWireCmtConsoleLogging(handler, request.Verbose);
 
             // 5. Enable file column export if requested.
-            // The handler reads this from AppSettings, but we set the internal
-            // field directly since we don't control AppSettings in the subprocess.
-            if (request.ExportFiles)
-            {
-                TrySetExportFilesEnabled(handler);
-            }
+            // The handler reads _isExportFilesEnabled from AppSettings["ExportFiles"]
+            // inside ExportData(), overwriting any value set via reflection. We must
+            // set the AppSetting so the handler picks up the correct value.
+            ConfigurationManager.AppSettings["ExportFiles"] = request.ExportFiles ? "true" : "false";
 
             // 6. Export data (synchronous — same as PAC CLI pattern).
             _logger.LogInformation("Starting data export...");
@@ -164,12 +163,6 @@ public sealed class CmtExportRunner
         }
     }
 
-    /// <summary>
-    /// Attempts to enable the ExportFiles feature on the handler by setting the
-    /// internal <c>_isExportFilesEnabled</c> field via reflection. The handler
-    /// normally reads this from AppSettings but we don't control that in the
-    /// subprocess environment.
-    /// </summary>
     /// <summary>
     /// Loads and instantiates <c>ExportCrmDataHandler</c> from the
     /// <c>Microsoft.Xrm.Tooling.Dmt.ExportProcessor</c> assembly via
@@ -231,28 +224,6 @@ public sealed class CmtExportRunner
         catch (Exception ex)
         {
             _logger.LogDebug("Could not wire progress events: {Error}", ex.Message);
-        }
-    }
-
-    private void TrySetExportFilesEnabled(object handler)
-    {
-        try
-        {
-            var field = handler.GetType().GetField("_isExportFilesEnabled",
-                BindingFlags.NonPublic | BindingFlags.Instance);
-            if (field != null)
-            {
-                field.SetValue(handler, true);
-                _logger.LogInformation("File column export enabled.");
-            }
-            else
-            {
-                _logger.LogWarning("Could not enable file column export — internal field not found.");
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning("Could not enable file column export: {Error}", ex.Message);
         }
     }
 

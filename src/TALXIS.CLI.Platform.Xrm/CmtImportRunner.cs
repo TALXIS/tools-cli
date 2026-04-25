@@ -1,3 +1,4 @@
+using System.Configuration;
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Reflection;
@@ -172,11 +173,18 @@ public sealed class CmtImportRunner
                 ?? throw new InvalidOperationException("ImportCrmDataHandler.CrmConnection property not found.");
             crmConnProp.SetValue(handler, crmServiceClient);
 
-            // Apply import tuning options
+            // Apply import tuning options via handler properties.
             handler.EnabledBatchMode = request.BatchMode;
             handler.RequestedBatchSize = request.BatchSize;
             handler.OverrideDataImportSafetyChecks = request.OverrideSafetyChecks;
             handler.PrefetchRecordLimitSize = request.PrefetchLimit;
+
+            // Also set via AppSettings — the handler's internal methods may
+            // re-read these from AppSettingsHelper, overwriting the property values.
+            ConfigurationManager.AppSettings["DMT.EnableBatchMode"] = request.BatchMode ? "true" : "false";
+            ConfigurationManager.AppSettings["DMT.RequestedBatchSize"] = request.BatchSize.ToString();
+            ConfigurationManager.AppSettings["DMT.OverrideSafetyChecks"] = request.OverrideSafetyChecks ? "true" : "false";
+            ConfigurationManager.AppSettings["DMT.PrefetchRecordLimitCount"] = request.PrefetchLimit.ToString();
 
             // 4. Wire progress event handlers.
             handler.AddNewProgressItem += OnAddNewProgressItem;
