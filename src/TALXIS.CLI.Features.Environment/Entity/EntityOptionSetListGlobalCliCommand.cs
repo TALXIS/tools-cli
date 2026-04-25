@@ -1,0 +1,105 @@
+using System.Text.Json;
+using DotMake.CommandLine;
+using Microsoft.Extensions.Logging;
+using TALXIS.CLI.Core;
+using TALXIS.CLI.Core.Abstractions;
+using TALXIS.CLI.Core.Contracts.Dataverse;
+using TALXIS.CLI.Core.DependencyInjection;
+using TALXIS.CLI.Features.Config.Abstractions;
+using TALXIS.CLI.Logging;
+
+namespace TALXIS.CLI.Features.Environment.Entity;
+
+/// <summary>
+/// Lists all global option sets in the environment.
+/// Usage: <c>txc environment entity optionset list-global [--json]</c>
+/// </summary>
+[CliCommand(
+    Name = "list-global",
+    Description = "List all global option sets in the environment."
+)]
+public class EntityOptionSetListGlobalCliCommand : ProfiledCliCommand
+{
+    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EntityOptionSetListGlobalCliCommand));
+
+    [CliOption(Name = "--json", Description = "Emit the list as indented JSON instead of a text table.", Required = false)]
+    public bool Json { get; set; }
+
+    public async Task<int> RunAsync()
+    {
+        IReadOnlyList<GlobalOptionSetSummaryRecord> rows;
+        try
+        {
+            var service = TxcServices.Get<IDataverseOptionSetService>();
+            rows = await service.ListGlobalOptionSetsAsync(Profile, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
+        {
+            _logger.LogError("{Error}", ex.Message);
+            return 1;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "environment entity optionset list-global failed");
+            return 1;
+        }
+
+        if (Json)
+        {
+            OutputWriter.WriteLine(JsonSerializer.Serialize(rows, JsonOptions));
+            return 0;
+        }
+
+        PrintOptionSetsTable(rows);
+        return 0;
+    }
+
+    private static void PrintOptionSetsTable(IReadOnlyList<GlobalOptionSetSummaryRecord> rows)
+    {
+        if (rows.Count == 0)
+        {
+            OutputWriter.WriteLine("No global option sets found.");
+            return;
+        }
+
+        int nameWidth = Math.Clamp(rows.Max(r => r.Name.Length), 4, 60);
+        int displayWidth = Math.Clamp(rows.Max(r => (r.DisplayName ?? "").Length), 12, 48);
+        int typeWidth = Math.Clamp(rows.Max(r => r.OptionSetType.Length), 4, 16);
+        int countWidth = 7; // "Options"
+        int customWidth = 6; // "Custom"
+
+        string header =
+            $"{"Name".PadRight(nameWidth)} | " +
+            $"{"Display Name".PadRight(displayWidth)} | " +
+            $"{"Type".PadRight(typeWidth)} | " +
+            $"{"Options".PadRight(countWidth)} | " +
+            $"{"Custom".PadRight(customWidth)}";
+        OutputWriter.WriteLine(header);
+        OutputWriter.WriteLine(new string('-', header.Length));
+
+        foreach (var r in rows)
+        {
+            string name = Truncate(r.Name, nameWidth);
+            string display = Truncate(r.DisplayName ?? "", displayWidth);
+            string type = Truncate(r.OptionSetType, typeWidth);
+            string count = r.OptionCount.ToString();
+            string custom = r.IsCustomOptionSet ? "true" : "false";
+
+            OutputWriter.WriteLine(
+                $"{name.PadRight(nameWidth)} | " +
+                $"{display.PadRight(displayWidth)} | " +
+                $"{type.PadRight(typeWidth)} | " +
+                $"{count.PadRight(countWidth)} | " +
+                $"{custom.PadRight(customWidth)}");
+        }
+    }
+
+    /// <summary>Truncate a string to fit the column width, appending a dot if trimmed.</summary>
+    private static string Truncate(string value, int maxWidth) =>
+        value.Length > maxWidth ? value[..(maxWidth - 1)] + "." : value;
+
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        WriteIndented = true,
+    };
+}

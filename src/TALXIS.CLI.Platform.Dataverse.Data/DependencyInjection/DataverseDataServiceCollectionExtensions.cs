@@ -17,6 +17,7 @@ public static class DataverseDataServiceCollectionExtensions
         services.AddSingleton<IDataverseEntityMetadataService, DataverseEntityMetadataService>();
         services.AddSingleton<IDataverseFileService, DataverseFileService>();
         services.AddSingleton<IDataverseRelationshipService, DataverseRelationshipService>();
+        services.AddSingleton<IDataverseOptionSetService, DataverseOptionSetService>();
         return services;
     }
 }
