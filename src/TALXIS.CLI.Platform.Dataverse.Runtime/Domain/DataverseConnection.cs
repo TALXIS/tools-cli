@@ -51,7 +51,9 @@ public sealed class DataverseConnection : IDisposable
             throw new InvalidOperationException("No token provider available. Direct Web API calls require a token-provider connection.");
 
         var token = await TokenProvider(OrgUri.ToString()).ConfigureAwait(false);
+#pragma warning disable RS0030 // HttpClient created intentionally — short-lived, per-request, no IHttpClientFactory available in this context
         var http = new HttpClient { BaseAddress = new Uri(OrgUri, "/api/data/v9.2/") };
+#pragma warning restore RS0030
         http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         http.DefaultRequestHeaders.Add("OData-MaxVersion", "4.0");
         http.DefaultRequestHeaders.Add("OData-Version", "4.0");
