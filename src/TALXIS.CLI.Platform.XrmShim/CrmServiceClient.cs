@@ -421,7 +421,7 @@ public class CrmServiceClient : ServiceClient, IDisposable
         }
         catch
         {
-            return null!;
+            return new Dictionary<string, object>();
         }
     }
 
@@ -435,7 +435,7 @@ public class CrmServiceClient : ServiceClient, IDisposable
     public Dictionary<string, Dictionary<string, object>> GetEntityDataByLinkedSearch(string returnEntityName, List<CrmSearchFilter> primarySearchParameters, string linkedEntityName, List<CrmSearchFilter> linkedSearchParameters, string linkedEntityLinkAttribName, string m2MEntityName, string returnEntityPrimaryId, LogicalSearchOperator searchOperator, List<string> fieldList, Guid batchId = default, bool isReflexiveRelationship = false)
     {
         if (primarySearchParameters == null && linkedSearchParameters == null)
-            return null!;
+            return new Dictionary<string, Dictionary<string, object>>();
 
         primarySearchParameters ??= new List<CrmSearchFilter>();
         linkedSearchParameters ??= new List<CrmSearchFilter>();
@@ -823,12 +823,16 @@ public class CrmServiceClient : ServiceClient, IDisposable
         pageAttr.Value = pageNumber.ToString(System.Globalization.CultureInfo.InvariantCulture);
         var countAttr = doc.CreateAttribute("count");
         countAttr.Value = pageCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        var cookieAttr = doc.CreateAttribute("paging-cookie");
-        cookieAttr.Value = pageCookie;
 
         root.Attributes.Append(pageAttr);
         root.Attributes.Append(countAttr);
-        root.Attributes.Append(cookieAttr);
+
+        if (!string.IsNullOrEmpty(pageCookie))
+        {
+            var cookieAttr = doc.CreateAttribute("paging-cookie");
+            cookieAttr.Value = pageCookie;
+            root.Attributes.Append(cookieAttr);
+        }
 
         return root.OuterXml;
     }
@@ -939,6 +943,7 @@ public class CrmServiceClient : ServiceClient, IDisposable
         {
             var dict = EntityToDictionary(entity);
             dict["ReturnProperty_EntityName"] = entity.LogicalName;
+            // Note: trailing space in "ReturnProperty_Id " is intentional — matches original CrmServiceClient behavior
             dict["ReturnProperty_Id "] = entity.Id;
             result[Guid.NewGuid().ToString()] = dict;
         }

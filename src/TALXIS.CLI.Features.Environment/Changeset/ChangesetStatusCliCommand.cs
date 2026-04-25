@@ -61,10 +61,10 @@ public class ChangesetStatusCliCommand : TxcLeafCommand
         int dataCount = operations.Count(o => o.Category == "data");
         OutputWriter.WriteLine($"Total: {operations.Count} operations ({schemaCount} schema, {dataCount} data)");
         OutputWriter.WriteLine();
-        OutputWriter.WriteLine("Apply strategy options:");
-        OutputWriter.WriteLine("  txc environment changeset apply           Apply all staged operations");
-        OutputWriter.WriteLine("  txc environment changeset apply --schema  Apply schema operations only");
-        OutputWriter.WriteLine("  txc environment changeset apply --data    Apply data operations only");
+        OutputWriter.WriteLine("Apply strategies:");
+        OutputWriter.WriteLine("  changeset apply --strategy batch [--continue-on-error]    Each data op in independent transaction");
+        OutputWriter.WriteLine("  changeset apply --strategy transaction                     All data ops in single transaction (all-or-nothing)");
+        OutputWriter.WriteLine("  changeset apply --strategy bulk                            High-throughput grouped by entity+operation");
         return Task.FromResult(ExitSuccess);
     }
 

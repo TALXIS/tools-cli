@@ -181,6 +181,8 @@ public sealed class CmtImportRunner
 
             // Also set via AppSettings — the handler's internal methods may
             // re-read these from AppSettingsHelper, overwriting the property values.
+            // This AppSettings mutation is safe because CMT runs in a subprocess
+            // and does not share process state with the parent CLI host.
             ConfigurationManager.AppSettings["DMT.EnableBatchMode"] = request.BatchMode ? "true" : "false";
             ConfigurationManager.AppSettings["DMT.RequestedBatchSize"] = request.BatchSize.ToString();
             ConfigurationManager.AppSettings["DMT.OverrideSafetyChecks"] = request.OverrideSafetyChecks ? "true" : "false";
@@ -289,11 +291,6 @@ public sealed class CmtImportRunner
         }
     }
 
-    /// <summary>
-    /// Wires a <see cref="ConsoleTraceListener"/> to CMT's internal
-    /// TraceSource so that import progress and errors are visible in
-    /// the console output in real time.
-    /// </summary>
     /// <summary>
     /// Wires a <see cref="ConsoleTraceListener"/> to CMT's internal
     /// TraceSource so that import progress and errors are visible in

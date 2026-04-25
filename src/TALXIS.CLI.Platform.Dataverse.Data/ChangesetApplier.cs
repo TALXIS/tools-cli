@@ -50,18 +50,30 @@ internal sealed class ChangesetApplier : IChangesetApplier
             }
         }
 
+        // Separate file uploads (chunked API, cannot be batched) from regular data ops
+        var fileUploadOps = dataOps.Where(o => o.TargetType == "file" && o.OperationType == "UPLOAD").ToList();
+        var batchableDataOps = dataOps.Except(fileUploadOps).ToList();
+
         // Phase 2: Data operations (strategy-dependent)
-        if (dataOps.Count > 0)
+        if (batchableDataOps.Count > 0)
         {
-            OutputWriter.WriteLine($"Data: applying {dataOps.Count} operations with '{strategy}' strategy...");
+            OutputWriter.WriteLine($"Data: applying {batchableDataOps.Count} operations with '{strategy}' strategy...");
             var dataResults = strategy switch
             {
-                "batch" => await ApplyDataBatchAsync(profileName, dataOps, continueOnError, ct).ConfigureAwait(false),
-                "transaction" => await ApplyDataTransactionAsync(profileName, dataOps, ct).ConfigureAwait(false),
-                "bulk" => await ApplyDataBulkAsync(profileName, dataOps, continueOnError, ct).ConfigureAwait(false),
+                "batch" => await ApplyDataBatchAsync(profileName, batchableDataOps, continueOnError, ct).ConfigureAwait(false),
+                "transaction" => await ApplyDataTransactionAsync(profileName, batchableDataOps, ct).ConfigureAwait(false),
+                "bulk" => await ApplyDataBulkAsync(profileName, batchableDataOps, continueOnError, ct).ConfigureAwait(false),
                 _ => throw new ArgumentException($"Unknown strategy: {strategy}")
             };
             results.AddRange(dataResults);
+        }
+
+        // Phase 3: File uploads (sequential — uses chunked block API, not batchable)
+        if (fileUploadOps.Count > 0)
+        {
+            OutputWriter.WriteLine($"Files: uploading {fileUploadOps.Count} file(s) sequentially...");
+            var fileResults = await ApplyFileUploadsAsync(profileName, fileUploadOps, continueOnError, ct).ConfigureAwait(false);
+            results.AddRange(fileResults);
         }
 
         stopwatch.Stop();
@@ -101,7 +113,7 @@ internal sealed class ChangesetApplier : IChangesetApplier
         // Identify new-entity ops and their associated inline-eligible attribute ops
         var newEntityOps = ops.Where(o => o.TargetType == "entity" && o.OperationType == "CREATE").ToList();
         var newEntityNames = newEntityOps
-            .Select(o => GetParamOrDefault<string?>(o, "schemaName")?.ToLowerInvariant())
+            .Select(o => (GetParamOrDefault<string?>(o, "schemaName") ?? GetParamOrDefault<string?>(o, "name"))?.ToLowerInvariant())
             .Where(n => n is not null)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -127,7 +139,8 @@ internal sealed class ChangesetApplier : IChangesetApplier
 
                 foreach (var entityOp in newEntityOps)
                 {
-                    var entityName = GetParam<string>(entityOp, "schemaName");
+                    var entityName = GetParamOrDefault<string?>(entityOp, "schemaName")
+                                  ?? GetParam<string>(entityOp, "name");
                     var displayName = GetParamOrDefault<string?>(entityOp, "displayName") ?? entityName;
                     var pluralName = GetParamOrDefault<string?>(entityOp, "pluralName") ?? displayName + "s";
                     var description = GetParamOrDefault<string?>(entityOp, "description");
@@ -328,13 +341,16 @@ internal sealed class ChangesetApplier : IChangesetApplier
         switch (op.TargetType, op.OperationType)
         {
             case ("entity", "CREATE"):
+                // Staging stores "name"; also accept "schemaName"
+                var entitySchemaName = GetParamOrDefault<string?>(op, "schemaName")
+                                    ?? GetParam<string>(op, "name");
                 await metadataService.CreateEntityAsync(
                     profileName,
                     new CreateEntityOptions
                     {
-                        SchemaName = GetParam<string>(op, "schemaName"),
+                        SchemaName = entitySchemaName,
                         DisplayName = GetParam<string>(op, "displayName"),
-                        PluralName = GetParam<string>(op, "pluralName"),
+                        PluralName = GetParamOrDefault<string?>(op, "pluralName") ?? GetParam<string>(op, "displayName") + "s",
                         Description = GetParamOrDefault<string?>(op, "description"),
                         Solution = GetParamOrDefault<string?>(op, "solution"),
                         Ownership = GetParamOrDefault<string?>(op, "ownership") ?? "user",
@@ -348,9 +364,12 @@ internal sealed class ChangesetApplier : IChangesetApplier
                 break;
 
             case ("entity", "UPDATE"):
+                // Staging stores "entity"; also accept "name"
+                var entityUpdateName = GetParamOrDefault<string?>(op, "name")
+                                    ?? GetParam<string>(op, "entity");
                 await metadataService.UpdateEntityAsync(
                     profileName,
-                    GetParam<string>(op, "name"),
+                    entityUpdateName,
                     GetParamOrDefault<string?>(op, "displayName"),
                     GetParamOrDefault<string?>(op, "pluralName"),
                     GetParamOrDefault<string?>(op, "description"),
@@ -358,9 +377,12 @@ internal sealed class ChangesetApplier : IChangesetApplier
                 break;
 
             case ("entity", "DELETE"):
+                // Staging stores "entity"; also accept "name"
+                var entityDeleteName = GetParamOrDefault<string?>(op, "name")
+                                    ?? GetParam<string>(op, "entity");
                 await metadataService.DeleteEntityAsync(
                     profileName,
-                    GetParam<string>(op, "name"),
+                    entityDeleteName,
                     ct).ConfigureAwait(false);
                 break;
 
@@ -372,13 +394,16 @@ internal sealed class ChangesetApplier : IChangesetApplier
                 break;
 
             case ("attribute", "UPDATE"):
+                // Staging stores "required"; also accept "requiredLevel"
+                var requiredLevel = GetParamOrDefault<string?>(op, "requiredLevel")
+                                 ?? GetParamOrDefault<string?>(op, "required");
                 await metadataService.UpdateAttributeAsync(
                     profileName,
                     GetParam<string>(op, "entity"),
                     GetParam<string>(op, "name"),
                     GetParamOrDefault<string?>(op, "displayName"),
                     GetParamOrDefault<string?>(op, "description"),
-                    GetParamOrDefault<string?>(op, "requiredLevel"),
+                    requiredLevel,
                     ct).ConfigureAwait(false);
                 break;
 
@@ -391,27 +416,36 @@ internal sealed class ChangesetApplier : IChangesetApplier
                 break;
 
             case ("relationship", "CREATE"):
+                // Staging stores "name"; also accept "schemaName"
+                var relCreateName = GetParamOrDefault<string?>(op, "schemaName")
+                                 ?? GetParam<string>(op, "name");
                 await metadataService.CreateManyToManyRelationshipAsync(
                     profileName,
                     GetParam<string>(op, "entity1"),
                     GetParam<string>(op, "entity2"),
-                    GetParam<string>(op, "schemaName"),
+                    relCreateName,
                     GetParamOrDefault<string?>(op, "displayName"),
                     ct).ConfigureAwait(false);
                 break;
 
             case ("relationship", "DELETE"):
+                // Staging stores "name"; also accept "schemaName"
+                var relDeleteName = GetParamOrDefault<string?>(op, "schemaName")
+                                 ?? GetParam<string>(op, "name");
                 await metadataService.DeleteRelationshipAsync(
                     profileName,
-                    GetParam<string>(op, "schemaName"),
+                    relDeleteName,
                     ct).ConfigureAwait(false);
                 break;
 
             case ("optionset", "CREATE"):
+                // Staging stores "name"; also accept "schemaName"
+                var optSetName = GetParamOrDefault<string?>(op, "schemaName")
+                              ?? GetParam<string>(op, "name");
                 var options = GetOptionsArray(op);
                 await optionSetService.CreateGlobalOptionSetAsync(
                     profileName,
-                    GetParam<string>(op, "schemaName"),
+                    optSetName,
                     GetParam<string>(op, "displayName"),
                     GetParamOrDefault<string?>(op, "description"),
                     options,
@@ -651,6 +685,40 @@ internal sealed class ChangesetApplier : IChangesetApplier
         return results;
     }
 
+    // ── Data strategy: File uploads (sequential, chunked API) ─────────
+
+    private static async Task<List<OperationResult>> ApplyFileUploadsAsync(
+        string? profileName, IReadOnlyList<StagedOperation> ops, bool continueOnError, CancellationToken ct)
+    {
+        var fileService = TxcServices.Get<IDataverseFileService>();
+        var results = new List<OperationResult>();
+
+        foreach (var op in ops)
+        {
+            try
+            {
+                var entity = op.Parameters["entity"]!.ToString()!;
+                var recordId = Guid.Parse(op.Parameters["recordId"]!.ToString()!);
+                var column = op.Parameters["column"]!.ToString()!;
+                var filePath = op.Parameters["file"]!.ToString()!;
+
+                await fileService.UploadFileAsync(profileName, entity, recordId, column, filePath, ct)
+                    .ConfigureAwait(false);
+
+                results.Add(new OperationResult(op.Index, true,
+                    $"UPLOAD file {op.TargetDescription}"));
+            }
+            catch (Exception ex)
+            {
+                results.Add(new OperationResult(op.Index, false,
+                    $"UPLOAD file {op.TargetDescription}", ex.Message));
+                if (!continueOnError) break;
+            }
+        }
+
+        return results;
+    }
+
     // ── CreateEntities helpers ──────────────────────────────────────────
 
     /// <summary>
@@ -660,7 +728,9 @@ internal sealed class ChangesetApplier : IChangesetApplier
     /// </summary>
     private static AttributeMetadata? BuildAttributeMetadataFromStagedOp(StagedOperation op)
     {
-        var name = GetParamOrDefault<string?>(op, "schemaName");
+        // Staging stores "name"; also accept "schemaName"
+        var name = GetParamOrDefault<string?>(op, "schemaName")
+                ?? GetParamOrDefault<string?>(op, "name");
         var type = GetParamOrDefault<string?>(op, "type")?.ToLowerInvariant();
         var displayName = GetParamOrDefault<string?>(op, "displayName") ?? name;
 
@@ -708,8 +778,9 @@ internal sealed class ChangesetApplier : IChangesetApplier
 
     /// <summary>
     /// Converts a staged data operation into the corresponding Dataverse SDK request.
+    /// File uploads return <c>null</c> — they use the chunked block API and cannot be batched.
     /// </summary>
-    private static OrganizationRequest BuildOrganizationRequest(StagedOperation op)
+    private static OrganizationRequest? BuildOrganizationRequest(StagedOperation op)
     {
         return (op.TargetType, op.OperationType) switch
         {
@@ -721,6 +792,33 @@ internal sealed class ChangesetApplier : IChangesetApplier
                     op.Parameters["entity"]!.ToString()!,
                     Guid.Parse(op.Parameters["recordId"]!.ToString()!))
             },
+            ("record", "ASSOCIATE") => new AssociateRequest
+            {
+                Target = new EntityReference(
+                    op.Parameters["entity"]!.ToString()!,
+                    Guid.Parse(op.Parameters["recordId"]!.ToString()!)),
+                RelatedEntities = new EntityReferenceCollection
+                {
+                    new EntityReference(
+                        op.Parameters["targetEntity"]!.ToString()!,
+                        Guid.Parse(op.Parameters["target"]!.ToString()!))
+                },
+                Relationship = new Relationship(op.Parameters["relationship"]!.ToString()!)
+            },
+            ("record", "DISASSOCIATE") => new DisassociateRequest
+            {
+                Target = new EntityReference(
+                    op.Parameters["entity"]!.ToString()!,
+                    Guid.Parse(op.Parameters["recordId"]!.ToString()!)),
+                RelatedEntities = new EntityReferenceCollection
+                {
+                    new EntityReference(
+                        op.Parameters["targetEntity"]!.ToString()!,
+                        Guid.Parse(op.Parameters["target"]!.ToString()!))
+                },
+                Relationship = new Relationship(op.Parameters["relationship"]!.ToString()!)
+            },
+            ("file", "UPLOAD") => null, // File uploads use chunked API — handled separately
             _ => throw new NotSupportedException(
                 $"Data operation {op.TargetType}/{op.OperationType} is not supported in batch mode.")
         };
@@ -826,7 +924,8 @@ internal sealed class ChangesetApplier : IChangesetApplier
         return new CreateAttributeOptions
         {
             EntityLogicalName = GetParam<string>(op, "entity"),
-            SchemaName = GetParam<string>(op, "schemaName"),
+            // Staging stores "name"; also accept "schemaName"
+            SchemaName = GetParamOrDefault<string?>(op, "schemaName") ?? GetParam<string>(op, "name"),
             Type = GetParam<string>(op, "type"),
             DisplayName = GetParamOrDefault<string?>(op, "displayName"),
             Description = GetParamOrDefault<string?>(op, "description"),
@@ -853,6 +952,10 @@ internal sealed class ChangesetApplier : IChangesetApplier
 
     /// <summary>
     /// Extracts an array of <see cref="OptionMetadataInput"/> from a staged optionset CREATE operation.
+    /// Supports three formats:
+    /// 1. JSON array of {label, value} objects (from deserialized changeset files)
+    /// 2. CSV string like "Label1:100000000,Label2:100000001" or "Label1,Label2" (from staging commands)
+    /// 3. Already-deserialized OptionMetadataInput[]
     /// </summary>
     private static OptionMetadataInput[] GetOptionsArray(StagedOperation op)
     {
@@ -861,17 +964,57 @@ internal sealed class ChangesetApplier : IChangesetApplier
 
         if (raw is JsonElement je)
         {
-            return je.EnumerateArray()
-                .Select(e => new OptionMetadataInput(
-                    e.GetProperty("label").GetString()!,
-                    e.GetProperty("value").GetInt32()))
-                .ToArray();
+            if (je.ValueKind == JsonValueKind.Array)
+            {
+                return je.EnumerateArray()
+                    .Select(e => new OptionMetadataInput(
+                        e.GetProperty("label").GetString()!,
+                        e.GetProperty("value").GetInt32()))
+                    .ToArray();
+            }
+
+            // JSON string value — parse as CSV below
+            if (je.ValueKind == JsonValueKind.String)
+                raw = je.GetString();
         }
 
         // If already deserialized, try casting
         if (raw is OptionMetadataInput[] opts)
             return opts;
 
+        // CSV string: "Label1:100000000,Label2:100000001" or "Label1,Label2" (auto-valued)
+        if (raw is string csv && !string.IsNullOrWhiteSpace(csv))
+            return ParseOptionsCsv(csv);
+
         return Array.Empty<OptionMetadataInput>();
+    }
+
+    /// <summary>
+    /// Parses a CSV options string into <see cref="OptionMetadataInput"/> items.
+    /// Matches the format used by <c>EntityOptionSetCreateGlobalCliCommand.ParseOptions</c>.
+    /// </summary>
+    private static OptionMetadataInput[] ParseOptionsCsv(string csv)
+    {
+        var entries = csv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (entries.Length == 0)
+            return Array.Empty<OptionMetadataInput>();
+
+        var results = new OptionMetadataInput[entries.Length];
+        int autoValue = 100_000_000;
+
+        for (int i = 0; i < entries.Length; i++)
+        {
+            var parts = entries[i].Split(':', 2);
+            if (parts.Length == 2 && int.TryParse(parts[1].Trim(), out int v))
+            {
+                results[i] = new OptionMetadataInput(parts[0].Trim(), v);
+            }
+            else
+            {
+                results[i] = new OptionMetadataInput(parts[0].Trim(), autoValue++);
+            }
+        }
+
+        return results;
     }
 }

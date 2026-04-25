@@ -16,16 +16,10 @@ namespace TALXIS.CLI.Features.Environment.Data.Record;
     Name = "delete",
     Description = "Delete a single record by ID."
 )]
-public class EnvDataRecordDeleteCliCommand : ProfiledCliCommand, IDestructiveCommand
+public class EnvDataRecordDeleteCliCommand : StagedCliCommand, IDestructiveCommand
 {
     [CliOption(Name = "--yes", Description = "Skip confirmation for this destructive operation.", Required = false)]
     public bool Yes { get; set; }
-
-    [CliOption(Name = "--apply", Description = "Execute immediately.", Required = false)]
-    public bool Apply { get; set; }
-
-    [CliOption(Name = "--stage", Description = "Add to changeset for batch apply.", Required = false)]
-    public bool Stage { get; set; }
 
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EnvDataRecordDeleteCliCommand));
 
@@ -37,10 +31,7 @@ public class EnvDataRecordDeleteCliCommand : ProfiledCliCommand, IDestructiveCom
 
     protected override async Task<int> ExecuteAsync()
     {
-        if (!Apply && !Stage)
-            throw new ArgumentException("You must specify either --apply or --stage.");
-        if (Apply && Stage)
-            throw new ArgumentException("Cannot specify both --apply and --stage.");
+        ValidateExecutionMode();
 
         if (Stage)
         {
