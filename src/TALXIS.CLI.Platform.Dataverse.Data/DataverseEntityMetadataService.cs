@@ -103,196 +103,176 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
     /// <inheritdoc />
     public async Task CreateAttributeAsync(
         string? profileName,
-        string entityLogicalName,
-        string schemaName,
-        string displayName,
-        string type,
-        bool required,
-        string? targetEntity,
-        string[]? options,
+        CreateAttributeOptions options,
         CancellationToken ct)
     {
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
 
         var requiredLevel = new AttributeRequiredLevelManagedProperty(
-            required ? AttributeRequiredLevel.ApplicationRequired : AttributeRequiredLevel.None);
+            MapRequiredLevel(options.RequiredLevel));
 
-        switch (type.ToLowerInvariant())
+        var displayLabel = new Label(options.DisplayName ?? options.SchemaName, 1033);
+        var descriptionLabel = options.Description is not null ? new Label(options.Description, 1033) : null;
+
+        switch (options.Type)
         {
-            case "lookup":
-                if (string.IsNullOrWhiteSpace(targetEntity))
-                    throw new ArgumentException("--target-entity is required for lookup attributes.");
-
-                // Derive the relationship schema name from the referencing/referenced entities and column name.
-                var columnSuffix = schemaName.Contains('_') ? schemaName[(schemaName.LastIndexOf('_') + 1)..] : schemaName;
-                var prefix = schemaName.Contains('_') ? schemaName[..schemaName.IndexOf('_')] : schemaName;
-                var relationshipSchemaName = $"{prefix}_{entityLogicalName}_{targetEntity}_{columnSuffix}";
-
-                var lookupRequest = new CreateOneToManyRequest
-                {
-                    OneToManyRelationship = new OneToManyRelationshipMetadata
-                    {
-                        SchemaName = relationshipSchemaName,
-                        ReferencedEntity = targetEntity,
-                        ReferencingEntity = entityLogicalName,
-                        CascadeConfiguration = new CascadeConfiguration
-                        {
-                            Assign = CascadeType.NoCascade,
-                            Delete = CascadeType.RemoveLink,
-                            Merge = CascadeType.NoCascade,
-                            Reparent = CascadeType.NoCascade,
-                            Share = CascadeType.NoCascade,
-                            Unshare = CascadeType.NoCascade
-                        }
-                    },
-                    Lookup = new LookupAttributeMetadata
-                    {
-                        SchemaName = schemaName,
-                        DisplayName = new Label(displayName, 1033),
-                        RequiredLevel = requiredLevel
-                    }
-                };
-                await conn.Client.ExecuteAsync(lookupRequest, ct).ConfigureAwait(false);
-                break;
-
-            case "choice":
-                CreatePicklistAttribute(conn, entityLogicalName, schemaName, displayName, requiredLevel, options, ct);
-                break;
-
-            case "multichoice":
-                CreateMultiSelectPicklistAttribute(conn, entityLogicalName, schemaName, displayName, requiredLevel, options, ct);
-                break;
-
             case "string":
-                await conn.Client.ExecuteAsync(new CreateAttributeRequest
+                await ExecuteCreateAttribute(conn, options, new StringAttributeMetadata
                 {
-                    EntityName = entityLogicalName,
-                    Attribute = new StringAttributeMetadata
-                    {
-                        SchemaName = schemaName,
-                        DisplayName = new Label(displayName, 1033),
-                        RequiredLevel = requiredLevel,
-                        MaxLength = 200
-                    }
+                    SchemaName = options.SchemaName,
+                    DisplayName = displayLabel,
+                    Description = descriptionLabel,
+                    RequiredLevel = requiredLevel,
+                    MaxLength = options.MaxLength ?? 200,
+                    FormatName = options.StringFormat is not null ? MapStringFormat(options.StringFormat) : StringFormatName.Text
+                }, ct).ConfigureAwait(false);
+                break;
+
+            case "memo":
+                await ExecuteCreateAttribute(conn, options, new MemoAttributeMetadata
+                {
+                    SchemaName = options.SchemaName,
+                    DisplayName = displayLabel,
+                    Description = descriptionLabel,
+                    RequiredLevel = requiredLevel,
+                    MaxLength = options.MaxLength ?? 2000
                 }, ct).ConfigureAwait(false);
                 break;
 
             case "number":
-                await conn.Client.ExecuteAsync(new CreateAttributeRequest
+                var intMeta = new IntegerAttributeMetadata
                 {
-                    EntityName = entityLogicalName,
-                    Attribute = new IntegerAttributeMetadata
-                    {
-                        SchemaName = schemaName,
-                        DisplayName = new Label(displayName, 1033),
-                        RequiredLevel = requiredLevel
-                    }
-                }, ct).ConfigureAwait(false);
+                    SchemaName = options.SchemaName,
+                    DisplayName = displayLabel,
+                    Description = descriptionLabel,
+                    RequiredLevel = requiredLevel
+                };
+                if (options.MinValue.HasValue) intMeta.MinValue = (int)options.MinValue.Value;
+                if (options.MaxValue.HasValue) intMeta.MaxValue = (int)options.MaxValue.Value;
+                if (options.NumberFormat.HasValue()) intMeta.Format = MapIntegerFormat(options.NumberFormat!);
+                await ExecuteCreateAttribute(conn, options, intMeta, ct).ConfigureAwait(false);
+                break;
+
+            case "decimal":
+                var decMeta = new DecimalAttributeMetadata
+                {
+                    SchemaName = options.SchemaName,
+                    DisplayName = displayLabel,
+                    Description = descriptionLabel,
+                    RequiredLevel = requiredLevel
+                };
+                if (options.MinValue.HasValue) decMeta.MinValue = (decimal)options.MinValue.Value;
+                if (options.MaxValue.HasValue) decMeta.MaxValue = (decimal)options.MaxValue.Value;
+                if (options.Precision.HasValue) decMeta.Precision = options.Precision.Value;
+                await ExecuteCreateAttribute(conn, options, decMeta, ct).ConfigureAwait(false);
+                break;
+
+            case "float":
+                var dblMeta = new DoubleAttributeMetadata
+                {
+                    SchemaName = options.SchemaName,
+                    DisplayName = displayLabel,
+                    Description = descriptionLabel,
+                    RequiredLevel = requiredLevel
+                };
+                if (options.MinValue.HasValue) dblMeta.MinValue = options.MinValue.Value;
+                if (options.MaxValue.HasValue) dblMeta.MaxValue = options.MaxValue.Value;
+                if (options.Precision.HasValue) dblMeta.Precision = options.Precision.Value;
+                await ExecuteCreateAttribute(conn, options, dblMeta, ct).ConfigureAwait(false);
                 break;
 
             case "money":
-                await conn.Client.ExecuteAsync(new CreateAttributeRequest
+                var moneyMeta = new MoneyAttributeMetadata
                 {
-                    EntityName = entityLogicalName,
-                    Attribute = new MoneyAttributeMetadata
-                    {
-                        SchemaName = schemaName,
-                        DisplayName = new Label(displayName, 1033),
-                        RequiredLevel = requiredLevel
-                    }
-                }, ct).ConfigureAwait(false);
+                    SchemaName = options.SchemaName,
+                    DisplayName = displayLabel,
+                    Description = descriptionLabel,
+                    RequiredLevel = requiredLevel
+                };
+                if (options.MinValue.HasValue) moneyMeta.MinValue = options.MinValue.Value;
+                if (options.MaxValue.HasValue) moneyMeta.MaxValue = options.MaxValue.Value;
+                if (options.Precision.HasValue) moneyMeta.Precision = options.Precision.Value;
+                if (options.PrecisionSource.HasValue) moneyMeta.PrecisionSource = options.PrecisionSource.Value;
+                await ExecuteCreateAttribute(conn, options, moneyMeta, ct).ConfigureAwait(false);
                 break;
 
             case "bool":
-                await conn.Client.ExecuteAsync(new CreateAttributeRequest
+                await ExecuteCreateAttribute(conn, options, new BooleanAttributeMetadata
                 {
-                    EntityName = entityLogicalName,
-                    Attribute = new BooleanAttributeMetadata
-                    {
-                        SchemaName = schemaName,
-                        DisplayName = new Label(displayName, 1033),
-                        RequiredLevel = requiredLevel,
-                        OptionSet = new BooleanOptionSetMetadata(
-                            new OptionMetadata(new Label("Yes", 1033), 1),
-                            new OptionMetadata(new Label("No", 1033), 0))
-                    }
+                    SchemaName = options.SchemaName,
+                    DisplayName = displayLabel,
+                    Description = descriptionLabel,
+                    RequiredLevel = requiredLevel,
+                    OptionSet = new BooleanOptionSetMetadata(
+                        new OptionMetadata(new Label(options.TrueLabel, 1033), 1),
+                        new OptionMetadata(new Label(options.FalseLabel, 1033), 0))
                 }, ct).ConfigureAwait(false);
                 break;
 
             case "datetime":
-                await conn.Client.ExecuteAsync(new CreateAttributeRequest
+                var dtMeta = new DateTimeAttributeMetadata
                 {
-                    EntityName = entityLogicalName,
-                    Attribute = new DateTimeAttributeMetadata
-                    {
-                        SchemaName = schemaName,
-                        DisplayName = new Label(displayName, 1033),
-                        RequiredLevel = requiredLevel,
-                        Format = DateTimeFormat.DateAndTime
-                    }
-                }, ct).ConfigureAwait(false);
+                    SchemaName = options.SchemaName,
+                    DisplayName = displayLabel,
+                    Description = descriptionLabel,
+                    RequiredLevel = requiredLevel,
+                    Format = options.DateTimeFormat is not null ? MapDateTimeFormat(options.DateTimeFormat) : DateTimeFormat.DateAndTime
+                };
+                if (options.DateTimeBehavior is not null)
+                    dtMeta.DateTimeBehavior = MapDateTimeBehavior(options.DateTimeBehavior);
+                await ExecuteCreateAttribute(conn, options, dtMeta, ct).ConfigureAwait(false);
                 break;
 
-            case "decimal":
-                await conn.Client.ExecuteAsync(new CreateAttributeRequest
-                {
-                    EntityName = entityLogicalName,
-                    Attribute = new DecimalAttributeMetadata
-                    {
-                        SchemaName = schemaName,
-                        DisplayName = new Label(displayName, 1033),
-                        RequiredLevel = requiredLevel
-                    }
-                }, ct).ConfigureAwait(false);
+            case "choice":
+                await CreatePicklistAttribute(conn, options, displayLabel, descriptionLabel, requiredLevel, ct).ConfigureAwait(false);
                 break;
 
-            case "float":
-                await conn.Client.ExecuteAsync(new CreateAttributeRequest
-                {
-                    EntityName = entityLogicalName,
-                    Attribute = new DoubleAttributeMetadata
-                    {
-                        SchemaName = schemaName,
-                        DisplayName = new Label(displayName, 1033),
-                        RequiredLevel = requiredLevel
-                    }
-                }, ct).ConfigureAwait(false);
+            case "multichoice":
+                await CreateMultiSelectPicklistAttribute(conn, options, displayLabel, descriptionLabel, requiredLevel, ct).ConfigureAwait(false);
+                break;
+
+            case "lookup":
+                await CreateLookupAttribute(conn, options, displayLabel, requiredLevel, ct).ConfigureAwait(false);
+                break;
+
+            case "polymorphiclookup":
+                await CreatePolymorphicLookupAttribute(conn, options, displayLabel, requiredLevel, ct).ConfigureAwait(false);
+                break;
+
+            case "customer":
+                await CreateCustomerAttribute(conn, options, displayLabel, requiredLevel, ct).ConfigureAwait(false);
                 break;
 
             case "image":
-                await conn.Client.ExecuteAsync(new CreateAttributeRequest
+                var imgMeta = new ImageAttributeMetadata
                 {
-                    EntityName = entityLogicalName,
-                    Attribute = new ImageAttributeMetadata
-                    {
-                        SchemaName = schemaName,
-                        DisplayName = new Label(displayName, 1033),
-                        RequiredLevel = requiredLevel
-                    }
-                }, ct).ConfigureAwait(false);
+                    SchemaName = options.SchemaName,
+                    DisplayName = displayLabel,
+                    Description = descriptionLabel,
+                    RequiredLevel = requiredLevel,
+                    CanStoreFullImage = options.CanStoreFullImage
+                };
+                if (options.MaxSizeKb.HasValue) imgMeta.MaxSizeInKB = options.MaxSizeKb.Value;
+                await ExecuteCreateAttribute(conn, options, imgMeta, ct).ConfigureAwait(false);
                 break;
 
             case "file":
-                await conn.Client.ExecuteAsync(new CreateAttributeRequest
+                await ExecuteCreateAttribute(conn, options, new FileAttributeMetadata
                 {
-                    EntityName = entityLogicalName,
-                    Attribute = new FileAttributeMetadata
-                    {
-                        SchemaName = schemaName,
-                        DisplayName = new Label(displayName, 1033),
-                        RequiredLevel = requiredLevel,
-                        MaxSizeInKB = 131072 // 128 MB
-                    }
+                    SchemaName = options.SchemaName,
+                    DisplayName = displayLabel,
+                    Description = descriptionLabel,
+                    RequiredLevel = requiredLevel,
+                    MaxSizeInKB = options.MaxSizeKb ?? 131072 // 128 MB default
                 }, ct).ConfigureAwait(false);
                 break;
 
             default:
-                throw new NotSupportedException($"Attribute type '{type}' is not supported. " +
-                    "Supported types: lookup, choice, multichoice, string, number, money, bool, datetime, decimal, float, image, file.");
+                throw new NotSupportedException($"Attribute type '{options.Type}' is not supported.");
         }
 
         // Publish the entity so the new attribute is visible.
-        await PublishEntityAsync(conn, entityLogicalName, ct).ConfigureAwait(false);
+        await PublishEntityAsync(conn, options.EntityLogicalName, ct).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -542,6 +522,8 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
         }, ct).ConfigureAwait(false);
     }
 
+    // ===== Private helpers =====
+
     /// <summary>Case-insensitive contains check that handles null values safely.</summary>
     private static bool Contains(string? value, string search) =>
         value is not null && value.Contains(search, StringComparison.OrdinalIgnoreCase);
@@ -555,57 +537,286 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
         }, ct).ConfigureAwait(false);
     }
 
-    /// <summary>Creates a local choice (picklist) attribute.</summary>
-    private static void CreatePicklistAttribute(
-        DataverseConnection conn, string entityLogicalName, string schemaName,
-        string displayName, AttributeRequiredLevelManagedProperty requiredLevel,
-        string[]? optionLabels, CancellationToken ct)
+    /// <summary>Executes a <see cref="CreateAttributeRequest"/>, optionally targeting a solution.</summary>
+    private static async Task ExecuteCreateAttribute(
+        DataverseConnection conn, CreateAttributeOptions options, AttributeMetadata attribute, CancellationToken ct)
     {
-        if (optionLabels is null || optionLabels.Length == 0)
-            throw new ArgumentException("--options is required for choice attributes.");
-
-        var optionSet = new OptionSetMetadata { IsGlobal = false, OptionSetType = OptionSetType.Picklist };
-        int value = 100_000_000;
-        foreach (var label in optionLabels)
-            optionSet.Options.Add(new OptionMetadata(new Label(label.Trim(), 1033), value++));
-
-        conn.Client.Execute(new CreateAttributeRequest
+        var request = new CreateAttributeRequest
         {
-            EntityName = entityLogicalName,
-            Attribute = new PicklistAttributeMetadata
-            {
-                SchemaName = schemaName,
-                DisplayName = new Label(displayName, 1033),
-                RequiredLevel = requiredLevel,
-                OptionSet = optionSet
-            }
-        });
+            EntityName = options.EntityLogicalName,
+            Attribute = attribute
+        };
+
+        if (!string.IsNullOrWhiteSpace(options.SolutionUniqueName))
+            request.Parameters["SolutionUniqueName"] = options.SolutionUniqueName;
+
+        await conn.Client.ExecuteAsync(request, ct).ConfigureAwait(false);
     }
 
-    /// <summary>Creates a local multi-select choice attribute.</summary>
-    private static void CreateMultiSelectPicklistAttribute(
-        DataverseConnection conn, string entityLogicalName, string schemaName,
-        string displayName, AttributeRequiredLevelManagedProperty requiredLevel,
-        string[]? optionLabels, CancellationToken ct)
+    /// <summary>Creates a local or global-linked choice (picklist) attribute.</summary>
+    private static async Task CreatePicklistAttribute(
+        DataverseConnection conn, CreateAttributeOptions options, Label displayLabel,
+        Label? descriptionLabel, AttributeRequiredLevelManagedProperty requiredLevel, CancellationToken ct)
     {
-        if (optionLabels is null || optionLabels.Length == 0)
-            throw new ArgumentException("--options is required for multichoice attributes.");
+        var picklistMeta = new PicklistAttributeMetadata
+        {
+            SchemaName = options.SchemaName,
+            DisplayName = displayLabel,
+            Description = descriptionLabel,
+            RequiredLevel = requiredLevel
+        };
+
+        if (!string.IsNullOrWhiteSpace(options.GlobalOptionSetName))
+        {
+            // Reference an existing global option set.
+            picklistMeta.OptionSet = new OptionSetMetadata { IsGlobal = true, Name = options.GlobalOptionSetName };
+        }
+        else
+        {
+            picklistMeta.OptionSet = BuildLocalOptionSet(options);
+        }
+
+        await ExecuteCreateAttribute(conn, options, picklistMeta, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Creates a local or global-linked multi-select choice attribute.</summary>
+    private static async Task CreateMultiSelectPicklistAttribute(
+        DataverseConnection conn, CreateAttributeOptions options, Label displayLabel,
+        Label? descriptionLabel, AttributeRequiredLevelManagedProperty requiredLevel, CancellationToken ct)
+    {
+        var multiMeta = new MultiSelectPicklistAttributeMetadata
+        {
+            SchemaName = options.SchemaName,
+            DisplayName = displayLabel,
+            Description = descriptionLabel,
+            RequiredLevel = requiredLevel
+        };
+
+        if (!string.IsNullOrWhiteSpace(options.GlobalOptionSetName))
+        {
+            multiMeta.OptionSet = new OptionSetMetadata { IsGlobal = true, Name = options.GlobalOptionSetName };
+        }
+        else
+        {
+            multiMeta.OptionSet = BuildLocalOptionSet(options);
+        }
+
+        await ExecuteCreateAttribute(conn, options, multiMeta, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Builds a local (non-global) option set from the parsed option tuples.</summary>
+    private static OptionSetMetadata BuildLocalOptionSet(CreateAttributeOptions options)
+    {
+        if (options.Options is null || options.Options.Length == 0)
+            throw new ArgumentException("--options is required when not using --global-optionset.");
 
         var optionSet = new OptionSetMetadata { IsGlobal = false, OptionSetType = OptionSetType.Picklist };
-        int value = 100_000_000;
-        foreach (var label in optionLabels)
-            optionSet.Options.Add(new OptionMetadata(new Label(label.Trim(), 1033), value++));
+        foreach (var (label, value) in options.Options)
+            optionSet.Options.Add(new OptionMetadata(new Label(label, 1033), value));
 
-        conn.Client.Execute(new CreateAttributeRequest
-        {
-            EntityName = entityLogicalName,
-            Attribute = new MultiSelectPicklistAttributeMetadata
-            {
-                SchemaName = schemaName,
-                DisplayName = new Label(displayName, 1033),
-                RequiredLevel = requiredLevel,
-                OptionSet = optionSet
-            }
-        });
+        return optionSet;
     }
+
+    /// <summary>Creates a standard 1:N lookup attribute.</summary>
+    private static async Task CreateLookupAttribute(
+        DataverseConnection conn, CreateAttributeOptions options, Label displayLabel,
+        AttributeRequiredLevelManagedProperty requiredLevel, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(options.TargetEntity))
+            throw new ArgumentException("TargetEntity is required for lookup attributes.");
+
+        var cascadeDelete = MapCascadeType(options.CascadeDelete);
+
+        // Derive the relationship schema name from the referencing/referenced entities and column name.
+        var columnSuffix = options.SchemaName.Contains('_') ? options.SchemaName[(options.SchemaName.LastIndexOf('_') + 1)..] : options.SchemaName;
+        var prefix = options.SchemaName.Contains('_') ? options.SchemaName[..options.SchemaName.IndexOf('_')] : options.SchemaName;
+        var relationshipSchemaName = $"{prefix}_{options.EntityLogicalName}_{options.TargetEntity}_{columnSuffix}";
+
+        var lookupRequest = new CreateOneToManyRequest
+        {
+            OneToManyRelationship = new OneToManyRelationshipMetadata
+            {
+                SchemaName = relationshipSchemaName,
+                ReferencedEntity = options.TargetEntity,
+                ReferencingEntity = options.EntityLogicalName,
+                CascadeConfiguration = new CascadeConfiguration
+                {
+                    Assign = CascadeType.NoCascade,
+                    Delete = cascadeDelete,
+                    Merge = CascadeType.NoCascade,
+                    Reparent = CascadeType.NoCascade,
+                    Share = CascadeType.NoCascade,
+                    Unshare = CascadeType.NoCascade
+                }
+            },
+            Lookup = new LookupAttributeMetadata
+            {
+                SchemaName = options.SchemaName,
+                DisplayName = displayLabel,
+                RequiredLevel = requiredLevel
+            }
+        };
+
+        if (!string.IsNullOrWhiteSpace(options.SolutionUniqueName))
+            lookupRequest.Parameters["SolutionUniqueName"] = options.SolutionUniqueName;
+
+        await conn.Client.ExecuteAsync(lookupRequest, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Creates a polymorphic lookup attribute targeting multiple entities.</summary>
+    private static async Task CreatePolymorphicLookupAttribute(
+        DataverseConnection conn, CreateAttributeOptions options, Label displayLabel,
+        AttributeRequiredLevelManagedProperty requiredLevel, CancellationToken ct)
+    {
+        if (options.TargetEntities is null || options.TargetEntities.Length == 0)
+            throw new ArgumentException("TargetEntities is required for polymorphic lookup attributes.");
+
+        var cascadeDelete = MapCascadeType(options.CascadeDelete);
+        var prefix = options.SchemaName.Contains('_') ? options.SchemaName[..options.SchemaName.IndexOf('_')] : options.SchemaName;
+        var columnSuffix = options.SchemaName.Contains('_') ? options.SchemaName[(options.SchemaName.LastIndexOf('_') + 1)..] : options.SchemaName;
+
+        var relationships = options.TargetEntities.Select(target => new OneToManyRelationshipMetadata
+        {
+            SchemaName = $"{prefix}_{options.EntityLogicalName}_{target.Trim()}_{columnSuffix}",
+            ReferencedEntity = target.Trim(),
+            ReferencingEntity = options.EntityLogicalName,
+            CascadeConfiguration = new CascadeConfiguration
+            {
+                Assign = CascadeType.NoCascade,
+                Delete = cascadeDelete,
+                Merge = CascadeType.NoCascade,
+                Reparent = CascadeType.NoCascade,
+                Share = CascadeType.NoCascade,
+                Unshare = CascadeType.NoCascade
+            }
+        }).ToArray();
+
+        var polyRequest = new CreatePolymorphicLookupAttributeRequest
+        {
+            Lookup = new LookupAttributeMetadata
+            {
+                SchemaName = options.SchemaName,
+                DisplayName = displayLabel,
+                RequiredLevel = requiredLevel
+            },
+            OneToManyRelationships = relationships
+        };
+
+        if (!string.IsNullOrWhiteSpace(options.SolutionUniqueName))
+            polyRequest.Parameters["SolutionUniqueName"] = options.SolutionUniqueName;
+
+        await conn.Client.ExecuteAsync(polyRequest, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Creates a customer lookup attribute (targets account + contact).</summary>
+    private static async Task CreateCustomerAttribute(
+        DataverseConnection conn, CreateAttributeOptions options, Label displayLabel,
+        AttributeRequiredLevelManagedProperty requiredLevel, CancellationToken ct)
+    {
+        var cascadeDelete = MapCascadeType(options.CascadeDelete);
+        var prefix = options.SchemaName.Contains('_') ? options.SchemaName[..options.SchemaName.IndexOf('_')] : options.SchemaName;
+        var columnSuffix = options.SchemaName.Contains('_') ? options.SchemaName[(options.SchemaName.LastIndexOf('_') + 1)..] : options.SchemaName;
+
+        var customerRequest = new CreateCustomerRelationshipsRequest
+        {
+            Lookup = new LookupAttributeMetadata
+            {
+                SchemaName = options.SchemaName,
+                DisplayName = displayLabel,
+                RequiredLevel = requiredLevel
+            },
+            OneToManyRelationships = new[]
+            {
+                new OneToManyRelationshipMetadata
+                {
+                    SchemaName = $"{prefix}_{options.EntityLogicalName}_account_{columnSuffix}",
+                    ReferencedEntity = "account",
+                    ReferencingEntity = options.EntityLogicalName,
+                    CascadeConfiguration = new CascadeConfiguration
+                    {
+                        Assign = CascadeType.NoCascade,
+                        Delete = cascadeDelete,
+                        Merge = CascadeType.NoCascade,
+                        Reparent = CascadeType.NoCascade,
+                        Share = CascadeType.NoCascade,
+                        Unshare = CascadeType.NoCascade
+                    }
+                },
+                new OneToManyRelationshipMetadata
+                {
+                    SchemaName = $"{prefix}_{options.EntityLogicalName}_contact_{columnSuffix}",
+                    ReferencedEntity = "contact",
+                    ReferencingEntity = options.EntityLogicalName,
+                    CascadeConfiguration = new CascadeConfiguration
+                    {
+                        Assign = CascadeType.NoCascade,
+                        Delete = cascadeDelete,
+                        Merge = CascadeType.NoCascade,
+                        Reparent = CascadeType.NoCascade,
+                        Share = CascadeType.NoCascade,
+                        Unshare = CascadeType.NoCascade
+                    }
+                }
+            }
+        };
+
+        if (!string.IsNullOrWhiteSpace(options.SolutionUniqueName))
+            customerRequest.Parameters["SolutionUniqueName"] = options.SolutionUniqueName;
+
+        await conn.Client.ExecuteAsync(customerRequest, ct).ConfigureAwait(false);
+    }
+
+    // ===== Mapping helpers =====
+
+    private static AttributeRequiredLevel MapRequiredLevel(string value) => value switch
+    {
+        "recommended" => AttributeRequiredLevel.Recommended,
+        "required" => AttributeRequiredLevel.ApplicationRequired,
+        _ => AttributeRequiredLevel.None
+    };
+
+    private static StringFormatName MapStringFormat(string value) => value switch
+    {
+        "email" => StringFormatName.Email,
+        "url" => StringFormatName.Url,
+        "phone" => StringFormatName.Phone,
+        "textarea" => StringFormatName.TextArea,
+        "tickersymbol" => StringFormatName.TickerSymbol,
+        _ => StringFormatName.Text
+    };
+
+    private static IntegerFormat MapIntegerFormat(string value) => value switch
+    {
+        "duration" => IntegerFormat.Duration,
+        "timezone" => IntegerFormat.TimeZone,
+        "language" => IntegerFormat.Language,
+        "locale" => IntegerFormat.Locale,
+        _ => IntegerFormat.None
+    };
+
+    private static DateTimeFormat MapDateTimeFormat(string value) => value switch
+    {
+        "dateonly" => DateTimeFormat.DateOnly,
+        _ => DateTimeFormat.DateAndTime
+    };
+
+    private static DateTimeBehavior MapDateTimeBehavior(string value) => value switch
+    {
+        "dateonly" => DateTimeBehavior.DateOnly,
+        "timezoneindependent" => DateTimeBehavior.TimeZoneIndependent,
+        _ => DateTimeBehavior.UserLocal
+    };
+
+    private static CascadeType MapCascadeType(string value) => value switch
+    {
+        "cascade" => CascadeType.Cascade,
+        "restrict" => CascadeType.Restrict,
+        _ => CascadeType.RemoveLink
+    };
+}
+
+/// <summary>Extension to check non-null-or-whitespace on nullable strings.</summary>
+internal static class StringExtensions
+{
+    public static bool HasValue(this string? value) => !string.IsNullOrWhiteSpace(value);
 }

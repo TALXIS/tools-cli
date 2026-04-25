@@ -65,17 +65,11 @@ public interface IDataverseEntityMetadataService
         CancellationToken ct);
 
     /// <summary>
-    /// Creates an attribute (column) on the specified entity.
+    /// Creates an attribute (column) on the specified entity using a strongly-typed options object.
     /// </summary>
     Task CreateAttributeAsync(
         string? profileName,
-        string entityLogicalName,
-        string schemaName,
-        string displayName,
-        string type,
-        bool required,
-        string? targetEntity,
-        string[]? options,
+        CreateAttributeOptions options,
         CancellationToken ct);
 
     /// <summary>
