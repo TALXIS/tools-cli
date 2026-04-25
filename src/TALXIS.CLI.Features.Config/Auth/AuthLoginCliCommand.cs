@@ -1,14 +1,12 @@
-using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
+using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Bootstrapping;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Core.Headless;
 using TALXIS.CLI.Core.Model;
-using TALXIS.CLI.Core.Storage;
 using TALXIS.CLI.Logging;
-using TALXIS.CLI.Core;
 
 namespace TALXIS.CLI.Features.Config.Auth;
 
@@ -27,9 +25,10 @@ namespace TALXIS.CLI.Features.Config.Auth;
     Name = "login",
     Description = "Interactive browser sign-in. Persists a credential named after the UPN (override with --alias)."
 )]
-public class AuthLoginCliCommand
+public class AuthLoginCliCommand : TxcLeafCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(AuthLoginCliCommand));
+    protected override ILogger Logger => _logger;
 
     [CliOption(Name = "--tenant", Description = "Entra tenant id or domain. When omitted, the user picks an org in the browser.", Required = false)]
     public string? Tenant { get; set; }
@@ -40,7 +39,7 @@ public class AuthLoginCliCommand
     [CliOption(Name = "--cloud", Description = "Sovereign cloud. Default: public.", Required = false)]
     public CloudInstance? Cloud { get; set; }
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         try
         {
@@ -56,25 +55,13 @@ public class AuthLoginCliCommand
             _logger.LogInformation("Signed in as {Upn} (tenant {Tenant}). Credential '{Alias}' saved.",
                 result.Upn, result.TenantId, result.Credential.Id);
 
-            OutputWriter.WriteLine(JsonSerializer.Serialize(
-                new { id = result.Credential.Id, upn = result.Upn, tenantId = result.TenantId, cloud },
-                TxcJsonOptions.Default));
-            return 0;
+            OutputFormatter.WriteData(new { id = result.Credential.Id, upn = result.Upn, tenantId = result.TenantId, cloud });
+            return ExitSuccess;
         }
         catch (HeadlessAuthRequiredException ex)
         {
             _logger.LogError("{Message}", ex.Message);
-            return 1;
-        }
-        catch (OperationCanceledException)
-        {
-            _logger.LogWarning("Interactive sign-in was cancelled.");
-            return 1;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Interactive sign-in failed.");
-            return 1;
+            return ExitError;
         }
     }
 }

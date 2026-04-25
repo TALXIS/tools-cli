@@ -1,11 +1,9 @@
-using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
+using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.DependencyInjection;
-using TALXIS.CLI.Core.Storage;
 using TALXIS.CLI.Logging;
-using TALXIS.CLI.Core;
 
 namespace TALXIS.CLI.Features.Config.Setting;
 
@@ -19,32 +17,25 @@ namespace TALXIS.CLI.Features.Config.Setting;
     Name = "list",
     Description = "List all known setting keys with current values as JSON."
 )]
-public class SettingListCliCommand
+public class SettingListCliCommand : TxcLeafCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(SettingListCliCommand));
+    protected override ILogger Logger => _logger;
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
-        try
-        {
-            var store = TxcServices.Get<IGlobalConfigStore>();
-            var config = await store.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+        var store = TxcServices.Get<IGlobalConfigStore>();
+        var config = await store.LoadAsync(CancellationToken.None).ConfigureAwait(false);
 
-            var projected = SettingRegistry.All.Select(d => new
-            {
-                key = d.Key,
-                value = d.Read(config),
-                description = d.Description,
-                allowedValues = d.AllowedValues,
-            });
-
-            OutputWriter.WriteLine(JsonSerializer.Serialize(projected, TxcJsonOptions.Default));
-            return 0;
-        }
-        catch (Exception ex)
+        var projected = SettingRegistry.All.Select(d => new
         {
-            _logger.LogError(ex, "Failed to list settings.");
-            return 1;
-        }
+            key = d.Key,
+            value = d.Read(config),
+            description = d.Description,
+            allowedValues = d.AllowedValues,
+        }).ToList();
+
+        OutputFormatter.WriteList(projected);
+        return ExitSuccess;
     }
 }

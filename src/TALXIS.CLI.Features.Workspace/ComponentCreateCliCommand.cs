@@ -9,9 +9,11 @@ namespace TALXIS.CLI.Features.Workspace;
 [CliCommand(
     Description = "Scaffolds a component from a template and passes parameters",
     Name = "create")]
-public class ComponentCreateCliCommand : ICliGetCompletions
+public class ComponentCreateCliCommand : TxcLeafCommand, ICliGetCompletions
 {
-    private static readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ComponentCreateCliCommand));
+    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ComponentCreateCliCommand));
+    protected override ILogger Logger => _logger;
+
     [CliArgument(Description = "Type of the component (e.g. 'pp-entity')")]
     public required string Type { get; set; }
 
@@ -25,11 +27,10 @@ public class ComponentCreateCliCommand : ICliGetCompletions
     [CliOption(Description = "Component parameters which can be retrieved by parameter list command. Inputs need to be passed in the form key=value. Can be specified multiple times.")]
     public List<string> Param { get; set; } = new();
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
-        
         var parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        
+
         // Parse template-specific parameters
         foreach (var p in Param)
         {
@@ -48,8 +49,8 @@ public class ComponentCreateCliCommand : ICliGetCompletions
             var (success, failedActions) = await scaffolder.ScaffoldAsync(Type, OutputPath, parameters);
             if (success)
             {
-                OutputWriter.WriteLine($"Component scaffolded to {OutputPath} using template {Type}");
-                return 0;
+                OutputFormatter.WriteResult("succeeded", $"Component scaffolded to {OutputPath} using template {Type}");
+                return ExitSuccess;
             }
             else
             {
@@ -62,18 +63,19 @@ public class ComponentCreateCliCommand : ICliGetCompletions
                         _logger.LogError("- {FailedAction}", failed.Description ?? failed.ActionId.ToString());
                     }
                 }
-                return 1;
+                OutputFormatter.WriteResult("failed", "Component scaffolded, but one or more post-actions failed.");
+                return ExitError;
             }
         }
         catch (ArgumentException ex) when (ex.Message.Contains("Parameter validation failed"))
         {
             _logger.LogError("Error: {Message}", ex.Message);
-            return 1;
+            return ExitError;
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("parameter") || ex.Message.Contains("Creation failed"))
         {
             _logger.LogError("Error: {Message}", ex.Message);
-            return 1;
+            return ExitError;
         }
     }
 

@@ -1,5 +1,7 @@
 using DotMake.CommandLine;
+using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
+using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Data;
 
@@ -7,8 +9,9 @@ namespace TALXIS.CLI.Features.Data;
     Name = "convert",
     Description = "Convert tables from an XLSX file to CMT data package XML"
 )]
-public class DataPackageConvertCliCommand
+public class DataPackageConvertCliCommand : TxcLeafCommand
 {
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(DataPackageConvertCliCommand));
     [CliOption(
         Name = "--input",
         Description = "Path to the input XLSX file",
@@ -23,7 +26,7 @@ public class DataPackageConvertCliCommand
     )]
     public string? OutputPath { get; set; }
 
-    public int Run()
+    protected override Task<int> ExecuteAsync()
     {
         if (string.IsNullOrWhiteSpace(InputPath) || string.IsNullOrWhiteSpace(OutputPath))
         {
@@ -112,8 +115,8 @@ public class DataPackageConvertCliCommand
 
         var xdoc = new System.Xml.Linq.XDocument(xEntities);
         xdoc.Save(OutputPath);
-        OutputWriter.WriteLine($"Converted {InputPath} to {OutputPath}");
-        return 0;
+        OutputFormatter.WriteResult("succeeded", $"Converted {InputPath} to {OutputPath}");
+        return Task.FromResult(ExitSuccess);
     }
 
     // Helpers for Open XML SDK

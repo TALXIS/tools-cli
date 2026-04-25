@@ -19,39 +19,33 @@ namespace TALXIS.CLI.Features.Config;
     Name = "clear",
     Description = "Remove all persisted txc configuration and auth state from this device."
 )]
-public sealed class ConfigClearCliCommand
+public sealed class ConfigClearCliCommand : TxcLeafCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ConfigClearCliCommand));
+    protected override ILogger Logger => _logger;
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
-        try
+        var paths = TxcServices.Get<ConfigPaths>();
+        var env = TxcServices.Get<IEnvironmentReader>();
+        var workspace = TxcServices.Get<IWorkspaceDiscovery>();
+        var vault = TxcServices.Get<ICredentialVault>();
+        var tokenCache = TxcServices.Get<ITokenCacheStore>();
+
+        await RemoveCurrentWorkspacePinAsync(workspace, env.GetCurrentDirectory()).ConfigureAwait(false);
+
+        await vault.ClearAsync(CancellationToken.None).ConfigureAwait(false);
+        tokenCache.Clear();
+
+        if (Directory.Exists(paths.Root))
         {
-            var paths = TxcServices.Get<ConfigPaths>();
-            var env = TxcServices.Get<IEnvironmentReader>();
-            var workspace = TxcServices.Get<IWorkspaceDiscovery>();
-            var vault = TxcServices.Get<ICredentialVault>();
-            var tokenCache = TxcServices.Get<ITokenCacheStore>();
-
-            await RemoveCurrentWorkspacePinAsync(workspace, env.GetCurrentDirectory()).ConfigureAwait(false);
-
-            await vault.ClearAsync(CancellationToken.None).ConfigureAwait(false);
-            tokenCache.Clear();
-
-            if (Directory.Exists(paths.Root))
-            {
-                Directory.Delete(paths.Root, recursive: true);
-                _logger.LogDebug("Removed config root '{Path}'.", paths.Root);
-            }
-
-            _logger.LogInformation("Cleared txc local configuration at '{Path}'.", paths.Root);
-            return 0;
+            Directory.Delete(paths.Root, recursive: true);
+            _logger.LogDebug("Removed config root '{Path}'.", paths.Root);
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to clear txc local configuration.");
-            return 1;
-        }
+
+        _logger.LogInformation("Cleared txc local configuration at '{Path}'.", paths.Root);
+        OutputFormatter.WriteResult("succeeded", $"Cleared txc local configuration at '{paths.Root}'.");
+        return ExitSuccess;
     }
 
     private async Task RemoveCurrentWorkspacePinAsync(IWorkspaceDiscovery workspace, string currentDirectory)
@@ -72,5 +66,4 @@ public sealed class ConfigClearCliCommand
             _logger.LogDebug("Removed empty '{Dir}'.", workspaceDir);
         }
     }
-
 }

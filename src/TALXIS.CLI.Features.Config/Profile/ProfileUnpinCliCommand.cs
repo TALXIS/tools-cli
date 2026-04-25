@@ -1,9 +1,9 @@
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
+using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Core.Resolution;
 using TALXIS.CLI.Logging;
-using TALXIS.CLI.Core;
 
 namespace TALXIS.CLI.Features.Config.Profile;
 
@@ -19,42 +19,37 @@ namespace TALXIS.CLI.Features.Config.Profile;
     Name = "unpin",
     Description = "Remove <cwd>/.txc/workspace.json (no-op if absent)."
 )]
-public class ProfileUnpinCliCommand
+public class ProfileUnpinCliCommand : TxcLeafCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ProfileUnpinCliCommand));
+    protected override ILogger Logger => _logger;
 
-    public Task<int> RunAsync()
+    protected override Task<int> ExecuteAsync()
     {
-        try
+        var env = TxcServices.Get<IEnvironmentReader>();
+        var cwd = env.GetCurrentDirectory();
+        var workspaceDir = Path.Combine(cwd, WorkspaceDiscovery.DirectoryName);
+        var workspaceFile = Path.Combine(workspaceDir, WorkspaceDiscovery.FileName);
+
+        if (!File.Exists(workspaceFile))
         {
-            var env = TxcServices.Get<IEnvironmentReader>();
-            var cwd = env.GetCurrentDirectory();
-            var workspaceDir = Path.Combine(cwd, WorkspaceDiscovery.DirectoryName);
-            var workspaceFile = Path.Combine(workspaceDir, WorkspaceDiscovery.FileName);
-
-            if (!File.Exists(workspaceFile))
-            {
-                _logger.LogInformation("No workspace pin found at '{Path}'. Nothing to do.", workspaceFile);
-                return Task.FromResult(0);
-            }
-
-            File.Delete(workspaceFile);
-            _logger.LogInformation("Removed workspace pin at '{Path}'.", workspaceFile);
-
-            // Clean up the `.txc` directory when it's empty so `ls` stays tidy.
-            if (Directory.Exists(workspaceDir) &&
-                !Directory.EnumerateFileSystemEntries(workspaceDir).Any())
-            {
-                Directory.Delete(workspaceDir);
-                _logger.LogDebug("Removed empty '{Dir}'.", workspaceDir);
-            }
-
-            return Task.FromResult(0);
+            _logger.LogInformation("No workspace pin found at '{Path}'. Nothing to do.", workspaceFile);
+            OutputFormatter.WriteResult("succeeded", "No workspace pin found. Nothing to do.");
+            return Task.FromResult(ExitSuccess);
         }
-        catch (Exception ex)
+
+        File.Delete(workspaceFile);
+        _logger.LogInformation("Removed workspace pin at '{Path}'.", workspaceFile);
+
+        // Clean up the `.txc` directory when it's empty so `ls` stays tidy.
+        if (Directory.Exists(workspaceDir) &&
+            !Directory.EnumerateFileSystemEntries(workspaceDir).Any())
         {
-            _logger.LogError(ex, "Failed to unpin workspace profile.");
-            return Task.FromResult(1);
+            Directory.Delete(workspaceDir);
+            _logger.LogDebug("Removed empty '{Dir}'.", workspaceDir);
         }
+
+        OutputFormatter.WriteResult("succeeded", $"Workspace pin removed at '{workspaceFile}'.");
+        return Task.FromResult(ExitSuccess);
     }
 }
