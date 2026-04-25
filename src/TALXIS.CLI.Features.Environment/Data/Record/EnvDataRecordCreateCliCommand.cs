@@ -52,7 +52,7 @@ public class EnvDataRecordCreateCliCommand : StagedCliCommand
                 }
             });
             OutputWriter.WriteLine($"Staged: CREATE record in '{Entity}'");
-            return 0;
+            return ExitSuccess;
         }
 
         if (!TryParseAttributes(out var attributes))

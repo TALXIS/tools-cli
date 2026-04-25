@@ -56,7 +56,7 @@ public class EnvDataRecordUpdateCliCommand : StagedCliCommand
                 }
             });
             OutputWriter.WriteLine($"Staged: UPDATE record '{RecordId}' in '{Entity}'");
-            return 0;
+            return ExitSuccess;
         }
 
         if (!TryParseAttributes(out var attributes))
