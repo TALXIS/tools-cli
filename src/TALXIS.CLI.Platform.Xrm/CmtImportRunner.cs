@@ -185,6 +185,8 @@ public sealed class CmtImportRunner
             ConfigurationManager.AppSettings["DMT.RequestedBatchSize"] = request.BatchSize.ToString();
             ConfigurationManager.AppSettings["DMT.OverrideSafetyChecks"] = request.OverrideSafetyChecks ? "true" : "false";
             ConfigurationManager.AppSettings["DMT.PrefetchRecordLimitCount"] = request.PrefetchLimit.ToString();
+            // SchemaValidator uses this to recognize FileAttributeMetadata columns (type="filedata").
+            ConfigurationManager.AppSettings["ExportFiles"] = "true";
 
             // 4. Wire progress event handlers.
             handler.AddNewProgressItem += OnAddNewProgressItem;
