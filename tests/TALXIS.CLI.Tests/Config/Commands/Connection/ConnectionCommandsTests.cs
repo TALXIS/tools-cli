@@ -171,7 +171,7 @@ public sealed class ConnectionCommandsTests
         }, default);
 
         var exit = await new ConnectionDeleteCliCommand { Name = "c1" }.RunAsync();
-        Assert.Equal(3, exit);
+        Assert.Equal(2, exit);
         Assert.NotNull(await connStore.GetAsync("c1", default));
     }
 

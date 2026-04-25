@@ -9,7 +9,7 @@ namespace TALXIS.CLI.Features.Config.Connection;
 
 /// <summary>
 /// <c>txc config connection delete &lt;name&gt;</c> — removes a
-/// connection. By default the command fails with exit 3 when one or
+/// connection. By default the command fails with exit 2 when one or
 /// more profiles reference it (surfacing the profile ids in the error),
 /// so the user can decide to rebind or delete them first.
 /// <c>--force-orphan-profiles</c> opts into the parity behaviour of
