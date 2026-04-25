@@ -14,7 +14,7 @@ namespace TALXIS.CLI.Platform.PowerPlatform.Control;
 /// </summary>
 internal sealed class SolutionSettingsBackend : ISettingsBackend
 {
-    private const string RetrieveSettingListPath = "api/data/v9.0/RetrieveSettingList()";
+    private const string RetrieveSettingListPath = "api/data/v9.2/RetrieveSettingList()";
 
     private readonly IAccessTokenService _tokens;
     private readonly IHttpClientFactoryWrapper _httpFactory;

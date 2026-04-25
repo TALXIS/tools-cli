@@ -22,12 +22,20 @@ txc env setting update --name appcopilotenabled --value 0
 
 **Disable AI form fill assistance (automatic predictions on edit forms):**
 ```sh
-txc env setting update --name FormPredictEnabled --value false
+# Check current value (this is a solution-based setting, read-only via CLI)
+txc env setting list --filter FormPredictEnabled
+
+# To change: go to make.powerapps.com > Solutions > add existing Setting Definition
+# "Allow AI to generate predictions on edit forms" and set to false.
 ```
 
 **Disable AI form insights:**
 ```sh
-txc env setting update --name EnableFormInsights --value false
+# Check current value (solution-based setting, read-only via CLI)
+txc env setting list --filter EnableFormInsights
+
+# To change: go to make.powerapps.com > Solutions > add existing Setting Definition
+# "AI insight cards on forms" and set to false.
 ```
 
 **Disable AI Builder preview scenarios:**

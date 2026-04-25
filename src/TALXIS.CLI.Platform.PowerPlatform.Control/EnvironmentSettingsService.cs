@@ -26,17 +26,19 @@ public sealed class EnvironmentSettingsService : IEnvironmentSettingsService
         EnvironmentSettingsClient controlPlaneClient,
         IAccessTokenService tokens,
         IHttpClientFactoryWrapper? httpFactory = null,
-        ILogger<EnvironmentSettingsService>? logger = null)
+        ILoggerFactory? loggerFactory = null)
     {
         _resolver = resolver ?? throw new ArgumentNullException(nameof(resolver));
         _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
-        _logger = logger ?? NullLogger<EnvironmentSettingsService>.Instance;
+        _logger = loggerFactory?.CreateLogger<EnvironmentSettingsService>()
+            ?? NullLogger<EnvironmentSettingsService>.Instance;
 
         // Backends in priority order for update routing.
         _backends = new ISettingsBackend[]
         {
             new ControlPlaneSettingsBackend(controlPlaneClient),
-            new CopilotGovernanceSettingsBackend(tokens, httpFactory),
+            new CopilotGovernanceSettingsBackend(tokens, httpFactory,
+                loggerFactory?.CreateLogger<CopilotGovernanceSettingsBackend>()),
             new OrganizationTableSettingsBackend(tokens, httpFactory),
             new SolutionSettingsBackend(tokens, httpFactory),
         };

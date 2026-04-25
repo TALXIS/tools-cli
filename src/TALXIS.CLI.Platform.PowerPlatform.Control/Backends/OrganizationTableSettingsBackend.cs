@@ -58,7 +58,7 @@ internal sealed class OrganizationTableSettingsBackend : ISettingsBackend
         var envUri = GetEnvironmentUri(connection);
 
         // GET the org row to validate the setting name exists and retrieve the organizationid.
-        var (body, _) = await GetOrganizationsAsync(connection, credential, envUri, ct).ConfigureAwait(false);
+        var (body, token) = await GetOrganizationsAsync(connection, credential, envUri, ct).ConfigureAwait(false);
 
         using var doc = JsonDocument.Parse(body);
         var root = doc.RootElement;
@@ -70,18 +70,21 @@ internal sealed class OrganizationTableSettingsBackend : ISettingsBackend
 
         var orgRow = valueArray[0];
 
-        // Check if the setting name exists in the organization row (case-insensitive).
-        bool found = false;
+        // Find the actual property name (case-insensitive) so the PATCH payload
+        // uses the exact casing Dataverse expects, regardless of what the user typed.
+        string? actualPropertyName = null;
         foreach (var prop in orgRow.EnumerateObject())
         {
+            if (IsAnnotationKey(prop.Name))
+                continue;
             if (prop.Name.Equals(settingName, StringComparison.OrdinalIgnoreCase))
             {
-                found = true;
+                actualPropertyName = prop.Name;
                 break;
             }
         }
 
-        if (!found)
+        if (actualPropertyName is null)
             return false;
 
         // Extract organizationid for the PATCH URL.
@@ -90,9 +93,8 @@ internal sealed class OrganizationTableSettingsBackend : ISettingsBackend
             || !Guid.TryParse(orgIdProp.GetString(), out var orgId))
             throw new InvalidOperationException("Could not read 'organizationid' from the organization row.");
 
-        // PATCH the setting.
-        var payload = new JsonObject { [settingName] = EnvironmentSettingsClient.CoerceValue(value) };
-        var token = await AcquireTokenAsync(connection, credential, envUri, ct).ConfigureAwait(false);
+        // PATCH the setting using the actual column name from the org row.
+        var payload = new JsonObject { [actualPropertyName] = EnvironmentSettingsClient.CoerceValue(value) };
 
         using var http = _httpFactory.Create();
         var patchUrl = new Uri(envUri, $"{OrganizationsPath}({orgId})");

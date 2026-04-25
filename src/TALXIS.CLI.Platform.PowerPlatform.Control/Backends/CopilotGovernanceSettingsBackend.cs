@@ -2,6 +2,8 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Core.Platforms.PowerPlatform;
@@ -29,13 +31,16 @@ internal sealed class CopilotGovernanceSettingsBackend : ISettingsBackend
 
     private readonly IAccessTokenService _tokens;
     private readonly IHttpClientFactoryWrapper _httpFactory;
+    private readonly ILogger<CopilotGovernanceSettingsBackend> _logger;
 
     public CopilotGovernanceSettingsBackend(
         IAccessTokenService tokens,
-        IHttpClientFactoryWrapper? httpFactory = null)
+        IHttpClientFactoryWrapper? httpFactory = null,
+        ILogger<CopilotGovernanceSettingsBackend>? logger = null)
     {
         _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
         _httpFactory = httpFactory ?? DefaultHttpClientFactoryWrapper.Instance;
+        _logger = logger ?? NullLogger<CopilotGovernanceSettingsBackend>.Instance;
     }
 
     public async Task<IReadOnlyList<EnvironmentSetting>> ListAsync(
@@ -46,20 +51,22 @@ internal sealed class CopilotGovernanceSettingsBackend : ISettingsBackend
             .ConfigureAwait(false);
 
         var settings = new List<EnvironmentSetting>();
+        using var http = _httpFactory.Create();
 
         // Query each known setting individually — no "list all" endpoint exists.
         foreach (var name in KnownSettingNames)
         {
             try
             {
-                var setting = await GetSettingAsync(baseUri, token, name, ct).ConfigureAwait(false);
+                var setting = await GetSettingAsync(http, baseUri, token, name, ct).ConfigureAwait(false);
                 if (setting is not null)
                     settings.Add(setting);
+                else
+                    _logger.LogDebug("Copilot governance setting '{Setting}' returned null (not provisioned).", name);
             }
-            catch
+            catch (Exception ex)
             {
-                // Swallow per-setting errors — the setting may not be provisioned
-                // for this environment. Continue with the next one.
+                _logger.LogWarning(ex, "Failed to retrieve copilot governance setting '{Setting}'. Skipping.", name);
             }
         }
 
@@ -79,7 +86,8 @@ internal sealed class CopilotGovernanceSettingsBackend : ISettingsBackend
 
         var url = $"{baseUri}copilotgovernance/settings/{Uri.EscapeDataString(settingName)}?api-version=1";
 
-        // The copilot governance API expects { "value": <bool> } for boolean settings.
+        // The copilot governance API wraps the value in a { "value": ... } envelope.
+        // Boolean settings expect true/false; CoerceValue handles the string → bool conversion.
         var payload = new JsonObject { ["value"] = EnvironmentSettingsClient.CoerceValue(value) };
 
         using var http = _httpFactory.Create();
@@ -102,11 +110,10 @@ internal sealed class CopilotGovernanceSettingsBackend : ISettingsBackend
     }
 
     private async Task<EnvironmentSetting?> GetSettingAsync(
-        string baseUri, string token, string settingName, CancellationToken ct)
+        HttpClient http, string baseUri, string token, string settingName, CancellationToken ct)
     {
         var url = $"{baseUri}copilotgovernance/settings/{Uri.EscapeDataString(settingName)}?api-version=1";
 
-        using var http = _httpFactory.Create();
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
