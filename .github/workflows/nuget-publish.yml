@@ -169,7 +169,7 @@ jobs:
           ref: master
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Validate release tag is on master
+      - name: Validate release tag is reachable from master
         run: |
           $tagName = "${{ github.event.release.tag_name }}"
           git fetch origin master --tags
@@ -178,9 +178,12 @@ jobs:
             Write-Error "Release tag '$tagName' could not be resolved to a commit."
             exit 1
           }
-          $masterHead = git rev-parse HEAD
-          if ($tagCommit -ne $masterHead) {
-            Write-Error "Release tag '$tagName' points to commit '$tagCommit', but current master HEAD is '$masterHead'. Refusing to bump version on master."
+          # Verify the tag commit is an ancestor of (or equal to) master HEAD.
+          # This allows commits to land on master after the tag without blocking
+          # the version bump, while still preventing releases from non-master branches.
+          $isAncestor = git merge-base --is-ancestor $tagCommit HEAD
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "Release tag '$tagName' (commit '$tagCommit') is not reachable from master. Refusing to bump version."
             exit 1
           }
       - name: Update Directory.Build.props
