@@ -250,7 +250,7 @@ public sealed class CmtImportRunner
             _logger.LogInformation("Starting data import...");
             // NOTE: The deleteBeforeAdd parameter is accepted by CMT's API but
             // is never actually used internally — the delete functionality was
-            // never implemented in ImportCrmDataHandler (confirmed by decompilation).
+            // never implemented in ImportCrmDataHandler.
             await Task.Run(() => handler.ImportDataToCrm(workingFolder, deleteBeforeAdd: false));
 
             // CMT often swallows exceptions internally and only reports

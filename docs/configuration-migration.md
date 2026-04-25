@@ -843,7 +843,7 @@ The CMT API accepts a `deleteBeforeAdd` parameter that is supposed to delete all
 
 ### Image columns work despite documentation
 
-Microsoft's official documentation states that "Image column migration is not supported." However, decompilation of the CMT engine reveals that `imagedata` fields **are** handled — they are serialized as base64-encoded strings using the Raw data type and imported via standard attribute updates. Image migration works in practice.
+Microsoft's official documentation states that "Image column migration is not supported." However, in practice `imagedata` fields **are** handled — they are serialized as base64-encoded strings using the Raw data type and imported via standard attribute updates. Image migration works in practice.
 
 ### `Calendar` entity is not supported
 

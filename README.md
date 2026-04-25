@@ -149,7 +149,7 @@ txc env data bulk upsert --entity contact --file ./contacts.json   # CreateMulti
 txc data pkg export --schema ./data_schema.xml --output ./data-package --export-files
 txc data pkg import ./data-package
 
-# Tuning options not exposed by PAC CLI or CMT GUI — undocumented AppSettings we found by decompiling:
+# Advanced tuning options not exposed by PAC CLI or CMT GUI:
 txc data pkg import ./data-package \
   --batch-mode                  # ExecuteMultiple batching (vs one-by-one) \
   --batch-size 500              # records per batch (default: 200) \
