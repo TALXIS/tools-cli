@@ -1,4 +1,3 @@
-using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
@@ -11,7 +10,7 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 
 /// <summary>
 /// Retrieves entity-level metadata for a specific entity (table).
-/// Usage: <c>txc environment entity get &lt;entity&gt; [--json]</c>
+/// Usage: <c>txc environment entity get &lt;entity&gt; [--format json]</c>
 /// </summary>
 [CliReadOnly]
 [CliCommand(
@@ -25,9 +24,6 @@ public class EntityGetCliCommand : ProfiledCliCommand
 
     [CliArgument(Name = "entity", Description = "The logical name of the entity.")]
     public string Entity { get; set; } = null!;
-
-    [CliOption(Name = "--json", Description = "Emit the result as indented JSON instead of a text layout.", Required = false)]
-    public bool Json { get; set; }
 
     protected override async Task<int> ExecuteAsync()
     {
@@ -48,13 +44,7 @@ public class EntityGetCliCommand : ProfiledCliCommand
             return ExitError;
         }
 
-        if (Json)
-        {
-            OutputWriter.WriteLine(JsonSerializer.Serialize(detail, JsonOptions));
-            return ExitSuccess;
-        }
-
-        PrintDetail(detail);
+        OutputFormatter.WriteData(detail, PrintDetail);
         return ExitSuccess;
     }
 
@@ -84,6 +74,4 @@ public class EntityGetCliCommand : ProfiledCliCommand
     }
 
     private static string BoolStr(bool value) => value ? "true" : "false";
-
-    private static JsonSerializerOptions JsonOptions => TxcOutputJsonOptions.Default;
 }

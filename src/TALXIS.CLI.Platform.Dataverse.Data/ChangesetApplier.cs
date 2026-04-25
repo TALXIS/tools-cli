@@ -926,10 +926,10 @@ internal sealed class ChangesetApplier : IChangesetApplier
             EntityLogicalName = GetParam<string>(op, "entity"),
             // Staging stores "name"; also accept "schemaName"
             SchemaName = GetParamOrDefault<string?>(op, "schemaName") ?? GetParam<string>(op, "name"),
-            Type = GetParam<string>(op, "type"),
+            Type = NormalizeAttributeType(GetParam<string>(op, "type")),
             DisplayName = GetParamOrDefault<string?>(op, "displayName"),
             Description = GetParamOrDefault<string?>(op, "description"),
-            RequiredLevel = GetParamOrDefault<string?>(op, "requiredLevel") ?? "none",
+            RequiredLevel = (GetParamOrDefault<string?>(op, "requiredLevel") ?? "none").ToLowerInvariant(),
             SolutionUniqueName = GetParamOrDefault<string?>(op, "solution"),
             MaxLength = GetParamOrDefault<int?>(op, "maxLength"),
             StringFormat = GetParamOrDefault<string?>(op, "stringFormat"),
@@ -937,17 +937,121 @@ internal sealed class ChangesetApplier : IChangesetApplier
             MaxValue = GetParamOrDefault<double?>(op, "maxValue"),
             Precision = GetParamOrDefault<int?>(op, "precision"),
             NumberFormat = GetParamOrDefault<string?>(op, "numberFormat"),
-            PrecisionSource = GetParamOrDefault<int?>(op, "precisionSource"),
+            PrecisionSource = GetPrecisionSource(op),
             TrueLabel = GetParamOrDefault<string?>(op, "trueLabel") ?? "Yes",
             FalseLabel = GetParamOrDefault<string?>(op, "falseLabel") ?? "No",
             DateTimeFormat = GetParamOrDefault<string?>(op, "dateTimeFormat"),
             DateTimeBehavior = GetParamOrDefault<string?>(op, "dateTimeBehavior"),
-            GlobalOptionSetName = GetParamOrDefault<string?>(op, "globalOptionSetName"),
+            Options = GetOptionTuples(op),
+            GlobalOptionSetName = GetParamOrDefault<string?>(op, "globalOptionSetName")
+                               ?? GetParamOrDefault<string?>(op, "globalOptionSet"),
             TargetEntity = GetParamOrDefault<string?>(op, "targetEntity"),
+            TargetEntities = GetTargetEntities(op),
             CascadeDelete = GetParamOrDefault<string?>(op, "cascadeDelete") ?? "removelink",
             MaxSizeKb = GetParamOrDefault<int?>(op, "maxSizeKb"),
-            CanStoreFullImage = GetParamOrDefault<bool?>(op, "canStoreFullImage") ?? true
+            CanStoreFullImage = GetParamOrDefault<bool?>(op, "canStoreFullImage") ?? true,
+            IsAuditable = GetParamOrDefault<bool>(op, "isAuditable"),
+            IsSearchable = GetParamOrDefault<bool?>(op, "isSearchable") ?? true,
+            IsSecured = GetParamOrDefault<bool>(op, "isSecured")
         };
+    }
+
+    private static string[]? GetTargetEntities(StagedOperation op)
+    {
+        if (!op.Parameters.TryGetValue("targetEntities", out var raw) || raw is null)
+            return null;
+
+        if (raw is string[] targets)
+            return targets;
+
+        if (raw is JsonElement je)
+        {
+            if (je.ValueKind == JsonValueKind.Array)
+                return JsonSerializer.Deserialize<string[]>(je.GetRawText());
+            if (je.ValueKind == JsonValueKind.String)
+                raw = je.GetString();
+        }
+
+        return raw is string csv && !string.IsNullOrWhiteSpace(csv)
+            ? csv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            : null;
+    }
+
+    private static int? GetPrecisionSource(StagedOperation op)
+    {
+        if (!op.Parameters.TryGetValue("precisionSource", out var raw) || raw is null)
+            return null;
+
+        if (raw is int i)
+            return i;
+
+        if (raw is JsonElement je)
+        {
+            if (je.ValueKind == JsonValueKind.Number && je.TryGetInt32(out var jsonInt))
+                return jsonInt;
+            if (je.ValueKind == JsonValueKind.String)
+                raw = je.GetString();
+        }
+
+        var value = raw?.ToString();
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        if (int.TryParse(value, out var parsed))
+            return parsed;
+
+        return value.ToLowerInvariant() switch
+        {
+            "attribute" => 0,
+            "organization" => 1,
+            "currency" => 2,
+            _ => null
+        };
+    }
+
+    private static string NormalizeAttributeType(string type)
+        => type.Replace("-", "", StringComparison.Ordinal).ToLowerInvariant();
+
+    private static (string Label, int Value)[]? GetOptionTuples(StagedOperation op)
+    {
+        if (!op.Parameters.TryGetValue("options", out var raw) || raw is null)
+            return null;
+
+        if (raw is JsonElement je)
+        {
+            if (je.ValueKind == JsonValueKind.Array)
+            {
+                return je.EnumerateArray()
+                    .Select(e => (
+                        e.GetProperty("label").GetString()!,
+                        e.GetProperty("value").GetInt32()))
+                    .ToArray();
+            }
+
+            if (je.ValueKind == JsonValueKind.String)
+                raw = je.GetString();
+        }
+
+        return raw is string csv && !string.IsNullOrWhiteSpace(csv)
+            ? ParseOptionTuplesCsv(csv)
+            : null;
+    }
+
+    private static (string Label, int Value)[] ParseOptionTuplesCsv(string csv)
+    {
+        var entries = csv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var results = new (string Label, int Value)[entries.Length];
+        int autoValue = 100_000_000;
+
+        for (int i = 0; i < entries.Length; i++)
+        {
+            var parts = entries[i].Split(':', 2, StringSplitOptions.TrimEntries);
+            var value = parts.Length == 2 && int.TryParse(parts[1], out int parsed) ? parsed : autoValue++;
+            if (parts.Length < 2) autoValue = value + 1;
+            results[i] = (parts[0], value);
+        }
+
+        return results;
     }
 
     /// <summary>

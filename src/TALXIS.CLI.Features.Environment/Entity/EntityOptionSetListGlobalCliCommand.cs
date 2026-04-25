@@ -1,4 +1,3 @@
-using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
@@ -11,7 +10,7 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 
 /// <summary>
 /// Lists all global option sets in the environment.
-/// Usage: <c>txc environment entity optionset list-global [--json]</c>
+/// Usage: <c>txc environment entity optionset list-global [--format json]</c>
 /// </summary>
 [CliReadOnly]
 [CliCommand(
@@ -22,9 +21,6 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 public class EntityOptionSetListGlobalCliCommand : ProfiledCliCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EntityOptionSetListGlobalCliCommand));
-
-    [CliOption(Name = "--json", Description = "Emit the list as indented JSON instead of a text table.", Required = false)]
-    public bool Json { get; set; }
 
     protected override async Task<int> ExecuteAsync()
     {
@@ -45,13 +41,7 @@ public class EntityOptionSetListGlobalCliCommand : ProfiledCliCommand
             return ExitError;
         }
 
-        if (Json)
-        {
-            OutputWriter.WriteLine(JsonSerializer.Serialize(rows, JsonOptions));
-            return ExitSuccess;
-        }
-
-        PrintOptionSetsTable(rows);
+        OutputFormatter.WriteList(rows, PrintOptionSetsTable);
         return ExitSuccess;
     }
 
@@ -98,6 +88,4 @@ public class EntityOptionSetListGlobalCliCommand : ProfiledCliCommand
     /// <summary>Truncate a string to fit the column width, appending a dot if trimmed.</summary>
     private static string Truncate(string value, int maxWidth) =>
         value.Length > maxWidth ? value[..(maxWidth - 1)] + "." : value;
-
-    private static JsonSerializerOptions JsonOptions => TxcOutputJsonOptions.Default;
 }

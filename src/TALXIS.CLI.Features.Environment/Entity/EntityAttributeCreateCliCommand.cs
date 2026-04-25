@@ -140,7 +140,7 @@ public class EntityAttributeCreateCliCommand : StagedCliCommand
 
         if (Stage)
         {
-            ValidateTypeSpecificParams();
+            var options = BuildCreateOptions();
 
             var store = TxcServices.Get<IChangesetStore>();
             store.Add(new StagedOperation
@@ -152,34 +152,34 @@ public class EntityAttributeCreateCliCommand : StagedCliCommand
                 Details = $"type: {Type}",
                 Parameters = new Dictionary<string, object?>
                 {
-                    ["entity"] = Entity,
-                    ["name"] = Name,
-                    ["type"] = Type.ToString(),
-                    ["displayName"] = DisplayName,
-                    ["description"] = Description,
-                    ["requiredLevel"] = RequiredLevel,
-                    ["solution"] = Solution,
-                    ["maxLength"] = MaxLength,
-                    ["stringFormat"] = StringFormat,
-                    ["minValue"] = MinValue,
-                    ["maxValue"] = MaxValue,
-                    ["precision"] = Precision,
-                    ["numberFormat"] = NumberFormat,
-                    ["precisionSource"] = PrecisionSource,
-                    ["trueLabel"] = TrueLabel,
-                    ["falseLabel"] = FalseLabel,
-                    ["dateTimeFormat"] = DateTimeFormat,
-                    ["dateTimeBehavior"] = DateTimeBehavior,
+                    ["entity"] = options.EntityLogicalName,
+                    ["name"] = options.SchemaName,
+                    ["type"] = options.Type,
+                    ["displayName"] = options.DisplayName,
+                    ["description"] = options.Description,
+                    ["requiredLevel"] = options.RequiredLevel,
+                    ["solution"] = options.SolutionUniqueName,
+                    ["maxLength"] = options.MaxLength,
+                    ["stringFormat"] = options.StringFormat,
+                    ["minValue"] = options.MinValue,
+                    ["maxValue"] = options.MaxValue,
+                    ["precision"] = options.Precision,
+                    ["numberFormat"] = options.NumberFormat,
+                    ["precisionSource"] = options.PrecisionSource,
+                    ["trueLabel"] = options.TrueLabel,
+                    ["falseLabel"] = options.FalseLabel,
+                    ["dateTimeFormat"] = options.DateTimeFormat,
+                    ["dateTimeBehavior"] = options.DateTimeBehavior,
                     ["options"] = Options,
-                    ["globalOptionSet"] = GlobalOptionSet,
-                    ["targetEntity"] = TargetEntity,
-                    ["targetEntities"] = TargetEntities,
-                    ["cascadeDelete"] = CascadeDelete,
-                    ["maxSizeKb"] = MaxSizeKb,
-                    ["canStoreFullImage"] = CanStoreFullImage,
-                    ["isAuditable"] = IsAuditable,
-                    ["isSearchable"] = IsSearchable,
-                    ["isSecured"] = IsSecured
+                    ["globalOptionSetName"] = options.GlobalOptionSetName,
+                    ["targetEntity"] = options.TargetEntity,
+                    ["targetEntities"] = options.TargetEntities,
+                    ["cascadeDelete"] = options.CascadeDelete,
+                    ["maxSizeKb"] = options.MaxSizeKb,
+                    ["canStoreFullImage"] = options.CanStoreFullImage,
+                    ["isAuditable"] = options.IsAuditable,
+                    ["isSearchable"] = options.IsSearchable,
+                    ["isSecured"] = options.IsSecured
                 }
             });
             OutputWriter.WriteLine($"Staged: CREATE attribute '{Entity}.{Name}' (type: {Type})");

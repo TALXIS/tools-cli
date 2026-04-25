@@ -1,4 +1,3 @@
-using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
@@ -11,7 +10,7 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 
 /// <summary>
 /// Retrieves detailed metadata for a single attribute (column) on a Dataverse entity.
-/// Usage: <c>txc environment entity attribute get --entity &lt;name&gt; --name &lt;name&gt; [-p profile] [--json]</c>
+/// Usage: <c>txc environment entity attribute get --entity &lt;name&gt; --name &lt;name&gt; [-p profile] [--format json]</c>
 /// </summary>
 [CliReadOnly]
 [CliCommand(
@@ -28,9 +27,6 @@ public class EntityAttributeGetCliCommand : ProfiledCliCommand
 
     [CliOption(Name = "--name", Description = "Attribute logical name.", Required = true)]
     public string Name { get; set; } = null!;
-
-    [CliOption(Name = "--json", Description = "Emit the result as indented JSON instead of key-value text.", Required = false)]
-    public bool Json { get; set; }
 
     protected override async Task<int> ExecuteAsync()
     {
@@ -51,13 +47,7 @@ public class EntityAttributeGetCliCommand : ProfiledCliCommand
             return ExitError;
         }
 
-        if (Json)
-        {
-            OutputWriter.WriteLine(JsonSerializer.Serialize(detail, JsonOptions));
-            return ExitSuccess;
-        }
-
-        PrintDetail(detail);
+        OutputFormatter.WriteData(detail, PrintDetail);
         return ExitSuccess;
     }
 
@@ -92,6 +82,4 @@ public class EntityAttributeGetCliCommand : ProfiledCliCommand
             }
         }
     }
-
-    private static JsonSerializerOptions JsonOptions => TxcOutputJsonOptions.Default;
 }

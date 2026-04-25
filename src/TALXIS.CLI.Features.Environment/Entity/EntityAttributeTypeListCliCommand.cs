@@ -1,4 +1,3 @@
-using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
@@ -8,7 +7,7 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 
 /// <summary>
 /// Lists all supported attribute types with a brief description.
-/// Usage: <c>txc environment entity attribute type list [--json]</c>
+/// Usage: <c>txc environment entity attribute type list [--format json]</c>
 /// </summary>
 [CliReadOnly]
 [CliCommand(
@@ -20,26 +19,10 @@ public class EntityAttributeTypeListCliCommand : TxcLeafCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EntityAttributeTypeListCliCommand));
 
-    [CliOption(Name = "--json", Description = "Emit the list as JSON instead of a text table.", Required = false)]
-    public bool Json { get; set; }
-
     protected override Task<int> ExecuteAsync()
     {
         var types = AttributeTypeRegistry.AllTypes;
-
-        if (Json)
-        {
-            var payload = types.Select(t => new
-            {
-                type = t.Name,
-                sdkType = t.SdkType,
-                description = t.Description,
-            });
-            OutputWriter.WriteLine(JsonSerializer.Serialize(payload, TxcOutputJsonOptions.Default));
-            return Task.FromResult(ExitSuccess);
-        }
-
-        PrintTypesTable(types);
+        OutputFormatter.WriteList(types, PrintTypesTable);
         return Task.FromResult(ExitSuccess);
     }
 
