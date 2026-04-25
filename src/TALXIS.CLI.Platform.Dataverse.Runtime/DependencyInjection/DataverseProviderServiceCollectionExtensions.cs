@@ -52,9 +52,9 @@ public static class DataverseProviderServiceCollectionExtensions
         services.AddSingleton<IAccessTokenService>(sp => sp.GetRequiredService<DataverseAccessTokenService>());
         services.AddSingleton<IDataverseConnectionFactory, DataverseConnectionFactory>();
         services.AddSingleton<IPowerPlatformEnvironmentCatalog, PowerPlatformEnvironmentCatalog>();
-        services.AddSingleton<EnvironmentManagementSettingsClient>();
-        services.AddSingleton<TALXIS.CLI.Core.Platforms.PowerPlatform.IEnvironmentManagementSettingsService,
-            EnvironmentManagementSettingsService>();
+        services.AddSingleton<EnvironmentSettingsClient>();
+        services.AddSingleton<TALXIS.CLI.Core.Platforms.PowerPlatform.IEnvironmentSettingsService,
+            EnvironmentSettingsService>();
         services.AddSingleton<IDataverseLiveChecker, DataverseLiveChecker>();
         services.AddSingleton<IInteractiveLoginService, DataverseInteractiveLoginService>();
         services.AddSingleton<TALXIS.CLI.Core.Bootstrapping.IConnectionProviderBootstrapper,

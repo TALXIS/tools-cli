@@ -7,7 +7,7 @@ using Xunit;
 
 namespace TALXIS.CLI.Tests.Config.Providers.PowerPlatform;
 
-public sealed class EnvironmentManagementSettingsClientTests
+public sealed class EnvironmentSettingsClientTests
 {
     #region ParseListResponse
 
@@ -28,7 +28,7 @@ public sealed class EnvironmentManagementSettingsClientTests
         }
         """;
 
-        var result = EnvironmentManagementSettingsClient.ParseListResponse(json);
+        var result = EnvironmentSettingsClient.ParseListResponse(json);
 
         Assert.Equal(3, result.Count);
 
@@ -43,7 +43,7 @@ public sealed class EnvironmentManagementSettingsClientTests
     {
         var json = """{ "objectResult": [] }""";
 
-        var result = EnvironmentManagementSettingsClient.ParseListResponse(json);
+        var result = EnvironmentSettingsClient.ParseListResponse(json);
 
         Assert.Empty(result);
     }
@@ -53,7 +53,7 @@ public sealed class EnvironmentManagementSettingsClientTests
     {
         var json = """{ "someOtherProperty": 42 }""";
 
-        var result = EnvironmentManagementSettingsClient.ParseListResponse(json);
+        var result = EnvironmentSettingsClient.ParseListResponse(json);
 
         Assert.Empty(result);
     }
@@ -73,7 +73,7 @@ public sealed class EnvironmentManagementSettingsClientTests
         }
         """;
 
-        var result = EnvironmentManagementSettingsClient.ParseListResponse(json);
+        var result = EnvironmentSettingsClient.ParseListResponse(json);
 
         Assert.Single(result);
         Assert.Equal("someSetting", result[0].Name);
@@ -98,7 +98,7 @@ public sealed class EnvironmentManagementSettingsClientTests
         }
         """;
 
-        var result = EnvironmentManagementSettingsClient.ParseListResponse(json);
+        var result = EnvironmentSettingsClient.ParseListResponse(json);
 
         Assert.Single(result);
         Assert.Equal("settingA", result[0].Name);
@@ -116,7 +116,7 @@ public sealed class EnvironmentManagementSettingsClientTests
     [InlineData("False", false)]
     public void CoerceValue_BooleanStrings_ReturnsBoolNode(string input, bool expected)
     {
-        var node = EnvironmentManagementSettingsClient.CoerceValue(input);
+        var node = EnvironmentSettingsClient.CoerceValue(input);
 
         Assert.Equal(expected, node.GetValue<bool>());
     }
@@ -127,7 +127,7 @@ public sealed class EnvironmentManagementSettingsClientTests
     [InlineData("-1", -1)]
     public void CoerceValue_IntegerStrings_ReturnsIntNode(string input, int expected)
     {
-        var node = EnvironmentManagementSettingsClient.CoerceValue(input);
+        var node = EnvironmentSettingsClient.CoerceValue(input);
 
         Assert.Equal(expected, node.GetValue<int>());
     }
@@ -138,7 +138,7 @@ public sealed class EnvironmentManagementSettingsClientTests
     [InlineData("")]
     public void CoerceValue_PlainStrings_ReturnsStringNode(string input)
     {
-        var node = EnvironmentManagementSettingsClient.CoerceValue(input);
+        var node = EnvironmentSettingsClient.CoerceValue(input);
 
         Assert.Equal(input, node.GetValue<string>());
     }
@@ -170,7 +170,7 @@ public sealed class EnvironmentManagementSettingsClientTests
             Content = new StringContent(responseJson)
         });
 
-        var sut = new EnvironmentManagementSettingsClient(tokens, http);
+        var sut = new EnvironmentSettingsClient(tokens, http);
 
         var result = await sut.ListAsync(
             new Connection

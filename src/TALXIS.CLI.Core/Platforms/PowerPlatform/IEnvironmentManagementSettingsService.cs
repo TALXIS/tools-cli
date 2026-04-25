@@ -1,34 +1,32 @@
 namespace TALXIS.CLI.Core.Platforms.PowerPlatform;
 
 /// <summary>
-/// A single environment management setting returned by the Power Platform
-/// control plane API (<c>api.powerplatform.com/environmentmanagement</c>).
+/// A single environment setting from any backend (control plane, Organization
+/// table, solution settings, copilot governance). The CLI presents all
+/// settings as flat key-value pairs regardless of their storage location.
 /// </summary>
-public sealed record EnvironmentManagementSetting(string Name, object? Value);
+public sealed record EnvironmentSetting(string Name, object? Value);
 
 /// <summary>
-/// Lists and updates environment management settings via the Power Platform
-/// control plane API. These are governance/feature-toggle settings
-/// (e.g. <c>powerApps_AllowCodeApps</c>, Copilot Studio flags, SAS IP
-/// restrictions) — distinct from the Dataverse Organization table columns
-/// that <c>pac env list-settings</c> surfaces.
+/// Unified service for listing and updating environment settings across
+/// all Power Platform backends. Abstracts away the fragmented storage
+/// (control plane API, Dataverse Organization table, solution settings,
+/// copilot governance) behind a single key-value interface.
 /// </summary>
-public interface IEnvironmentManagementSettingsService
+public interface IEnvironmentSettingsService
 {
     /// <summary>
-    /// Lists environment management settings. When <paramref name="selectFilter"/>
-    /// is provided it is passed as the <c>$select</c> OData query parameter to
-    /// restrict the returned properties.
+    /// Lists environment settings from all backends, merged into a single
+    /// flat collection.
     /// </summary>
-    Task<IReadOnlyList<EnvironmentManagementSetting>> ListAsync(
+    Task<IReadOnlyList<EnvironmentSetting>> ListAsync(
         string? profileName,
-        string? selectFilter,
         CancellationToken ct);
 
     /// <summary>
-    /// Updates a single environment management setting via PATCH.
-    /// The <paramref name="value"/> string is auto-coerced to the
-    /// appropriate JSON type (bool / int / string).
+    /// Updates a single environment setting. The correct backend is resolved
+    /// automatically based on the setting name. The <paramref name="value"/>
+    /// string is auto-coerced to the appropriate type (bool / int / string).
     /// </summary>
     Task UpdateAsync(
         string? profileName,
@@ -36,3 +34,5 @@ public interface IEnvironmentManagementSettingsService
         string value,
         CancellationToken ct);
 }
+
+

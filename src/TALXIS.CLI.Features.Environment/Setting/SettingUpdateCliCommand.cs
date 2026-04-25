@@ -9,17 +9,17 @@ namespace TALXIS.CLI.Features.Environment.Setting;
 
 /// <summary>
 /// <c>txc environment setting update</c> — updates a single environment
-/// management setting via the Power Platform control plane API.
+/// setting. The correct backend is resolved automatically.
 /// </summary>
 [CliCommand(
     Name = "update",
-    Description = "Update an environment management setting (control plane)."
+    Description = "Update an environment setting."
 )]
 public class SettingUpdateCliCommand : ProfiledCliCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(SettingUpdateCliCommand));
 
-    [CliOption(Name = "--name", Aliases = new[] { "-n" }, Description = "Name of the setting to update (e.g. powerApps_AllowCodeApps).", Required = true)]
+    [CliOption(Name = "--name", Aliases = new[] { "-n" }, Description = "Name of the setting to update (e.g. PowerApps_AllowCodeApps, isauditenabled).", Required = true)]
     public required string Name { get; set; }
 
     [CliOption(Name = "--value", Aliases = new[] { "-v" }, Description = "Value to set. Booleans (true/false) and integers are auto-coerced.", Required = true)]
@@ -27,7 +27,7 @@ public class SettingUpdateCliCommand : ProfiledCliCommand
 
     protected override async Task<int> ExecuteAsync()
     {
-        var service = TxcServices.Get<IEnvironmentManagementSettingsService>();
+        var service = TxcServices.Get<IEnvironmentSettingsService>();
         await service.UpdateAsync(Profile, Name, Value, CancellationToken.None)
             .ConfigureAwait(false);
 
