@@ -451,9 +451,9 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
         CancellationToken ct)
     {
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+        conn.Client.ForceServerMetadataCacheConsistency = true;
 
-        // Retrieve the published attribute metadata (not as-if-published) so
-        // we base our update on what Dataverse currently has active.
+        // Retrieve current metadata to determine the concrete attribute type.
         var retrieveResponse = (RetrieveAttributeResponse)await conn.Client.ExecuteAsync(
             new RetrieveAttributeRequest
             {
@@ -462,74 +462,114 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
                 RetrieveAsIfPublished = false
             }, ct).ConfigureAwait(false);
 
+        var retrieved = retrieveResponse.AttributeMetadata;
+
         var attribute = retrieveResponse.AttributeMetadata;
 
+        // Non-RequiredLevel changes go through the SDK path.
         if (displayName is not null)
             attribute.DisplayName = new Label(displayName, 1033);
-
         if (description is not null)
             attribute.Description = new Label(description, 1033);
 
+        if (displayName is not null || description is not null)
+        {
+            await conn.Client.ExecuteAsync(new UpdateAttributeRequest
+            {
+                EntityName = entityLogicalName,
+                Attribute = attribute,
+                MergeLabels = true
+            }, ct).ConfigureAwait(false);
+        }
+
+        // RequiredLevel changes must go through the Web API because the SDK's
+        // UpdateAttributeRequest does not serialize ManagedProperty values.
+        // The Power Apps maker portal (make.powerapps.com) uses the same approach.
         if (requiredLevel is not null)
         {
-            var level = requiredLevel.ToLowerInvariant() switch
+            var rlValue = requiredLevel.ToLowerInvariant() switch
             {
-                "none" => AttributeRequiredLevel.None,
-                "recommended" => AttributeRequiredLevel.Recommended,
-                "required" => AttributeRequiredLevel.ApplicationRequired,
+                "none" => "None",
+                "recommended" => "Recommended",
+                "required" => "ApplicationRequired",
                 _ => throw new ArgumentException($"Invalid required level '{requiredLevel}'. Use: none, recommended, required.")
             };
-            // Modify the existing managed property's Value rather than replacing
-            // the entire object — preserves CanBeChanged and other flags.
-            if (attribute.RequiredLevel is not null)
+
+            // Determine the typed OData path for this attribute
+            string attrTypeName = attribute switch
             {
-                attribute.RequiredLevel.Value = level;
+                StringAttributeMetadata => "StringAttributeMetadata",
+                MemoAttributeMetadata => "MemoAttributeMetadata",
+                IntegerAttributeMetadata => "IntegerAttributeMetadata",
+                DecimalAttributeMetadata => "DecimalAttributeMetadata",
+                DoubleAttributeMetadata => "DoubleAttributeMetadata",
+                MoneyAttributeMetadata => "MoneyAttributeMetadata",
+                BooleanAttributeMetadata => "BooleanAttributeMetadata",
+                DateTimeAttributeMetadata => "DateTimeAttributeMetadata",
+                PicklistAttributeMetadata => "PicklistAttributeMetadata",
+                MultiSelectPicklistAttributeMetadata => "MultiSelectPicklistAttributeMetadata",
+                LookupAttributeMetadata => "LookupAttributeMetadata",
+                ImageAttributeMetadata => "ImageAttributeMetadata",
+                FileAttributeMetadata => "FileAttributeMetadata",
+                _ => "AttributeMetadata"
+            };
+
+            using var http = await conn.CreateWebApiClientAsync(ct).ConfigureAwait(false);
+
+            // GET the full attribute definition from the Web API
+            var entityMetaResp = (RetrieveEntityResponse)await conn.Client.ExecuteAsync(
+                new RetrieveEntityRequest { LogicalName = entityLogicalName, EntityFilters = EntityFilters.Entity }, ct)
+                .ConfigureAwait(false);
+            var entityMetaId = entityMetaResp.EntityMetadata.MetadataId;
+
+            var attrUrl = $"EntityDefinitions({entityMetaId})/Attributes(LogicalName='{attributeLogicalName}')/Microsoft.Dynamics.CRM.{attrTypeName}";
+            var getResp = await http.GetAsync(attrUrl, ct).ConfigureAwait(false);
+            getResp.EnsureSuccessStatusCode();
+            var attrJson = await getResp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+
+            // Parse and modify RequiredLevel in the JSON
+            using var doc = System.Text.Json.JsonDocument.Parse(attrJson);
+            using var ms = new MemoryStream();
+            using (var writer = new System.Text.Json.Utf8JsonWriter(ms))
+            {
+                writer.WriteStartObject();
+                foreach (var prop in doc.RootElement.EnumerateObject())
+                {
+                    if (prop.Name.StartsWith('@') || prop.Name.StartsWith('_'))
+                        continue;
+                    if (prop.Name == "RequiredLevel")
+                    {
+                        writer.WritePropertyName("RequiredLevel");
+                        writer.WriteStartObject();
+                        writer.WriteString("Value", rlValue);
+                        writer.WriteBoolean("CanBeChanged", true);
+                        writer.WriteString("ManagedPropertyLogicalName", "canmodifyrequirementlevelsettings");
+                        writer.WriteEndObject();
+                    }
+                    else
+                    {
+                        prop.WriteTo(writer);
+                    }
+                }
+                writer.WriteEndObject();
             }
-            else
+
+            var putJson = System.Text.Encoding.UTF8.GetString(ms.ToArray());
+            var putContent = new StringContent(putJson, System.Text.Encoding.UTF8, "application/json");
+            putContent.Headers.Add("MSCRM.MergeLabels", "false");
+            var putResp = await http.PutAsync(attrUrl, putContent, ct).ConfigureAwait(false);
+
+            if (!putResp.IsSuccessStatusCode)
             {
-                attribute.RequiredLevel = new AttributeRequiredLevelManagedProperty(level);
+                var errorBody = await putResp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+                throw new InvalidOperationException($"Web API PUT failed ({putResp.StatusCode}): {errorBody}");
             }
         }
 
-        conn.Client.ForceServerMetadataCacheConsistency = true;
-
-        await conn.Client.ExecuteAsync(new UpdateAttributeRequest
-        {
-            EntityName = entityLogicalName,
-            Attribute = attribute,
-            MergeLabels = false
-        }, ct).ConfigureAwait(false);
+        if (displayName is null && description is null && requiredLevel is null)
+            throw new ArgumentException("At least one property to update must be specified.");
 
         await PublishEntityAsync(conn, entityLogicalName, ct).ConfigureAwait(false);
-
-        // Verify the update was applied
-        var verifyResp = (RetrieveAttributeResponse)await conn.Client.ExecuteAsync(
-            new RetrieveAttributeRequest
-            {
-                EntityLogicalName = entityLogicalName,
-                LogicalName = attributeLogicalName,
-                RetrieveAsIfPublished = false
-            }, ct).ConfigureAwait(false);
-
-        if (requiredLevel is not null)
-        {
-            var expected = requiredLevel.ToLowerInvariant() switch
-            {
-                "required" => "ApplicationRequired",
-                "recommended" => "Recommended",
-                _ => "None"
-            };
-            var actual = verifyResp.AttributeMetadata.RequiredLevel?.Value.ToString();
-            if (actual != expected)
-            {
-                // SDK UpdateAttributeRequest is known to silently drop
-                // RequiredLevel changes. Warn the user.
-                throw new InvalidOperationException(
-                    $"RequiredLevel change to '{requiredLevel}' was not applied by the server. " +
-                    $"Current value is still '{actual}'. This is a known SDK limitation — " +
-                    $"use the Power Apps maker portal (make.powerapps.com) to change the requirement level.");
-            }
-        }
     }
 
     /// <inheritdoc />
@@ -993,6 +1033,31 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
     }
 
     // ===== Mapping helpers =====
+
+    /// <summary>
+    /// Creates a fresh (empty) <see cref="AttributeMetadata"/> instance matching
+    /// the concrete type of the retrieved attribute. The SDK's change tracking
+    /// does not detect modifications to managed properties on server-retrieved
+    /// objects, so we must build a fresh object with only the fields we want
+    /// to update.
+    /// </summary>
+    private static AttributeMetadata CreateFreshAttributeMetadata(AttributeMetadata retrieved) => retrieved switch
+    {
+        StringAttributeMetadata => new StringAttributeMetadata(),
+        MemoAttributeMetadata => new MemoAttributeMetadata(),
+        IntegerAttributeMetadata => new IntegerAttributeMetadata(),
+        DecimalAttributeMetadata => new DecimalAttributeMetadata(),
+        DoubleAttributeMetadata => new DoubleAttributeMetadata(),
+        MoneyAttributeMetadata => new MoneyAttributeMetadata(),
+        BooleanAttributeMetadata => new BooleanAttributeMetadata(),
+        DateTimeAttributeMetadata => new DateTimeAttributeMetadata(),
+        PicklistAttributeMetadata => new PicklistAttributeMetadata(),
+        MultiSelectPicklistAttributeMetadata => new MultiSelectPicklistAttributeMetadata(),
+        LookupAttributeMetadata => new LookupAttributeMetadata(),
+        ImageAttributeMetadata => new ImageAttributeMetadata(),
+        FileAttributeMetadata => new FileAttributeMetadata(),
+        _ => new AttributeMetadata()
+    };
 
     private static AttributeRequiredLevel MapRequiredLevel(string value) => value switch
     {
