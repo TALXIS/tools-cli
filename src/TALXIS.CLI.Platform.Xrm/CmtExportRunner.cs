@@ -259,7 +259,8 @@ public sealed class CmtExportRunner
     /// <summary>
     /// Wires a <see cref="ConsoleTraceListener"/> to CMT's internal
     /// TraceSource so that export progress and errors are visible in
-    /// the console output in real time.
+    /// the console output in real time, and sets the trace level based
+    /// on the <paramref name="verbose"/> flag.
     /// </summary>
     private void TryWireCmtConsoleLogging(object handler, bool verbose)
     {
@@ -276,6 +277,16 @@ public sealed class CmtExportRunner
                 return;
             }
 
+            // Set trace level — Verbose when --verbose, Information otherwise.
+            // Without this, CMT's TraceLogger may filter out lower-level messages.
+            MethodInfo? setLevel = logger.GetType()
+                .GetMethod("SetTraceLevel", BindingFlags.Public | BindingFlags.Instance);
+            if (setLevel is not null)
+            {
+                SourceLevels level = verbose ? SourceLevels.Verbose : SourceLevels.Information;
+                setLevel.Invoke(logger, new object[] { level });
+            }
+
             MethodInfo? addListener = logger.GetType()
                 .GetMethod("AddTraceListener", BindingFlags.Public | BindingFlags.Instance, null,
                     new[] { typeof(TraceListener) }, null);
@@ -284,7 +295,7 @@ public sealed class CmtExportRunner
             {
                 addListener.Invoke(logger, new object[] { new ConsoleTraceListener() });
                 if (verbose)
-                    _logger.LogDebug("CMT console trace listener wired");
+                    _logger.LogDebug("CMT console trace listener wired (level: Verbose)");
             }
             else if (verbose)
             {
