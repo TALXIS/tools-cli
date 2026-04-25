@@ -103,31 +103,16 @@ txc env setting update --name powerApps_AllowCodeApps --value true
 
 Deploy, inspect, and manage solutions and packages in the target environment.
 
-**Deploy the latest package from NuGet:**
 ```sh
+# Deploy a package straight from NuGet, inspect the result
 txc env pkg import TALXIS.Controls.FileExplorer.Package
-```
-
-**Inspect the latest package deployment with findings:**
-```sh
 txc env deploy show --package-name TALXIS.Controls.FileExplorer.Package
-```
 
-**Uninstall a package from its source artifact:**
-```sh
-txc env pkg uninstall TALXIS.Controls.FileExplorer.Package --yes
-```
-
-**Import a solution and follow the async operation when needed:**
-```sh
-txc env sln import ./Solutions/MySolution_managed.zip
-
-txc env deploy show --async-operation-id <asyncOperationId>
-```
-
-**Target a different environment for a single call without switching profiles:**
-```sh
+# Import a solution, target a different environment for one call
 txc env sln import ./Solutions/MySolution_managed.zip --profile customer-b-prod
+
+# Uninstall a package cleanly
+txc env pkg uninstall TALXIS.Controls.FileExplorer.Package --yes
 ```
 
 ### Data Plane
@@ -147,27 +132,14 @@ txc env data query fetchxml '<fetch top="5"><entity name="contact"><attribute na
 txc env data query sql "SELECT fullname, emailaddress1 FROM contact WHERE statecode = 0" --top 20
 ```
 
-**Record CRUD, file/image columns, N:N relationships:**
+**Record CRUD, file columns, relationships, bulk:**
 
 ```sh
-txc env data record get --entity account $ID --columns "name,revenue"
 txc env data record create --entity account --data '{"name":"Contoso Ltd","revenue":5000000}' --apply
-txc env data record update --entity account $ID --data '{"name":"Contoso International"}' --apply
-txc env data record delete --entity account $ID --yes --apply
-
-# Chunked streaming for file & image columns — not memory-bound
 txc env data record upload-file --entity account $ID --column logo --file ./logo.png --apply
-txc env data record download-file --entity account $ID --column logo --output ./logo.png
-
-# N:N relationship management
 txc env data record associate $ID --entity account \
   --target $TARGET_ID --target-entity contact --relationship accountleads_association --apply
-```
-
-**Bulk upsert — CreateMultiple/UpdateMultiple/UpsertMultiple under the hood:**
-
-```sh
-txc env data bulk upsert --entity contact --file ./contacts.json
+txc env data bulk upsert --entity contact --file ./contacts.json   # CreateMultiple/UpsertMultiple under the hood
 ```
 
 **Configuration Migration Tool (CMT)** — import, export, convert. Runs natively on macOS/Linux (no Windows VM needed). Exports to a folder by default so you can commit data directly to your repo:
