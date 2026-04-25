@@ -113,11 +113,26 @@ internal sealed class DataverseOptionSetService : IDataverseOptionSetService
     }
 
     /// <inheritdoc />
+    public async Task DeleteGlobalOptionSetAsync(
+        string? profileName,
+        string optionSetName,
+        CancellationToken ct)
+    {
+        using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+
+        var request = new DeleteOptionSetRequest { Name = optionSetName };
+        await conn.Client.ExecuteAsync(request, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<GlobalOptionSetSummaryRecord>> ListGlobalOptionSetsAsync(
         string? profileName,
         CancellationToken ct)
     {
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+
+        // Ensure fresh metadata after mutations (e.g. create/delete).
+        conn.Client.ForceServerMetadataCacheConsistency = true;
 
         var response = (RetrieveAllOptionSetsResponse)
             await conn.Client.ExecuteAsync(new RetrieveAllOptionSetsRequest(), ct).ConfigureAwait(false);

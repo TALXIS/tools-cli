@@ -58,6 +58,14 @@ public interface IDataverseOptionSetService
         CancellationToken ct);
 
     /// <summary>
+    /// Deletes an existing global option set from Dataverse by schema name.
+    /// </summary>
+    Task DeleteGlobalOptionSetAsync(
+        string? profileName,
+        string optionSetName,
+        CancellationToken ct);
+
+    /// <summary>
     /// Lists all global option sets in the environment.
     /// </summary>
     Task<IReadOnlyList<GlobalOptionSetSummaryRecord>> ListGlobalOptionSetsAsync(

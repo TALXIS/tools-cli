@@ -12,6 +12,7 @@ namespace TALXIS.CLI.Features.Environment.Entity;
     Children = new[]
     {
         typeof(EntityOptionSetCreateGlobalCliCommand),
+        typeof(EntityOptionSetDeleteGlobalCliCommand),
         typeof(EntityOptionSetAddOptionCliCommand),
         typeof(EntityOptionSetDeleteOptionCliCommand),
         typeof(EntityOptionSetListGlobalCliCommand)
