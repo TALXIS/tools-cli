@@ -29,6 +29,7 @@ public static class ConfigServiceCollectionExtensions
 
         services.AddSingleton<IConfigurationResolver, ConfigurationResolver>();
         services.AddSingleton<IHeadlessDetector, HeadlessDetector>();
+        services.AddSingleton<IConfirmationPrompter, ConsoleConfirmationPrompter>();
         services.AddSingleton<TALXIS.CLI.Core.Bootstrapping.ConnectionUpsertService>();
 
         // Singleton so MsalCacheHelper (and its CrossPlatLock) is instantiated

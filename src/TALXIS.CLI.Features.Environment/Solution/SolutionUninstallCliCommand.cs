@@ -5,6 +5,7 @@ using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Logging;
 using TALXIS.CLI.Core;
+using TALXIS.CLI.Core.Abstractions;
 
 namespace TALXIS.CLI.Features.Environment.Solution;
 
@@ -13,7 +14,7 @@ namespace TALXIS.CLI.Features.Environment.Solution;
     Description = "Uninstall a single solution by unique name from the target environment."
 )]
 [McpToolAnnotations(DestructiveHint = true, OpenWorldHint = true)]
-public class SolutionUninstallCliCommand : ProfiledCliCommand
+public class SolutionUninstallCliCommand : ProfiledCliCommand, IDestructiveCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(SolutionUninstallCliCommand));
 
@@ -25,12 +26,6 @@ public class SolutionUninstallCliCommand : ProfiledCliCommand
 
     protected override async Task<int> ExecuteAsync()
     {
-        if (!Yes)
-        {
-            Logger.LogError("Uninstall is destructive. Pass --yes to confirm.");
-            return ExitValidationError;
-        }
-
         if (string.IsNullOrWhiteSpace(Name))
         {
             Logger.LogError("'name' argument is required.");

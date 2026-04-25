@@ -1,5 +1,8 @@
+using System.Reflection;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
+using TALXIS.CLI.Core.Abstractions;
+using TALXIS.CLI.Core.DependencyInjection;
 
 namespace TALXIS.CLI.Core;
 
@@ -61,6 +64,10 @@ public abstract class TxcLeafCommand
         if (formatError.HasValue)
             return formatError.Value;
 
+        var confirmError = await CheckDestructiveConfirmationAsync().ConfigureAwait(false);
+        if (confirmError.HasValue)
+            return confirmError.Value;
+
         try
         {
             return await ExecuteAsync().ConfigureAwait(false);
@@ -94,6 +101,40 @@ public abstract class TxcLeafCommand
     /// You may still catch domain-specific exceptions for custom exit codes.
     /// </summary>
     protected abstract Task<int> ExecuteAsync();
+
+    /// <summary>
+    /// Checks whether this command is a destructive operation (implements
+    /// <see cref="IDestructiveCommand"/>) and enforces confirmation. In interactive
+    /// terminals the user is prompted; in headless/CI the command fails unless
+    /// <c>--yes</c> was passed. Returns an exit code to abort, or null to proceed.
+    /// </summary>
+    private async Task<int?> CheckDestructiveConfirmationAsync()
+    {
+        if (this is not IDestructiveCommand dc) return null;
+        if (dc.Yes) return null;
+
+        var detector = TxcServices.Get<IHeadlessDetector>();
+        if (detector.IsHeadless)
+        {
+            Logger.LogError(
+                "This operation is destructive and requires --yes in non-interactive mode ({Reason}).",
+                detector.Reason);
+            return ExitValidationError;
+        }
+
+        var prompter = TxcServices.Get<IConfirmationPrompter>();
+        var description = GetType().GetCustomAttribute<McpToolAnnotationsAttribute>() is { } attr
+            ? "This operation is destructive"
+            : "This operation requires confirmation";
+
+        if (!await prompter.ConfirmAsync($"{description}. Continue?").ConfigureAwait(false))
+        {
+            Logger.LogWarning("Operation cancelled by user.");
+            return ExitValidationError;
+        }
+
+        return null;
+    }
 
     /// <summary>
     /// Sets the ambient <see cref="OutputContext.Format"/> from the <c>--format</c>

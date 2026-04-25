@@ -5,6 +5,7 @@ using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Logging;
 using TALXIS.CLI.Core;
+using TALXIS.CLI.Core.Abstractions;
 
 namespace TALXIS.CLI.Features.Environment.Package;
 
@@ -13,7 +14,7 @@ namespace TALXIS.CLI.Features.Environment.Package;
     Description = "Uninstall all solutions belonging to a package from the target environment, in reverse import order."
 )]
 [McpToolAnnotations(DestructiveHint = true, OpenWorldHint = true)]
-public class PackageUninstallCliCommand : ProfiledCliCommand
+public class PackageUninstallCliCommand : ProfiledCliCommand, IDestructiveCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(PackageUninstallCliCommand));
 
@@ -31,12 +32,6 @@ public class PackageUninstallCliCommand : ProfiledCliCommand
 
     protected override async Task<int> ExecuteAsync()
     {
-        if (!Yes)
-        {
-            Logger.LogError("Uninstall is destructive. Pass --yes to confirm.");
-            return ExitValidationError;
-        }
-
         if (string.IsNullOrWhiteSpace(Package))
         {
             Logger.LogError("'package' argument is required.");
