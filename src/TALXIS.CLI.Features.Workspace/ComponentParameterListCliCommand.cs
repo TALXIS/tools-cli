@@ -1,7 +1,9 @@
 using System.Text;
 using DotMake.CommandLine;
+using Microsoft.Extensions.Logging;
 using Microsoft.TemplateEngine.Abstractions;
 using TALXIS.CLI.Core;
+using TALXIS.CLI.Logging;
 using TALXIS.CLI.Features.Workspace.TemplateEngine;
 
 namespace TALXIS.CLI.Features.Workspace;
@@ -13,55 +15,88 @@ namespace TALXIS.CLI.Features.Workspace;
     Description = "Lists parameters for a specific component",
     Name = "list"
 )]
-public class ComponentParameterListCliCommand
+public class ComponentParameterListCliCommand : TxcLeafCommand
 {
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ComponentParameterListCliCommand));
+
     [CliArgument(Description = "Short name of the component.")]
     public required string ShortName { get; set; }
 
-    public int Run()
+    protected override async Task<int> ExecuteAsync()
     {
         using var scaffolder = new TemplateInvoker();
-        var parameters = scaffolder.ListParametersForTemplateAsync(ShortName).GetAwaiter().GetResult();
+        var parameters = await scaffolder.ListParametersForTemplateAsync(ShortName);
         if (parameters == null || parameters.Count == 0)
         {
-            OutputWriter.WriteLine($"No parameters found for template {ShortName}");
-            return 0;
+            OutputFormatter.WriteList(Array.Empty<object>(), _ =>
+                OutputWriter.WriteLine($"No parameters found for template {ShortName}"));
+            return ExitSuccess;
         }
-        OutputWriter.WriteLine($"Parameters for template {ShortName}:");
 
-        // Always show the mandatory output parameter first
-        OutputWriter.WriteLine($"--output (Project folder path)  (text)  <required>");
-        OutputWriter.WriteLine("    Specifies the target project folder path where the component will be created.");
-        OutputWriter.WriteLine("    Required for both creating new projects (solution, plugin, PCF, etc.) and adding components to existing projects.");
-        OutputWriter.WriteLine("    Format: \"src\\Solutions.DataModel\"");
+        // Build the mandatory --output parameter plus all template parameters
+        var projected = new List<object>();
+
+        // Always include the mandatory output parameter first
+        projected.Add(new
+        {
+            name = "output",
+            displayName = "Project folder path",
+            dataType = "text",
+            defaultValue = (string?)null,
+            required = true,
+            choices = (string?)null,
+            description = "Specifies the target project folder path where the component will be created. " +
+                          "Required for both creating new projects (solution, plugin, PCF, etc.) and adding components to existing projects. " +
+                          "Format: \"src\\Solutions.DataModel\""
+        });
 
         foreach (var p in parameters)
         {
-            var sb = new StringBuilder();
-            sb.Append($"--{p.Name}");
-            if (!string.IsNullOrEmpty(p.DisplayName))
-                sb.Append($" ({p.DisplayName})");
-            sb.Append($"  ({p.DataType})");
-            if (!string.IsNullOrEmpty(p.DefaultValue?.ToString()))
-                sb.Append($"  [default: {p.DefaultValue}]");
-            if (p.Precedence.IsRequired ||
-                p.Precedence.PrecedenceDefinition == Microsoft.TemplateEngine.Abstractions.PrecedenceDefinition.Required)
-                sb.Append("  <required>");
-            if (p.Choices != null && p.Choices.Count > 0)
+            var isRequired = p.Precedence.IsRequired ||
+                p.Precedence.PrecedenceDefinition == PrecedenceDefinition.Required;
+            var choiceList = p.Choices != null && p.Choices.Count > 0
+                ? string.Join(", ", p.Choices.Keys)
+                : null;
+
+            projected.Add(new
             {
-                var list = string.Join(", ", p.Choices.Keys);
-                sb.Append($"  choices: {list}");
-            }
-            if (!string.IsNullOrEmpty(p.Description))
-            {
-                OutputWriter.WriteLine(sb.ToString());
-                OutputWriter.WriteLine($"    {p.Description}");
-            }
-            else
-            {
-                OutputWriter.WriteLine(sb.ToString());
-            }
+                name = p.Name,
+                displayName = p.DisplayName,
+                dataType = p.DataType,
+                defaultValue = p.DefaultValue?.ToString(),
+                required = isRequired,
+                choices = choiceList,
+                description = p.Description
+            });
         }
-        return 0;
+
+        var readOnlyProjected = projected.AsReadOnly();
+
+        OutputFormatter.WriteList(readOnlyProjected, items =>
+        {
+            OutputWriter.WriteLine($"Parameters for template {ShortName}:");
+
+            foreach (var item in items)
+            {
+                // Use dynamic to access anonymous type properties
+                dynamic param = item;
+                var sb = new StringBuilder();
+                sb.Append($"--{param.name}");
+                if (!string.IsNullOrEmpty((string?)param.displayName))
+                    sb.Append($" ({param.displayName})");
+                sb.Append($"  ({param.dataType})");
+                if (!string.IsNullOrEmpty((string?)param.defaultValue))
+                    sb.Append($"  [default: {param.defaultValue}]");
+                if ((bool)param.required)
+                    sb.Append("  <required>");
+                if (!string.IsNullOrEmpty((string?)param.choices))
+                    sb.Append($"  choices: {param.choices}");
+                OutputWriter.WriteLine(sb.ToString());
+                if (!string.IsNullOrEmpty((string?)param.description))
+                    OutputWriter.WriteLine($"    {param.description}");
+            }
+        });
+
+        return ExitSuccess;
     }
 }

@@ -1,13 +1,11 @@
-using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
+using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Bootstrapping;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Core.Model;
-using TALXIS.CLI.Core.Storage;
 using TALXIS.CLI.Logging;
-using TALXIS.CLI.Core;
 
 namespace TALXIS.CLI.Features.Config.Connection;
 
@@ -22,9 +20,10 @@ namespace TALXIS.CLI.Features.Config.Connection;
     Name = "create",
     Description = "Create a connection (service endpoint). Dataverse-only in v1."
 )]
-public class ConnectionCreateCliCommand
+public class ConnectionCreateCliCommand : TxcLeafCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ConnectionCreateCliCommand));
+    protected override ILogger Logger => _logger;
 
     [CliArgument(Description = "Connection name.")]
     public required string Name { get; set; }
@@ -50,51 +49,41 @@ public class ConnectionCreateCliCommand
     [CliOption(Name = "--description", Description = "Free-form label shown in 'config connection list'.", Required = false)]
     public string? Description { get; set; }
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
-        try
+        var svc = TxcServices.Get<ConnectionUpsertService>();
+        var upsert = await svc.ValidateAndUpsertAsync(
+            Name,
+            Provider,
+            EnvironmentUrl,
+            Cloud,
+            OrganizationId,
+            EnvironmentId,
+            TenantId,
+            Description,
+            CancellationToken.None).ConfigureAwait(false);
+
+        if (upsert.Error is not null)
         {
-            var svc = TxcServices.Get<ConnectionUpsertService>();
-            var upsert = await svc.ValidateAndUpsertAsync(
-                Name,
-                Provider,
-                EnvironmentUrl,
-                Cloud,
-                OrganizationId,
-                EnvironmentId,
-                TenantId,
-                Description,
-                CancellationToken.None).ConfigureAwait(false);
-
-            if (upsert.Error is not null)
-            {
-                _logger.LogError("{Message}", upsert.Error);
-                return 1;
-            }
-
-            var connection = upsert.Connection!;
-            _logger.LogInformation("Connection '{Name}' saved ({Provider} -> {Env}).",
-                connection.Id, connection.Provider, connection.EnvironmentUrl);
-
-            OutputWriter.WriteLine(JsonSerializer.Serialize(
-                new
-                {
-                    id = connection.Id,
-                    provider = connection.Provider,
-                    environmentUrl = connection.EnvironmentUrl,
-                    cloud = connection.Cloud,
-                    organizationId = connection.OrganizationId,
-                    environmentId = connection.EnvironmentId,
-                    tenantId = connection.TenantId,
-                    description = connection.Description,
-                },
-                TxcJsonOptions.Default));
-            return 0;
+            _logger.LogError("{Message}", upsert.Error);
+            return ExitError;
         }
-        catch (Exception ex)
+
+        var connection = upsert.Connection!;
+        _logger.LogInformation("Connection '{Name}' saved ({Provider} -> {Env}).",
+            connection.Id, connection.Provider, connection.EnvironmentUrl);
+
+        OutputFormatter.WriteData(new
         {
-            _logger.LogError(ex, "Failed to create connection '{Name}'.", Name);
-            return 1;
-        }
+            id = connection.Id,
+            provider = connection.Provider,
+            environmentUrl = connection.EnvironmentUrl,
+            cloud = connection.Cloud,
+            organizationId = connection.OrganizationId,
+            environmentId = connection.EnvironmentId,
+            tenantId = connection.TenantId,
+            description = connection.Description,
+        });
+        return ExitSuccess;
     }
 }

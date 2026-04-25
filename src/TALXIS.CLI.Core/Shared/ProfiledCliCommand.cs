@@ -1,12 +1,15 @@
 using DotMake.CommandLine;
 
-namespace TALXIS.CLI.Features.Config.Abstractions;
+namespace TALXIS.CLI.Core;
 
 /// <summary>
 /// Base class for every leaf command that needs a resolved (Profile,
-/// Connection, Credential) triple before it can run. Exposes exactly two
+/// Connection, Credential) triple before it can run. Extends
+/// <see cref="TxcLeafCommand"/> (which provides <c>--format</c> and
+/// the standardized RunAsync/ExecuteAsync wrapper) and adds exactly two
 /// CLI options — <c>--profile</c> (with its deliberate <c>-p</c> short
-/// alias, the only flag-level short in the CLI) and <c>--verbose</c>.
+/// alias) and <c>--verbose</c>. The base class also provides <c>-f</c>
+/// for <c>--format</c>.
 /// Everything else (endpoint URLs, credential material, device-code
 /// toggles, env-var fallbacks) is resolved behind
 /// <c>IConfigurationResolver</c>; leaf commands never parse raw auth
@@ -21,7 +24,7 @@ namespace TALXIS.CLI.Features.Config.Abstractions;
 /// <c>--profile &lt;x&gt;</c> if you want a specific target" and every
 /// command behaves identically.
 /// </remarks>
-public abstract class ProfiledCliCommand
+public abstract class ProfiledCliCommand : TxcLeafCommand
 {
     [CliOption(
         Name = "--profile",

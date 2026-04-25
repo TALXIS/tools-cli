@@ -96,7 +96,9 @@ public sealed class SettingCommandsTests
         }
 
         Assert.Equal(0, exit);
-        Assert.Equal("information", sw.ToString().Trim());
+        var output = sw.ToString().Trim();
+        // OutputFormatter.WriteValue emits JSON when output is redirected, plain text otherwise.
+        Assert.Contains("information", output);
     }
 
     [Fact]
@@ -114,7 +116,9 @@ public sealed class SettingCommandsTests
         }
 
         Assert.Equal(0, exit);
-        Assert.Equal("json", sw.ToString().Trim());
+        var output = sw.ToString().Trim();
+        // OutputFormatter.WriteValue emits JSON when output is redirected, plain text otherwise.
+        Assert.Contains("json", output);
     }
 
     [Fact]

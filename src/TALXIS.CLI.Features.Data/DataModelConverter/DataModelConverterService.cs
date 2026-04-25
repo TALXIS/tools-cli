@@ -506,7 +506,7 @@ public class DataModelConverterService
 
         foreach (var relText in EntityRelationships.Where(relText => relText.GetType().GetProperties().Any(p => p.GetValue(relText) == null)))
         {
-            throw new Exception($"Something is missing in the {EntityRelationships.IndexOf(relText)} relationship");
+            throw new InvalidOperationException($"Something is missing in the {EntityRelationships.IndexOf(relText)} relationship");
         }
 
         return EntityRelationships;

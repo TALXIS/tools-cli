@@ -1,5 +1,6 @@
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
+using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Logging;
@@ -17,44 +18,38 @@ namespace TALXIS.CLI.Features.Config.Profile;
     Name = "select",
     Description = "Set the global active profile (fallback when no --profile / env / workspace override)."
 )]
-public class ProfileSelectCliCommand
+public class ProfileSelectCliCommand : TxcLeafCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ProfileSelectCliCommand));
+    protected override ILogger Logger => _logger;
 
     [CliArgument(Description = "Profile name to set as active.")]
     public required string Name { get; set; }
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         if (string.IsNullOrWhiteSpace(Name))
         {
             _logger.LogError("Profile name must be provided.");
-            return 1;
+            return ExitError;
         }
 
-        try
+        var profileStore = TxcServices.Get<IProfileStore>();
+        var globalConfig = TxcServices.Get<IGlobalConfigStore>();
+
+        var profile = await profileStore.GetAsync(Name, CancellationToken.None).ConfigureAwait(false);
+        if (profile is null)
         {
-            var profileStore = TxcServices.Get<IProfileStore>();
-            var globalConfig = TxcServices.Get<IGlobalConfigStore>();
-
-            var profile = await profileStore.GetAsync(Name, CancellationToken.None).ConfigureAwait(false);
-            if (profile is null)
-            {
-                _logger.LogError("Profile '{Name}' not found.", Name);
-                return 2;
-            }
-
-            var global = await globalConfig.LoadAsync(CancellationToken.None).ConfigureAwait(false);
-            global.ActiveProfile = profile.Id;
-            await globalConfig.SaveAsync(global, CancellationToken.None).ConfigureAwait(false);
-
-            _logger.LogInformation("Active profile set to '{Id}'.", profile.Id);
-            return 0;
+            _logger.LogError("Profile '{Name}' not found.", Name);
+            return ExitValidationError;
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to select profile '{Name}'.", Name);
-            return 1;
-        }
+
+        var global = await globalConfig.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+        global.ActiveProfile = profile.Id;
+        await globalConfig.SaveAsync(global, CancellationToken.None).ConfigureAwait(false);
+
+        _logger.LogInformation("Active profile set to '{Id}'.", profile.Id);
+        OutputFormatter.WriteResult("succeeded", $"Active profile set to '{profile.Id}'.");
+        return ExitSuccess;
     }
 }

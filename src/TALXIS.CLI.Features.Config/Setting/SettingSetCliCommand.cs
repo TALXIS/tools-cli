@@ -1,5 +1,6 @@
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
+using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Logging;
@@ -16,9 +17,10 @@ namespace TALXIS.CLI.Features.Config.Setting;
     Name = "set",
     Description = "Set a tool-wide preference key (e.g. log.level, log.format, telemetry.enabled)."
 )]
-public class SettingSetCliCommand
+public class SettingSetCliCommand : TxcLeafCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(SettingSetCliCommand));
+    protected override ILogger Logger => _logger;
 
     [CliArgument(Description = "Setting key (e.g. log.level).")]
     public required string Key { get; set; }
@@ -26,12 +28,12 @@ public class SettingSetCliCommand
     [CliArgument(Description = "New value. Run 'txc config setting list' to see allowed values per key.")]
     public required string Value { get; set; }
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         if (string.IsNullOrWhiteSpace(Key))
         {
             _logger.LogError("Setting key must be provided.");
-            return 1;
+            return ExitValidationError;
         }
 
         var descriptor = SettingRegistry.Find(Key);
@@ -41,7 +43,7 @@ public class SettingSetCliCommand
                 "Unknown setting key '{Key}'. Known keys: {Keys}.",
                 Key,
                 string.Join(", ", SettingRegistry.All.Select(d => d.Key)));
-            return 2;
+            return ExitValidationError;
         }
 
         string normalized;
@@ -52,23 +54,16 @@ public class SettingSetCliCommand
         catch (ArgumentException ex)
         {
             _logger.LogError("{Message}", ex.Message);
-            return 2;
+            return ExitValidationError;
         }
 
-        try
-        {
-            var store = TxcServices.Get<IGlobalConfigStore>();
-            var config = await store.LoadAsync(CancellationToken.None).ConfigureAwait(false);
-            descriptor.Write(config, normalized);
-            await store.SaveAsync(config, CancellationToken.None).ConfigureAwait(false);
+        var store = TxcServices.Get<IGlobalConfigStore>();
+        var config = await store.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+        descriptor.Write(config, normalized);
+        await store.SaveAsync(config, CancellationToken.None).ConfigureAwait(false);
 
-            _logger.LogInformation("Setting '{Key}' updated to '{Value}'.", descriptor.Key, normalized);
-            return 0;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to update setting '{Key}'.", descriptor.Key);
-            return 1;
-        }
+        _logger.LogInformation("Setting '{Key}' updated to '{Value}'.", descriptor.Key, normalized);
+        OutputFormatter.WriteResult("succeeded", $"Setting '{descriptor.Key}' set to '{normalized}'.");
+        return ExitSuccess;
     }
 }

@@ -42,8 +42,9 @@ public class CliTests
     {
         var output = await CliRunner.RunAsync("workspace component type explain pp-entity");
         
-        Assert.Contains("Type:", output);
-        Assert.Contains("Description:", output);
+        // Output is JSON when stdout is redirected (piped) — the new TxcLeafCommand
+        // base auto-detects format, so integration tests see JSON instead of plain text.
         Assert.Contains("pp-entity", output);
+        Assert.Contains("description", output);
     }
 }

@@ -10,19 +10,20 @@ namespace TALXIS.CLI.Features.Workspace;
     Description = "Explains a solution component type. Use names returned by 'component type list' command",
     Name = "explain"
 )]
-public class ComponentTypeExplainCliCommand
+public class ComponentTypeExplainCliCommand : TxcLeafCommand
 {
-    private static readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ComponentTypeExplainCliCommand));
+    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ComponentTypeExplainCliCommand));
+    protected override ILogger Logger => _logger;
 
     [CliArgument(Description = "Type of the component to explain")]
     public required string Type { get; set; }
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         if (string.IsNullOrWhiteSpace(Type))
         {
             _logger.LogError("Please provide a component type");
-            return 1;
+            return ExitValidationError;
         }
 
         using var scaffolder = new TemplateInvoker();
@@ -33,11 +34,21 @@ public class ComponentTypeExplainCliCommand
         if (template == null)
         {
             _logger.LogError("Component template {Type} not found", Type);
-            return 1;
+            return ExitValidationError;
         }
 
-        OutputWriter.WriteLine($"Type: {template.ShortNameList.FirstOrDefault()}");
-        OutputWriter.WriteLine($"Description: {template.Description}");
-        return 0;
+        var data = new
+        {
+            type = template.ShortNameList.FirstOrDefault(),
+            description = template.Description
+        };
+
+        OutputFormatter.WriteData(data, d =>
+        {
+            OutputWriter.WriteLine($"Type: {d.type}");
+            OutputWriter.WriteLine($"Description: {d.description}");
+        });
+
+        return ExitSuccess;
     }
 }

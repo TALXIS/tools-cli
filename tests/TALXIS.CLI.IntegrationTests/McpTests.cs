@@ -59,8 +59,9 @@ public class McpTests
 
         if (result.Content[0] is TextContentBlock textBlock)
         {
-            Assert.Contains("Type:", textBlock.Text);
+            // MCP output is always JSON — check for JSON property names.
             Assert.Contains("pp-entity", textBlock.Text);
+            Assert.Contains("description", textBlock.Text);
         }
     }
 }

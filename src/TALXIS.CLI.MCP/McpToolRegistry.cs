@@ -19,9 +19,7 @@ public class McpToolRegistry
     {
         typeof(TALXIS.CLI.Features.Data.DataPackageImportCliCommand),
         typeof(TALXIS.CLI.Features.Environment.Package.PackageImportCliCommand),
-        typeof(TALXIS.CLI.Features.Environment.Package.PackageUninstallCliCommand),
         typeof(TALXIS.CLI.Features.Environment.Solution.SolutionImportCliCommand),
-        typeof(TALXIS.CLI.Features.Environment.Solution.SolutionUninstallCliCommand),
     };
 
     /// <summary>

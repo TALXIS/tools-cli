@@ -1,3 +1,4 @@
+#pragma warning disable TXC001 // Reserved stub — will inherit TxcLeafCommand when implemented
 // Reserved skeleton — intentionally NOT wired into any parent's `Children` array.
 //
 // This class exists to pin the design: `txc workspace language-server` is the

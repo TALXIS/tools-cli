@@ -27,7 +27,9 @@ public sealed class AuthorityChallengeResolver
 
     public AuthorityChallengeResolver(HttpClient? http = null, ILogger<AuthorityChallengeResolver>? logger = null)
     {
+#pragma warning disable RS0030 // Single-use HTTP client for authority discovery when no shared client is provided
         _http = http ?? new HttpClient();
+#pragma warning restore RS0030
         _disposeHttp = http is null;
         _logger = logger ?? NullLogger<AuthorityChallengeResolver>.Instance;
     }

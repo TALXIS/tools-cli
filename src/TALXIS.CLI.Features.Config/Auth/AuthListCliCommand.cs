@@ -1,12 +1,10 @@
-using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
+using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Core.Model;
-using TALXIS.CLI.Core.Storage;
 using TALXIS.CLI.Logging;
-using TALXIS.CLI.Core;
 
 namespace TALXIS.CLI.Features.Config.Auth;
 
@@ -19,37 +17,28 @@ namespace TALXIS.CLI.Features.Config.Auth;
     Name = "list",
     Description = "List all stored credentials as JSON."
 )]
-public class AuthListCliCommand
+public class AuthListCliCommand : TxcLeafCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(AuthListCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(AuthListCliCommand));
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
-        try
-        {
-            var store = TxcServices.Get<ICredentialStore>();
-            IReadOnlyList<Credential> creds = await store.ListAsync(CancellationToken.None).ConfigureAwait(false);
+        var store = TxcServices.Get<ICredentialStore>();
+        IReadOnlyList<Credential> creds = await store.ListAsync(CancellationToken.None).ConfigureAwait(false);
 
-            // Project to a deterministic shape: id, kind, tenantId, applicationId, cloud, description.
-            // SecretRef is implied by kind — the secret itself never leaves the vault.
-            var projected = creds.Select(c => new
-            {
-                id = c.Id,
-                kind = c.Kind,
-                tenantId = c.TenantId,
-                applicationId = c.ApplicationId,
-                cloud = c.Cloud,
-                description = c.Description,
-            });
-
-            var json = JsonSerializer.Serialize(projected, TxcJsonOptions.Default);
-            OutputWriter.WriteLine(json);
-            return 0;
-        }
-        catch (Exception ex)
+        // Project to a deterministic shape: id, kind, tenantId, applicationId, cloud, description.
+        // SecretRef is implied by kind — the secret itself never leaves the vault.
+        var projected = creds.Select(c => new
         {
-            _logger.LogError(ex, "Failed to list credentials.");
-            return 1;
-        }
+            id = c.Id,
+            kind = c.Kind,
+            tenantId = c.TenantId,
+            applicationId = c.ApplicationId,
+            cloud = c.Cloud,
+            description = c.Description,
+        }).ToList();
+
+        OutputFormatter.WriteList(projected);
+        return ExitSuccess;
     }
 }

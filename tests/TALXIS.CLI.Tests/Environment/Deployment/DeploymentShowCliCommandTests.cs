@@ -1,3 +1,4 @@
+using TALXIS.CLI.Core;
 using TALXIS.CLI.Features.Environment.Deployment;
 using Xunit;
 
@@ -8,24 +9,26 @@ namespace TALXIS.CLI.Tests.Environment.Deployment;
 /// typed selectors the design mandates and that they are mutually exclusive.
 ///
 /// The command rejects "nothing specified" and "more than one specified" via
-/// inline validation at the top of <c>RunAsync</c> before any I/O is done, so
-/// we can exercise the guard by invoking the command directly with no live
-/// connection.
+/// inline validation at the top of <c>ExecuteAsync</c> before any I/O is done,
+/// so we can exercise the guard by invoking the command directly with no live
+/// connection. Validation errors return <see cref="TxcLeafCommand.ExitValidationError"/> (2).
 /// </summary>
 public class DeploymentShowCliCommandTests
 {
+    private const int ExitValidationError = 2;
+
     [Fact]
-    public async Task RunAsync_NoSelectorSpecified_ReturnsExitCode1()
+    public async Task RunAsync_NoSelectorSpecified_ReturnsValidationError()
     {
         var cmd = new DeploymentShowCliCommand();
 
         var exit = await cmd.RunAsync();
 
-        Assert.Equal(1, exit);
+        Assert.Equal(ExitValidationError, exit);
     }
 
     [Fact]
-    public async Task RunAsync_MultipleSelectorsSpecified_ReturnsExitCode1()
+    public async Task RunAsync_MultipleSelectorsSpecified_ReturnsValidationError()
     {
         var cmd = new DeploymentShowCliCommand
         {
@@ -35,11 +38,11 @@ public class DeploymentShowCliCommandTests
 
         var exit = await cmd.RunAsync();
 
-        Assert.Equal(1, exit);
+        Assert.Equal(ExitValidationError, exit);
     }
 
     [Fact]
-    public async Task RunAsync_LatestAndNameTogether_ReturnsExitCode1()
+    public async Task RunAsync_LatestAndNameTogether_ReturnsValidationError()
     {
         var cmd = new DeploymentShowCliCommand
         {
@@ -49,11 +52,11 @@ public class DeploymentShowCliCommandTests
 
         var exit = await cmd.RunAsync();
 
-        Assert.Equal(1, exit);
+        Assert.Equal(ExitValidationError, exit);
     }
 
     [Fact]
-    public async Task RunAsync_InvalidPackageRunIdGuid_ReturnsExitCode1()
+    public async Task RunAsync_InvalidPackageRunIdGuid_ReturnsValidationError()
     {
         var cmd = new DeploymentShowCliCommand
         {
@@ -62,11 +65,11 @@ public class DeploymentShowCliCommandTests
 
         var exit = await cmd.RunAsync();
 
-        Assert.Equal(1, exit);
+        Assert.Equal(ExitValidationError, exit);
     }
 
     [Fact]
-    public async Task RunAsync_EmptyPackageName_ReturnsExitCode1()
+    public async Task RunAsync_EmptyPackageName_ReturnsValidationError()
     {
         var cmd = new DeploymentShowCliCommand
         {
@@ -75,6 +78,6 @@ public class DeploymentShowCliCommandTests
 
         var exit = await cmd.RunAsync();
 
-        Assert.Equal(1, exit);
+        Assert.Equal(ExitValidationError, exit);
     }
 }

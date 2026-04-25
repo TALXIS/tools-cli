@@ -1,10 +1,8 @@
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
-using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Core.Platforms.PowerPlatform;
-using TALXIS.CLI.Features.Config.Abstractions;
 using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.Setting;
@@ -19,7 +17,7 @@ namespace TALXIS.CLI.Features.Environment.Setting;
 )]
 public class SettingUpdateCliCommand : ProfiledCliCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(SettingUpdateCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(SettingUpdateCliCommand));
 
     [CliOption(Name = "--name", Aliases = new[] { "-n" }, Description = "Name of the setting to update (e.g. powerApps_AllowCodeApps).", Required = true)]
     public required string Name { get; set; }
@@ -27,26 +25,13 @@ public class SettingUpdateCliCommand : ProfiledCliCommand
     [CliOption(Name = "--value", Aliases = new[] { "-v" }, Description = "Value to set. Booleans (true/false) and integers are auto-coerced.", Required = true)]
     public required string Value { get; set; }
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
-        try
-        {
-            var service = TxcServices.Get<IEnvironmentManagementSettingsService>();
-            await service.UpdateAsync(Profile, Name, Value, CancellationToken.None)
-                .ConfigureAwait(false);
+        var service = TxcServices.Get<IEnvironmentManagementSettingsService>();
+        await service.UpdateAsync(Profile, Name, Value, CancellationToken.None)
+            .ConfigureAwait(false);
 
-            OutputWriter.WriteLine($"Setting '{Name}' updated to '{Value}'.");
-            return 0;
-        }
-        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
-        {
-            _logger.LogError("{Error}", ex.Message);
-            return 1;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "environment setting update failed");
-            return 1;
-        }
+        OutputFormatter.WriteResult("succeeded", $"Setting '{Name}' updated to '{Value}'.");
+        return ExitSuccess;
     }
 }

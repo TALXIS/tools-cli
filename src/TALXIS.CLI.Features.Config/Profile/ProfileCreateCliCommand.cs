@@ -1,14 +1,12 @@
-using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
+using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Bootstrapping;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Core.Headless;
 using TALXIS.CLI.Core.Model;
-using TALXIS.CLI.Core.Storage;
 using TALXIS.CLI.Logging;
-using TALXIS.CLI.Core;
 using ConnectionModel = TALXIS.CLI.Core.Model.Connection;
 using ProfileModel = TALXIS.CLI.Core.Model.Profile;
 
@@ -38,9 +36,10 @@ namespace TALXIS.CLI.Features.Config.Profile;
     Name = "create",
     Description = "Create a profile. Quickstart: --url <env>. Advanced: --auth <alias> --connection <name>."
 )]
-public class ProfileCreateCliCommand
+public class ProfileCreateCliCommand : TxcLeafCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ProfileCreateCliCommand));
+    protected override ILogger Logger => _logger;
 
     [CliOption(Name = "--name", Aliases = new[] { "-n" }, Description = "Profile name (slug). Optional — derived from the Power Platform environment name and URL host, or from --connection when omitted.", Required = false)]
     public string? Name { get; set; }
@@ -69,7 +68,7 @@ public class ProfileCreateCliCommand
     [CliOption(Name = "--description", Description = "Free-form label shown in 'config profile list'.", Required = false)]
     public string? Description { get; set; }
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         try
         {
@@ -84,17 +83,7 @@ public class ProfileCreateCliCommand
         catch (HeadlessAuthRequiredException ex)
         {
             _logger.LogError("{Message}", ex.Message);
-            return 1;
-        }
-        catch (OperationCanceledException)
-        {
-            _logger.LogWarning("Profile creation was cancelled.");
-            return 1;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to create profile '{Name}'.", Name);
-            return 1;
+            return ExitError;
         }
     }
 
@@ -121,7 +110,7 @@ public class ProfileCreateCliCommand
         _logger.LogError(
             "Specify either --url <service-url> [--no-select] (quickstart) or --auth <alias> --connection <name> (advanced). " +
             "Example: txc config profile create --url https://contoso.crm4.dynamics.com/");
-        return 1;
+        return ExitError;
     }
 
     private async Task<int> RunOneLinerAsync()
@@ -129,7 +118,7 @@ public class ProfileCreateCliCommand
         if (!IsAbsoluteHttpUrl(Url))
         {
             _logger.LogError("'{Url}' is not an absolute http(s) URL.", Url);
-            return 1;
+            return ExitError;
         }
 
         var inference = ProviderUrlResolver.Infer(Url);
@@ -137,7 +126,7 @@ public class ProfileCreateCliCommand
         if (provider is null)
         {
             _logger.LogError("{Message}", inference.Error);
-            return 1;
+            return ExitError;
         }
         if (Provider is not null && inference.Provider is not null && Provider != inference.Provider)
         {
@@ -154,7 +143,7 @@ public class ProfileCreateCliCommand
                 "No one-liner bootstrapper is registered for provider '{Provider}'. " +
                 "Use the explicit --auth/--connection flow for this provider.",
                 provider.Value);
-            return 1;
+            return ExitError;
         }
 
         var request = new ProfileBootstrapRequest(
@@ -169,7 +158,7 @@ public class ProfileCreateCliCommand
         if (result.Error is not null)
         {
             _logger.LogError("{Message}", result.Error);
-            return 1;
+            return ExitError;
         }
 
         return await PersistProfileAsync(
@@ -190,21 +179,21 @@ public class ProfileCreateCliCommand
         if (credential is null)
         {
             _logger.LogError("Credential '{Alias}' not found. Run 'txc config auth list'.", Auth);
-            return 2;
+            return ExitValidationError;
         }
 
         var connection = await connectionStore.GetAsync(Connection!.Trim(), CancellationToken.None).ConfigureAwait(false);
         if (connection is null)
         {
             _logger.LogError("Connection '{Name}' not found. Run 'txc config connection list'.", Connection);
-            return 2;
+            return ExitValidationError;
         }
 
         var name = string.IsNullOrWhiteSpace(Name) ? connection.Id : Name!.Trim();
         if (string.IsNullOrEmpty(name))
         {
             _logger.LogError("Profile name must not be empty.");
-            return 1;
+            return ExitError;
         }
 
         return await PersistProfileAsync(
@@ -264,18 +253,16 @@ public class ProfileCreateCliCommand
             profile.Id, credentialId, connectionId,
             string.IsNullOrEmpty(upn) ? string.Empty : $", upn='{upn}'");
 
-        OutputWriter.WriteLine(JsonSerializer.Serialize(
-            new
-            {
-                id = profile.Id,
-                connectionRef = profile.ConnectionRef,
-                credentialRef = profile.CredentialRef,
-                description = profile.Description,
-                active = activated,
-                upn,
-            },
-            TxcJsonOptions.Default));
-        return 0;
+        OutputFormatter.WriteData(new
+        {
+            id = profile.Id,
+            connectionRef = profile.ConnectionRef,
+            credentialRef = profile.CredentialRef,
+            description = profile.Description,
+            active = activated,
+            upn,
+        });
+        return ExitSuccess;
     }
 
     private static bool IsAbsoluteHttpUrl(string? url)

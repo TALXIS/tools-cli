@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
-using TALXIS.CLI.Features.Config.Abstractions;
+using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.Contracts.Packaging;
@@ -16,7 +16,7 @@ namespace TALXIS.CLI.Features.Environment.Package;
 public class PackageImportCliCommand : ProfiledCliCommand
 {
     private readonly NuGetPackageInstallerService _packageInstaller = new();
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(PackageImportCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(PackageImportCliCommand));
 
     [CliArgument(Name = "package", Description = "NuGet package name, local .pdpkg.zip/.pdpkg/.zip archive path, or extracted package folder path.", Required = true)]
     public required string Package { get; set; }
@@ -40,12 +40,12 @@ public class PackageImportCliCommand : ProfiledCliCommand
     [CliOption(Name = "--log-console", Description = "Enable Package Deployer console logging.", Required = false)]
     public bool LogConsole { get; set; }
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         if (string.IsNullOrWhiteSpace(Package))
         {
-            _logger.LogError("'package' argument is required.");
-            return 1;
+            Logger.LogError("'package' argument is required.");
+            return ExitValidationError;
         }
 
         bool isLocalFile = File.Exists(Package)
@@ -61,27 +61,27 @@ public class PackageImportCliCommand : ProfiledCliCommand
         {
             if (!File.Exists(Package))
             {
-                _logger.LogError("Package file not found: {PackagePath}", Package);
-                return 1;
+                Logger.LogError("Package file not found: {PackagePath}", Package);
+                return ExitValidationError;
             }
 
             packagePath = Path.GetFullPath(Package);
-            _logger.LogInformation("Using local package: {PackagePath}", packagePath);
+            Logger.LogInformation("Using local package: {PackagePath}", packagePath);
         }
         else
         {
             var options = new NuGetPackageInstallOptions(Package, PackageVersion, OutputDirectory);
             var installResult = await _packageInstaller.InstallAsync(options);
 
-            _logger.LogInformation("Resolved {PackageName} version {Version}", installResult.PackageName, installResult.ResolvedVersion);
-            _logger.LogInformation("Deployable package extracted to {Path}", installResult.DeployablePackagePath);
+            Logger.LogInformation("Resolved {PackageName} version {Version}", installResult.PackageName, installResult.ResolvedVersion);
+            Logger.LogInformation("Deployable package extracted to {Path}", installResult.DeployablePackagePath);
 
             nugetPackageName = installResult.PackageName;
             nugetPackageVersion = installResult.ResolvedVersion;
 
             if (DownloadOnly)
             {
-                return 0;
+                return ExitSuccess;
             }
 
             packagePath = installResult.DeployablePackagePath;
@@ -108,48 +108,48 @@ public class PackageImportCliCommand : ProfiledCliCommand
         }
         catch (InvalidOperationException ex)
         {
-            _logger.LogError(ex, "Package import failed");
-            _logger.LogError("Package located at {PackagePath}", packagePath);
-            return 1;
+            Logger.LogError(ex, "Package import failed");
+            Logger.LogError("Package located at {PackagePath}", packagePath);
+            return ExitError;
         }
 
         if (result.InteractiveAuthRequired)
         {
-            _logger.LogError("Interactive authentication is required. Run 'txc config auth login' for profile '{Profile}' and retry.", Profile ?? "(default)");
-            return 1;
+            Logger.LogError("Interactive authentication is required. Run 'txc config auth login' for profile '{Profile}' and retry.", Profile ?? "(default)");
+            return ExitError;
         }
 
         if (!result.Succeeded)
         {
             if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
             {
-                _logger.LogError("{ErrorMessage}", result.ErrorMessage);
+                Logger.LogError("{ErrorMessage}", result.ErrorMessage);
             }
 
             if (!string.IsNullOrWhiteSpace(LogFile) && !string.IsNullOrWhiteSpace(result.LogFilePath))
             {
-                _logger.LogError("Detailed Package Deployer log: {LogPath}", result.LogFilePath);
+                Logger.LogError("Detailed Package Deployer log: {LogPath}", result.LogFilePath);
             }
 
             if (!string.IsNullOrWhiteSpace(LogFile) && !string.IsNullOrWhiteSpace(result.CmtLogFilePath))
             {
-                _logger.LogError("Detailed CMT import log: {LogPath}", result.CmtLogFilePath);
+                Logger.LogError("Detailed CMT import log: {LogPath}", result.CmtLogFilePath);
             }
             else if (string.IsNullOrWhiteSpace(LogFile) &&
                 (!string.IsNullOrWhiteSpace(result.LogFilePath) || !string.IsNullOrWhiteSpace(result.CmtLogFilePath)))
             {
-                _logger.LogWarning("Detailed temporary logs were cleaned up. Pass --log-file to preserve them.");
+                Logger.LogWarning("Detailed temporary logs were cleaned up. Pass --log-file to preserve them.");
             }
 
-            _logger.LogError("Package import failed. Package located at {PackagePath}", packagePath);
-            return 1;
+            Logger.LogError("Package import failed. Package located at {PackagePath}", packagePath);
+            return ExitError;
         }
 
-        _logger.LogInformation("Package import completed successfully.");
+        Logger.LogInformation("Package import completed successfully.");
         if (!string.IsNullOrWhiteSpace(LogFile))
         {
-            _logger.LogInformation("Package Deployer log: {LogPath}", Path.GetFullPath(LogFile));
+            Logger.LogInformation("Package Deployer log: {LogPath}", Path.GetFullPath(LogFile));
         }
-        return 0;
+        return ExitSuccess;
     }
 }
