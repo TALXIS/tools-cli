@@ -43,6 +43,8 @@ public class SolutionUninstallCliCommand : ProfiledCliCommand
         return RenderSingle(outcome);
     }
 
+    // TODO: Refactor to use OutputFormatter instead of manual OutputContext.IsJson branching.
+#pragma warning disable TXC003
     private int RenderSingle(SolutionUninstallOutcome outcome)
     {
         if (OutputContext.IsJson)
@@ -66,4 +68,5 @@ public class SolutionUninstallCliCommand : ProfiledCliCommand
 
         return outcome.Status == SolutionUninstallStatus.Success ? ExitSuccess : ExitError;
     }
+#pragma warning restore TXC003
 }

@@ -56,6 +56,8 @@ public class PackageUninstallCliCommand : ProfiledCliCommand
             return ExitError;
         }
 
+        // TODO: Refactor to use OutputFormatter instead of manual OutputContext.IsJson branching.
+#pragma warning disable TXC003
         if (OutputContext.IsJson)
         {
             OutputWriter.WriteLine(JsonSerializer.Serialize(new
@@ -83,6 +85,7 @@ public class PackageUninstallCliCommand : ProfiledCliCommand
                 OutputWriter.WriteLine($"- {outcome.SolutionName}: {outcome.Status} ({outcome.Message})");
             }
         }
+#pragma warning restore TXC003
 
         return result.Outcomes.All(o => o.Status == SolutionUninstallStatus.Success) ? ExitSuccess : ExitError;
     }

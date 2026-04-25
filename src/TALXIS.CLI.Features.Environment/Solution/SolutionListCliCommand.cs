@@ -38,6 +38,8 @@ public class SolutionListCliCommand : ProfiledCliCommand
         return ExitSuccess;
     }
 
+    // Text-renderer callback invoked by OutputFormatter.WriteList — OutputWriter usage is intentional.
+#pragma warning disable TXC003
     private static void PrintSolutionsTable(IReadOnlyList<InstalledSolutionRecord> rows)
     {
         if (rows.Count == 0)
@@ -63,5 +65,6 @@ public class SolutionListCliCommand : ProfiledCliCommand
             OutputWriter.WriteLine($"{uniqueName.PadRight(nameWidth)} | {version.PadRight(versionWidth)} | {(r.Managed ? "true" : "false").PadRight(managedWidth)} | {friendly}");
         }
     }
+#pragma warning restore TXC003
 
 }

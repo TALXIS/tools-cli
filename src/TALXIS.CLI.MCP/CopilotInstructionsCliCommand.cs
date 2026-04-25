@@ -40,6 +40,8 @@ namespace TALXIS.CLI.MCP
             {
                 var result = await _manager.EnsureCopilotInstructionsAsync(TargetDirectory);
                 
+                // TODO: Refactor to use OutputFormatter
+#pragma warning disable TXC003
                 switch (result)
                 {
                     case CopilotInstructionsResult.Created:
@@ -58,6 +60,7 @@ namespace TALXIS.CLI.MCP
             catch (Exception ex)
             {
                 OutputWriter.WriteLine($"Error: {ex.Message}");
+#pragma warning restore TXC003
                 return 1;
             }
         }

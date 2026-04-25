@@ -51,7 +51,9 @@ public class EnvDataQuerySqlCliCommand : ProfiledCliCommand
     {
         if (result.Records.Count == 0 && !OutputContext.IsJson)
         {
+#pragma warning disable TXC003 // TODO: Refactor to use OutputFormatter
             OutputWriter.WriteLine("No records returned.");
+#pragma warning restore TXC003
             return;
         }
 
@@ -62,6 +64,8 @@ public class EnvDataQuerySqlCliCommand : ProfiledCliCommand
     /// Builds a text table whose columns are derived from the keys of the
     /// first record in the result set.
     /// </summary>
+    // Text-renderer callback invoked by OutputFormatter.WriteDynamicTable — OutputWriter usage is intentional.
+#pragma warning disable TXC003
     private static void PrintDynamicTable(IReadOnlyList<JsonElement> records)
     {
         // Collect column names from the first record.
@@ -114,6 +118,7 @@ public class EnvDataQuerySqlCliCommand : ProfiledCliCommand
 
         OutputWriter.WriteLine($"({records.Count} record{(records.Count == 1 ? "" : "s")})");
     }
+#pragma warning restore TXC003
 
     private static string GetCellValue(JsonElement record, string column)
     {

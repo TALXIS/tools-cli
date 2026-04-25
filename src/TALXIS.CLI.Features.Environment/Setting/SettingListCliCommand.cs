@@ -36,6 +36,8 @@ public class SettingListCliCommand : ProfiledCliCommand
                 .ToList();
         }
 
+        // TODO: Refactor to use OutputFormatter instead of manual OutputContext.IsJson branching.
+#pragma warning disable TXC003
         if (OutputContext.IsJson)
         {
             var dict = settings.ToDictionary(s => s.Name, s => s.Value);
@@ -69,5 +71,6 @@ public class SettingListCliCommand : ProfiledCliCommand
             OutputWriter.WriteLine($"{name.PadRight(nameWidth)} | {value}");
         }
     }
+#pragma warning restore TXC003
 
 }

@@ -21,6 +21,7 @@ public class ProjectCliCommand
     {
         public void Run(CliContext context)
         {
+#pragma warning disable TXC003 // TODO: Refactor to use OutputFormatter
             OutputWriter.WriteLine(
       @"Use of projects in this repository
 
@@ -44,6 +45,7 @@ Development and Build:
   • Package project type can contain C# migration and deployment automation/infra code. Dataverse packages can also contain configuration and test data which needs to be deployed with the code/definitions.
 "
             );
+#pragma warning restore TXC003
         }
     }
 }

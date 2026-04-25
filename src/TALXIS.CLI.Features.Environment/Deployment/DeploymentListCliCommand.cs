@@ -140,6 +140,8 @@ public class DeploymentListCliCommand : ProfiledCliCommand
         return r.Length > 20 ? r[..20].ToUpperInvariant() : r.ToUpperInvariant();
     }
 
+    // Text-renderer callback invoked by OutputFormatter.WriteList — OutputWriter usage is intentional.
+#pragma warning disable TXC003
     private static void PrintRunsTable(IReadOnlyList<DeploymentListRow> rows)
     {
         if (rows.Count == 0)
@@ -163,6 +165,7 @@ public class DeploymentListCliCommand : ProfiledCliCommand
             OutputWriter.WriteLine($"{r.Kind,-4} | {name.PadRight(nameWidth)} | {r.Status.PadRight(statusWidth)} | {started,-19} | {duration}");
         }
     }
+#pragma warning restore TXC003
 
     private static string FormatDuration(DateTime? start, DateTime? end)
     {

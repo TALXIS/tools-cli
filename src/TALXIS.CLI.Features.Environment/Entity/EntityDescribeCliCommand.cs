@@ -34,6 +34,8 @@ public class EntityDescribeCliCommand : ProfiledCliCommand
         return ExitSuccess;
     }
 
+    // Text-renderer callback invoked by OutputFormatter.WriteList — OutputWriter usage is intentional.
+#pragma warning disable TXC003
     private static void PrintAttributesTable(IReadOnlyList<EntityAttributeRecord> rows)
     {
         if (rows.Count == 0)
@@ -81,6 +83,7 @@ public class EntityDescribeCliCommand : ProfiledCliCommand
                 $"{maxLen.PadRight(maxLenWidth)}");
         }
     }
+#pragma warning restore TXC003
 
     /// <summary>Truncate a string to fit the column width, appending a dot if trimmed.</summary>
     private static string Truncate(string value, int maxWidth) =>

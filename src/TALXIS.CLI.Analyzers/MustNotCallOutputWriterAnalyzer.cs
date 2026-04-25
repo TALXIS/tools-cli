@@ -1,5 +1,8 @@
+using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Linq;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Operations;
 
@@ -18,12 +21,24 @@ namespace TALXIS.CLI.Analyzers;
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class MustNotCallOutputWriterAnalyzer : DiagnosticAnalyzer
 {
+    /// <summary>
+    /// OutputFormatter methods that accept text-renderer callbacks.
+    /// OutputWriter calls inside lambdas passed to these methods are legitimate.
+    /// </summary>
+    private static readonly HashSet<string> OutputFormatterRendererMethods = new()
+    {
+        "WriteData",
+        "WriteList",
+        "WriteRaw",
+        "WriteDynamicTable"
+    };
+
     private static readonly DiagnosticDescriptor Rule = new(
         id: DiagnosticIds.MustNotCallOutputWriter,
         title: "Use OutputFormatter instead of OutputWriter in command code",
         messageFormat: "Direct call to OutputWriter.{0}() in command '{1}'. Use OutputFormatter instead to respect the --format flag.",
         category: "TALXIS.CLI.Design",
-        defaultSeverity: DiagnosticSeverity.Warning,
+        defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         helpLinkUri: "https://github.com/TALXIS/tools-cli/blob/main/docs/output-contract.md");
 
@@ -59,11 +74,76 @@ public sealed class MustNotCallOutputWriterAnalyzer : DiagnosticAnalyzer
         if (containingType.Name == "OutputFormatter")
             return;
 
+        // Suppress if the call is inside a lambda/anonymous method passed as
+        // an argument to an OutputFormatter renderer method (WriteData, WriteList, etc.)
+        if (IsInsideOutputFormatterRendererLambda(invocation, context.Compilation))
+            return;
+
         context.ReportDiagnostic(Diagnostic.Create(
             Rule,
             invocation.Syntax.GetLocation(),
             method.Name,
             containingType.Name));
+    }
+
+    /// <summary>
+    /// Walks up the syntax tree from the OutputWriter invocation to find an enclosing
+    /// lambda/anonymous method. If found, checks whether that lambda is an argument
+    /// to an <c>OutputFormatter</c> renderer method (WriteData, WriteList, etc.).
+    /// </summary>
+    private static bool IsInsideOutputFormatterRendererLambda(
+        IInvocationOperation outputWriterCall,
+        Compilation compilation)
+    {
+        var syntaxNode = outputWriterCall.Syntax;
+
+        // Walk up syntax ancestors looking for a lambda or anonymous method
+        foreach (var ancestor in syntaxNode.Ancestors())
+        {
+            if (ancestor is not (LambdaExpressionSyntax or AnonymousMethodExpressionSyntax))
+                continue;
+
+            // Found a lambda — check if it's an argument to an OutputFormatter method.
+            // Expected tree: Lambda → Argument → ArgumentList → InvocationExpression
+            if (ancestor.Parent is ArgumentSyntax { Parent: ArgumentListSyntax { Parent: InvocationExpressionSyntax parentInvocation } })
+            {
+                if (IsOutputFormatterRendererCall(parentInvocation, compilation))
+                    return true;
+            }
+
+            // Stop at the first enclosing lambda — don't look past it, because
+            // a lambda inside a lambda should only be judged by its immediate parent.
+            break;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Checks whether an <see cref="InvocationExpressionSyntax"/> is a call to one
+    /// of the known OutputFormatter renderer methods.
+    /// </summary>
+    private static bool IsOutputFormatterRendererCall(
+        InvocationExpressionSyntax invocation,
+        Compilation compilation)
+    {
+        // Resolve the method name from the invocation expression syntax
+        string? methodName = invocation.Expression switch
+        {
+            MemberAccessExpressionSyntax memberAccess => memberAccess.Name.Identifier.Text,
+            IdentifierNameSyntax identifier => identifier.Identifier.Text,
+            _ => null
+        };
+
+        if (methodName == null || !OutputFormatterRendererMethods.Contains(methodName))
+            return false;
+
+        // Verify the containing type is actually OutputFormatter via the semantic model
+        var semanticModel = compilation.GetSemanticModel(invocation.SyntaxTree);
+        var symbolInfo = semanticModel.GetSymbolInfo(invocation);
+        var targetMethod = symbolInfo.Symbol as IMethodSymbol ?? symbolInfo.CandidateSymbols.OfType<IMethodSymbol>().FirstOrDefault();
+
+        return targetMethod?.ContainingType?.ToDisplayString() == "TALXIS.CLI.Core.OutputFormatter";
     }
 
     private static INamedTypeSymbol? GetContainingCliCommandType(ISymbol? symbol)

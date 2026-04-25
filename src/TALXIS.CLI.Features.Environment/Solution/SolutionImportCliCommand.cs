@@ -82,7 +82,9 @@ public class SolutionImportCliCommand : ProfiledCliCommand
                 smartDiffExpected = result.SmartDiffExpected,
                 status = result.Status,
             };
+#pragma warning disable TXC003 // TODO: Refactor to use OutputFormatter
             OutputWriter.WriteLine(JsonSerializer.Serialize(payload, TxcOutputJsonOptions.Default));
+#pragma warning restore TXC003
         }
 
         Logger.LogInformation("Import path: {Path}", FormatPath(result.Path));

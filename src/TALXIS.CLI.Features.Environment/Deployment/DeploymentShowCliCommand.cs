@@ -103,6 +103,8 @@ public class DeploymentShowCliCommand : ProfiledCliCommand
         return false;
     }
 
+    // TODO: Refactor Render*/Print*/WriteFindings methods below to use OutputFormatter instead of manual OutputContext.IsJson branching.
+#pragma warning disable TXC003
     private int RenderPackage(DeploymentDetailResult r)
     {
         var pkg = r.Package!;
@@ -310,6 +312,7 @@ public class DeploymentShowCliCommand : ProfiledCliCommand
             OutputWriter.WriteLine($"- {f}");
         }
     }
+#pragma warning restore TXC003
 
     private static string FormatUtc(DateTime? value) => value is null ? "(unknown)" : value.Value.ToString("O");
 

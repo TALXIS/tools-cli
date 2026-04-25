@@ -26,6 +26,7 @@ public class WorkspaceCliCommand
     {
         public void Run(CliContext context)
         {
+#pragma warning disable TXC003 // TODO: Refactor to use OutputFormatter
             OutputWriter.WriteLine(
       @"Repository Structure Overview
 
@@ -49,6 +50,7 @@ Repository Initialization Sequence:
   
 This structure is flexible and does not enforce a specific segmentation, layering or project arrangement. Developers are free to organize solutions, plugins, packages, and other projects as needed for their scenario. The .NET project system and Visual Studio solution file provide a unified way to manage, build, and deploy all components in the repository."
             );
+#pragma warning restore TXC003
         }
     }
 }

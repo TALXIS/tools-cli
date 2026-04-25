@@ -45,6 +45,8 @@ public class EnvDataRecordGetCliCommand : ProfiledCliCommand
         return ExitSuccess;
     }
 
+    // Text-renderer callback invoked by OutputFormatter.WriteData — OutputWriter usage is intentional.
+#pragma warning disable TXC003
     private static void PrintKeyValuePairs(JsonElement element)
     {
         if (element.ValueKind != JsonValueKind.Object)
@@ -58,6 +60,7 @@ public class EnvDataRecordGetCliCommand : ProfiledCliCommand
             OutputWriter.WriteLine($"{property.Name} = {FormatValue(property.Value)}");
         }
     }
+#pragma warning restore TXC003
 
     private static string FormatValue(JsonElement value) => value.ValueKind switch
     {
