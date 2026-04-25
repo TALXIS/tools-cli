@@ -94,12 +94,6 @@ jobs:
           foreach($file in (Get-ChildItem "${{ env.NuGetDirectory }}" -Recurse -Include *.nupkg)) {
               dotnet nuget push $file --api-key "${{ secrets.NUGET_APIKEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
           }
-      - name: Upload packages to GitHub Release
-        if: github.event_name == 'release'
-        uses: softprops/action-gh-release@v2
-        with:
-          files: ${{ env.NuGetDirectory }}/**/*.nupkg
-
   update-version:
     needs: [deploy, resolve-version]
     if: github.event_name == 'release'
