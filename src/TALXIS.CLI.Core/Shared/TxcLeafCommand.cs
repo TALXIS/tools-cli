@@ -77,7 +77,12 @@ public abstract class TxcLeafCommand
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Command failed.");
+            // Log the message at Error (always visible) and the full exception
+            // at Debug (only visible with --verbose / TXC_LOG_LEVEL=Debug).
+            // This keeps the default terminal output clean while preserving
+            // full diagnostics for troubleshooting.
+            Logger.LogError("Command failed: {Error}", ex.Message);
+            Logger.LogDebug(ex, "Full exception details:");
             return ExitError;
         }
     }

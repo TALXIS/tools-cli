@@ -52,19 +52,20 @@ public static class TxcLoggerFactory
         }
         else
         {
-            // Route all log output to stderr so it never mixes with command
-            // result data on stdout (the OutputWriter stream).
-            builder.AddSimpleConsole(opts =>
+            // Use our custom formatter for clean, human-friendly output:
+            // [INFO] / [WARN] / [ERROR] prefixes, timestamps, no category names,
+            // exception messages without stack traces (unless verbose).
+            bool verbose = minimumLogLevel <= LogLevel.Debug;
+            builder.AddConsole(opts =>
             {
-                opts.SingleLine = true;
-                opts.ColorBehavior = LoggerColorBehavior.Enabled;
-            });
-            // Set the stderr threshold on the console logger options.
-            // AddSimpleConsole registers the console provider internally;
-            // this post-configures it to direct all levels to stderr.
-            builder.Services.Configure<ConsoleLoggerOptions>(opts =>
-            {
+                opts.FormatterName = TxcConsoleFormatter.FormatterName;
+                // Route all log output to stderr so it never mixes with
+                // command result data on stdout (the OutputWriter stream).
                 opts.LogToStandardErrorThreshold = LogLevel.Trace;
+            });
+            builder.AddConsoleFormatter<TxcConsoleFormatter, TxcConsoleFormatterOptions>(opts =>
+            {
+                opts.Verbose = verbose;
             });
         }
     }
