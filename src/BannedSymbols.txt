@@ -45,3 +45,6 @@ T:Newtonsoft.Json.JsonConvert;Use System.Text.Json with TxcOutputJsonOptions.Def
 P:System.Threading.Tasks.Task`1.Result;Use await instead of .Result to avoid deadlocks
 M:System.Runtime.CompilerServices.TaskAwaiter.GetResult;Use await instead of .GetAwaiter().GetResult()
 M:System.Runtime.CompilerServices.TaskAwaiter`1.GetResult;Use await instead of .GetAwaiter().GetResult()
+
+# Prevent using old ProfiledCliCommand location
+T:TALXIS.CLI.Features.Config.Abstractions.ProfiledCliCommand;Use TALXIS.CLI.Core.ProfiledCliCommand instead
