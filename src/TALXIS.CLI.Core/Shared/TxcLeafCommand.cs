@@ -89,7 +89,7 @@ public abstract class TxcLeafCommand
         catch (Exception ex) when (ex is Abstractions.ConfigurationResolutionException)
         {
             Logger.LogError("{Error}", ex.Message);
-            return ExitError;
+            return ExitValidationError;
         }
         catch (OperationCanceledException)
         {
