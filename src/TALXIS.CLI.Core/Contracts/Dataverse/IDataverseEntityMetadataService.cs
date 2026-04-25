@@ -39,6 +39,28 @@ public sealed record EntityRelationshipRecord(
     string? IntersectEntityName);
 
 /// <summary>
+/// Entity-level metadata detail returned by
+/// <see cref="IDataverseEntityMetadataService.GetEntityDetailAsync"/>.
+/// </summary>
+public sealed record EntityDetailRecord(
+    string LogicalName,
+    string SchemaName,
+    string? DisplayName,
+    string? PluralDisplayName,
+    string? Description,
+    int? EntityTypeCode,
+    string OwnershipType,
+    string? PrimaryIdAttribute,
+    string? PrimaryNameAttribute,
+    bool IsCustomEntity,
+    bool IsActivity,
+    bool IsAuditEnabled,
+    bool ChangeTrackingEnabled,
+    string? EntitySetName,
+    string? CollectionSchemaName,
+    bool IsCustomizable);
+
+/// <summary>
 /// Schema/metadata introspection for Dataverse entities. All calls go
 /// through <c>ServiceClient</c> using the metadata API
 /// (<c>RetrieveAllEntitiesRequest</c> / <c>RetrieveEntityRequest</c>).
@@ -125,6 +147,15 @@ public interface IDataverseEntityMetadataService
         CancellationToken ct);
 
     /// <summary>
+    /// Retrieves detailed metadata for a single attribute, including type-specific properties.
+    /// </summary>
+    Task<Dictionary<string, object?>> GetAttributeDetailAsync(
+        string? profileName,
+        string entityLogicalName,
+        string attributeLogicalName,
+        CancellationToken ct);
+
+    /// <summary>
     /// Deletes an attribute (column) from a Dataverse entity.
     /// </summary>
     Task DeleteAttributeAsync(
@@ -139,5 +170,25 @@ public interface IDataverseEntityMetadataService
     Task DeleteRelationshipAsync(
         string? profileName,
         string relationshipSchemaName,
+        CancellationToken ct);
+
+    /// <summary>
+    /// Retrieves entity-level metadata (not columns) for a specific entity.
+    /// </summary>
+    Task<EntityDetailRecord> GetEntityDetailAsync(
+        string? profileName,
+        string entityLogicalName,
+        CancellationToken ct);
+
+    /// <summary>
+    /// Updates entity-level metadata (display name, plural name, description).
+    /// Only the fields that are explicitly provided (non-null) are modified.
+    /// </summary>
+    Task UpdateEntityAsync(
+        string? profileName,
+        string entityLogicalName,
+        string? displayName,
+        string? pluralName,
+        string? description,
         CancellationToken ct);
 }

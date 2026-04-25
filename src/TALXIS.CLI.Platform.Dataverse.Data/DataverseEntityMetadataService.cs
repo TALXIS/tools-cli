@@ -491,6 +491,118 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
     }
 
     /// <inheritdoc />
+    public async Task<Dictionary<string, object?>> GetAttributeDetailAsync(
+        string? profileName,
+        string entityLogicalName,
+        string attributeLogicalName,
+        CancellationToken ct)
+    {
+        using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+
+        var request = new RetrieveAttributeRequest
+        {
+            EntityLogicalName = entityLogicalName,
+            LogicalName = attributeLogicalName,
+            RetrieveAsIfPublished = true
+        };
+
+        var response = (RetrieveAttributeResponse)
+            await conn.Client.ExecuteAsync(request, ct).ConfigureAwait(false);
+
+        var attr = response.AttributeMetadata;
+        return BuildAttributeDetail(attr);
+    }
+
+    /// <summary>
+    /// Builds a detail dictionary from <see cref="AttributeMetadata"/>, including
+    /// common fields and type-specific properties based on the concrete subclass.
+    /// </summary>
+    private static Dictionary<string, object?> BuildAttributeDetail(AttributeMetadata attr)
+    {
+        var detail = new Dictionary<string, object?>
+        {
+            ["Logical Name"] = attr.LogicalName,
+            ["Schema Name"] = attr.SchemaName,
+            ["Display Name"] = attr.DisplayName?.UserLocalizedLabel?.Label ?? "-",
+            ["Description"] = attr.Description?.UserLocalizedLabel?.Label ?? "-",
+            ["Attribute Type"] = attr.AttributeTypeName?.Value ?? attr.AttributeType?.ToString() ?? "Unknown",
+            ["Required Level"] = attr.RequiredLevel?.Value.ToString() ?? "-",
+            ["Is Custom"] = attr.IsCustomAttribute == true,
+            ["Is Auditable"] = attr.IsAuditEnabled?.Value == true,
+        };
+
+        switch (attr)
+        {
+            case StringAttributeMetadata s:
+                detail["MaxLength"] = s.MaxLength;
+                detail["FormatName"] = s.FormatName?.Value;
+                break;
+            case MemoAttributeMetadata m:
+                detail["MaxLength"] = m.MaxLength;
+                break;
+            case IntegerAttributeMetadata i:
+                detail["MinValue"] = i.MinValue;
+                detail["MaxValue"] = i.MaxValue;
+                detail["Format"] = i.Format?.ToString();
+                break;
+            case DecimalAttributeMetadata d:
+                detail["MinValue"] = d.MinValue;
+                detail["MaxValue"] = d.MaxValue;
+                detail["Precision"] = d.Precision;
+                break;
+            case DoubleAttributeMetadata f:
+                detail["MinValue"] = f.MinValue;
+                detail["MaxValue"] = f.MaxValue;
+                detail["Precision"] = f.Precision;
+                break;
+            case MoneyAttributeMetadata mo:
+                detail["MinValue"] = mo.MinValue;
+                detail["MaxValue"] = mo.MaxValue;
+                detail["Precision"] = mo.Precision;
+                detail["PrecisionSource"] = mo.PrecisionSource;
+                break;
+            case BooleanAttributeMetadata b:
+                detail["TrueOption"] = b.OptionSet?.TrueOption?.Label?.UserLocalizedLabel?.Label;
+                detail["FalseOption"] = b.OptionSet?.FalseOption?.Label?.UserLocalizedLabel?.Label;
+                break;
+            case DateTimeAttributeMetadata dt:
+                detail["Format"] = dt.Format?.ToString();
+                detail["DateTimeBehavior"] = dt.DateTimeBehavior?.Value;
+                break;
+            case PicklistAttributeMetadata p:
+                detail["Is Global Option Set"] = p.OptionSet?.IsGlobal;
+                detail["Option Set Name"] = p.OptionSet?.Name;
+                detail["Options"] = p.OptionSet?.Options?.Select(o => new Dictionary<string, object?>
+                {
+                    ["Label"] = o.Label?.UserLocalizedLabel?.Label,
+                    ["Value"] = o.Value
+                }).ToList<object?>();
+                break;
+            case MultiSelectPicklistAttributeMetadata ms:
+                detail["Is Global Option Set"] = ms.OptionSet?.IsGlobal;
+                detail["Option Set Name"] = ms.OptionSet?.Name;
+                detail["Options"] = ms.OptionSet?.Options?.Select(o => new Dictionary<string, object?>
+                {
+                    ["Label"] = o.Label?.UserLocalizedLabel?.Label,
+                    ["Value"] = o.Value
+                }).ToList<object?>();
+                break;
+            case LookupAttributeMetadata l:
+                detail["Targets"] = l.Targets;
+                break;
+            case ImageAttributeMetadata im:
+                detail["MaxSizeInKB"] = im.MaxSizeInKB;
+                detail["CanStoreFullImage"] = im.CanStoreFullImage;
+                break;
+            case FileAttributeMetadata fi:
+                detail["MaxSizeInKB"] = fi.MaxSizeInKB;
+                break;
+        }
+
+        return detail;
+    }
+
+    /// <inheritdoc />
     public async Task DeleteAttributeAsync(
         string? profileName,
         string entityLogicalName,
@@ -520,6 +632,73 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
         {
             Name = relationshipSchemaName
         }, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<EntityDetailRecord> GetEntityDetailAsync(
+        string? profileName, string entityLogicalName, CancellationToken ct)
+    {
+        using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+
+        var request = new RetrieveEntityRequest
+        {
+            LogicalName = entityLogicalName,
+            EntityFilters = EntityFilters.Entity,
+            RetrieveAsIfPublished = true
+        };
+
+        var response = (RetrieveEntityResponse)
+            await conn.Client.ExecuteAsync(request, ct).ConfigureAwait(false);
+
+        var e = response.EntityMetadata;
+
+        return new EntityDetailRecord(
+            LogicalName: e.LogicalName,
+            SchemaName: e.SchemaName,
+            DisplayName: e.DisplayName?.UserLocalizedLabel?.Label,
+            PluralDisplayName: e.DisplayCollectionName?.UserLocalizedLabel?.Label,
+            Description: e.Description?.UserLocalizedLabel?.Label,
+            EntityTypeCode: e.ObjectTypeCode,
+            OwnershipType: e.OwnershipType?.ToString() ?? "Unknown",
+            PrimaryIdAttribute: e.PrimaryIdAttribute,
+            PrimaryNameAttribute: e.PrimaryNameAttribute,
+            IsCustomEntity: e.IsCustomEntity == true,
+            IsActivity: e.IsActivity == true,
+            IsAuditEnabled: e.IsAuditEnabled?.Value == true,
+            ChangeTrackingEnabled: e.ChangeTrackingEnabled == true,
+            EntitySetName: e.EntitySetName,
+            CollectionSchemaName: e.CollectionSchemaName,
+            IsCustomizable: e.IsCustomizable?.Value == true);
+    }
+
+    /// <inheritdoc />
+    public async Task UpdateEntityAsync(
+        string? profileName, string entityLogicalName,
+        string? displayName, string? pluralName, string? description,
+        CancellationToken ct)
+    {
+        using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+
+        // Retrieve current metadata so we patch on top of existing values.
+        var retrieveRequest = new RetrieveEntityRequest
+        {
+            LogicalName = entityLogicalName,
+            EntityFilters = EntityFilters.Entity
+        };
+        var response = (RetrieveEntityResponse)
+            await conn.Client.ExecuteAsync(retrieveRequest, ct).ConfigureAwait(false);
+        var entityMeta = response.EntityMetadata;
+
+        // Update only the fields that were explicitly provided.
+        if (displayName is not null)
+            entityMeta.DisplayName = new Label(displayName, 1033);
+        if (pluralName is not null)
+            entityMeta.DisplayCollectionName = new Label(pluralName, 1033);
+        if (description is not null)
+            entityMeta.Description = new Label(description, 1033);
+
+        await conn.Client.ExecuteAsync(new UpdateEntityRequest { Entity = entityMeta }, ct).ConfigureAwait(false);
+        await PublishEntityAsync(conn, entityLogicalName, ct).ConfigureAwait(false);
     }
 
     // ===== Private helpers =====
