@@ -1,12 +1,9 @@
 name: publish
 
 on:
+  release:
+    types: [published]
   workflow_dispatch:
-  push:
-    branches:
-      - 'master'
-    paths:
-      - 'src/**'
 
 env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
@@ -18,7 +15,33 @@ defaults:
     shell: pwsh
 
 jobs:
+  resolve-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve version
+        id: version
+        run: |
+          if ("${{ github.event_name }}" -eq "release") {
+            # Strip leading 'v' from the release tag (v1.7.0 -> 1.7.0)
+            $tag = "${{ github.event.release.tag_name }}" -replace '^v', ''
+            # Ensure four-part version for .NET (1.7.0 -> 1.7.0.0)
+            $parts = $tag.Split('.')
+            if ($parts.Length -eq 3) { $tag = "$tag.0" }
+            "version=$tag" >> $env:GITHUB_OUTPUT
+          } else {
+            # workflow_dispatch fallback: read version from Directory.Build.props
+            [xml]$props = Get-Content "src/Directory.Build.props"
+            $ver = $props.Project.PropertyGroup.Version
+            "version=$ver" >> $env:GITHUB_OUTPUT
+          }
+      - name: Print resolved version
+        run: Write-Host "Resolved version = ${{ steps.version.outputs.version }}"
+
   test:
+    needs: [resolve-version]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -34,7 +57,7 @@ jobs:
         run: dotnet test TALXIS.CLI.sln --configuration Release --no-build --logger "trx;LogFileName=test_results.trx"
 
   create_nuget:
-    needs: [ test ]
+    needs: [test, resolve-version]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -44,8 +67,9 @@ jobs:
         uses: actions/setup-dotnet@v4
       - name: Create NuGet package
         run: |
-          dotnet pack src/TALXIS.CLI/TALXIS.CLI.csproj --configuration Release
-          dotnet pack src/TALXIS.CLI.MCP/TALXIS.CLI.MCP.csproj --configuration Release
+          $ver = "${{ needs.resolve-version.outputs.version }}"
+          dotnet pack src/TALXIS.CLI/TALXIS.CLI.csproj --configuration Release -p:Version=$ver -p:PackageVersion=$ver -p:AssemblyVersion=$ver -p:FileVersion=$ver
+          dotnet pack src/TALXIS.CLI.MCP/TALXIS.CLI.MCP.csproj --configuration Release -p:Version=$ver -p:PackageVersion=$ver -p:AssemblyVersion=$ver -p:FileVersion=$ver
       - uses: actions/upload-artifact@v4
         with:
           name: nuget
@@ -56,7 +80,7 @@ jobs:
             src/TALXIS.CLI.MCP/bin/Release/*.nupkg
 
   deploy:
-    needs: [ create_nuget ]
+    needs: [create_nuget, resolve-version]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -70,3 +94,38 @@ jobs:
           foreach($file in (Get-ChildItem "${{ env.NuGetDirectory }}" -Recurse -Include *.nupkg)) {
               dotnet nuget push $file --api-key "${{ secrets.NUGET_APIKEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
           }
+      - name: Upload packages to GitHub Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.NuGetDirectory }}/**/*.nupkg
+
+  update-version:
+    needs: [deploy, resolve-version]
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Update Directory.Build.props
+        run: |
+          $ver = "${{ needs.resolve-version.outputs.version }}"
+          $file = "src/Directory.Build.props"
+          $content = Get-Content $file -Raw
+          $content = $content -replace '<Version>[^<]+</Version>', "<Version>$ver</Version>"
+          $content = $content -replace '<AssemblyVersion>[^<]+</AssemblyVersion>', "<AssemblyVersion>$ver</AssemblyVersion>"
+          $content = $content -replace '<FileVersion>[^<]+</FileVersion>', "<FileVersion>$ver</FileVersion>"
+          $content = $content -replace '<PackageVersion>[^<]+</PackageVersion>', "<PackageVersion>$ver</PackageVersion>"
+          Set-Content $file $content -NoNewline
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add src/Directory.Build.props
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: bump version to ${{ needs.resolve-version.outputs.version }}"
+          git push
