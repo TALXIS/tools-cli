@@ -3,12 +3,13 @@ using DotMake.CommandLine;
 namespace TALXIS.CLI.Features.Environment.Setting;
 
 /// <summary>
-/// <c>txc environment setting</c> — manage environment management settings
-/// via the Power Platform control plane API.
+/// <c>txc environment setting</c> — manage environment settings across
+/// all Power Platform backends (control plane, Organization table,
+/// solution settings, copilot governance).
 /// </summary>
 [CliCommand(
     Name = "setting",
-    Description = "Manage environment management settings (Power Platform control plane).",
+    Description = "Manage environment settings.",
     Children = new[] { typeof(SettingListCliCommand), typeof(SettingUpdateCliCommand) }
 )]
 public class SettingCliCommand

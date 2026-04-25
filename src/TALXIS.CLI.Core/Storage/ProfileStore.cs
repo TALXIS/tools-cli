@@ -31,6 +31,9 @@ public sealed class ProfileStore : IProfileStore
         try
         {
             var collection = await JsonFile.ReadOrDefaultAsync<ProfileCollection>(_path, ct).ConfigureAwait(false);
+            var existing = collection.Profiles.FirstOrDefault(p => string.Equals(p.Id, profile.Id, StringComparison.OrdinalIgnoreCase));
+            profile.CreatedAt ??= existing?.CreatedAt ?? DateTimeOffset.UtcNow;
+            profile.UpdatedAt = DateTimeOffset.UtcNow;
             collection.Profiles.RemoveAll(p => string.Equals(p.Id, profile.Id, StringComparison.OrdinalIgnoreCase));
             collection.Profiles.Add(profile);
             await JsonFile.WriteAtomicAsync(_path, collection, ct).ConfigureAwait(false);

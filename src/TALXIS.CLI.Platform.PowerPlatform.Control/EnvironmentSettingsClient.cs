@@ -13,7 +13,7 @@ namespace TALXIS.CLI.Platform.PowerPlatform.Control;
 /// settings API (<c>api.powerplatform.com/environmentmanagement</c>).
 /// Stateless — callers supply connection, credential, and environment ID.
 /// </summary>
-public sealed class EnvironmentManagementSettingsClient
+public sealed class EnvironmentSettingsClient
 {
     private const string ApiVersion = "1";
     private static readonly Uri PowerPlatformApiAudience = new("https://api.powerplatform.com/");
@@ -61,7 +61,7 @@ public sealed class EnvironmentManagementSettingsClient
     private readonly IAccessTokenService _tokens;
     private readonly IHttpClientFactoryWrapper _httpFactory;
 
-    public EnvironmentManagementSettingsClient(
+    public EnvironmentSettingsClient(
         IAccessTokenService tokens,
         IHttpClientFactoryWrapper? httpFactory = null)
     {
@@ -73,7 +73,7 @@ public sealed class EnvironmentManagementSettingsClient
     /// GET environment management settings. Returns flattened name-value
     /// pairs from the first item in the <c>objectResult</c> array.
     /// </summary>
-    public async Task<IReadOnlyList<EnvironmentManagementSetting>> ListAsync(
+    public async Task<IReadOnlyList<EnvironmentSetting>> ListAsync(
         Connection connection,
         Credential credential,
         Guid environmentId,
@@ -185,11 +185,11 @@ public sealed class EnvironmentManagementSettingsClient
     private sealed record SettingsResponse(bool IsSuccess, int StatusCode, string Body);
 
     /// <summary>
-    /// Parses the <c>GetEnvironmentManagementSettingResponse</c> envelope and
+    /// Parses the <c>GetEnvironmentSettingResponse</c> envelope and
     /// flattens the first <c>objectResult</c> item into name-value pairs.
     /// Skips <c>id</c> and <c>tenantId</c> since they are identifiers, not settings.
     /// </summary>
-    internal static IReadOnlyList<EnvironmentManagementSetting> ParseListResponse(string json)
+    internal static IReadOnlyList<EnvironmentSetting> ParseListResponse(string json)
     {
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
@@ -197,20 +197,20 @@ public sealed class EnvironmentManagementSettingsClient
         if (!root.TryGetProperty("objectResult", out var objectResult)
             || objectResult.ValueKind != JsonValueKind.Array)
         {
-            return Array.Empty<EnvironmentManagementSetting>();
+            return Array.Empty<EnvironmentSetting>();
         }
 
         var items = objectResult.EnumerateArray();
         if (!items.MoveNext() || items.Current.ValueKind != JsonValueKind.Object)
         {
-            return Array.Empty<EnvironmentManagementSetting>();
+            return Array.Empty<EnvironmentSetting>();
         }
 
         // The API contract for this method is to flatten settings from the first
         // objectResult entry only. Ignore any additional array entries to avoid
         // merging unrelated properties into a single settings collection.
         var firstItem = items.Current;
-        var settings = new List<EnvironmentManagementSetting>();
+        var settings = new List<EnvironmentSetting>();
         foreach (var prop in firstItem.EnumerateObject())
         {
             // Skip envelope identifiers — they are not settings.
@@ -229,7 +229,7 @@ public sealed class EnvironmentManagementSettingsClient
                 _ => prop.Value.GetRawText(),
             };
 
-            settings.Add(new EnvironmentManagementSetting(prop.Name, value));
+            settings.Add(new EnvironmentSetting(prop.Name, value));
         }
 
         return settings;

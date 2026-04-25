@@ -1,15 +1,19 @@
 using DotMake.CommandLine;
+using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Features.Data.DataModelConverter;
 using TALXIS.CLI.Core;
+using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Data;
 
+[CliReadOnly]
 [CliCommand(
     Name = "convert",
     Description = "Convert a Power Platform solution data model to various formats such as DBML, SQL, EDMX or Ribbon"
 )]
-public class DataModelConvertCliCommand
+public class DataModelConvertCliCommand : TxcLeafCommand
 {
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(DataModelConvertCliCommand));
     private const string ExportsFolderName = "exports";
 
     [CliOption(
@@ -34,7 +38,7 @@ public class DataModelConvertCliCommand
     )]
     public string? OutputDirectory { get; set; }
 
-    public int Run()
+    protected override Task<int> ExecuteAsync()
     {
         var inputPath = InputPath ?? Directory.GetCurrentDirectory();
         var outputDir = OutputDirectory ?? Path.Combine(Directory.GetCurrentDirectory(), ExportsFolderName);
@@ -47,8 +51,8 @@ public class DataModelConvertCliCommand
 
         DataModelConverterService.ConvertModel(inputPath, TargetFormat!, outputFilePath);
 
-        OutputWriter.WriteLine($"Output written to: {outputFilePath}");
-        return 0;
+        OutputFormatter.WriteResult("succeeded", $"Output written to: {outputFilePath}");
+        return Task.FromResult(ExitSuccess);
     }
 
     /// <summary>

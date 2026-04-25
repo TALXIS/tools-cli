@@ -278,7 +278,8 @@ public sealed class CmtImportRunner
             // Clean up extracted working directory (only if we created it).
             if (ownsWorkingFolder && workingFolder is not null)
             {
-                try { Directory.Delete(workingFolder, recursive: true); } catch { }
+                try { Directory.Delete(workingFolder, recursive: true); }
+                catch (Exception ex) { _logger.LogDebug(ex, "Best-effort cleanup of working folder failed."); }
             }
 
             if (_unresolvedAssemblies.Count > 0 && request.Verbose)
@@ -389,7 +390,7 @@ public sealed class CmtImportRunner
             {
                 LegacyAssemblyRuntime.PatchDispatcherReferencesOnDisk(dll);
             }
-            catch { }
+            catch (Exception ex) { _logger.LogDebug(ex, "Patching dispatcher references failed for {Dll}.", dll); }
         }
     }
 
@@ -422,7 +423,8 @@ public sealed class CmtImportRunner
                 _assemblyMap[key] = loaded;
                 return loaded;
             }
-            catch { }
+            // Intentional: best-effort assembly load; falls through to mark as unresolved.
+            catch (Exception ex) { _logger.LogDebug(ex, "Failed to load assembly candidate {Candidate}.", candidate); }
         }
 
         _unresolvedAssemblies.Add(key);

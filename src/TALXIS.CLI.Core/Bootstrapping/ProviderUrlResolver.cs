@@ -64,37 +64,46 @@ public static class ProviderUrlResolver
 
     /// <summary>
     /// Derives a default profile/connection name from the Power Platform
-    /// environment display name plus the URL host's first DNS label. When
-    /// no display name is available, falls back to the first DNS label only.
-    /// Names are lowercased, non-alphanumeric runs collapse to <c>-</c>, and
-    /// the result is capped at 64 characters.
+    /// environment display name, URL host, and tenant domain. The result
+    /// includes the tenant short name so multi-customer users can
+    /// distinguish environments across tenants at a glance. Names are
+    /// lowercased, non-alphanumeric runs collapse to <c>-</c>, and the
+    /// result is capped at 64 characters.
     /// </summary>
-    public static string? DeriveDefaultName(string? environmentDisplayName, string? url)
+    /// <example>
+    /// <c>DeriveDefaultName("TALXIS Dev", "https://org123.crm4.dynamics.com", "contoso")</c>
+    /// → <c>"talxis-dev-contoso"</c>
+    /// </example>
+    public static string? DeriveDefaultName(string? environmentDisplayName, string? url, string? tenantDomain = null)
     {
         var hostSlug = DeriveHostSlug(url);
         var displaySlug = Slugify(environmentDisplayName);
+        var tenantSlug = Slugify(tenantDomain);
 
-        if (string.IsNullOrEmpty(displaySlug))
-            return hostSlug;
-        if (string.IsNullOrEmpty(hostSlug))
-            return displaySlug;
-        if (string.Equals(displaySlug, hostSlug, StringComparison.Ordinal))
-            return displaySlug;
-        if (displaySlug.Split('-', StringSplitOptions.RemoveEmptyEntries)
-            .Contains(hostSlug, StringComparer.Ordinal))
-            return TruncateSlug(displaySlug);
+        // Build the base slug from display name or host.
+        string? baseSlug;
+        if (!string.IsNullOrEmpty(displaySlug))
+        {
+            baseSlug = displaySlug;
+        }
+        else
+        {
+            baseSlug = hostSlug;
+        }
 
-        var maxDisplayLength = MaxDefaultNameLength - hostSlug.Length - 1;
-        if (maxDisplayLength <= 0)
-            return TruncateSlug(hostSlug);
+        if (string.IsNullOrEmpty(baseSlug))
+            return null;
 
-        var displayPrefix = displaySlug.Length <= maxDisplayLength
-            ? displaySlug
-            : TrimTrailingDash(displaySlug[..maxDisplayLength]);
+        // Append tenant domain if available and not already part of the slug.
+        if (!string.IsNullOrEmpty(tenantSlug)
+            && !baseSlug.Split('-', StringSplitOptions.RemoveEmptyEntries)
+                .Contains(tenantSlug, StringComparer.Ordinal))
+        {
+            var combined = $"{baseSlug}-{tenantSlug}";
+            return TruncateSlug(combined);
+        }
 
-        return string.IsNullOrEmpty(displayPrefix)
-            ? TruncateSlug(hostSlug)
-            : $"{displayPrefix}-{hostSlug}";
+        return TruncateSlug(baseSlug);
     }
 
     /// <summary>

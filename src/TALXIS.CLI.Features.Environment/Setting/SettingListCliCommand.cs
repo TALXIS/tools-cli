@@ -1,52 +1,34 @@
-using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
-using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Core.Platforms.PowerPlatform;
-using TALXIS.CLI.Features.Config.Abstractions;
 using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.Setting;
 
 /// <summary>
-/// <c>txc environment setting list</c> — lists environment management
-/// settings from the Power Platform control plane API.
+/// <c>txc environment setting list</c> — lists environment settings from
+/// all backends (control plane, Organization table, solution settings,
+/// copilot governance).
 /// </summary>
+[CliReadOnly]
 [CliCommand(
     Name = "list",
-    Description = "List environment management settings (control plane)."
+    Description = "List environment settings."
 )]
 public class SettingListCliCommand : ProfiledCliCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(SettingListCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(SettingListCliCommand));
 
-    [CliOption(Name = "--filter", Aliases = new[] { "-f" }, Description = "Show only settings whose name contains this substring.", Required = false)]
+    [CliOption(Name = "--filter", Description = "Show only settings whose name contains this substring.", Required = false)]
     public string? Filter { get; set; }
 
-    [CliOption(Name = "--json", Description = "Emit the list as indented JSON instead of a text table.", Required = false)]
-    public bool Json { get; set; }
-
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
-        IReadOnlyList<EnvironmentManagementSetting> settings;
-        try
-        {
-            var service = TxcServices.Get<IEnvironmentManagementSettingsService>();
-            settings = await service.ListAsync(Profile, selectFilter: null, CancellationToken.None)
-                .ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
-        {
-            _logger.LogError("{Error}", ex.Message);
-            return 1;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "environment setting list failed");
-            return 1;
-        }
+        var service = TxcServices.Get<IEnvironmentSettingsService>();
+        IReadOnlyList<EnvironmentSetting> settings = await service.ListAsync(Profile, CancellationToken.None)
+            .ConfigureAwait(false);
 
         if (!string.IsNullOrWhiteSpace(Filter))
         {
@@ -55,22 +37,17 @@ public class SettingListCliCommand : ProfiledCliCommand
                 .ToList();
         }
 
-        if (Json)
-        {
-            var dict = settings.ToDictionary(s => s.Name, s => s.Value);
-            OutputWriter.WriteLine(JsonSerializer.Serialize(dict, JsonOptions));
-            return 0;
-        }
-
-        PrintSettingsTable(settings);
-        return 0;
+        OutputFormatter.WriteList(settings, PrintSettingsTable);
+        return ExitSuccess;
     }
 
-    private static void PrintSettingsTable(IReadOnlyList<EnvironmentManagementSetting> settings)
+    // Text-renderer callback invoked by OutputFormatter.WriteList — OutputWriter usage is intentional.
+#pragma warning disable TXC003
+    private static void PrintSettingsTable(IReadOnlyList<EnvironmentSetting> settings)
     {
         if (settings.Count == 0)
         {
-            OutputWriter.WriteLine("No environment management settings found.");
+            OutputWriter.WriteLine("No environment settings found.");
             return;
         }
 
@@ -88,9 +65,6 @@ public class SettingListCliCommand : ProfiledCliCommand
             OutputWriter.WriteLine($"{name.PadRight(nameWidth)} | {value}");
         }
     }
+#pragma warning restore TXC003
 
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
-    {
-        WriteIndented = true,
-    };
 }

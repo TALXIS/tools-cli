@@ -30,7 +30,9 @@ public static class LegacyAssemblyHostSubprocess
     private const string CmtExportCommand = "__txc_internal_cmt_export";
     private const string CleanupCommand = "__txc_internal_package_deployer_cleanup";
     private const string ConfigDirectoryEnvVar = "TXC_CONFIG_DIR";
+#pragma warning disable RS0030 // Web defaults required for subprocess JSON protocol (case-insensitive, camelCase)
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+#pragma warning restore RS0030
 
     /// <summary>Child-process dispatcher. Called from <c>Program.Main</c>.</summary>
     public static async Task<int?> TryRunAsync(string[] args)
@@ -151,11 +153,15 @@ public static class LegacyAssemblyHostSubprocess
             }
             catch (IOException) when (attempt < maxAttempts)
             {
+#pragma warning disable RS0030 // Sync method: Thread.Sleep is intentional in synchronous retry loop for file I/O
                 Thread.Sleep(TimeSpan.FromMilliseconds(250 * attempt));
+#pragma warning restore RS0030
             }
             catch (UnauthorizedAccessException) when (attempt < maxAttempts)
             {
+#pragma warning disable RS0030 // Sync method: Thread.Sleep is intentional in synchronous retry loop for file I/O
                 Thread.Sleep(TimeSpan.FromMilliseconds(250 * attempt));
+#pragma warning restore RS0030
             }
         }
     }

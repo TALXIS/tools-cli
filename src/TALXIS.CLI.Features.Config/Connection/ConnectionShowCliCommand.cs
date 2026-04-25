@@ -1,11 +1,9 @@
-using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
+using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.DependencyInjection;
-using TALXIS.CLI.Core.Storage;
 using TALXIS.CLI.Logging;
-using TALXIS.CLI.Core;
 
 namespace TALXIS.CLI.Features.Config.Connection;
 
@@ -14,42 +12,36 @@ namespace TALXIS.CLI.Features.Config.Connection;
 /// connection as JSON. Exits with code 2 when the connection is not
 /// found (so scripts can distinguish "missing" from "error").
 /// </summary>
+[CliReadOnly]
 [CliCommand(
     Name = "show",
     Description = "Show a single connection as JSON. Exit 2 if not found."
 )]
-public class ConnectionShowCliCommand
+public class ConnectionShowCliCommand : TxcLeafCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ConnectionShowCliCommand));
+    protected override ILogger Logger => _logger;
 
     [CliArgument(Description = "Connection name.")]
     public required string Name { get; set; }
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         if (string.IsNullOrWhiteSpace(Name))
         {
             _logger.LogError("Connection name must be provided.");
-            return 1;
+            return ExitError;
         }
 
-        try
+        var store = TxcServices.Get<IConnectionStore>();
+        var connection = await store.GetAsync(Name, CancellationToken.None).ConfigureAwait(false);
+        if (connection is null)
         {
-            var store = TxcServices.Get<IConnectionStore>();
-            var connection = await store.GetAsync(Name, CancellationToken.None).ConfigureAwait(false);
-            if (connection is null)
-            {
-                _logger.LogError("Connection '{Name}' not found.", Name);
-                return 2;
-            }
+            _logger.LogError("Connection '{Name}' not found.", Name);
+            return ExitValidationError;
+        }
 
-            OutputWriter.WriteLine(JsonSerializer.Serialize(connection, TxcJsonOptions.Default));
-            return 0;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to show connection '{Name}'.", Name);
-            return 1;
-        }
+        OutputFormatter.WriteData(connection);
+        return ExitSuccess;
     }
 }

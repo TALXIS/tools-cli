@@ -9,10 +9,15 @@ using TALXIS.CLI.Core.Vault;
 namespace TALXIS.CLI.Core.Identity;
 
 /// <summary>
-/// Holds the process-wide <see cref="MsalCacheHelper"/> for the MSAL token
-/// cache file (<c>txc.msal.tokens.v1.dat</c>). Keeping this as a DI singleton
-/// is critical on macOS: every new helper instantiation is an additional
-/// Keychain prompt (see <c>session/files/keychain-prompt-research.md</c>).
+/// Holds the process-wide <see cref="MsalCacheHelper"/> instances for the MSAL
+/// token cache files. Two separate caches are maintained:
+/// <list type="bullet">
+///   <item><c>txc.msal.tokens.v1.dat</c> — user (public client) tokens with refresh tokens</item>
+///   <item><c>txc.msal.spn-tokens.v1.dat</c> — confidential client (SPN) app tokens</item>
+/// </list>
+/// Keeping this as a DI singleton is critical on macOS: every new helper
+/// instantiation is an additional Keychain prompt (see
+/// <c>session/files/keychain-prompt-research.md</c>).
 /// </summary>
 /// <remarks>
 /// This binder is distinct from <see cref="Vault.MsalBackedCredentialVault"/>:
@@ -23,22 +28,24 @@ namespace TALXIS.CLI.Core.Identity;
 public sealed class MsalTokenCacheBinder : ITokenCacheStore
 {
     private readonly MsalCacheHelper _helper;
+    private readonly MsalCacheHelper? _spnHelper;
 
     /// <summary>Diagnostic hook for tests.</summary>
     internal MsalCacheHelper Helper => _helper;
 
     public bool UsesPlaintextFallback { get; }
 
-    private MsalTokenCacheBinder(MsalCacheHelper helper, bool usesPlaintextFallback)
+    private MsalTokenCacheBinder(MsalCacheHelper helper, MsalCacheHelper? spnHelper, bool usesPlaintextFallback)
     {
         _helper = helper;
+        _spnHelper = spnHelper;
         UsesPlaintextFallback = usesPlaintextFallback;
     }
 
     /// <summary>
-    /// Attach the shared MSAL token cache to a newly-built public- or
-    /// confidential-client application. Safe to call many times across clients
-    /// — the underlying helper is shared.
+    /// Attach the shared MSAL user token cache to a newly-built public-client
+    /// application. Safe to call many times across clients — the underlying
+    /// helper is shared.
     /// </summary>
     public void Attach(Microsoft.Identity.Client.ITokenCache cache)
     {
@@ -47,11 +54,25 @@ public sealed class MsalTokenCacheBinder : ITokenCacheStore
     }
 
     /// <summary>
-    /// Clears the persisted MSAL token cache file for txc.
+    /// Attach the shared MSAL app token cache to a newly-built confidential-client
+    /// application. Uses a separate cache file (<c>txc.msal.spn-tokens.v1.dat</c>)
+    /// so SPN tokens persist across CLI invocations independently of user tokens.
+    /// Falls back to the user cache helper if the SPN cache was not initialized.
+    /// </summary>
+    public void AttachAppCache(Microsoft.Identity.Client.ITokenCache appTokenCache)
+    {
+        ArgumentNullException.ThrowIfNull(appTokenCache);
+        var helper = _spnHelper ?? _helper;
+        helper.RegisterCache(appTokenCache);
+    }
+
+    /// <summary>
+    /// Clears the persisted MSAL token cache files for txc.
     /// </summary>
     public void Clear()
     {
         _helper.Clear();
+        _spnHelper?.Clear();
     }
 
     public static async Task<MsalTokenCacheBinder> CreateAsync(
@@ -66,7 +87,21 @@ public sealed class MsalTokenCacheBinder : ITokenCacheStore
 
         var options = VaultOptions.MsalTokenCache(env);
         var helper = await MsalCacheHelperFactory.CreateAsync(options, paths, logger, ct).ConfigureAwait(false);
-        return new MsalTokenCacheBinder(helper, options.UsePlaintextFallback);
+
+        // SPN cache is best-effort — if it fails (e.g. Keychain issues),
+        // fall back to the user cache helper for app tokens too.
+        MsalCacheHelper? spnHelper = null;
+        try
+        {
+            var spnOptions = VaultOptions.MsalSpnTokenCache(env);
+            spnHelper = await MsalCacheHelperFactory.CreateAsync(spnOptions, paths, logger, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to create SPN token cache; confidential-client tokens will share the user cache file.");
+        }
+
+        return new MsalTokenCacheBinder(helper, spnHelper, options.UsePlaintextFallback);
     }
 
     /// <summary>Test-only factory that accepts an explicit <see cref="VaultOptions"/>.</summary>
@@ -81,6 +116,6 @@ public sealed class MsalTokenCacheBinder : ITokenCacheStore
         logger ??= NullLogger<MsalTokenCacheBinder>.Instance;
 
         var helper = await MsalCacheHelperFactory.CreateAsync(options, paths, logger, ct).ConfigureAwait(false);
-        return new MsalTokenCacheBinder(helper, options.UsePlaintextFallback);
+        return new MsalTokenCacheBinder(helper, spnHelper: null, options.UsePlaintextFallback);
     }
 }

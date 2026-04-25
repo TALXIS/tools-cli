@@ -5,6 +5,11 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <!-- Infrastructure project: legitimate Console.Error usage for log sinks -->
+  <ItemGroup>
+    <AdditionalFiles Remove="$(MSBuildThisFileDirectory)..\BannedSymbols.txt" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\TALXIS.CLI.Core\TALXIS.CLI.Core.csproj" />
   </ItemGroup>

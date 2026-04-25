@@ -1,3 +1,4 @@
+#pragma warning disable TXC001 // MCP-specific in-process command — not a standard CLI leaf
 using DotMake.CommandLine;
 using System.ComponentModel;
 using TALXIS.CLI.Core;
@@ -10,6 +11,7 @@ namespace TALXIS.CLI.MCP
     /// is redirected by ExecuteMcpSpecificToolWithCapturedOutputAsync to capture
     /// the result data as the tool response.
     /// </summary>
+    [CliIdempotent]
     [CliCommand(
         Name = "copilot-instructions",
         Description = "Creates or updates .github/copilot-instructions.md file with TALXIS CLI instructions in the target project"
@@ -39,6 +41,8 @@ namespace TALXIS.CLI.MCP
             {
                 var result = await _manager.EnsureCopilotInstructionsAsync(TargetDirectory);
                 
+                // TODO: Refactor to use OutputFormatter
+#pragma warning disable TXC003
                 switch (result)
                 {
                     case CopilotInstructionsResult.Created:
@@ -57,6 +61,7 @@ namespace TALXIS.CLI.MCP
             catch (Exception ex)
             {
                 OutputWriter.WriteLine($"Error: {ex.Message}");
+#pragma warning restore TXC003
                 return 1;
             }
         }

@@ -30,6 +30,29 @@ public sealed class Connection
     public CloudInstance? Cloud { get; set; }
     public string? TenantId { get; set; }
 
+    /// <summary>
+    /// Human-readable environment display name from the Power Platform catalog.
+    /// Populated during bootstrap or live-check. Used as the primary source for
+    /// connection/profile slug derivation.
+    /// </summary>
+    public string? DisplayName { get; set; }
+
+    /// <summary>
+    /// Power Platform environment lifecycle type (<c>Production</c>,
+    /// <c>Sandbox</c>, <c>Trial</c>, <c>Developer</c>, <c>Default</c>).
+    /// Resolved from the Power Platform admin API's
+    /// <c>properties.environmentSku</c> field. When null, destructive
+    /// operations treat the environment as Production (fail-safe).
+    /// Can be overridden via <c>--environment-type</c> on connection create.
+    /// </summary>
+    public EnvironmentType? EnvironmentType { get; set; }
+
+    /// <summary>When the connection was first persisted.</summary>
+    public DateTimeOffset? CreatedAt { get; set; }
+
+    /// <summary>When the connection was last updated.</summary>
+    public DateTimeOffset? UpdatedAt { get; set; }
+
     /// <summary>Captured but unprocessed fields (forward-compat).</summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtraFields { get; set; }

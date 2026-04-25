@@ -2,10 +2,8 @@ using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
-using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
-using TALXIS.CLI.Features.Config.Abstractions;
 using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.Data.Record;
@@ -13,13 +11,14 @@ namespace TALXIS.CLI.Features.Environment.Data.Record;
 /// <summary>
 /// Retrieves a single record by entity logical name and record ID.
 /// </summary>
+[CliReadOnly]
 [CliCommand(
     Name = "get",
     Description = "Retrieve a single record by ID."
 )]
 public class EnvDataRecordGetCliCommand : ProfiledCliCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EnvDataRecordGetCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EnvDataRecordGetCliCommand));
 
     [CliOption(Name = "--entity", Description = "Entity logical name (e.g. account).", Required = true)]
     public string Entity { get; set; } = null!;
@@ -33,45 +32,22 @@ public class EnvDataRecordGetCliCommand : ProfiledCliCommand
     [CliOption(Name = "--include-annotations", Description = "Include formatted values / OData annotations.", Required = false)]
     public bool IncludeAnnotations { get; set; }
 
-    [CliOption(Name = "--json", Description = "Emit the record as indented JSON.", Required = false)]
-    public bool Json { get; set; }
-
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
-        JsonElement result;
-        try
-        {
-            var columns = string.IsNullOrWhiteSpace(Columns)
-                ? null
-                : Columns.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var columns = string.IsNullOrWhiteSpace(Columns)
+            ? null
+            : Columns.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-            var service = TxcServices.Get<IDataverseRecordService>();
-            result = await service.GetAsync(Profile, Entity, RecordId, columns, IncludeAnnotations, CancellationToken.None)
-                .ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
-        {
-            _logger.LogError("{Error}", ex.Message);
-            return 1;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "record get failed");
-            return 1;
-        }
+        var service = TxcServices.Get<IDataverseRecordService>();
+        var result = await service.GetAsync(Profile, Entity, RecordId, columns, IncludeAnnotations, CancellationToken.None)
+            .ConfigureAwait(false);
 
-        if (Json)
-        {
-            OutputWriter.WriteLine(JsonSerializer.Serialize(result, JsonOptions));
-        }
-        else
-        {
-            PrintKeyValuePairs(result);
-        }
-
-        return 0;
+        OutputFormatter.WriteData(result, PrintKeyValuePairs);
+        return ExitSuccess;
     }
 
+    // Text-renderer callback invoked by OutputFormatter.WriteData — OutputWriter usage is intentional.
+#pragma warning disable TXC003
     private static void PrintKeyValuePairs(JsonElement element)
     {
         if (element.ValueKind != JsonValueKind.Object)
@@ -85,6 +61,7 @@ public class EnvDataRecordGetCliCommand : ProfiledCliCommand
             OutputWriter.WriteLine($"{property.Name} = {FormatValue(property.Value)}");
         }
     }
+#pragma warning restore TXC003
 
     private static string FormatValue(JsonElement value) => value.ValueKind switch
     {
@@ -96,5 +73,4 @@ public class EnvDataRecordGetCliCommand : ProfiledCliCommand
         _ => value.GetRawText(),
     };
 
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };
 }

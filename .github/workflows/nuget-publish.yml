@@ -1,12 +1,9 @@
 name: publish
 
 on:
+  release:
+    types: [published]
   workflow_dispatch:
-  push:
-    branches:
-      - 'master'
-    paths:
-      - 'src/**'
 
 env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
@@ -18,7 +15,45 @@ defaults:
     shell: pwsh
 
 jobs:
+  resolve-version:
+    runs-on: ubuntu-latest
+    outputs:
+      package-version: ${{ steps.version.outputs.package-version }}
+      assembly-version: ${{ steps.version.outputs.assembly-version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve version
+        id: version
+        run: |
+          if ("${{ github.event_name }}" -eq "release") {
+            $tag = "${{ github.event.release.tag_name }}" -replace '^v', ''
+
+            # Validate tag format: must be major.minor.patch with optional prerelease suffix
+            if ($tag -notmatch '^\d+\.\d+\.\d+(-[a-zA-Z0-9\.\-]+)?$') {
+              Write-Error "Invalid tag format '${{ github.event.release.tag_name }}'. Expected vX.Y.Z or vX.Y.Z-prerelease."
+              exit 1
+            }
+
+            # PackageVersion keeps prerelease suffix (e.g. 1.7.0-beta.1)
+            "package-version=$tag" >> $env:GITHUB_OUTPUT
+
+            # AssemblyVersion/FileVersion must be numeric only (e.g. 1.7.0.0)
+            $numeric = ($tag -replace '-.*', '') + ".0"
+            "assembly-version=$numeric" >> $env:GITHUB_OUTPUT
+          } else {
+            # workflow_dispatch fallback: read version from Directory.Build.props
+            [xml]$props = Get-Content "src/Directory.Build.props"
+            $ver = $props.Project.PropertyGroup.Version
+            "package-version=$ver" >> $env:GITHUB_OUTPUT
+            "assembly-version=$ver" >> $env:GITHUB_OUTPUT
+          }
+      - name: Print resolved version
+        run: |
+          Write-Host "Package version  = ${{ steps.version.outputs.package-version }}"
+          Write-Host "Assembly version = ${{ steps.version.outputs.assembly-version }}"
+
   test:
+    needs: [resolve-version]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -34,7 +69,7 @@ jobs:
         run: dotnet test TALXIS.CLI.sln --configuration Release --no-build --logger "trx;LogFileName=test_results.trx"
 
   create_nuget:
-    needs: [ test ]
+    needs: [test, resolve-version]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -44,8 +79,10 @@ jobs:
         uses: actions/setup-dotnet@v4
       - name: Create NuGet package
         run: |
-          dotnet pack src/TALXIS.CLI/TALXIS.CLI.csproj --configuration Release
-          dotnet pack src/TALXIS.CLI.MCP/TALXIS.CLI.MCP.csproj --configuration Release
+          $pkgVer = "${{ needs.resolve-version.outputs.package-version }}"
+          $asmVer = "${{ needs.resolve-version.outputs.assembly-version }}"
+          dotnet pack src/TALXIS.CLI/TALXIS.CLI.csproj --configuration Release -p:Version=$pkgVer -p:PackageVersion=$pkgVer -p:AssemblyVersion=$asmVer -p:FileVersion=$asmVer
+          dotnet pack src/TALXIS.CLI.MCP/TALXIS.CLI.MCP.csproj --configuration Release -p:Version=$pkgVer -p:PackageVersion=$pkgVer -p:AssemblyVersion=$asmVer -p:FileVersion=$asmVer
       - uses: actions/upload-artifact@v4
         with:
           name: nuget
@@ -56,7 +93,7 @@ jobs:
             src/TALXIS.CLI.MCP/bin/Release/*.nupkg
 
   deploy:
-    needs: [ create_nuget ]
+    needs: [create_nuget, resolve-version]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -70,3 +107,47 @@ jobs:
           foreach($file in (Get-ChildItem "${{ env.NuGetDirectory }}" -Recurse -Include *.nupkg)) {
               dotnet nuget push $file --api-key "${{ secrets.NUGET_APIKEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
           }
+  update-version:
+    needs: [deploy, resolve-version]
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Validate release tag is on master
+        run: |
+          $tagName = "${{ github.event.release.tag_name }}"
+          git fetch origin master --tags
+          $tagCommit = git rev-list -n 1 "refs/tags/$tagName"
+          if (-not $tagCommit) {
+            Write-Error "Release tag '$tagName' could not be resolved to a commit."
+            exit 1
+          }
+          $masterHead = git rev-parse HEAD
+          if ($tagCommit -ne $masterHead) {
+            Write-Error "Release tag '$tagName' points to commit '$tagCommit', but current master HEAD is '$masterHead'. Refusing to bump version on master."
+            exit 1
+          }
+      - name: Update Directory.Build.props
+        run: |
+          $ver = "${{ needs.resolve-version.outputs.package-version }}"
+          $file = "src/Directory.Build.props"
+          $content = Get-Content $file -Raw
+          $content = $content -replace '<Version>[^<]+</Version>', "<Version>$ver</Version>"
+          $content = $content -replace '<AssemblyVersion>[^<]+</AssemblyVersion>', "<AssemblyVersion>$ver</AssemblyVersion>"
+          $content = $content -replace '<FileVersion>[^<]+</FileVersion>', "<FileVersion>$ver</FileVersion>"
+          $content = $content -replace '<PackageVersion>[^<]+</PackageVersion>', "<PackageVersion>$ver</PackageVersion>"
+          Set-Content $file $content
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add src/Directory.Build.props
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: bump version to ${{ needs.resolve-version.outputs.package-version }}"
+          git push

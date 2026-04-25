@@ -1,4 +1,5 @@
 using System.Reflection;
+using ModelContextProtocol.Protocol;
 using TALXIS.CLI.Core;
 
 namespace TALXIS.CLI.MCP
@@ -41,7 +42,8 @@ namespace TALXIS.CLI.MCP
                 {
                     Name = fullName,
                     Description = attr.Description,
-                    CliCommandClass = cmdType
+                    CliCommandClass = cmdType,
+                    Annotations = BuildAnnotations(cmdType)
                 });
             }
 
@@ -51,6 +53,30 @@ namespace TALXIS.CLI.MCP
                 EnumerateRecursive(child, segments, rootType, results);
             }
         }
+        /// <summary>
+        /// Reads <see cref="CliDestructiveAttribute"/>, <see cref="CliReadOnlyAttribute"/>,
+        /// and <see cref="CliIdempotentAttribute"/> from the command type and converts them
+        /// to an MCP protocol <see cref="ToolAnnotations"/> instance. Returns null when none
+        /// of the attributes are present.
+        /// </summary>
+        private static ToolAnnotations? BuildAnnotations(Type cmdType)
+        {
+            var destructive = cmdType.GetCustomAttribute<CliDestructiveAttribute>();
+            var readOnly = cmdType.GetCustomAttribute<CliReadOnlyAttribute>();
+            var idempotent = cmdType.GetCustomAttribute<CliIdempotentAttribute>();
+
+            if (destructive is null && readOnly is null && idempotent is null)
+                return null;
+
+            return new ToolAnnotations
+            {
+                Title = destructive?.Impact,
+                DestructiveHint = destructive is not null ? true : null,
+                ReadOnlyHint = readOnly is not null ? true : null,
+                IdempotentHint = idempotent is not null ? true : null,
+            };
+        }
+
         public Type? FindCommandTypeByToolName(string toolName, Type rootType)
         {
             var segments = toolName.Split('_', StringSplitOptions.RemoveEmptyEntries);

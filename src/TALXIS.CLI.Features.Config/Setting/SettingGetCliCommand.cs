@@ -1,9 +1,9 @@
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
+using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Logging;
-using TALXIS.CLI.Core;
 
 namespace TALXIS.CLI.Features.Config.Setting;
 
@@ -13,23 +13,25 @@ namespace TALXIS.CLI.Features.Config.Setting;
 /// listing the known keys so shell scripts can distinguish "empty"
 /// (default) from "typo".
 /// </summary>
+[CliReadOnly]
 [CliCommand(
     Name = "get",
     Description = "Get a tool-wide preference value by key."
 )]
-public class SettingGetCliCommand
+public class SettingGetCliCommand : TxcLeafCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(SettingGetCliCommand));
+    protected override ILogger Logger => _logger;
 
     [CliArgument(Description = "Setting key (e.g. log.level).")]
     public required string Key { get; set; }
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         if (string.IsNullOrWhiteSpace(Key))
         {
             _logger.LogError("Setting key must be provided.");
-            return 1;
+            return ExitError;
         }
 
         var descriptor = SettingRegistry.Find(Key);
@@ -39,20 +41,12 @@ public class SettingGetCliCommand
                 "Unknown setting key '{Key}'. Known keys: {Keys}.",
                 Key,
                 string.Join(", ", SettingRegistry.All.Select(d => d.Key)));
-            return 2;
+            return ExitValidationError;
         }
 
-        try
-        {
-            var store = TxcServices.Get<IGlobalConfigStore>();
-            var config = await store.LoadAsync(CancellationToken.None).ConfigureAwait(false);
-            OutputWriter.WriteLine(descriptor.Read(config));
-            return 0;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to read setting '{Key}'.", descriptor.Key);
-            return 1;
-        }
+        var store = TxcServices.Get<IGlobalConfigStore>();
+        var config = await store.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+        OutputFormatter.WriteValue(descriptor.Key, descriptor.Read(config));
+        return ExitSuccess;
     }
 }

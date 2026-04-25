@@ -1,3 +1,4 @@
+#pragma warning disable TXC001 // Long-running server — does not follow the leaf command pattern
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Logging;

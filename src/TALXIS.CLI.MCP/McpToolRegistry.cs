@@ -84,6 +84,11 @@ public class McpToolRegistry
                 tool.Execution = new ToolExecution { TaskSupport = new ToolTaskSupport() };
             }
 
+            if (descriptor.Annotations is not null)
+            {
+                tool.Annotations = descriptor.Annotations;
+            }
+
             toolDefinitions.Add(tool);
         }
         return toolDefinitions;

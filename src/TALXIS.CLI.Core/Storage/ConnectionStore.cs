@@ -31,6 +31,9 @@ public sealed class ConnectionStore : IConnectionStore
         try
         {
             var collection = await JsonFile.ReadOrDefaultAsync<ConnectionCollection>(_path, ct).ConfigureAwait(false);
+            var existing = collection.Connections.FirstOrDefault(c => string.Equals(c.Id, connection.Id, StringComparison.OrdinalIgnoreCase));
+            connection.CreatedAt ??= existing?.CreatedAt ?? DateTimeOffset.UtcNow;
+            connection.UpdatedAt = DateTimeOffset.UtcNow;
             collection.Connections.RemoveAll(c => string.Equals(c.Id, connection.Id, StringComparison.OrdinalIgnoreCase));
             collection.Connections.Add(connection);
             await JsonFile.WriteAtomicAsync(_path, collection, ct).ConfigureAwait(false);

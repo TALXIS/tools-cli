@@ -1,9 +1,8 @@
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
-using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
-using TALXIS.CLI.Features.Config.Abstractions;
+using TALXIS.CLI.Core;
 using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.Data.Query;
@@ -15,15 +14,16 @@ namespace TALXIS.CLI.Features.Environment.Data.Query;
 /// </summary>
 /// <example>
 ///   txc environment data query fetchxml "&lt;fetch&gt;&lt;entity name='account'&gt;&lt;attribute name='name'/&gt;&lt;/entity&gt;&lt;/fetch&gt;"
-///   txc env data query fetchxml --file ./query.xml --json
+///   txc env data query fetchxml --file ./query.xml --format json
 /// </example>
+[CliReadOnly]
 [CliCommand(
     Name = "fetchxml",
     Description = "Execute a FetchXML query against the Dataverse environment."
 )]
 public class EnvDataQueryFetchXmlCliCommand : ProfiledCliCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EnvDataQueryFetchXmlCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EnvDataQueryFetchXmlCliCommand));
 
     [CliArgument(Description = "The FetchXML query string (omit if using --file).", Required = false)]
     public string? FetchXml { get; set; }
@@ -37,38 +37,21 @@ public class EnvDataQueryFetchXmlCliCommand : ProfiledCliCommand
     [CliOption(Name = "--include-annotations", Description = "Include OData annotations / formatted values in the output.", Required = false)]
     public bool IncludeAnnotations { get; set; }
 
-    [CliOption(Name = "--json", Description = "Emit the result as indented JSON instead of a text table.", Required = false)]
-    public bool Json { get; set; }
-
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         var fetchXml = ResolveFetchXml();
         if (fetchXml is null)
         {
-            _logger.LogError("Provide a FetchXML string as an argument or use --file to specify a file.");
-            return 1;
+            Logger.LogError("Provide a FetchXML string as an argument or use --file to specify a file.");
+            return ExitValidationError;
         }
 
-        DataverseQueryResult result;
-        try
-        {
-            var service = TxcServices.Get<IDataverseQueryService>();
-            result = await service.QueryFetchXmlAsync(Profile, fetchXml, Top, IncludeAnnotations, CancellationToken.None)
-                .ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
-        {
-            _logger.LogError("{Error}", ex.Message);
-            return 1;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "environment data query fetchxml failed");
-            return 1;
-        }
+        var service = TxcServices.Get<IDataverseQueryService>();
+        var result = await service.QueryFetchXmlAsync(Profile, fetchXml, Top, IncludeAnnotations, CancellationToken.None)
+            .ConfigureAwait(false);
 
-        EnvDataQuerySqlCliCommand.OutputQueryResult(result, Json);
-        return 0;
+        EnvDataQuerySqlCliCommand.OutputQueryResult(result);
+        return ExitSuccess;
     }
 
     /// <summary>
@@ -84,7 +67,7 @@ public class EnvDataQueryFetchXmlCliCommand : ProfiledCliCommand
         {
             if (!System.IO.File.Exists(File))
             {
-                _logger.LogError("FetchXML file not found: {Path}", File);
+                Logger.LogError("FetchXML file not found: {Path}", File);
                 return null;
             }
             return System.IO.File.ReadAllText(File);

@@ -1,8 +1,5 @@
-using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
-using TALXIS.CLI.Core.Abstractions;
-using TALXIS.CLI.Features.Config.Abstractions;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Logging;
@@ -10,13 +7,14 @@ using TALXIS.CLI.Core;
 
 namespace TALXIS.CLI.Features.Environment.Deployment;
 
+[CliReadOnly]
 [CliCommand(
     Name = "list",
     Description = "List past deployment runs (package and solution) in the target environment."
 )]
 public class DeploymentListCliCommand : ProfiledCliCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(DeploymentListCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(DeploymentListCliCommand));
 
     [CliOption(Name = "--kind", Description = "Filter runs by kind: package or solution. Omit to include both.", Required = false)]
     public string? Kind { get; set; }
@@ -27,10 +25,7 @@ public class DeploymentListCliCommand : ProfiledCliCommand
     [CliOption(Name = "--problems", Description = "Only rows that are not Success/Completed.", Required = false)]
     public bool Problems { get; set; }
 
-    [CliOption(Name = "--json", Description = "Emit the list as indented JSON instead of a text table.", Required = false)]
-    public bool Json { get; set; }
-
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         bool includePackages = true;
         bool includeSolutions = true;
@@ -48,8 +43,8 @@ public class DeploymentListCliCommand : ProfiledCliCommand
                     includePackages = false;
                     break;
                 default:
-                    _logger.LogError("Invalid --kind '{Kind}'. Expected 'package' or 'solution'.", Kind);
-                    return 1;
+                    Logger.LogError("Invalid --kind '{Kind}'. Expected 'package' or 'solution'.", Kind);
+                    return ExitValidationError;
             }
         }
 
@@ -59,49 +54,29 @@ public class DeploymentListCliCommand : ProfiledCliCommand
         {
             if (!DeploymentRelativeTimeParser.TryParse(Since, out var window))
             {
-                _logger.LogError("Invalid --since value '{Value}'. Use NNNm, NNNh, NNNd, or NNNw.", Since);
-                return 1;
+                Logger.LogError("Invalid --since value '{Value}'. Use NNNm, NNNh, NNNd, or NNNw.", Since);
+                return ExitValidationError;
             }
             sinceUtc = DateTime.UtcNow - window;
             defaultCount = 200;
         }
 
-        DeploymentHistorySnapshot snapshot;
-        try
-        {
-            var service = TxcServices.Get<IDeploymentHistoryService>();
-            snapshot = await service.GetRecentAsync(
-                Profile,
-                includePackages,
-                includeSolutions,
-                defaultCount,
-                sinceUtc,
-                Problems,
-                CancellationToken.None).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
-        {
-            _logger.LogError("{Error}", ex.Message);
-            return 1;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "environment deployment list failed");
-            return 1;
-        }
+        var service = TxcServices.Get<IDeploymentHistoryService>();
+        var snapshot = await service.GetRecentAsync(
+            Profile,
+            includePackages,
+            includeSolutions,
+            defaultCount,
+            sinceUtc,
+            Problems,
+            CancellationToken.None).ConfigureAwait(false);
 
         var rows = BuildRows(snapshot.Packages, snapshot.Solutions);
         int max = sinceUtc is null ? 20 : rows.Count;
         var trimmed = rows.Take(max).ToList();
 
-        if (Json)
-        {
-            OutputWriter.WriteLine(JsonSerializer.Serialize(trimmed, JsonOptions));
-            return 0;
-        }
-
-        PrintRunsTable(trimmed);
-        return 0;
+        OutputFormatter.WriteList(trimmed, PrintRunsTable);
+        return ExitSuccess;
     }
 
     /// <summary>
@@ -166,6 +141,8 @@ public class DeploymentListCliCommand : ProfiledCliCommand
         return r.Length > 20 ? r[..20].ToUpperInvariant() : r.ToUpperInvariant();
     }
 
+    // Text-renderer callback invoked by OutputFormatter.WriteList — OutputWriter usage is intentional.
+#pragma warning disable TXC003
     private static void PrintRunsTable(IReadOnlyList<DeploymentListRow> rows)
     {
         if (rows.Count == 0)
@@ -189,6 +166,7 @@ public class DeploymentListCliCommand : ProfiledCliCommand
             OutputWriter.WriteLine($"{r.Kind,-4} | {name.PadRight(nameWidth)} | {r.Status.PadRight(statusWidth)} | {started,-19} | {duration}");
         }
     }
+#pragma warning restore TXC003
 
     private static string FormatDuration(DateTime? start, DateTime? end)
     {
@@ -200,10 +178,6 @@ public class DeploymentListCliCommand : ProfiledCliCommand
             : $"{(int)span.TotalMinutes}m {span.Seconds}s";
     }
 
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
-    {
-        WriteIndented = true,
-    };
 }
 
 /// <summary>

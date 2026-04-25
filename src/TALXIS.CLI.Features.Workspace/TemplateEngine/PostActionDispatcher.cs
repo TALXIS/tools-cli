@@ -9,7 +9,7 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
 {
     public class PostActionDispatcher
     {
-        private static readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(PostActionDispatcher));
+        private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(PostActionDispatcher));
         private readonly Dictionary<Guid, IPostActionProcessor> _processors;
         private readonly IEngineEnvironmentSettings _environment;
         private readonly Func<ScriptPermission, IPostAction, bool> _allowScripts;

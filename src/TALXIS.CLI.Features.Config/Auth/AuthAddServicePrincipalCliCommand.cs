@@ -1,14 +1,12 @@
 using System.Text;
-using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
+using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Core.Headless;
 using TALXIS.CLI.Core.Model;
-using TALXIS.CLI.Core.Storage;
 using TALXIS.CLI.Logging;
-using TALXIS.CLI.Core;
 
 namespace TALXIS.CLI.Features.Config.Auth;
 
@@ -20,14 +18,16 @@ namespace TALXIS.CLI.Features.Config.Auth;
 /// It is then written to the OS credential vault; only a
 /// <see cref="SecretRef"/> handle is persisted in the credential store.
 /// </summary>
+[CliIdempotent]
 [CliCommand(
     Name = "add-service-principal",
     Aliases = new[] { "add-sp" },
     Description = "Register a client-secret service principal credential."
 )]
-public class AuthAddServicePrincipalCliCommand
+public class AuthAddServicePrincipalCliCommand : TxcLeafCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(AuthAddServicePrincipalCliCommand));
+    protected override ILogger Logger => _logger;
 
     [CliOption(Name = "--alias", Description = "Credential alias used to reference this service principal.", Required = true)]
     public string Alias { get; set; } = string.Empty;
@@ -47,67 +47,60 @@ public class AuthAddServicePrincipalCliCommand
     [CliOption(Name = "--secret-from-env", Description = "Name of an environment variable holding the client secret.", Required = false)]
     public string? SecretFromEnv { get; set; }
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         try
         {
             var headless = TxcServices.Get<IHeadlessDetector>();
             headless.EnsureKindAllowed(CredentialKind.ClientSecret);
-
-            var alias = Alias.Trim();
-            if (string.IsNullOrEmpty(alias))
-            {
-                _logger.LogError("--alias must not be empty.");
-                return 1;
-            }
-
-            var secret = ReadSecret(SecretFromEnv, _logger);
-            if (secret is null) return 1;
-
-            var store = TxcServices.Get<ICredentialStore>();
-            var vault = TxcServices.Get<ICredentialVault>();
-
-            var secretRef = SecretRef.Create(alias, "client-secret");
-            await vault.SetSecretAsync(secretRef, secret, CancellationToken.None).ConfigureAwait(false);
-
-            var credential = new Credential
-            {
-                Id = alias,
-                Kind = CredentialKind.ClientSecret,
-                TenantId = Tenant.Trim(),
-                ApplicationId = ApplicationId.Trim(),
-                Cloud = Cloud ?? CloudInstance.Public,
-                Description = Description,
-                SecretRef = secretRef,
-            };
-            await store.UpsertAsync(credential, CancellationToken.None).ConfigureAwait(false);
-
-            _logger.LogInformation("Saved service-principal credential '{Alias}' (app {AppId}, tenant {Tenant}).",
-                alias, credential.ApplicationId, credential.TenantId);
-
-            OutputWriter.WriteLine(JsonSerializer.Serialize(
-                new
-                {
-                    id = credential.Id,
-                    kind = credential.Kind,
-                    tenantId = credential.TenantId,
-                    applicationId = credential.ApplicationId,
-                    cloud = credential.Cloud,
-                    description = credential.Description,
-                },
-                TxcJsonOptions.Default));
-            return 0;
         }
         catch (HeadlessAuthRequiredException ex)
         {
             _logger.LogError("{Message}", ex.Message);
-            return 1;
+            return ExitError;
         }
-        catch (Exception ex)
+
+        var alias = Alias.Trim();
+        if (string.IsNullOrEmpty(alias))
         {
-            _logger.LogError(ex, "Failed to register service-principal credential.");
-            return 1;
+            _logger.LogError("--alias must not be empty.");
+            return ExitError;
         }
+
+        var secret = ReadSecret(SecretFromEnv, _logger);
+        if (secret is null) return ExitError;
+
+        var store = TxcServices.Get<ICredentialStore>();
+        var vault = TxcServices.Get<ICredentialVault>();
+
+        var secretRef = SecretRef.Create(alias, "client-secret");
+        await vault.SetSecretAsync(secretRef, secret, CancellationToken.None).ConfigureAwait(false);
+
+        var credential = new Credential
+        {
+            Id = alias,
+            Kind = CredentialKind.ClientSecret,
+            TenantId = Tenant.Trim(),
+            ApplicationId = ApplicationId.Trim(),
+            Cloud = Cloud ?? CloudInstance.Public,
+            Description = Description,
+            SecretRef = secretRef,
+        };
+        await store.UpsertAsync(credential, CancellationToken.None).ConfigureAwait(false);
+
+        _logger.LogInformation("Saved service-principal credential '{Alias}' (app {AppId}, tenant {Tenant}).",
+            alias, credential.ApplicationId, credential.TenantId);
+
+        OutputFormatter.WriteData(new
+        {
+            id = credential.Id,
+            kind = credential.Kind,
+            tenantId = credential.TenantId,
+            applicationId = credential.ApplicationId,
+            cloud = credential.Cloud,
+            description = credential.Description,
+        });
+        return ExitSuccess;
     }
 
     /// <summary>
@@ -128,6 +121,7 @@ public class AuthAddServicePrincipalCliCommand
     {
         if (!string.IsNullOrWhiteSpace(secretFromEnv))
         {
+            // TODO: Replace with IEnvironmentReader once ReadSecret is refactored to an instance method.
             var value = System.Environment.GetEnvironmentVariable(secretFromEnv);
             if (string.IsNullOrEmpty(value))
             {
@@ -160,6 +154,10 @@ public class AuthAddServicePrincipalCliCommand
         return null;
     }
 
+    // Interactive masked-password prompt — legitimate Console usage guarded by
+    // the headless/redirect check in ResolveClientSecret(). Suppressed from
+    // BannedApiAnalyzers because this is TTY I/O, not command output.
+#pragma warning disable RS0030
     private static string PromptMaskedSecret()
     {
         Console.Write("Client secret: ");
@@ -184,4 +182,5 @@ public class AuthAddServicePrincipalCliCommand
         }
         return buffer.ToString();
     }
+#pragma warning restore RS0030
 }

@@ -1,10 +1,10 @@
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
+using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Logging;
-using TALXIS.CLI.Core;
 
 namespace TALXIS.CLI.Features.Config.Auth;
 
@@ -18,81 +18,78 @@ namespace TALXIS.CLI.Features.Config.Auth;
 /// <c>pac auth clear</c> behaves similarly; cascading deletes would be
 /// surprising and are therefore intentionally not performed.
 /// </summary>
-[McpIgnore]
+[CliDestructive("Permanently removes the credential and its OS vault secret; referencing profiles are left orphaned.")]
 [CliCommand(
     Name = "delete",
     Description = "Delete a stored credential. Profiles referencing it are left orphaned with a warning."
 )]
-public class AuthDeleteCliCommand
+public class AuthDeleteCliCommand : TxcLeafCommand, IDestructiveCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(AuthDeleteCliCommand));
+    protected override ILogger Logger => _logger;
+
+    [CliOption(Name = "--yes", Description = "Skip confirmation for this destructive operation.", Required = false)]
+    public bool Yes { get; set; }
 
     [CliArgument(Description = "Credential alias (id) to delete.")]
     public required string Alias { get; set; }
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         if (string.IsNullOrWhiteSpace(Alias))
         {
             _logger.LogError("Credential alias must be provided.");
-            return 1;
+            return ExitError;
         }
 
-        try
+        var credStore = TxcServices.Get<ICredentialStore>();
+        var profileStore = TxcServices.Get<IProfileStore>();
+        var vault = TxcServices.Get<ICredentialVault>();
+
+        var existing = await credStore.GetAsync(Alias, CancellationToken.None).ConfigureAwait(false);
+        if (existing is null)
         {
-            var credStore = TxcServices.Get<ICredentialStore>();
-            var profileStore = TxcServices.Get<IProfileStore>();
-            var vault = TxcServices.Get<ICredentialVault>();
-
-            var existing = await credStore.GetAsync(Alias, CancellationToken.None).ConfigureAwait(false);
-            if (existing is null)
-            {
-                _logger.LogError("Credential '{Alias}' not found.", Alias);
-                return 2;
-            }
-
-            // Surface any profile that would be orphaned. Iterate profiles first
-            // so the user sees the warning even if the vault delete below fails.
-            var profiles = await profileStore.ListAsync(CancellationToken.None).ConfigureAwait(false);
-            foreach (var p in profiles.Where(p =>
-                string.Equals(p.CredentialRef, Alias, StringComparison.OrdinalIgnoreCase)))
-            {
-                _logger.LogWarning(
-                    "Profile '{ProfileId}' references credential '{Alias}' and will be orphaned. " +
-                    "Update or delete the profile explicitly.",
-                    p.Id, Alias);
-            }
-
-            // Best-effort secret purge — absent secret (interactive / WIF) is fine.
-            if (existing.SecretRef is { } secretRef)
-            {
-                try
-                {
-                    await vault.DeleteSecretAsync(secretRef, CancellationToken.None).ConfigureAwait(false);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex,
-                        "Credential '{Alias}' secret could not be removed from the vault. " +
-                        "You may need to delete it manually.",
-                        Alias);
-                }
-            }
-
-            var removed = await credStore.DeleteAsync(Alias, CancellationToken.None).ConfigureAwait(false);
-            if (!removed)
-            {
-                _logger.LogError("Credential '{Alias}' disappeared during delete.", Alias);
-                return 1;
-            }
-
-            _logger.LogInformation("Credential '{Alias}' deleted.", Alias);
-            return 0;
+            _logger.LogError("Credential '{Alias}' not found.", Alias);
+            return ExitValidationError;
         }
-        catch (Exception ex)
+
+        // Surface any profile that would be orphaned. Iterate profiles first
+        // so the user sees the warning even if the vault delete below fails.
+        var profiles = await profileStore.ListAsync(CancellationToken.None).ConfigureAwait(false);
+        foreach (var p in profiles.Where(p =>
+            string.Equals(p.CredentialRef, Alias, StringComparison.OrdinalIgnoreCase)))
         {
-            _logger.LogError(ex, "Failed to delete credential '{Alias}'.", Alias);
-            return 1;
+            _logger.LogWarning(
+                "Profile '{ProfileId}' references credential '{Alias}' and will be orphaned. " +
+                "Update or delete the profile explicitly.",
+                p.Id, Alias);
         }
+
+        // Best-effort secret purge — absent secret (interactive / WIF) is fine.
+        if (existing.SecretRef is { } secretRef)
+        {
+            try
+            {
+                await vault.DeleteSecretAsync(secretRef, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "Credential '{Alias}' secret could not be removed from the vault. " +
+                    "You may need to delete it manually.",
+                    Alias);
+            }
+        }
+
+        var removed = await credStore.DeleteAsync(Alias, CancellationToken.None).ConfigureAwait(false);
+        if (!removed)
+        {
+            _logger.LogError("Credential '{Alias}' disappeared during delete.", Alias);
+            return ExitError;
+        }
+
+        _logger.LogInformation("Credential '{Alias}' deleted.", Alias);
+        OutputFormatter.WriteResult("succeeded", $"Credential '{Alias}' deleted.");
+        return ExitSuccess;
     }
 }

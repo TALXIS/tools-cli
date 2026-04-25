@@ -16,7 +16,8 @@ public sealed record PowerPlatformEnvironmentSummary(
     Uri EnvironmentUrl,
     string? UniqueName,
     string? DomainName,
-    Guid? OrganizationId);
+    Guid? OrganizationId,
+    TALXIS.CLI.Core.Model.EnvironmentType? EnvironmentType = null);
 
 public interface IPowerPlatformEnvironmentCatalog
 {
@@ -135,7 +136,8 @@ public sealed class PowerPlatformEnvironmentCatalog : IPowerPlatformEnvironmentC
             EnvironmentUrl: NormalizeEnvironmentUrl(environmentUrl),
             UniqueName: TryReadOptionalString(linked, "uniqueName"),
             DomainName: TryReadOptionalString(linked, "domainName"),
-            OrganizationId: TryReadOptionalGuid(linked, "resourceId"));
+            OrganizationId: TryReadOptionalGuid(linked, "resourceId"),
+            EnvironmentType: TryParseEnvironmentSku(properties));
         return true;
     }
 
@@ -175,6 +177,22 @@ public sealed class PowerPlatformEnvironmentCatalog : IPowerPlatformEnvironmentC
            && Guid.TryParse(propertyElement.GetString(), out var parsed)
             ? parsed
             : null;
+
+    private static TALXIS.CLI.Core.Model.EnvironmentType? TryParseEnvironmentSku(JsonElement properties)
+    {
+        if (!TryReadString(properties, "environmentSku", out var sku))
+            return null;
+
+        return sku.ToLowerInvariant() switch
+        {
+            "production" => TALXIS.CLI.Core.Model.EnvironmentType.Production,
+            "sandbox" => TALXIS.CLI.Core.Model.EnvironmentType.Sandbox,
+            "trial" => TALXIS.CLI.Core.Model.EnvironmentType.Trial,
+            "developer" => TALXIS.CLI.Core.Model.EnvironmentType.Developer,
+            "default" => TALXIS.CLI.Core.Model.EnvironmentType.Default,
+            _ => null,
+        };
+    }
 
     private static bool UrlEquals(Uri left, Uri right)
         => NormalizeEnvironmentUrl(left).AbsoluteUri.Equals(

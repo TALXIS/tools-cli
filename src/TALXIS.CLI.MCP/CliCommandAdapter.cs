@@ -155,11 +155,16 @@ namespace TALXIS.CLI.MCP
             }
 
             // Add CliOption (named) properties
+            // Skip --format: MCP subprocess mode auto-detects JSON (stdout is redirected).
+            // Exposing it in the tool schema would confuse LLMs without adding value.
+            var hiddenFromMcp = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "--format", "Format" };
             foreach (var prop in properties)
             {
                 var optionAttr = prop.GetCustomAttribute(typeof(DotMake.CommandLine.CliOptionAttribute)) as DotMake.CommandLine.CliOptionAttribute;
                 if (optionAttr != null)
                 {
+                    if (hiddenFromMcp.Contains(optionAttr.Name ?? prop.Name))
+                        continue;
                     var type = GetJsonSchemaType(prop.PropertyType, out var itemsSchema);
                     var optionName = (optionAttr.Name ?? prop.Name).TrimStart('-');
                     var schemaProp = new Dictionary<string, object?>

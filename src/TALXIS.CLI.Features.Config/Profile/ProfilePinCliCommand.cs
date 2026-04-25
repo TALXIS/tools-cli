@@ -1,13 +1,12 @@
-using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
+using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Core.Resolution;
 using TALXIS.CLI.Core.Storage;
 using TALXIS.CLI.Logging;
-using TALXIS.CLI.Core;
 
 namespace TALXIS.CLI.Features.Config.Profile;
 
@@ -25,63 +24,54 @@ namespace TALXIS.CLI.Features.Config.Profile;
 /// the named profile (must exist).
 /// </para>
 /// </summary>
-[McpIgnore]
+[CliIdempotent]
 [CliCommand(
     Name = "pin",
     Description = "Pin the active profile (or <name>) to <cwd>/.txc/workspace.json."
 )]
-public class ProfilePinCliCommand
+public class ProfilePinCliCommand : TxcLeafCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ProfilePinCliCommand));
+    protected override ILogger Logger => _logger;
 
     [CliArgument(Description = "Profile name to pin. Defaults to the global active profile.", Required = false)]
     public string? Name { get; set; }
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
-        try
-        {
-            var profileStore = TxcServices.Get<IProfileStore>();
-            var globalConfig = TxcServices.Get<IGlobalConfigStore>();
-            var env = TxcServices.Get<IEnvironmentReader>();
+        var profileStore = TxcServices.Get<IProfileStore>();
+        var globalConfig = TxcServices.Get<IGlobalConfigStore>();
+        var env = TxcServices.Get<IEnvironmentReader>();
 
-            string? target = Name;
+        string? target = Name;
+        if (string.IsNullOrWhiteSpace(target))
+        {
+            var global = await globalConfig.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+            target = global.ActiveProfile;
             if (string.IsNullOrWhiteSpace(target))
             {
-                var global = await globalConfig.LoadAsync(CancellationToken.None).ConfigureAwait(false);
-                target = global.ActiveProfile;
-                if (string.IsNullOrWhiteSpace(target))
-                {
-                    _logger.LogError("No active profile is set. Pass <name> or run 'txc config profile select <name>' first.");
-                    return 2;
-                }
+                _logger.LogError("No active profile is set. Pass <name> or run 'txc config profile select <name>' first.");
+                return ExitValidationError;
             }
-
-            var profile = await profileStore.GetAsync(target!, CancellationToken.None).ConfigureAwait(false);
-            if (profile is null)
-            {
-                _logger.LogError("Profile '{Name}' not found.", target);
-                return 2;
-            }
-
-            var cwd = env.GetCurrentDirectory();
-            var workspaceDir = Path.Combine(cwd, WorkspaceDiscovery.DirectoryName);
-            var workspaceFile = Path.Combine(workspaceDir, WorkspaceDiscovery.FileName);
-
-            var config = new WorkspaceConfig { DefaultProfile = profile.Id };
-            await JsonFile.WriteAtomicAsync(workspaceFile, config, CancellationToken.None).ConfigureAwait(false);
-
-            _logger.LogInformation("Pinned profile '{Id}' to '{Path}'.", profile.Id, workspaceFile);
-
-            OutputWriter.WriteLine(JsonSerializer.Serialize(
-                new { profile = profile.Id, path = workspaceFile },
-                TxcJsonOptions.Default));
-            return 0;
         }
-        catch (Exception ex)
+
+        var profile = await profileStore.GetAsync(target!, CancellationToken.None).ConfigureAwait(false);
+        if (profile is null)
         {
-            _logger.LogError(ex, "Failed to pin profile.");
-            return 1;
+            _logger.LogError("Profile '{Name}' not found.", target);
+            return ExitValidationError;
         }
+
+        var cwd = env.GetCurrentDirectory();
+        var workspaceDir = Path.Combine(cwd, WorkspaceDiscovery.DirectoryName);
+        var workspaceFile = Path.Combine(workspaceDir, WorkspaceDiscovery.FileName);
+
+        var config = new WorkspaceConfig { DefaultProfile = profile.Id };
+        await JsonFile.WriteAtomicAsync(workspaceFile, config, CancellationToken.None).ConfigureAwait(false);
+
+        _logger.LogInformation("Pinned profile '{Id}' to '{Path}'.", profile.Id, workspaceFile);
+
+        OutputFormatter.WriteData(new { profile = profile.Id, path = workspaceFile });
+        return ExitSuccess;
     }
 }

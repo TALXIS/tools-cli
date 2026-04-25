@@ -38,9 +38,11 @@ public static class DataverseProviderServiceCollectionExtensions
             var paths = sp.GetRequiredService<ConfigPaths>();
             var env = sp.GetRequiredService<IEnvironmentReader>();
             var logger = sp.GetRequiredService<ILogger<MsalTokenCacheBinder>>();
+#pragma warning disable RS0030 // Sync-over-async required: DI service factory lambda is synchronous
             return MsalTokenCacheBinder
                 .CreateAsync(paths, env, logger)
                 .GetAwaiter().GetResult();
+#pragma warning restore RS0030
         });
         services.AddSingleton<ITokenCacheStore>(sp => sp.GetRequiredService<MsalTokenCacheBinder>());
 
@@ -50,10 +52,11 @@ public static class DataverseProviderServiceCollectionExtensions
         services.AddSingleton<IAccessTokenService>(sp => sp.GetRequiredService<DataverseAccessTokenService>());
         services.AddSingleton<IDataverseConnectionFactory, DataverseConnectionFactory>();
         services.AddSingleton<IPowerPlatformEnvironmentCatalog, PowerPlatformEnvironmentCatalog>();
-        services.AddSingleton<EnvironmentManagementSettingsClient>();
-        services.AddSingleton<TALXIS.CLI.Core.Platforms.PowerPlatform.IEnvironmentManagementSettingsService,
-            EnvironmentManagementSettingsService>();
+        services.AddSingleton<EnvironmentSettingsClient>();
+        services.AddSingleton<TALXIS.CLI.Core.Platforms.PowerPlatform.IEnvironmentSettingsService,
+            EnvironmentSettingsService>();
         services.AddSingleton<IDataverseLiveChecker, DataverseLiveChecker>();
+        services.AddSingleton<IEnvironmentTypeResolver, DataverseEnvironmentTypeResolver>();
         services.AddSingleton<IInteractiveLoginService, DataverseInteractiveLoginService>();
         services.AddSingleton<TALXIS.CLI.Core.Bootstrapping.IConnectionProviderBootstrapper,
             TALXIS.CLI.Platform.Dataverse.Runtime.Bootstrapping.DataverseConnectionProviderBootstrapper>();

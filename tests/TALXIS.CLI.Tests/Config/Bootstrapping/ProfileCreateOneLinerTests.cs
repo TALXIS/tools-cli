@@ -123,8 +123,10 @@ public sealed class ProfileCreateOneLinerTests
 
         var profiles = (IProfileStore)host.Provider.GetService(typeof(IProfileStore))!;
         var connections = (IConnectionStore)host.Provider.GetService(typeof(IConnectionStore))!;
-        Assert.NotNull(await profiles.GetAsync("contoso-dev-org0fadb1dd", default));
-        Assert.NotNull(await connections.GetAsync("contoso-dev-org0fadb1dd", default));
+        // "Contoso Dev" display name with UPN tomas@contoso.com → "contoso-dev"
+        // (tenant domain "contoso" already present in the slug, so not appended)
+        Assert.NotNull(await profiles.GetAsync("contoso-dev", default));
+        Assert.NotNull(await connections.GetAsync("contoso-dev", default));
     }
 
     [Fact]
@@ -141,7 +143,7 @@ public sealed class ProfileCreateOneLinerTests
 
         using var host = new CommandTestHost(environmentCatalog: catalog);
         var connections = (IConnectionStore)host.Provider.GetService(typeof(IConnectionStore))!;
-        await connections.UpsertAsync(new Connection { Id = "contoso-dev-org0fadb1dd", Provider = ProviderKind.Dataverse, EnvironmentUrl = "https://existing" }, default);
+        await connections.UpsertAsync(new Connection { Id = "contoso-dev", Provider = ProviderKind.Dataverse, EnvironmentUrl = "https://existing" }, default);
 
         using (OutputWriter.RedirectTo(new StringWriter()))
         {
@@ -153,7 +155,7 @@ public sealed class ProfileCreateOneLinerTests
         }
 
         var profiles = (IProfileStore)host.Provider.GetService(typeof(IProfileStore))!;
-        Assert.NotNull(await profiles.GetAsync("contoso-dev-org0fadb1dd-2", default));
+        Assert.NotNull(await profiles.GetAsync("contoso-dev-2", default));
     }
 
     [Fact]
@@ -175,7 +177,8 @@ public sealed class ProfileCreateOneLinerTests
         }
 
         var profiles = (IProfileStore)host.Provider.GetService(typeof(IProfileStore))!;
-        Assert.NotNull(await profiles.GetAsync("fallback", default));
+        // Host slug "fallback" + tenant domain "contoso" → "fallback-contoso"
+        Assert.NotNull(await profiles.GetAsync("fallback-contoso", default));
     }
 
     [Fact]
@@ -318,8 +321,10 @@ public sealed class ProfileCreateOneLinerTests
         var profiles = (IProfileStore)host.Provider.GetService(typeof(IProfileStore))!;
         var creds = (ICredentialStore)host.Provider.GetService(typeof(ICredentialStore))!;
 
+        // "contoso" host + "contoso" tenant → "contoso" (tenant already in slug)
+        // "fabrikam" host + "contoso" tenant → "fabrikam-contoso"
         var contoso = await profiles.GetAsync("contoso", default);
-        var fabrikam = await profiles.GetAsync("fabrikam", default);
+        var fabrikam = await profiles.GetAsync("fabrikam-contoso", default);
         Assert.NotNull(contoso);
         Assert.NotNull(fabrikam);
 

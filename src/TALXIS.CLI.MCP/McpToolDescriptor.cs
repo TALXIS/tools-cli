@@ -1,3 +1,5 @@
+using ModelContextProtocol.Protocol;
+
 namespace TALXIS.CLI.MCP
 {
     /// <summary>
@@ -25,5 +27,11 @@ namespace TALXIS.CLI.MCP
         /// When true, clients can request async "call-now, fetch-later" execution.
         /// </summary>
         public bool SupportsTaskExecution { get; set; }
+
+        /// <summary>
+        /// Optional MCP tool annotations (destructiveHint, readOnlyHint, etc.) that help
+        /// clients decide whether to prompt for human-in-the-loop confirmation.
+        /// </summary>
+        public ToolAnnotations? Annotations { get; set; }
     }
 }

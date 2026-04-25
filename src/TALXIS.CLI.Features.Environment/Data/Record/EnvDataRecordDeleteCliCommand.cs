@@ -4,7 +4,6 @@ using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
-using TALXIS.CLI.Features.Config.Abstractions;
 using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.Data.Record;
@@ -12,13 +11,23 @@ namespace TALXIS.CLI.Features.Environment.Data.Record;
 /// <summary>
 /// Deletes a single record by entity logical name and record ID.
 /// </summary>
+[CliDestructive("Permanently deletes the record from the remote environment.")]
 [CliCommand(
     Name = "delete",
     Description = "Delete a single record by ID."
 )]
-public class EnvDataRecordDeleteCliCommand : StagedCliCommand
+public class EnvDataRecordDeleteCliCommand : ProfiledCliCommand, IDestructiveCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EnvDataRecordDeleteCliCommand));
+    [CliOption(Name = "--yes", Description = "Skip confirmation for this destructive operation.", Required = false)]
+    public bool Yes { get; set; }
+
+    [CliOption(Name = "--apply", Description = "Execute immediately.", Required = false)]
+    public bool Apply { get; set; }
+
+    [CliOption(Name = "--stage", Description = "Add to changeset for batch apply.", Required = false)]
+    public bool Stage { get; set; }
+
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EnvDataRecordDeleteCliCommand));
 
     [CliOption(Name = "--entity", Description = "Entity logical name (e.g. account).", Required = true)]
     public string Entity { get; set; } = null!;
@@ -26,9 +35,12 @@ public class EnvDataRecordDeleteCliCommand : StagedCliCommand
     [CliArgument(Description = "The GUID of the record to delete.")]
     public Guid RecordId { get; set; }
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
-        ValidateExecutionMode();
+        if (!Apply && !Stage)
+            throw new ArgumentException("You must specify either --apply or --stage.");
+        if (Apply && Stage)
+            throw new ArgumentException("Cannot specify both --apply and --stage.");
 
         if (Stage)
         {
@@ -45,28 +57,15 @@ public class EnvDataRecordDeleteCliCommand : StagedCliCommand
                     ["recordId"] = RecordId.ToString()
                 }
             });
-            OutputWriter.WriteLine($"Staged: DELETE record '{RecordId}' from '{Entity}'");
-            return 0;
+            OutputFormatter.WriteResult("staged", $"Staged: DELETE record '{RecordId}' from '{Entity}'");
+            return ExitSuccess;
         }
 
-        try
-        {
-            var service = TxcServices.Get<IDataverseRecordService>();
-            await service.DeleteAsync(Profile, Entity, RecordId, CancellationToken.None)
-                .ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
-        {
-            _logger.LogError("{Error}", ex.Message);
-            return 1;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "record delete failed");
-            return 1;
-        }
+        var service = TxcServices.Get<IDataverseRecordService>();
+        await service.DeleteAsync(Profile, Entity, RecordId, CancellationToken.None)
+            .ConfigureAwait(false);
 
-        OutputWriter.WriteLine("Record deleted successfully.");
-        return 0;
+        OutputFormatter.WriteResult("succeeded", "Record deleted successfully.");
+        return ExitSuccess;
     }
 }
