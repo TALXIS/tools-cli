@@ -5,7 +5,6 @@ using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
-using TALXIS.CLI.Features.Config.Abstractions;
 using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.Entity;
@@ -14,13 +13,15 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 /// Lists all relationships for a Dataverse entity.
 /// Usage: <c>txc environment entity relationship list --entity &lt;name&gt; [--json]</c>
 /// </summary>
+[CliReadOnly]
 [CliCommand(
     Name = "list",
     Description = "List relationships for an entity."
 )]
+#pragma warning disable TXC003
 public class EntityRelationshipListCliCommand : ProfiledCliCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EntityRelationshipListCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EntityRelationshipListCliCommand));
 
     [CliOption(Name = "--entity", Description = "The logical name of the entity.", Required = true)]
     public string Entity { get; set; } = null!;
@@ -28,7 +29,7 @@ public class EntityRelationshipListCliCommand : ProfiledCliCommand
     [CliOption(Name = "--json", Description = "Emit the list as indented JSON instead of a text table.", Required = false)]
     public bool Json { get; set; }
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         IReadOnlyList<EntityRelationshipRecord> rows;
         try
@@ -38,23 +39,23 @@ public class EntityRelationshipListCliCommand : ProfiledCliCommand
         }
         catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
         {
-            _logger.LogError("{Error}", ex.Message);
-            return 1;
+            Logger.LogError("{Error}", ex.Message);
+            return ExitError;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "environment entity relationship list failed");
-            return 1;
+            Logger.LogError(ex, "environment entity relationship list failed");
+            return ExitError;
         }
 
         if (Json)
         {
             OutputWriter.WriteLine(JsonSerializer.Serialize(rows, JsonOptions));
-            return 0;
+            return ExitSuccess;
         }
 
         PrintRelationshipsTable(rows);
-        return 0;
+        return ExitSuccess;
     }
 
     private static void PrintRelationshipsTable(IReadOnlyList<EntityRelationshipRecord> rows)
@@ -105,8 +106,5 @@ public class EntityRelationshipListCliCommand : ProfiledCliCommand
     private static string Truncate(string value, int maxWidth) =>
         value.Length > maxWidth ? value[..(maxWidth - 1)] + "." : value;
 
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
-    {
-        WriteIndented = true,
-    };
+    private static JsonSerializerOptions JsonOptions => TxcOutputJsonOptions.Default;
 }

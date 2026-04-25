@@ -1,7 +1,9 @@
 using DotMake.CommandLine;
+using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
+using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.Changeset;
 
@@ -9,13 +11,17 @@ namespace TALXIS.CLI.Features.Environment.Changeset;
 /// <c>txc environment changeset status</c> — shows all staged operations
 /// in a formatted table.
 /// </summary>
+[CliReadOnly]
 [CliCommand(
     Name = "status",
     Description = "Show all staged operations in the current changeset."
 )]
-public class ChangesetStatusCliCommand
+#pragma warning disable TXC003
+public class ChangesetStatusCliCommand : TxcLeafCommand
 {
-    public void Run()
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ChangesetStatusCliCommand));
+
+    protected override Task<int> ExecuteAsync()
     {
         var store = TxcServices.Get<IChangesetStore>();
         var operations = store.GetAll();
@@ -23,7 +29,7 @@ public class ChangesetStatusCliCommand
         if (operations.Count == 0)
         {
             OutputWriter.WriteLine("Changeset is empty. Stage operations with --stage, then apply with 'txc environment changeset apply'.");
-            return;
+            return Task.FromResult(ExitSuccess);
         }
 
         // Column widths
@@ -59,6 +65,7 @@ public class ChangesetStatusCliCommand
         OutputWriter.WriteLine("  txc environment changeset apply           Apply all staged operations");
         OutputWriter.WriteLine("  txc environment changeset apply --schema  Apply schema operations only");
         OutputWriter.WriteLine("  txc environment changeset apply --data    Apply data operations only");
+        return Task.FromResult(ExitSuccess);
     }
 
     private static string Truncate(string value, int maxLength)

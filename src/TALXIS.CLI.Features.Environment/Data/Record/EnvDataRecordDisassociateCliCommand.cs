@@ -4,7 +4,6 @@ using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
-using TALXIS.CLI.Features.Config.Abstractions;
 using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.Data.Record;
@@ -12,13 +11,18 @@ namespace TALXIS.CLI.Features.Environment.Data.Record;
 /// <summary>
 /// Removes the link between two records in a many-to-many (N:N) relationship.
 /// </summary>
+[CliDestructive("Removes the association between two records.")]
 [CliCommand(
     Name = "disassociate",
     Description = "Remove the link between two records in a many-to-many (N:N) relationship."
 )]
-public class EnvDataRecordDisassociateCliCommand : StagedCliCommand
+#pragma warning disable TXC003
+public class EnvDataRecordDisassociateCliCommand : StagedCliCommand, IDestructiveCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EnvDataRecordDisassociateCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EnvDataRecordDisassociateCliCommand));
+
+    [CliOption(Name = "--yes", Description = "Skip interactive confirmation for this destructive operation.", Required = false)]
+    public bool Yes { get; set; }
 
     [CliArgument(Description = "The GUID of the source record.")]
     public Guid RecordId { get; set; }
@@ -35,7 +39,7 @@ public class EnvDataRecordDisassociateCliCommand : StagedCliCommand
     [CliOption(Name = "--relationship", Description = "Schema name of the N:N relationship.", Required = true)]
     public string Relationship { get; set; } = null!;
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         ValidateExecutionMode();
 
@@ -59,7 +63,7 @@ public class EnvDataRecordDisassociateCliCommand : StagedCliCommand
                 }
             });
             OutputWriter.WriteLine($"Staged: DISASSOCIATE {Entity}/{RecordId} from {TargetEntity}/{Target} via '{Relationship}'");
-            return 0;
+            return ExitSuccess;
         }
 
         try
@@ -72,15 +76,15 @@ public class EnvDataRecordDisassociateCliCommand : StagedCliCommand
         }
         catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
         {
-            _logger.LogError("{Error}", ex.Message);
-            return 1;
+            Logger.LogError("{Error}", ex.Message);
+            return ExitError;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "record disassociate failed");
-            return 1;
+            Logger.LogError(ex, "record disassociate failed");
+            return ExitError;
         }
 
-        return 0;
+        return ExitSuccess;
     }
 }

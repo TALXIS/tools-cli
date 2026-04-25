@@ -4,7 +4,6 @@ using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
-using TALXIS.CLI.Features.Config.Abstractions;
 using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.Data.Record;
@@ -12,13 +11,15 @@ namespace TALXIS.CLI.Features.Environment.Data.Record;
 /// <summary>
 /// Uploads a local file to a file/image column on a Dataverse record.
 /// </summary>
+[CliIdempotent]
 [CliCommand(
     Name = "upload-file",
     Description = "Upload a file to a file/image column on a record."
 )]
+#pragma warning disable TXC003
 public class EnvDataRecordUploadFileCliCommand : StagedCliCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EnvDataRecordUploadFileCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EnvDataRecordUploadFileCliCommand));
 
     [CliOption(Name = "--entity", Description = "Entity logical name (e.g. fin_mytable).", Required = true)]
     public string Entity { get; set; } = null!;
@@ -32,7 +33,7 @@ public class EnvDataRecordUploadFileCliCommand : StagedCliCommand
     [CliOption(Name = "--file", Description = "Path to the local file to upload.", Required = true)]
     public string File { get; set; } = null!;
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         ValidateExecutionMode();
 
@@ -55,15 +56,15 @@ public class EnvDataRecordUploadFileCliCommand : StagedCliCommand
                 }
             });
             OutputWriter.WriteLine($"Staged: UPLOAD file to {Entity}/{RecordId}/{Column}");
-            return 0;
+            return ExitSuccess;
         }
 
         try
         {
             if (!System.IO.File.Exists(File))
             {
-                _logger.LogError("File not found: {Path}", File);
-                return 1;
+                Logger.LogError("File not found: {Path}", File);
+                return ExitError;
             }
 
             var service = TxcServices.Get<IDataverseFileService>();
@@ -74,15 +75,15 @@ public class EnvDataRecordUploadFileCliCommand : StagedCliCommand
         }
         catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
         {
-            _logger.LogError("{Error}", ex.Message);
-            return 1;
+            Logger.LogError("{Error}", ex.Message);
+            return ExitError;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "record upload-file failed");
-            return 1;
+            Logger.LogError(ex, "record upload-file failed");
+            return ExitError;
         }
 
-        return 0;
+        return ExitSuccess;
     }
 }

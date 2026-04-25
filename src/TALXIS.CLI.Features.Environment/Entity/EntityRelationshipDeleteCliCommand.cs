@@ -4,7 +4,6 @@ using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
-using TALXIS.CLI.Features.Config.Abstractions;
 using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.Entity;
@@ -13,18 +12,23 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 /// Deletes a relationship from Dataverse by its schema name.
 /// Usage: <c>txc environment entity relationship delete --name &lt;relationship-schema-name&gt;</c>
 /// </summary>
+[CliDestructive("Permanently deletes the relationship from the remote environment.")]
 [CliCommand(
     Name = "delete",
     Description = "Delete a relationship by its schema name."
 )]
-public class EntityRelationshipDeleteCliCommand : StagedCliCommand
+#pragma warning disable TXC003
+public class EntityRelationshipDeleteCliCommand : StagedCliCommand, IDestructiveCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EntityRelationshipDeleteCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EntityRelationshipDeleteCliCommand));
+
+    [CliOption(Name = "--yes", Description = "Skip interactive confirmation for this destructive operation.", Required = false)]
+    public bool Yes { get; set; }
 
     [CliOption(Name = "--name", Description = "The schema name of the relationship to delete.", Required = true)]
     public string Name { get; set; } = null!;
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         ValidateExecutionMode();
 
@@ -43,7 +47,7 @@ public class EntityRelationshipDeleteCliCommand : StagedCliCommand
                 }
             });
             OutputWriter.WriteLine($"Staged: DELETE relationship '{Name}'");
-            return 0;
+            return ExitSuccess;
         }
 
         try
@@ -55,16 +59,16 @@ public class EntityRelationshipDeleteCliCommand : StagedCliCommand
         }
         catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException)
         {
-            _logger.LogError("{Error}", ex.Message);
-            return 1;
+            Logger.LogError("{Error}", ex.Message);
+            return ExitError;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "environment entity relationship delete failed");
-            return 1;
+            Logger.LogError(ex, "environment entity relationship delete failed");
+            return ExitError;
         }
 
         OutputWriter.WriteLine($"Relationship '{Name}' deleted successfully.");
-        return 0;
+        return ExitSuccess;
     }
 }

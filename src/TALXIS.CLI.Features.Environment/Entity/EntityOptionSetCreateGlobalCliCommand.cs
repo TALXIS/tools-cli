@@ -4,7 +4,6 @@ using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
-using TALXIS.CLI.Features.Config.Abstractions;
 using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.Entity;
@@ -13,13 +12,15 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 /// Creates a new global option set (choice) in Dataverse.
 /// Usage: <c>txc environment entity optionset create-global --name &lt;schema-name&gt; --display-name &lt;label&gt; --options &lt;csv&gt; [--description &lt;text&gt;] [--solution &lt;name&gt;]</c>
 /// </summary>
+[CliIdempotent]
 [CliCommand(
     Name = "create-global",
     Description = "Create a new global option set (choice)."
 )]
+#pragma warning disable TXC003
 public class EntityOptionSetCreateGlobalCliCommand : StagedCliCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EntityOptionSetCreateGlobalCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EntityOptionSetCreateGlobalCliCommand));
 
     [CliOption(Name = "--name", Description = "The schema name of the global option set.", Required = true)]
     public string Name { get; set; } = null!;
@@ -36,7 +37,7 @@ public class EntityOptionSetCreateGlobalCliCommand : StagedCliCommand
     [CliOption(Name = "--solution", Description = "The unique name of the solution to add the option set to.", Required = false)]
     public string? Solution { get; set; }
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         ValidateExecutionMode();
 
@@ -60,7 +61,7 @@ public class EntityOptionSetCreateGlobalCliCommand : StagedCliCommand
                 }
             });
             OutputWriter.WriteLine($"Staged: CREATE global optionset '{Name}'");
-            return 0;
+            return ExitSuccess;
         }
 
         OptionMetadataInput[] parsed;
@@ -70,8 +71,8 @@ public class EntityOptionSetCreateGlobalCliCommand : StagedCliCommand
         }
         catch (FormatException ex)
         {
-            _logger.LogError("{Error}", ex.Message);
-            return 1;
+            Logger.LogError("{Error}", ex.Message);
+            return ExitError;
         }
 
         try
@@ -83,17 +84,17 @@ public class EntityOptionSetCreateGlobalCliCommand : StagedCliCommand
         }
         catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or ArgumentException)
         {
-            _logger.LogError("{Error}", ex.Message);
-            return 1;
+            Logger.LogError("{Error}", ex.Message);
+            return ExitError;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "environment entity optionset create-global failed");
-            return 1;
+            Logger.LogError(ex, "environment entity optionset create-global failed");
+            return ExitError;
         }
 
         OutputWriter.WriteLine($"Global option set '{Name}' created successfully.");
-        return 0;
+        return ExitSuccess;
     }
 
     /// <summary>

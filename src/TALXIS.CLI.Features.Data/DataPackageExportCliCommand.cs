@@ -1,20 +1,21 @@
 using System.ComponentModel;
 using DotMake.CommandLine;
+using TALXIS.CLI.Core;
 using Microsoft.Extensions.Logging;
-using TALXIS.CLI.Features.Config.Abstractions;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Data;
 
+[CliIdempotent]
 [CliCommand(
     Name = "export",
     Description = "Export data from a Dataverse environment using a CMT schema file"
 )]
 public class DataPackageExportCliCommand : ProfiledCliCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(DataPackageExportCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(DataPackageExportCliCommand));
 
     [CliOption(Name = "--schema", Alias = "-s", Description = "Path to the schema file (data_schema.xml) that defines which entities, fields and relationships to export. You can create this file using the Configuration Migration Tool GUI or write it by hand.", Required = true)]
     public required string Schema { get; set; }
@@ -30,30 +31,30 @@ public class DataPackageExportCliCommand : ProfiledCliCommand
     [DefaultValue(false)]
     public bool Overwrite { get; set; }
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         if (string.IsNullOrWhiteSpace(Schema))
         {
-            _logger.LogError("A path to a CMT schema file must be provided.");
-            return 1;
+            Logger.LogError("A path to a CMT schema file must be provided.");
+            return ExitError;
         }
 
         if (!File.Exists(Schema))
         {
-            _logger.LogError("Schema file not found: {SchemaPath}", Schema);
-            return 1;
+            Logger.LogError("Schema file not found: {SchemaPath}", Schema);
+            return ExitError;
         }
 
         if (string.IsNullOrWhiteSpace(Output))
         {
-            _logger.LogError("An output path must be provided.");
-            return 1;
+            Logger.LogError("An output path must be provided.");
+            return ExitError;
         }
 
         if (File.Exists(Output) && !Overwrite)
         {
-            _logger.LogError("Output file already exists: {OutputPath}. Use --overwrite to replace it.", Output);
-            return 1;
+            Logger.LogError("Output file already exists: {OutputPath}. Use --overwrite to replace it.", Output);
+            return ExitError;
         }
 
         var service = TxcServices.Get<IDataPackageService>();
@@ -64,27 +65,27 @@ public class DataPackageExportCliCommand : ProfiledCliCommand
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Data export failed");
-            return 1;
+            Logger.LogError(ex, "Data export failed");
+            return ExitError;
         }
 
         if (result.InteractiveAuthRequired)
         {
-            _logger.LogError("Interactive authentication is required. Run 'txc config auth login' for profile '{Profile}' and retry.", Profile ?? "(default)");
-            return 1;
+            Logger.LogError("Interactive authentication is required. Run 'txc config auth login' for profile '{Profile}' and retry.", Profile ?? "(default)");
+            return ExitError;
         }
 
         if (!result.Succeeded)
         {
             if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
             {
-                _logger.LogError("{ErrorMessage}", result.ErrorMessage);
+                Logger.LogError("{ErrorMessage}", result.ErrorMessage);
             }
-            _logger.LogError("Data export failed.");
-            return 1;
+            Logger.LogError("Data export failed.");
+            return ExitError;
         }
 
-        _logger.LogInformation("Data export completed successfully. Output: {OutputPath}", Path.GetFullPath(Output));
-        return 0;
+        Logger.LogInformation("Data export completed successfully. Output: {OutputPath}", Path.GetFullPath(Output));
+        return ExitSuccess;
     }
 }

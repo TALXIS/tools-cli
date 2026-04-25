@@ -5,7 +5,6 @@ using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
-using TALXIS.CLI.Features.Config.Abstractions;
 using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.Entity;
@@ -14,13 +13,15 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 /// Retrieves entity-level metadata for a specific entity (table).
 /// Usage: <c>txc environment entity get &lt;entity&gt; [--json]</c>
 /// </summary>
+[CliReadOnly]
 [CliCommand(
     Name = "get",
     Description = "Get entity-level metadata for an entity."
 )]
+#pragma warning disable TXC003
 public class EntityGetCliCommand : ProfiledCliCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EntityGetCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EntityGetCliCommand));
 
     [CliArgument(Name = "entity", Description = "The logical name of the entity.")]
     public string Entity { get; set; } = null!;
@@ -28,7 +29,7 @@ public class EntityGetCliCommand : ProfiledCliCommand
     [CliOption(Name = "--json", Description = "Emit the result as indented JSON instead of a text layout.", Required = false)]
     public bool Json { get; set; }
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         EntityDetailRecord detail;
         try
@@ -38,23 +39,23 @@ public class EntityGetCliCommand : ProfiledCliCommand
         }
         catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
         {
-            _logger.LogError("{Error}", ex.Message);
-            return 1;
+            Logger.LogError("{Error}", ex.Message);
+            return ExitError;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "environment entity get failed");
-            return 1;
+            Logger.LogError(ex, "environment entity get failed");
+            return ExitError;
         }
 
         if (Json)
         {
             OutputWriter.WriteLine(JsonSerializer.Serialize(detail, JsonOptions));
-            return 0;
+            return ExitSuccess;
         }
 
         PrintDetail(detail);
-        return 0;
+        return ExitSuccess;
     }
 
     private static void PrintDetail(EntityDetailRecord d)
@@ -81,8 +82,5 @@ public class EntityGetCliCommand : ProfiledCliCommand
 
     private static string BoolStr(bool value) => value ? "true" : "false";
 
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
-    {
-        WriteIndented = true,
-    };
+    private static JsonSerializerOptions JsonOptions => TxcOutputJsonOptions.Default;
 }

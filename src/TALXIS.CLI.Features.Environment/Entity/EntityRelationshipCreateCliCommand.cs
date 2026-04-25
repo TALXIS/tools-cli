@@ -4,7 +4,6 @@ using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
-using TALXIS.CLI.Features.Config.Abstractions;
 using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.Entity;
@@ -13,13 +12,15 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 /// Creates a many-to-many (N:N) relationship between two entities.
 /// Usage: <c>txc environment entity relationship create --entity1 &lt;name&gt; --entity2 &lt;name&gt; --name &lt;schema-name&gt; [--display-name &lt;label&gt;]</c>
 /// </summary>
+[CliIdempotent]
 [CliCommand(
     Name = "create",
     Description = "Create a many-to-many (N:N) relationship between two entities."
 )]
+#pragma warning disable TXC003
 public class EntityRelationshipCreateCliCommand : StagedCliCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EntityRelationshipCreateCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EntityRelationshipCreateCliCommand));
 
     [CliOption(Name = "--entity1", Description = "The logical name of the first entity.", Required = true)]
     public string Entity1 { get; set; } = null!;
@@ -33,7 +34,7 @@ public class EntityRelationshipCreateCliCommand : StagedCliCommand
     [CliOption(Name = "--display-name", Description = "The display name (label) for the relationship menu items.", Required = false)]
     public string? DisplayName { get; set; }
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         ValidateExecutionMode();
 
@@ -56,7 +57,7 @@ public class EntityRelationshipCreateCliCommand : StagedCliCommand
                 }
             });
             OutputWriter.WriteLine($"Staged: CREATE relationship '{Name}' ({Entity1} <-> {Entity2})");
-            return 0;
+            return ExitSuccess;
         }
 
         try
@@ -68,16 +69,16 @@ public class EntityRelationshipCreateCliCommand : StagedCliCommand
         }
         catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
         {
-            _logger.LogError("{Error}", ex.Message);
-            return 1;
+            Logger.LogError("{Error}", ex.Message);
+            return ExitError;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "environment entity relationship create failed");
-            return 1;
+            Logger.LogError(ex, "environment entity relationship create failed");
+            return ExitError;
         }
 
         OutputWriter.WriteLine($"Many-to-many relationship '{Name}' created between '{Entity1}' and '{Entity2}'.");
-        return 0;
+        return ExitSuccess;
     }
 }

@@ -1,6 +1,8 @@
 using System.Text.Json;
 using DotMake.CommandLine;
+using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
+using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.Entity;
 
@@ -8,22 +10,26 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 /// Returns the parameter schema for a specific attribute type (always JSON, for MCP consumption).
 /// Usage: <c>txc environment entity attribute type describe &lt;type&gt;</c>
 /// </summary>
+[CliReadOnly]
 [CliCommand(
     Name = "describe",
     Description = "Describe the parameter schema for an attribute type."
 )]
-public class EntityAttributeTypeDescribeCliCommand
+#pragma warning disable TXC003
+public class EntityAttributeTypeDescribeCliCommand : TxcLeafCommand
 {
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EntityAttributeTypeDescribeCliCommand));
+
     [CliArgument(Name = "type", Description = "The attribute type name to describe (e.g. string, lookup, datetime).")]
     public string Type { get; set; } = null!;
 
-    public int Run()
+    protected override Task<int> ExecuteAsync()
     {
         var info = AttributeTypeRegistry.Get(Type);
         if (info is null)
         {
             OutputWriter.WriteLine($"Unknown attribute type '{Type}'. Use 'txc environment entity attribute type list' to see available types.");
-            return 1;
+            return Task.FromResult(ExitError);
         }
 
         var payload = new Dictionary<string, object?>
@@ -35,8 +41,8 @@ public class EntityAttributeTypeDescribeCliCommand
             ["sharedParameters"] = AttributeTypeRegistry.SharedParameterNames,
         };
 
-        OutputWriter.WriteLine(JsonSerializer.Serialize(payload, JsonOptions));
-        return 0;
+        OutputWriter.WriteLine(JsonSerializer.Serialize(payload, TxcOutputJsonOptions.Default));
+        return Task.FromResult(ExitSuccess);
     }
 
     /// <summary>Builds a dictionary keyed by parameter name with its metadata.</summary>
@@ -66,8 +72,4 @@ public class EntityAttributeTypeDescribeCliCommand
         return map;
     }
 
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
-    {
-        WriteIndented = true,
-    };
 }

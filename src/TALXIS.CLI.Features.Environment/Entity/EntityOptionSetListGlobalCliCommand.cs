@@ -5,7 +5,6 @@ using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
-using TALXIS.CLI.Features.Config.Abstractions;
 using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.Entity;
@@ -14,18 +13,20 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 /// Lists all global option sets in the environment.
 /// Usage: <c>txc environment entity optionset list-global [--json]</c>
 /// </summary>
+[CliReadOnly]
 [CliCommand(
     Name = "list-global",
     Description = "List all global option sets in the environment."
 )]
+#pragma warning disable TXC003
 public class EntityOptionSetListGlobalCliCommand : ProfiledCliCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EntityOptionSetListGlobalCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EntityOptionSetListGlobalCliCommand));
 
     [CliOption(Name = "--json", Description = "Emit the list as indented JSON instead of a text table.", Required = false)]
     public bool Json { get; set; }
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         IReadOnlyList<GlobalOptionSetSummaryRecord> rows;
         try
@@ -35,23 +36,23 @@ public class EntityOptionSetListGlobalCliCommand : ProfiledCliCommand
         }
         catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
         {
-            _logger.LogError("{Error}", ex.Message);
-            return 1;
+            Logger.LogError("{Error}", ex.Message);
+            return ExitError;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "environment entity optionset list-global failed");
-            return 1;
+            Logger.LogError(ex, "environment entity optionset list-global failed");
+            return ExitError;
         }
 
         if (Json)
         {
             OutputWriter.WriteLine(JsonSerializer.Serialize(rows, JsonOptions));
-            return 0;
+            return ExitSuccess;
         }
 
         PrintOptionSetsTable(rows);
-        return 0;
+        return ExitSuccess;
     }
 
     private static void PrintOptionSetsTable(IReadOnlyList<GlobalOptionSetSummaryRecord> rows)
@@ -98,8 +99,5 @@ public class EntityOptionSetListGlobalCliCommand : ProfiledCliCommand
     private static string Truncate(string value, int maxWidth) =>
         value.Length > maxWidth ? value[..(maxWidth - 1)] + "." : value;
 
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
-    {
-        WriteIndented = true,
-    };
+    private static JsonSerializerOptions JsonOptions => TxcOutputJsonOptions.Default;
 }

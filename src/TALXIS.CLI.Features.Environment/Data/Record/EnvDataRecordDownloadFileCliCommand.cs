@@ -4,7 +4,6 @@ using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
-using TALXIS.CLI.Features.Config.Abstractions;
 using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.Data.Record;
@@ -12,13 +11,15 @@ namespace TALXIS.CLI.Features.Environment.Data.Record;
 /// <summary>
 /// Downloads a file/image column value from a Dataverse record to a local file.
 /// </summary>
+[CliReadOnly]
 [CliCommand(
     Name = "download-file",
     Description = "Download a file/image column from a record."
 )]
+#pragma warning disable TXC003
 public class EnvDataRecordDownloadFileCliCommand : ProfiledCliCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EnvDataRecordDownloadFileCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EnvDataRecordDownloadFileCliCommand));
 
     [CliOption(Name = "--entity", Description = "Entity logical name (e.g. fin_mytable).", Required = true)]
     public string Entity { get; set; } = null!;
@@ -32,7 +33,7 @@ public class EnvDataRecordDownloadFileCliCommand : ProfiledCliCommand
     [CliOption(Name = "--output", Description = "Local path where the file will be saved.", Required = true)]
     public string Output { get; set; } = null!;
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         try
         {
@@ -44,15 +45,15 @@ public class EnvDataRecordDownloadFileCliCommand : ProfiledCliCommand
         }
         catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
         {
-            _logger.LogError("{Error}", ex.Message);
-            return 1;
+            Logger.LogError("{Error}", ex.Message);
+            return ExitError;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "record download-file failed");
-            return 1;
+            Logger.LogError(ex, "record download-file failed");
+            return ExitError;
         }
 
-        return 0;
+        return ExitSuccess;
     }
 }

@@ -4,7 +4,6 @@ using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
-using TALXIS.CLI.Features.Config.Abstractions;
 using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.Entity;
@@ -13,18 +12,23 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 /// Deletes an existing global option set (choice) from Dataverse.
 /// Usage: <c>txc environment entity optionset delete-global --name &lt;schema-name&gt; [-p profile] --apply</c>
 /// </summary>
+[CliDestructive("Permanently deletes the global option set from the remote environment.")]
 [CliCommand(
     Name = "delete-global",
     Description = "Delete a global option set (choice)."
 )]
-public class EntityOptionSetDeleteGlobalCliCommand : StagedCliCommand
+#pragma warning disable TXC003
+public class EntityOptionSetDeleteGlobalCliCommand : StagedCliCommand, IDestructiveCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EntityOptionSetDeleteGlobalCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EntityOptionSetDeleteGlobalCliCommand));
+
+    [CliOption(Name = "--yes", Description = "Skip interactive confirmation for this destructive operation.", Required = false)]
+    public bool Yes { get; set; }
 
     [CliOption(Name = "--name", Description = "The schema name of the global option set to delete.", Required = true)]
     public string Name { get; set; } = null!;
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         ValidateExecutionMode();
 
@@ -44,7 +48,7 @@ public class EntityOptionSetDeleteGlobalCliCommand : StagedCliCommand
                 }
             });
             OutputWriter.WriteLine($"Staged: DELETE global optionset '{Name}'");
-            return 0;
+            return ExitSuccess;
         }
 
         try
@@ -56,16 +60,16 @@ public class EntityOptionSetDeleteGlobalCliCommand : StagedCliCommand
         }
         catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or ArgumentException)
         {
-            _logger.LogError("{Error}", ex.Message);
-            return 1;
+            Logger.LogError("{Error}", ex.Message);
+            return ExitError;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "environment entity optionset delete-global failed");
-            return 1;
+            Logger.LogError(ex, "environment entity optionset delete-global failed");
+            return ExitError;
         }
 
         OutputWriter.WriteLine($"Global option set '{Name}' deleted successfully.");
-        return 0;
+        return ExitSuccess;
     }
 }

@@ -3,7 +3,6 @@ using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
-using TALXIS.CLI.Features.Config.Abstractions;
 using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.Changeset;
@@ -12,13 +11,15 @@ namespace TALXIS.CLI.Features.Environment.Changeset;
 /// <c>txc environment changeset apply</c> — applies all staged operations
 /// against the target Dataverse environment using the chosen execution strategy.
 /// </summary>
+[CliIdempotent]
 [CliCommand(
     Name = "apply",
     Description = "Apply all staged changeset operations to the target environment."
 )]
+#pragma warning disable TXC003
 public class ChangesetApplyCliCommand : ProfiledCliCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ChangesetApplyCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ChangesetApplyCliCommand));
 
     [CliOption(
         Name = "--strategy",
@@ -32,14 +33,14 @@ public class ChangesetApplyCliCommand : ProfiledCliCommand
         Required = false)]
     public bool ContinueOnError { get; set; }
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         // Validate strategy value
         var validStrategies = new[] { "batch", "transaction", "bulk" };
         if (!validStrategies.Contains(Strategy, StringComparer.OrdinalIgnoreCase))
         {
-            _logger.LogError("Invalid strategy '{Strategy}'. Valid values: batch, transaction, bulk.", Strategy);
-            return 1;
+            Logger.LogError("Invalid strategy '{Strategy}'. Valid values: batch, transaction, bulk.", Strategy);
+            return ExitError;
         }
 
         var strategy = Strategy.ToLowerInvariant();
@@ -50,7 +51,7 @@ public class ChangesetApplyCliCommand : ProfiledCliCommand
         if (operations.Count == 0)
         {
             OutputWriter.WriteLine("Changeset is empty. Nothing to apply.");
-            return 0;
+            return ExitSuccess;
         }
 
         int schemaCount = operations.Count(o => o.Category == "schema");
@@ -99,13 +100,13 @@ public class ChangesetApplyCliCommand : ProfiledCliCommand
         }
         catch (Exception ex) when (ex is Core.Abstractions.ConfigurationResolutionException or InvalidOperationException or ArgumentException)
         {
-            _logger.LogError("{Error}", ex.Message);
-            return 1;
+            Logger.LogError("{Error}", ex.Message);
+            return ExitError;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "environment changeset apply failed");
-            return 1;
+            Logger.LogError(ex, "environment changeset apply failed");
+            return ExitError;
         }
     }
 }

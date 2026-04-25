@@ -4,7 +4,6 @@ using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
-using TALXIS.CLI.Features.Config.Abstractions;
 using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.Entity;
@@ -13,13 +12,18 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 /// Deletes an attribute (column) from a Dataverse entity.
 /// Usage: <c>txc environment entity attribute delete --entity &lt;name&gt; --name &lt;name&gt;</c>
 /// </summary>
+[CliDestructive("Permanently deletes the attribute from the remote environment.")]
 [CliCommand(
     Name = "delete",
     Description = "Delete an attribute (column) from an entity."
 )]
-public class EntityAttributeDeleteCliCommand : StagedCliCommand
+#pragma warning disable TXC003
+public class EntityAttributeDeleteCliCommand : StagedCliCommand, IDestructiveCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EntityAttributeDeleteCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EntityAttributeDeleteCliCommand));
+
+    [CliOption(Name = "--yes", Description = "Skip interactive confirmation for this destructive operation.", Required = false)]
+    public bool Yes { get; set; }
 
     [CliOption(Name = "--entity", Description = "The logical name of the entity.", Required = true)]
     public string Entity { get; set; } = null!;
@@ -27,7 +31,7 @@ public class EntityAttributeDeleteCliCommand : StagedCliCommand
     [CliOption(Name = "--name", Description = "The logical name of the attribute to delete.", Required = true)]
     public string Name { get; set; } = null!;
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         ValidateExecutionMode();
 
@@ -47,7 +51,7 @@ public class EntityAttributeDeleteCliCommand : StagedCliCommand
                 }
             });
             OutputWriter.WriteLine($"Staged: DELETE attribute '{Entity}.{Name}'");
-            return 0;
+            return ExitSuccess;
         }
 
         try
@@ -59,16 +63,16 @@ public class EntityAttributeDeleteCliCommand : StagedCliCommand
         }
         catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException)
         {
-            _logger.LogError("{Error}", ex.Message);
-            return 1;
+            Logger.LogError("{Error}", ex.Message);
+            return ExitError;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "environment entity attribute delete failed");
-            return 1;
+            Logger.LogError(ex, "environment entity attribute delete failed");
+            return ExitError;
         }
 
         OutputWriter.WriteLine($"Attribute '{Name}' deleted from entity '{Entity}'.");
-        return 0;
+        return ExitSuccess;
     }
 }

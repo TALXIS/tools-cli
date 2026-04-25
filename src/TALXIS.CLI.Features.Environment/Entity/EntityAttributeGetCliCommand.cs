@@ -5,7 +5,6 @@ using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
-using TALXIS.CLI.Features.Config.Abstractions;
 using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.Entity;
@@ -14,13 +13,15 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 /// Retrieves detailed metadata for a single attribute (column) on a Dataverse entity.
 /// Usage: <c>txc environment entity attribute get --entity &lt;name&gt; --name &lt;name&gt; [-p profile] [--json]</c>
 /// </summary>
+[CliReadOnly]
 [CliCommand(
     Name = "get",
     Description = "Get detailed metadata for a single entity attribute (column)."
 )]
+#pragma warning disable TXC003
 public class EntityAttributeGetCliCommand : ProfiledCliCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EntityAttributeGetCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EntityAttributeGetCliCommand));
 
     [CliOption(Name = "--entity", Description = "Entity logical name.", Required = true)]
     public string Entity { get; set; } = null!;
@@ -31,7 +32,7 @@ public class EntityAttributeGetCliCommand : ProfiledCliCommand
     [CliOption(Name = "--json", Description = "Emit the result as indented JSON instead of key-value text.", Required = false)]
     public bool Json { get; set; }
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         Dictionary<string, object?> detail;
         try
@@ -41,23 +42,23 @@ public class EntityAttributeGetCliCommand : ProfiledCliCommand
         }
         catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
         {
-            _logger.LogError("{Error}", ex.Message);
-            return 1;
+            Logger.LogError("{Error}", ex.Message);
+            return ExitError;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "environment entity attribute get failed");
-            return 1;
+            Logger.LogError(ex, "environment entity attribute get failed");
+            return ExitError;
         }
 
         if (Json)
         {
             OutputWriter.WriteLine(JsonSerializer.Serialize(detail, JsonOptions));
-            return 0;
+            return ExitSuccess;
         }
 
         PrintDetail(detail);
-        return 0;
+        return ExitSuccess;
     }
 
     /// <summary>Prints attribute detail in vertical key:value format.</summary>
@@ -92,8 +93,5 @@ public class EntityAttributeGetCliCommand : ProfiledCliCommand
         }
     }
 
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
-    {
-        WriteIndented = true,
-    };
+    private static JsonSerializerOptions JsonOptions => TxcOutputJsonOptions.Default;
 }

@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using DotMake.CommandLine;
 
-namespace TALXIS.CLI.Features.Config.Abstractions;
+namespace TALXIS.CLI.Core;
 
 /// <summary>
 /// Base class for mutating commands that support both immediate execution
@@ -26,7 +26,7 @@ public abstract class StagedCliCommand : ProfiledCliCommand
 
     /// <summary>
     /// Validates that exactly one of --apply or --stage is specified.
-    /// Call this at the beginning of RunAsync() in derived commands.
+    /// Call this at the beginning of ExecuteAsync() in derived commands.
     /// </summary>
     protected void ValidateExecutionMode()
     {

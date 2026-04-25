@@ -4,7 +4,6 @@ using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
-using TALXIS.CLI.Features.Config.Abstractions;
 using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.Data.Record;
@@ -12,13 +11,15 @@ namespace TALXIS.CLI.Features.Environment.Data.Record;
 /// <summary>
 /// Links two records together through a many-to-many (N:N) relationship.
 /// </summary>
+[CliIdempotent]
 [CliCommand(
     Name = "associate",
     Description = "Link two records together through a many-to-many (N:N) relationship. You need to know the relationship schema name."
 )]
+#pragma warning disable TXC003
 public class EnvDataRecordAssociateCliCommand : StagedCliCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EnvDataRecordAssociateCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EnvDataRecordAssociateCliCommand));
 
     [CliArgument(Description = "The GUID of the source record.")]
     public Guid RecordId { get; set; }
@@ -35,7 +36,7 @@ public class EnvDataRecordAssociateCliCommand : StagedCliCommand
     [CliOption(Name = "--relationship", Description = "Schema name of the N:N relationship.", Required = true)]
     public string Relationship { get; set; } = null!;
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         ValidateExecutionMode();
 
@@ -59,7 +60,7 @@ public class EnvDataRecordAssociateCliCommand : StagedCliCommand
                 }
             });
             OutputWriter.WriteLine($"Staged: ASSOCIATE {Entity}/{RecordId} with {TargetEntity}/{Target} via '{Relationship}'");
-            return 0;
+            return ExitSuccess;
         }
 
         try
@@ -72,15 +73,15 @@ public class EnvDataRecordAssociateCliCommand : StagedCliCommand
         }
         catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException)
         {
-            _logger.LogError("{Error}", ex.Message);
-            return 1;
+            Logger.LogError("{Error}", ex.Message);
+            return ExitError;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "record associate failed");
-            return 1;
+            Logger.LogError(ex, "record associate failed");
+            return ExitError;
         }
 
-        return 0;
+        return ExitSuccess;
     }
 }

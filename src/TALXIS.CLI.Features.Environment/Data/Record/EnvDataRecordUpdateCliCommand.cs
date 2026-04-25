@@ -16,6 +16,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Record;
     Name = "update",
     Description = "Update a single record by ID from JSON attributes."
 )]
+#pragma warning disable TXC003
 public class EnvDataRecordUpdateCliCommand : StagedCliCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EnvDataRecordUpdateCliCommand));

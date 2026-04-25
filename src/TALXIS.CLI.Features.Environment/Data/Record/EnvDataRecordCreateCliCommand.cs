@@ -16,6 +16,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Record;
     Name = "create",
     Description = "Create a single record from JSON attributes."
 )]
+#pragma warning disable TXC003
 public class EnvDataRecordCreateCliCommand : StagedCliCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EnvDataRecordCreateCliCommand));

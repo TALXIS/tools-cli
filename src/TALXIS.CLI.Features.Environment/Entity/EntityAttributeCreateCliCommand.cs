@@ -5,7 +5,6 @@ using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
-using TALXIS.CLI.Features.Config.Abstractions;
 using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.Entity;
@@ -15,13 +14,15 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 /// Usage: <c>txc environment entity attribute create --entity &lt;name&gt; --name &lt;schema-name&gt; --type &lt;type&gt; [options]</c>
 /// Use <c>txc environment entity attribute type describe &lt;type&gt;</c> to see type-specific parameters.
 /// </summary>
+[CliIdempotent]
 [CliCommand(
     Name = "create",
     Description = "Create a column (attribute) on an entity. Use 'txc environment entity attribute type describe <type>' to see type-specific parameters."
 )]
+#pragma warning disable TXC003
 public class EntityAttributeCreateCliCommand : StagedCliCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EntityAttributeCreateCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EntityAttributeCreateCliCommand));
 
     // === Required for all types ===
 
@@ -121,7 +122,7 @@ public class EntityAttributeCreateCliCommand : StagedCliCommand
     [DefaultValue(true)]
     public bool CanStoreFullImage { get; set; } = true;
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         ValidateExecutionMode();
 
@@ -167,7 +168,7 @@ public class EntityAttributeCreateCliCommand : StagedCliCommand
                 }
             });
             OutputWriter.WriteLine($"Staged: CREATE attribute '{Entity}.{Name}' (type: {Type})");
-            return 0;
+            return ExitSuccess;
         }
 
         try
@@ -180,17 +181,17 @@ public class EntityAttributeCreateCliCommand : StagedCliCommand
         }
         catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or NotSupportedException or ArgumentException)
         {
-            _logger.LogError("{Error}", ex.Message);
-            return 1;
+            Logger.LogError("{Error}", ex.Message);
+            return ExitError;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "environment entity attribute create failed");
-            return 1;
+            Logger.LogError(ex, "environment entity attribute create failed");
+            return ExitError;
         }
 
         OutputWriter.WriteLine($"Attribute '{Name}' ({Type}) created on entity '{Entity}'.");
-        return 0;
+        return ExitSuccess;
     }
 
     /// <summary>Validates that type-specific required parameters are provided.</summary>

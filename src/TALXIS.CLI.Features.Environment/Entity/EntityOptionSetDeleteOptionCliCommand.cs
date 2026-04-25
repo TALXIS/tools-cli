@@ -4,7 +4,6 @@ using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
-using TALXIS.CLI.Features.Config.Abstractions;
 using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.Entity;
@@ -13,13 +12,18 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 /// Deletes an option value from a local or global option set.
 /// Usage: <c>txc environment entity optionset delete-option --value &lt;int&gt; (--global-optionset &lt;name&gt; | --entity &lt;name&gt; --attribute &lt;name&gt;)</c>
 /// </summary>
+[CliDestructive("Permanently deletes the option from the option set.")]
 [CliCommand(
     Name = "delete-option",
     Description = "Delete an option value from a local or global option set."
 )]
-public class EntityOptionSetDeleteOptionCliCommand : StagedCliCommand
+#pragma warning disable TXC003
+public class EntityOptionSetDeleteOptionCliCommand : StagedCliCommand, IDestructiveCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EntityOptionSetDeleteOptionCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EntityOptionSetDeleteOptionCliCommand));
+
+    [CliOption(Name = "--yes", Description = "Skip interactive confirmation for this destructive operation.", Required = false)]
+    public bool Yes { get; set; }
 
     [CliOption(Name = "--entity", Description = "The logical name of the entity (for local option sets).", Required = false)]
     public string? Entity { get; set; }
@@ -33,7 +37,7 @@ public class EntityOptionSetDeleteOptionCliCommand : StagedCliCommand
     [CliOption(Name = "--value", Description = "The integer value of the option to remove.", Required = true)]
     public int Value { get; set; }
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         ValidateExecutionMode();
 
@@ -43,20 +47,20 @@ public class EntityOptionSetDeleteOptionCliCommand : StagedCliCommand
 
         if (hasGlobal && hasLocal)
         {
-            _logger.LogError("Specify either --global-optionset or --entity/--attribute, not both.");
-            return 1;
+            Logger.LogError("Specify either --global-optionset or --entity/--attribute, not both.");
+            return ExitError;
         }
 
         if (!hasGlobal && !hasLocal)
         {
-            _logger.LogError("Specify --global-optionset for a global option set, or --entity and --attribute for a local one.");
-            return 1;
+            Logger.LogError("Specify --global-optionset for a global option set, or --entity and --attribute for a local one.");
+            return ExitError;
         }
 
         if (hasLocal && (string.IsNullOrWhiteSpace(Entity) || string.IsNullOrWhiteSpace(Attribute)))
         {
-            _logger.LogError("Both --entity and --attribute are required for local option sets.");
-            return 1;
+            Logger.LogError("Both --entity and --attribute are required for local option sets.");
+            return ExitError;
         }
 
         if (Stage)
@@ -79,7 +83,7 @@ public class EntityOptionSetDeleteOptionCliCommand : StagedCliCommand
                 }
             });
             OutputWriter.WriteLine($"Staged: DELETE option {Value} from {stageTarget}");
-            return 0;
+            return ExitSuccess;
         }
 
         try
@@ -91,17 +95,17 @@ public class EntityOptionSetDeleteOptionCliCommand : StagedCliCommand
         }
         catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or ArgumentException)
         {
-            _logger.LogError("{Error}", ex.Message);
-            return 1;
+            Logger.LogError("{Error}", ex.Message);
+            return ExitError;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "environment entity optionset delete-option failed");
-            return 1;
+            Logger.LogError(ex, "environment entity optionset delete-option failed");
+            return ExitError;
         }
 
         string target = hasGlobal ? $"global option set '{GlobalOptionset}'" : $"attribute '{Attribute}' on entity '{Entity}'";
         OutputWriter.WriteLine($"Option value {Value} removed from {target}.");
-        return 0;
+        return ExitSuccess;
     }
 }

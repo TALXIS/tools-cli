@@ -4,7 +4,6 @@ using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
-using TALXIS.CLI.Features.Config.Abstractions;
 using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.Entity;
@@ -13,13 +12,15 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 /// Updates entity-level metadata (display name, plural name, description).
 /// Usage: <c>txc environment entity update --entity &lt;name&gt; [--display-name &lt;label&gt;] [--plural-name &lt;label&gt;] [--description &lt;text&gt;]</c>
 /// </summary>
+[CliIdempotent]
 [CliCommand(
     Name = "update",
     Description = "Update entity-level metadata (display name, plural name, description)."
 )]
+#pragma warning disable TXC003
 public class EntityUpdateCliCommand : StagedCliCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EntityUpdateCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EntityUpdateCliCommand));
 
     [CliOption(Name = "--entity", Description = "The logical name of the entity to update.", Required = true)]
     public string Entity { get; set; } = null!;
@@ -33,14 +34,14 @@ public class EntityUpdateCliCommand : StagedCliCommand
     [CliOption(Name = "--description", Description = "The new description for the entity.", Required = false)]
     public string? Description { get; set; }
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         ValidateExecutionMode();
 
         if (DisplayName is null && PluralName is null && Description is null)
         {
-            _logger.LogError("At least one of --display-name, --plural-name, or --description must be provided.");
-            return 1;
+            Logger.LogError("At least one of --display-name, --plural-name, or --description must be provided.");
+            return ExitError;
         }
 
         if (Stage)
@@ -66,7 +67,7 @@ public class EntityUpdateCliCommand : StagedCliCommand
                 }
             });
             OutputWriter.WriteLine($"Staged: UPDATE entity '{Entity}'");
-            return 0;
+            return ExitSuccess;
         }
 
         try
@@ -78,16 +79,16 @@ public class EntityUpdateCliCommand : StagedCliCommand
         }
         catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or ArgumentException)
         {
-            _logger.LogError("{Error}", ex.Message);
-            return 1;
+            Logger.LogError("{Error}", ex.Message);
+            return ExitError;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "environment entity update failed");
-            return 1;
+            Logger.LogError(ex, "environment entity update failed");
+            return ExitError;
         }
 
         OutputWriter.WriteLine($"Entity '{Entity}' updated successfully.");
-        return 0;
+        return ExitSuccess;
     }
 }

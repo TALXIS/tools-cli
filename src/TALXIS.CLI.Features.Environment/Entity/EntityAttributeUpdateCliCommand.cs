@@ -4,7 +4,6 @@ using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
-using TALXIS.CLI.Features.Config.Abstractions;
 using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.Entity;
@@ -13,13 +12,15 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 /// Updates an existing attribute (column) on a Dataverse entity.
 /// Usage: <c>txc environment entity attribute update --entity &lt;name&gt; --name &lt;name&gt; [--display-name &lt;label&gt;] [--description &lt;text&gt;] [--required &lt;none|recommended|required&gt;]</c>
 /// </summary>
+[CliIdempotent]
 [CliCommand(
     Name = "update",
     Description = "Update an existing attribute (column) on an entity."
 )]
+#pragma warning disable TXC003
 public class EntityAttributeUpdateCliCommand : StagedCliCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(EntityAttributeUpdateCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EntityAttributeUpdateCliCommand));
 
     [CliOption(Name = "--entity", Description = "The logical name of the entity.", Required = true)]
     public string Entity { get; set; } = null!;
@@ -36,7 +37,7 @@ public class EntityAttributeUpdateCliCommand : StagedCliCommand
     [CliOption(Name = "--required", Description = "The required level: none, recommended, required.", Required = false)]
     public string? Required { get; set; }
 
-    public async Task<int> RunAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         ValidateExecutionMode();
 
@@ -64,7 +65,7 @@ public class EntityAttributeUpdateCliCommand : StagedCliCommand
                 }
             });
             OutputWriter.WriteLine($"Staged: UPDATE attribute '{Entity}.{Name}'");
-            return 0;
+            return ExitSuccess;
         }
 
         try
@@ -76,16 +77,16 @@ public class EntityAttributeUpdateCliCommand : StagedCliCommand
         }
         catch (Exception ex) when (ex is ConfigurationResolutionException or InvalidOperationException or ArgumentException)
         {
-            _logger.LogError("{Error}", ex.Message);
-            return 1;
+            Logger.LogError("{Error}", ex.Message);
+            return ExitError;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "environment entity attribute update failed");
-            return 1;
+            Logger.LogError(ex, "environment entity attribute update failed");
+            return ExitError;
         }
 
         OutputWriter.WriteLine($"Attribute '{Name}' on entity '{Entity}' updated successfully.");
-        return 0;
+        return ExitSuccess;
     }
 }
