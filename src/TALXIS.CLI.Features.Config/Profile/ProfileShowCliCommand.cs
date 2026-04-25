@@ -21,8 +21,7 @@ namespace TALXIS.CLI.Features.Config.Profile;
 )]
 public class ProfileShowCliCommand : TxcLeafCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ProfileShowCliCommand));
-    protected override ILogger Logger => _logger;
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ProfileShowCliCommand));
 
     [CliArgument(Description = "Profile name. If omitted, shows the active profile.", Required = false)]
     public string? Name { get; set; }
@@ -41,7 +40,7 @@ public class ProfileShowCliCommand : TxcLeafCommand
             target = global.ActiveProfile;
             if (string.IsNullOrWhiteSpace(target))
             {
-                _logger.LogError("No active profile is set. Pass <name> or run 'txc config profile select <name>'.");
+                Logger.LogError("No active profile is set. Pass <name> or run 'txc config profile select <name>'.");
                 return ExitValidationError;
             }
         }
@@ -49,7 +48,7 @@ public class ProfileShowCliCommand : TxcLeafCommand
         var profile = await profileStore.GetAsync(target!, CancellationToken.None).ConfigureAwait(false);
         if (profile is null)
         {
-            _logger.LogError("Profile '{Name}' not found.", target);
+            Logger.LogError("Profile '{Name}' not found.", target);
             return ExitValidationError;
         }
 

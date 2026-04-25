@@ -66,6 +66,9 @@ public sealed class DataverseConnectionFactory : IDataverseConnectionFactory
             useUniqueInstance: true,
             logger: null);
 
+        // Prevent indefinite hangs when token acquisition fails silently.
+        ServiceClient.MaxConnectionTimeout = TimeSpan.FromMinutes(2);
+
         if (!client.IsReady)
         {
             var error = client.LastError;
@@ -74,6 +77,19 @@ public sealed class DataverseConnectionFactory : IDataverseConnectionFactory
                 $"Failed to establish Dataverse connection to '{envUri}' for profile '{context.Profile?.Id ?? "(ephemeral)"}': {error}");
         }
 
-        return Task.FromResult(DataverseConnection.FromServiceClient(client));
+        // Capture the token provider so DataverseConnection can create HttpClients
+        // for direct Web API calls (needed for metadata operations like RequiredLevel
+        // that the SDK's UpdateAttributeRequest doesn't handle correctly).
+        Func<string, Task<string>> tokenProvider = async resource =>
+        {
+            if (!string.IsNullOrWhiteSpace(resource) &&
+                Uri.TryCreate(resource, UriKind.Absolute, out var resourceUri))
+            {
+                return await _tokens.AcquireForResourceAsync(conn, cred, resourceUri, ct).ConfigureAwait(false);
+            }
+            return await _tokens.AcquireAsync(conn, cred, ct).ConfigureAwait(false);
+        };
+
+        return Task.FromResult(DataverseConnection.FromServiceClient(client, tokenProvider));
     }
 }

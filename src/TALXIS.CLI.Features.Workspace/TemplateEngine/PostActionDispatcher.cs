@@ -98,8 +98,8 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
 
     public enum ScriptPermission
     {
-        No,
-        Yes,
-        Prompt
+        No = 0,
+        Yes = 1,
+        Prompt = 2
     }
 }

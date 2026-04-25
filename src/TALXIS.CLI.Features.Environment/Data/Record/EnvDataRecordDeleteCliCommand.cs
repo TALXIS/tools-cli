@@ -16,10 +16,11 @@ namespace TALXIS.CLI.Features.Environment.Data.Record;
     Name = "delete",
     Description = "Delete a single record by ID."
 )]
-public class EnvDataRecordDeleteCliCommand : ProfiledCliCommand, IDestructiveCommand
+public class EnvDataRecordDeleteCliCommand : StagedCliCommand, IDestructiveCommand
 {
     [CliOption(Name = "--yes", Description = "Skip confirmation for this destructive operation.", Required = false)]
     public bool Yes { get; set; }
+
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EnvDataRecordDeleteCliCommand));
 
     [CliOption(Name = "--entity", Description = "Entity logical name (e.g. account).", Required = true)]
@@ -30,6 +31,27 @@ public class EnvDataRecordDeleteCliCommand : ProfiledCliCommand, IDestructiveCom
 
     protected override async Task<int> ExecuteAsync()
     {
+        ValidateExecutionMode();
+
+        if (Stage)
+        {
+            var store = TxcServices.Get<IChangesetStore>();
+            store.Add(new StagedOperation
+            {
+                Category = "data",
+                OperationType = "DELETE",
+                TargetType = "record",
+                TargetDescription = $"{Entity}/{RecordId}",
+                Parameters = new Dictionary<string, object?>
+                {
+                    ["entity"] = Entity,
+                    ["recordId"] = RecordId.ToString()
+                }
+            });
+            OutputFormatter.WriteResult("staged", $"Staged: DELETE record '{RecordId}' from '{Entity}'");
+            return ExitSuccess;
+        }
+
         var service = TxcServices.Get<IDataverseRecordService>();
         await service.DeleteAsync(Profile, Entity, RecordId, CancellationToken.None)
             .ConfigureAwait(false);

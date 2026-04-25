@@ -11,8 +11,7 @@ namespace TALXIS.CLI.Features.Workspace;
     Name = "explain")]
 public class ProjectExplainCliCommand : TxcLeafCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ProjectExplainCliCommand));
-    protected override ILogger Logger => _logger;
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ProjectExplainCliCommand));
 
     private const string ExplanationText =
 @"Use of projects in this repository

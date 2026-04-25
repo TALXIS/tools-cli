@@ -30,8 +30,7 @@ namespace TALXIS.CLI.Features.Config.Profile;
 )]
 public class ProfileValidateCliCommand : TxcLeafCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ProfileValidateCliCommand));
-    protected override ILogger Logger => _logger;
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ProfileValidateCliCommand));
 
     [CliArgument(Description = "Profile name to validate. Defaults to the global active profile.", Required = false)]
     public string? Name { get; set; }
@@ -46,20 +45,11 @@ public class ProfileValidateCliCommand : TxcLeafCommand
     {
         var resolver = TxcServices.Get<IConfigurationResolver>();
         var providers = TxcServices.GetAll<IConnectionProvider>();
-        ResolvedProfileContext context;
-        try
-        {
-            context = await resolver.ResolveAsync(Name, CancellationToken.None).ConfigureAwait(false);
-        }
-        catch (ConfigurationResolutionException ex)
-        {
-            _logger.LogError("{Error}", ex.Message);
-            return ExitValidationError;
-        }
+        var context = await resolver.ResolveAsync(Name, CancellationToken.None).ConfigureAwait(false);
 
         if (context.Profile is null)
         {
-            _logger.LogError("Resolved configuration is ephemeral. 'txc config profile validate' requires a stored profile.");
+            Logger.LogError("Resolved configuration is ephemeral. 'txc config profile validate' requires a stored profile.");
             return ExitValidationError;
         }
 
@@ -70,20 +60,12 @@ public class ProfileValidateCliCommand : TxcLeafCommand
         var provider = providers.FirstOrDefault(p => p.ProviderKind == connection.Provider);
         if (provider is null)
         {
-            _logger.LogError("Provider '{Provider}' is not registered in this build. Dataverse is the only provider shipped in v1.", connection.Provider);
+            Logger.LogError("Provider '{Provider}' is not registered in this build. Dataverse is the only provider shipped in v1.", connection.Provider);
             return ExitValidationError;
         }
 
         var mode = SkipLive ? ValidationMode.Structural : ValidationMode.Live;
-        try
-        {
-            await provider.ValidateAsync(connection, credential, mode, CancellationToken.None).ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Validation failed for profile '{Profile}' ({Mode}).", profile.Id, mode);
-            return ExitError;
-        }
+        await provider.ValidateAsync(connection, credential, mode, CancellationToken.None).ConfigureAwait(false);
 
         EnvironmentType? refreshedEnvType = connection.EnvironmentType;
         if (RefreshEnvType)
@@ -117,7 +99,7 @@ public class ProfileValidateCliCommand : TxcLeafCommand
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to refresh environment type. Current value unchanged.");
+            Logger.LogWarning(ex, "Failed to refresh environment type. Current value unchanged.");
             return connection.EnvironmentType;
         }
     }

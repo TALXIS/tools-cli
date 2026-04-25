@@ -20,22 +20,23 @@ public class CrmServiceClient : ServiceClient, IDisposable
 
     public enum ImportStatus
     {
-        NotImported,
-        InProgress,
-        Completed
+        NotImported = 0,
+        InProgress = 1,
+        Completed = 2,
+        Failed = 3
     }
 
     public enum LogicalSearchOperator
     {
-        None,
-        And,
-        Or
+        None = 0,
+        Or = 1,
+        And = 2
     }
 
     public enum LogicalSortOrder
     {
-        Ascending,
-        Descending
+        Ascending = 0,
+        Descending = 1
     }
 
     public sealed class CrmSearchFilter
@@ -55,8 +56,8 @@ public class CrmServiceClient : ServiceClient, IDisposable
     {
         public enum ImportMode
         {
-            Create,
-            Update
+            Create = 0,
+            Update = 1
         }
 
         public string ImportName { get; set; } = string.Empty;
@@ -69,9 +70,9 @@ public class CrmServiceClient : ServiceClient, IDisposable
 
     public class ImportFileItem
     {
-        public enum DataDelimiterCode { DoubleQuotes = 1, None, SingleQuote }
-        public enum FieldDelimiterCode { Colon = 1, Comma, SingleQuote }
-        public enum FileTypeCode { CSV, XML }
+        public enum DataDelimiterCode { DoubleQuotes = 1, None = 2, SingleQuote = 3 }
+        public enum FieldDelimiterCode { Colon = 1, Comma = 2, SingleQuote = 3 }
+        public enum FileTypeCode { CSV = 0, XML = 1 }
 
         public string FileName { get; set; } = string.Empty;
         public FileTypeCode FileType { get; set; }
@@ -83,7 +84,7 @@ public class CrmServiceClient : ServiceClient, IDisposable
         public FieldDelimiterCode FieldDelimiter { get; set; }
         public bool IsFirstRowHeader { get; set; }
         public bool IsRecordOwnerATeam { get; set; }
-        public string RecordOwner { get; set; } = string.Empty;
+        public Guid RecordOwner { get; set; }
     }
 
     #endregion
@@ -256,17 +257,91 @@ public class CrmServiceClient : ServiceClient, IDisposable
         return ExecuteOrganizationRequest(req, logMessageTag);
     }
 
+    private Guid? _cachedUserId;
+
     public Guid GetMyCrmUserId()
     {
+        if (_cachedUserId.HasValue)
+            return _cachedUserId.Value;
+
         var response = Execute(new OrganizationRequest("WhoAmI"));
-        return (Guid)response.Results["UserId"];
+        _cachedUserId = (Guid)response.Results["UserId"];
+        return _cachedUserId.Value;
     }
 
+    /// <summary>
+    /// Matches the original <c>CrmServiceClient.GetDataByKeyFromResultsSet&lt;T&gt;</c>
+    /// behavior: attempts a direct type check first, falls back to the
+    /// <c>_Property</c> entry (which holds the raw SDK typed value), and
+    /// returns <c>default(T)</c> when the value type doesn't match.
+    /// Never throws — CMT relies on this returning default for type mismatches
+    /// (e.g. calling <c>GetDataByKeyFromResultsSet&lt;Guid&gt;</c> on a string field
+    /// returns <c>Guid.Empty</c>).
+    /// </summary>
     public T GetDataByKeyFromResultsSet<T>(Dictionary<string, object> results, string key)
     {
-        if (results != null && results.TryGetValue(key, out var value))
+        try
         {
-            return (T)value;
+            if (results == null || !results.ContainsKey(key))
+            {
+                return default!;
+            }
+
+            // PICKLIST handling for int/string (matches original behavior)
+            if (typeof(T) == typeof(int) || typeof(T) == typeof(string))
+            {
+                try
+                {
+                    string text = (string)results[key];
+                    if (text.Contains("PICKLIST:"))
+                    {
+                        try
+                        {
+                            var parts = text.Split(':');
+                            if (typeof(T) == typeof(int))
+                            {
+                                return (T)(object)Convert.ToInt32(parts[1], System.Globalization.CultureInfo.InvariantCulture);
+                            }
+                            return (T)(object)parts[3];
+                        }
+                        catch
+                        {
+                            return (T)results[key];
+                        }
+                    }
+                }
+                catch
+                {
+                    if (results[key] is T val)
+                    {
+                        return val;
+                    }
+                }
+            }
+
+            // Direct type check — the primary happy path.
+            if (results[key] is T typedValue)
+            {
+                return typedValue;
+            }
+
+            // Fallback: check _Property entry which holds the raw SDK typed value.
+            // The original CrmServiceClient stores each attribute twice:
+            // "key" → formatted string or raw value
+            // "key_Property" → KeyValuePair<string, object> with the raw SDK value
+            if (results.ContainsKey(key + "_Property"))
+            {
+                var kvp = (KeyValuePair<string, object>)results[key + "_Property"];
+                if (kvp.Value is T propertyValue)
+                {
+                    return propertyValue;
+                }
+            }
+        }
+        catch
+        {
+            // Original logs "Error In GetDataByKeyFromResultsSet (Non-Fatal)"
+            // and returns default — CMT depends on this never throwing.
         }
         return default!;
     }
@@ -359,29 +434,46 @@ public class CrmServiceClient : ServiceClient, IDisposable
 
     public Dictionary<string, Dictionary<string, object>> GetEntityDataByLinkedSearch(string returnEntityName, List<CrmSearchFilter> primarySearchParameters, string linkedEntityName, List<CrmSearchFilter> linkedSearchParameters, string linkedEntityLinkAttribName, string m2MEntityName, string returnEntityPrimaryId, LogicalSearchOperator searchOperator, List<string> fieldList, Guid batchId = default, bool isReflexiveRelationship = false)
     {
-        // Simplified — convert CrmSearchFilter to simple dictionary for the primary entity
-        var query = new QueryExpression(returnEntityName);
+        if (primarySearchParameters == null && linkedSearchParameters == null)
+            return new Dictionary<string, Dictionary<string, object>>();
+
+        primarySearchParameters ??= new List<CrmSearchFilter>();
+        linkedSearchParameters ??= new List<CrmSearchFilter>();
+
+        // Build primary entity filter
+        var primaryFilter = new FilterExpression();
+        ApplyFilters(primaryFilter, primarySearchParameters, searchOperator);
+
+        // Build linked entity filter
+        var linkedFilter = new FilterExpression();
+        ApplyFilters(linkedFilter, linkedSearchParameters, searchOperator);
+
+        // Build the link chain matching the original:
+        // innermost link → linkedEntity, outermost link → m2MEntity (intersect)
+        var innerLink = new LinkEntity();
+        innerLink.LinkToEntityName = linkedEntityName;
+        innerLink.LinkToAttributeName = linkedEntityLinkAttribName;
+        innerLink.LinkFromAttributeName = isReflexiveRelationship
+            ? $"{linkedEntityLinkAttribName}two"
+            : linkedEntityLinkAttribName;
+        innerLink.LinkCriteria = linkedFilter;
+
+        var outerLink = new LinkEntity();
+        outerLink.LinkToEntityName = m2MEntityName;
+        outerLink.LinkToAttributeName = isReflexiveRelationship
+            ? $"{returnEntityPrimaryId}one"
+            : returnEntityPrimaryId;
+        outerLink.LinkFromAttributeName = returnEntityPrimaryId;
+        outerLink.LinkEntities.Add(innerLink);
+
+        var query = new QueryExpression();
+        query.EntityName = returnEntityName;
         if (fieldList != null && fieldList.Count > 0)
             query.ColumnSet = new ColumnSet(fieldList.ToArray());
         else
             query.ColumnSet = new ColumnSet(true);
-
-        ApplyFilters(query.Criteria, primarySearchParameters, searchOperator);
-
-        if (!string.IsNullOrEmpty(linkedEntityName))
-        {
-            var link = query.AddLink(linkedEntityName, returnEntityPrimaryId, linkedEntityLinkAttribName);
-            if (!string.IsNullOrEmpty(m2MEntityName))
-            {
-                link = query.AddLink(m2MEntityName, returnEntityPrimaryId, returnEntityPrimaryId);
-                link.AddLink(linkedEntityName, linkedEntityLinkAttribName, linkedEntityLinkAttribName);
-            }
-
-            if (linkedSearchParameters != null)
-            {
-                ApplyFilters(link.LinkCriteria, linkedSearchParameters, searchOperator);
-            }
-        }
+        query.Criteria = primaryFilter;
+        query.LinkEntities.Add(outerLink);
 
         var result = RetrieveMultiple(query);
         return EntityCollectionToDictionary(result);
@@ -392,7 +484,13 @@ public class CrmServiceClient : ServiceClient, IDisposable
         var entity = new Entity(entityName);
         PopulateEntityFromDataTypeWrappers(entity, valueArray);
 
-        return Create(entity);
+        var request = new CreateRequest { Target = entity };
+        request.Parameters["SuppressDuplicateDetection"] = !enabledDuplicateDetection;
+        if (!string.IsNullOrWhiteSpace(applyToSolution))
+            request.Parameters["SolutionUniqueName"] = applyToSolution;
+
+        var response = (CreateResponse)Execute(request);
+        return response?.id ?? Guid.Empty;
     }
 
     public List<EntityMetadata> GetAllEntityMetadata(bool onlyPublished = true, EntityFilters filter = EntityFilters.Entity)
@@ -462,7 +560,13 @@ public class CrmServiceClient : ServiceClient, IDisposable
         {
             var entity = new Entity(entityName, id);
             PopulateEntityFromDataTypeWrappers(entity, fieldList);
-            Update(entity);
+
+            var request = new UpdateRequest { Target = entity };
+            request.Parameters["SuppressDuplicateDetection"] = !enabledDuplicateDetection;
+            if (!string.IsNullOrWhiteSpace(applyToSolution))
+                request.Parameters["SolutionUniqueName"] = applyToSolution;
+
+            Execute(request);
             return true;
         }
         catch
@@ -708,20 +812,35 @@ public class CrmServiceClient : ServiceClient, IDisposable
 
     private static string InjectPagingIntoFetchXml(string fetchXml, int pageCount, int pageNumber, string pageCookie)
     {
-        // Simple injection — replace <fetch with paging attributes
         if (string.IsNullOrWhiteSpace(fetchXml))
             return fetchXml;
 
-        string pagingAttrs = $" count='{pageCount}' page='{pageNumber}'";
-        if (!string.IsNullOrWhiteSpace(pageCookie))
-            pagingAttrs += $" paging-cookie='{System.Security.SecurityElement.Escape(pageCookie)}'";
+        var doc = new System.Xml.XmlDocument();
+        doc.LoadXml(fetchXml);
+        var root = doc.DocumentElement!;
 
-        return fetchXml.Replace("<fetch", $"<fetch{pagingAttrs}", StringComparison.OrdinalIgnoreCase);
+        var pageAttr = doc.CreateAttribute("page");
+        pageAttr.Value = pageNumber.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var countAttr = doc.CreateAttribute("count");
+        countAttr.Value = pageCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+        root.Attributes.Append(pageAttr);
+        root.Attributes.Append(countAttr);
+
+        if (!string.IsNullOrEmpty(pageCookie))
+        {
+            var cookieAttr = doc.CreateAttribute("paging-cookie");
+            cookieAttr.Value = pageCookie;
+            root.Attributes.Append(cookieAttr);
+        }
+
+        return root.OuterXml;
     }
 
     private static QueryExpression BuildQueryExpression(string entityName, Dictionary<string, string> searchParameters, LogicalSearchOperator searchOperator, List<string> fieldList)
     {
         var query = new QueryExpression(entityName);
+        query.NoLock = true;
         if (fieldList != null && fieldList.Count > 0)
             query.ColumnSet = new ColumnSet(fieldList.ToArray());
         else
@@ -732,7 +851,12 @@ public class CrmServiceClient : ServiceClient, IDisposable
             query.Criteria.FilterOperator = searchOperator == LogicalSearchOperator.Or ? LogicalOperator.Or : LogicalOperator.And;
             foreach (var kvp in searchParameters)
             {
-                query.Criteria.AddCondition(kvp.Key, ConditionOperator.Equal, kvp.Value);
+                if (string.IsNullOrWhiteSpace(kvp.Value))
+                    query.Criteria.AddCondition(kvp.Key, ConditionOperator.Null);
+                else if (kvp.Value.Contains('%'))
+                    query.Criteria.AddCondition(kvp.Key, ConditionOperator.Like, kvp.Value);
+                else
+                    query.Criteria.AddCondition(kvp.Key, ConditionOperator.Equal, kvp.Value);
             }
         }
 
@@ -742,6 +866,7 @@ public class CrmServiceClient : ServiceClient, IDisposable
     private static QueryExpression BuildQueryExpression(string entityName, List<CrmSearchFilter> searchParameters, LogicalSearchOperator searchOperator, List<string> fieldList)
     {
         var query = new QueryExpression(entityName);
+        query.NoLock = true;
         if (fieldList != null && fieldList.Count > 0)
             query.ColumnSet = new ColumnSet(fieldList.ToArray());
         else
@@ -811,37 +936,68 @@ public class CrmServiceClient : ServiceClient, IDisposable
         return query;
     }
 
-    private static Dictionary<string, Dictionary<string, object>> EntityCollectionToDictionary(EntityCollection ec)
+    private static Dictionary<string, Dictionary<string, object>>? EntityCollectionToDictionary(EntityCollection ec)
     {
         var result = new Dictionary<string, Dictionary<string, object>>();
         foreach (var entity in ec.Entities)
         {
-            result[entity.Id.ToString()] = EntityToDictionary(entity);
+            var dict = EntityToDictionary(entity);
+            dict["ReturnProperty_EntityName"] = entity.LogicalName;
+            // Note: trailing space in "ReturnProperty_Id " is intentional — matches original CrmServiceClient behavior
+            dict["ReturnProperty_Id "] = entity.Id;
+            result[Guid.NewGuid().ToString()] = dict;
         }
+        if (result.Count == 0)
+            return null;
         return result;
     }
 
+    /// <summary>
+    /// Converts an <see cref="Entity"/> to the dictionary format expected by the
+    /// original <c>CrmServiceClient</c>. Each attribute produces two entries:
+    /// <c>"key"</c> → formatted value (string) or raw SDK value, and
+    /// <c>"key_Property"</c> → the raw <see cref="KeyValuePair{TKey,TValue}"/>
+    /// with the typed SDK value. CMT's <c>GetDataByKeyFromResultsSet&lt;T&gt;</c>
+    /// uses the <c>_Property</c> fallback when the primary value is a string
+    /// but a typed value (e.g. Guid) is needed.
+    /// </summary>
     private static Dictionary<string, object> EntityToDictionary(Entity entity)
     {
         var dict = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
         foreach (var attr in entity.Attributes)
         {
-            dict[attr.Key] = attr.Value;
-        }
-        if (!dict.ContainsKey(entity.LogicalName + "id"))
-        {
-            dict[entity.LogicalName + "id"] = entity.Id;
+            // Store _Property entry with the raw typed value (KeyValuePair).
+            dict[attr.Key + "_Property"] = attr;
+            // Store the display/formatted value if available, otherwise raw value.
+            dict[attr.Key] = entity.FormattedValues.ContainsKey(attr.Key)
+                ? entity.FormattedValues[attr.Key]
+                : attr.Value;
         }
         return dict;
     }
 
+    /// <summary>
+    /// Populates an <see cref="Entity"/> from <see cref="CrmDataTypeWrapper"/> values.
+    /// Skips <c>File</c>, <c>Image</c> and <c>Key</c> types — the original
+    /// <c>AddValueToPropertyList</c> ignores these (they are handled through
+    /// separate API workflows like <c>InitFileUpload</c>/<c>UploadFileBlock</c>).
+    /// </summary>
     private static void PopulateEntityFromDataTypeWrappers(Entity entity, Dictionary<string, CrmDataTypeWrapper> valueArray)
     {
         if (valueArray == null) return;
 
         foreach (var kvp in valueArray)
         {
-            entity[kvp.Key] = ConvertCrmDataTypeValue(kvp.Value);
+            // File, Image and Key are skipped by the original connector.
+            // CMT handles file uploads separately via UpdateFileColumns.
+            if (kvp.Value.Type is CrmFieldType.File or CrmFieldType.Image or CrmFieldType.Key)
+                continue;
+
+            var converted = ConvertCrmDataTypeValue(kvp.Value);
+            if (converted != null)
+            {
+                entity[kvp.Key] = converted;
+            }
         }
     }
 
@@ -857,10 +1013,15 @@ public class CrmServiceClient : ServiceClient, IDisposable
             CrmFieldType.CrmFloat => Convert.ToDouble(wrapper.Value),
             CrmFieldType.CrmMoney => new Money(Convert.ToDecimal(wrapper.Value)),
             CrmFieldType.CrmNumber => Convert.ToInt32(wrapper.Value),
-            CrmFieldType.Key or CrmFieldType.UniqueIdentifier => wrapper.Value is Guid g ? g : Guid.Parse(wrapper.Value.ToString()!),
+            CrmFieldType.UniqueIdentifier => wrapper.Value is Guid g ? g : Guid.Parse(wrapper.Value.ToString()!),
             CrmFieldType.Picklist => new OptionSetValue(Convert.ToInt32(wrapper.Value)),
             CrmFieldType.String => wrapper.Value.ToString(),
-            CrmFieldType.Customer or CrmFieldType.Lookup => wrapper.Value is EntityReference er ? er : wrapper.Value,
+            CrmFieldType.Customer or CrmFieldType.Lookup => wrapper.Value is EntityReference er
+                ? er
+                : new EntityReference(wrapper.ReferencedEntity ?? string.Empty,
+                    wrapper.Value is Guid g2 ? g2 : Guid.Parse(wrapper.Value.ToString()!)),
+            // Raw: pass through as-is — CMT already creates the correct SDK type
+            // (OptionSetValue, OptionSetValueCollection, EntityCollection, byte[], etc.)
             _ => wrapper.Value
         };
     }

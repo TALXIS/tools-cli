@@ -92,27 +92,17 @@ public class PackageImportCliCommand : ProfiledCliCommand
             }
         }
 
-        PackageImportResult result;
-        try
-        {
-            var service = TxcServices.Get<IPackageImportService>();
-            result = await service.ImportAsync(new PackageImportRequest(
-                ProfileName: Profile,
-                PackagePath: packagePath,
-                Settings: Settings,
-                LogFile: LogFile,
-                LogConsole: LogConsole,
-                Verbose: Verbose,
-                NuGetPackageName: nugetPackageName,
-                NuGetPackageVersion: nugetPackageVersion,
-                TempWorkingDirectory: tempWorkingDirectory), CancellationToken.None).ConfigureAwait(false);
-        }
-        catch (InvalidOperationException ex)
-        {
-            Logger.LogError(ex, "Package import failed");
-            Logger.LogError("Package located at {PackagePath}", packagePath);
-            return ExitError;
-        }
+        var service = TxcServices.Get<IPackageImportService>();
+        var result = await service.ImportAsync(new PackageImportRequest(
+            ProfileName: Profile,
+            PackagePath: packagePath,
+            Settings: Settings,
+            LogFile: LogFile,
+            LogConsole: LogConsole,
+            Verbose: Verbose,
+            NuGetPackageName: nugetPackageName,
+            NuGetPackageVersion: nugetPackageVersion,
+            TempWorkingDirectory: tempWorkingDirectory), CancellationToken.None).ConfigureAwait(false);
 
         if (result.InteractiveAuthRequired)
         {

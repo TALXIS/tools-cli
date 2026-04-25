@@ -27,6 +27,7 @@ public static class LegacyAssemblyHostSubprocess
 {
     private const string PackageDeployerCommand = "__txc_internal_package_deployer";
     private const string CmtImportCommand = "__txc_internal_cmt_import";
+    private const string CmtExportCommand = "__txc_internal_cmt_export";
     private const string CleanupCommand = "__txc_internal_package_deployer_cleanup";
     private const string ConfigDirectoryEnvVar = "TXC_CONFIG_DIR";
 #pragma warning disable RS0030 // Web defaults required for subprocess JSON protocol (case-insensitive, camelCase)
@@ -46,6 +47,7 @@ public static class LegacyAssemblyHostSubprocess
             CleanupCommand => await RunCleanupHelperAsync(args).ConfigureAwait(false),
             PackageDeployerCommand => await RunPackageDeployerChildAsync(args).ConfigureAwait(false),
             CmtImportCommand => await RunCmtImportChildAsync(args).ConfigureAwait(false),
+            CmtExportCommand => await RunCmtExportChildAsync(args).ConfigureAwait(false),
             _ => null,
         };
     }
@@ -94,6 +96,28 @@ public static class LegacyAssemblyHostSubprocess
         // run beyond the coordinator directory itself.
         return await RunJobAsync<CmtImportJob, CmtImportResult>(
             CmtImportCommand,
+            envelope,
+            temporaryArtifactsDirectory: null,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Parent-side entry point for a CMT data-export run.</summary>
+    public static async Task<CmtExportResult> RunCmtExportAsync(
+        CmtExportRequest request, string profileId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(profileId);
+
+        string? configDirectory = System.Environment.GetEnvironmentVariable(ConfigDirectoryEnvVar);
+
+        CmtExportJob envelope = new(
+            request,
+            profileId,
+            configDirectory,
+            System.Environment.ProcessId);
+
+        return await RunJobAsync<CmtExportJob, CmtExportResult>(
+            CmtExportCommand,
             envelope,
             temporaryArtifactsDirectory: null,
             cancellationToken).ConfigureAwait(false);
@@ -276,6 +300,69 @@ public static class LegacyAssemblyHostSubprocess
 
         await WriteJsonAsync(resultPath, result).ConfigureAwait(false);
         return result.Succeeded ? 0 : 1;
+    }
+
+    private static async Task<int?> RunCmtExportChildAsync(string[] args)
+    {
+        if (args.Length != 3)
+        {
+            return null;
+        }
+
+        string requestPath = args[1];
+        string resultPath = args[2];
+
+        CmtExportResult result;
+        try
+        {
+            CmtExportJob envelope = await ReadJsonAsync<CmtExportJob>(requestPath).ConfigureAwait(false);
+
+            ApplyConfigDirectory(envelope.ConfigDirectory);
+            TxcServicesBootstrap.EnsureInitialized();
+
+            // Initialize the legacy assembly runtime BEFORE the JIT
+            // encounters CmtExportRunner. ExportProcessor ships in a
+            // NuGet tools/ folder and is not probed automatically —
+            // the runtime must register it via TryPreloadAssembly.
+            // The actual runner call is in a separate method so the JIT
+            // does not try to resolve CmtExportRunner types until after
+            // LegacyAssemblyRuntime has registered the assembly.
+            LegacyAssemblyRuntime.EnsureInitialized();
+
+            result = await RunCmtExportCoreAsync(envelope).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            result = new CmtExportResult(false, ex.Message);
+        }
+
+        await WriteJsonAsync(resultPath, result).ConfigureAwait(false);
+        return result.Succeeded ? 0 : 1;
+    }
+
+    /// <summary>
+    /// Separated from <see cref="RunCmtExportChildAsync"/> so that the JIT
+    /// defers resolution of <see cref="CmtExportRunner"/> (which depends on
+    /// the ExportProcessor assembly) until after
+    /// <see cref="LegacyAssemblyRuntime"/> has registered it.
+    /// </summary>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static async Task<CmtExportResult> RunCmtExportCoreAsync(CmtExportJob envelope)
+    {
+        using CancellationTokenSource parentWatcher = RegisterParentExitWatcher(envelope.ParentProcessId);
+        try
+        {
+            var (envUrl, tokenProvider) = await DataverseCommandBridge
+                .BuildTokenProviderAsync(envelope.ProfileId, parentWatcher.Token)
+                .ConfigureAwait(false);
+
+            CmtExportRunner runner = new();
+            return await runner.RunAsync(envelope.Request, envUrl, tokenProvider, parentWatcher.Token).ConfigureAwait(false);
+        }
+        finally
+        {
+            parentWatcher.Cancel();
+        }
     }
 
     private static void ApplyConfigDirectory(string? configDirectory)

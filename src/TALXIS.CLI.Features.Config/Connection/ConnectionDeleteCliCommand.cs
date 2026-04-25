@@ -23,8 +23,7 @@ namespace TALXIS.CLI.Features.Config.Connection;
 )]
 public class ConnectionDeleteCliCommand : TxcLeafCommand, IDestructiveCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ConnectionDeleteCliCommand));
-    protected override ILogger Logger => _logger;
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ConnectionDeleteCliCommand));
 
     [CliOption(Name = "--yes", Description = "Skip confirmation for this destructive operation.", Required = false)]
     public bool Yes { get; set; }
@@ -39,7 +38,7 @@ public class ConnectionDeleteCliCommand : TxcLeafCommand, IDestructiveCommand
     {
         if (string.IsNullOrWhiteSpace(Name))
         {
-            _logger.LogError("Connection name must be provided.");
+            Logger.LogError("Connection name must be provided.");
             return ExitError;
         }
 
@@ -49,7 +48,7 @@ public class ConnectionDeleteCliCommand : TxcLeafCommand, IDestructiveCommand
         var existing = await connStore.GetAsync(Name, CancellationToken.None).ConfigureAwait(false);
         if (existing is null)
         {
-            _logger.LogError("Connection '{Name}' not found.", Name);
+            Logger.LogError("Connection '{Name}' not found.", Name);
             return ExitValidationError;
         }
 
@@ -60,16 +59,16 @@ public class ConnectionDeleteCliCommand : TxcLeafCommand, IDestructiveCommand
 
         if (referencing.Count > 0 && !ForceOrphanProfiles)
         {
-            _logger.LogError(
+            Logger.LogError(
                 "Connection '{Name}' is referenced by profile(s): {Profiles}. " +
                 "Rebind or delete them first, or pass --force-orphan-profiles.",
                 Name, string.Join(", ", referencing.Select(p => $"'{p.Id}'")));
-            return 3;
+            return ExitValidationError;
         }
 
         foreach (var p in referencing)
         {
-            _logger.LogWarning(
+            Logger.LogWarning(
                 "Profile '{ProfileId}' referenced connection '{Name}' and is now orphaned. " +
                 "Update or delete the profile explicitly.",
                 p.Id, Name);
@@ -78,11 +77,11 @@ public class ConnectionDeleteCliCommand : TxcLeafCommand, IDestructiveCommand
         var removed = await connStore.DeleteAsync(Name, CancellationToken.None).ConfigureAwait(false);
         if (!removed)
         {
-            _logger.LogError("Connection '{Name}' disappeared during delete.", Name);
+            Logger.LogError("Connection '{Name}' disappeared during delete.", Name);
             return ExitError;
         }
 
-        _logger.LogInformation("Connection '{Name}' deleted.", Name);
+        Logger.LogInformation("Connection '{Name}' deleted.", Name);
         OutputFormatter.WriteResult("succeeded", $"Connection '{Name}' deleted.");
         return ExitSuccess;
     }

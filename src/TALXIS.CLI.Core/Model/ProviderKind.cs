@@ -5,8 +5,8 @@ namespace TALXIS.CLI.Core.Model;
 /// </summary>
 public enum ProviderKind
 {
-    Dataverse,
-    Azure,
-    Ado,
-    Jira,
+    Dataverse = 0,
+    Azure = 1,
+    Ado = 2,
+    Jira = 3,
 }

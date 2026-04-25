@@ -14,13 +14,13 @@ public sealed record ResolvedProfileContext(
 public enum ResolutionSource
 {
     /// <summary>Profile came from <c>--profile</c> flag.</summary>
-    CommandLine,
+    CommandLine = 0,
     /// <summary>Profile came from <c>TXC_PROFILE</c>.</summary>
-    EnvironmentVariable,
+    EnvironmentVariable = 1,
     /// <summary>Profile came from workspace <c>.txc/workspace.json</c>.</summary>
-    Workspace,
+    Workspace = 2,
     /// <summary>Profile came from global active pointer.</summary>
-    Global,
+    Global = 3,
     /// <summary>Ephemeral context built from env vars (no stored profile).</summary>
-    Ephemeral,
+    Ephemeral = 4,
 }

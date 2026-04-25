@@ -21,8 +21,7 @@ namespace TALXIS.CLI.Features.Config.Auth;
 )]
 public class AuthShowCliCommand : TxcLeafCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(AuthShowCliCommand));
-    protected override ILogger Logger => _logger;
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(AuthShowCliCommand));
 
     [CliArgument(Description = "Credential alias (id).")]
     public required string Alias { get; set; }
@@ -34,7 +33,7 @@ public class AuthShowCliCommand : TxcLeafCommand
     {
         if (string.IsNullOrWhiteSpace(Alias))
         {
-            _logger.LogError("Credential alias must be provided.");
+            Logger.LogError("Credential alias must be provided.");
             return ExitError;
         }
 
@@ -42,7 +41,7 @@ public class AuthShowCliCommand : TxcLeafCommand
         var cred = await store.GetAsync(Alias, CancellationToken.None).ConfigureAwait(false);
         if (cred is null)
         {
-            _logger.LogError("Credential '{Alias}' not found.", Alias);
+            Logger.LogError("Credential '{Alias}' not found.", Alias);
             return ExitValidationError;
         }
 

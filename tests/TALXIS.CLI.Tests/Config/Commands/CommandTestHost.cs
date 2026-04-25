@@ -57,6 +57,7 @@ internal sealed class CommandTestHost : IDisposable
         services.AddSingleton<TALXIS.CLI.Core.Bootstrapping.ConnectionUpsertService>();
         services.AddSingleton<ICredentialVault>(Vault);
         services.AddSingleton<IHeadlessDetector>(Headless);
+        services.AddSingleton<IConfirmationPrompter, FakeConfirmationPrompter>();
         services.AddSingleton<IWorkspaceDiscovery, WorkspaceDiscovery>();
         services.AddSingleton<IConfigurationResolver, ConfigurationResolver>();
         services.AddSingleton<IInteractiveLoginService>(Login);
@@ -158,6 +159,12 @@ internal sealed class CommandTestHost : IDisposable
         public FakeHeadless(bool isHeadless) { IsHeadless = isHeadless; Reason = isHeadless ? "test harness" : null; }
         public bool IsHeadless { get; }
         public string? Reason { get; }
+    }
+
+    internal sealed class FakeConfirmationPrompter : IConfirmationPrompter
+    {
+        public Task<bool> ConfirmAsync(string message, CancellationToken ct = default)
+            => Task.FromResult(true);
     }
 
     internal sealed class FakeInteractiveLogin : IInteractiveLoginService

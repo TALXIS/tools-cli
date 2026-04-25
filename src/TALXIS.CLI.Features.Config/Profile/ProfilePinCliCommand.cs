@@ -31,8 +31,7 @@ namespace TALXIS.CLI.Features.Config.Profile;
 )]
 public class ProfilePinCliCommand : TxcLeafCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ProfilePinCliCommand));
-    protected override ILogger Logger => _logger;
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ProfilePinCliCommand));
 
     [CliArgument(Description = "Profile name to pin. Defaults to the global active profile.", Required = false)]
     public string? Name { get; set; }
@@ -50,7 +49,7 @@ public class ProfilePinCliCommand : TxcLeafCommand
             target = global.ActiveProfile;
             if (string.IsNullOrWhiteSpace(target))
             {
-                _logger.LogError("No active profile is set. Pass <name> or run 'txc config profile select <name>' first.");
+                Logger.LogError("No active profile is set. Pass <name> or run 'txc config profile select <name>' first.");
                 return ExitValidationError;
             }
         }
@@ -58,7 +57,7 @@ public class ProfilePinCliCommand : TxcLeafCommand
         var profile = await profileStore.GetAsync(target!, CancellationToken.None).ConfigureAwait(false);
         if (profile is null)
         {
-            _logger.LogError("Profile '{Name}' not found.", target);
+            Logger.LogError("Profile '{Name}' not found.", target);
             return ExitValidationError;
         }
 
@@ -69,7 +68,7 @@ public class ProfilePinCliCommand : TxcLeafCommand
         var config = new WorkspaceConfig { DefaultProfile = profile.Id };
         await JsonFile.WriteAtomicAsync(workspaceFile, config, CancellationToken.None).ConfigureAwait(false);
 
-        _logger.LogInformation("Pinned profile '{Id}' to '{Path}'.", profile.Id, workspaceFile);
+        Logger.LogInformation("Pinned profile '{Id}' to '{Path}'.", profile.Id, workspaceFile);
 
         OutputFormatter.WriteData(new { profile = profile.Id, path = workspaceFile });
         return ExitSuccess;

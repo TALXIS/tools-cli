@@ -1,3 +1,4 @@
+using System.Configuration;
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Reflection;
@@ -172,14 +173,33 @@ public sealed class CmtImportRunner
                 ?? throw new InvalidOperationException("ImportCrmDataHandler.CrmConnection property not found.");
             crmConnProp.SetValue(handler, crmServiceClient);
 
+            // Apply import tuning options via handler properties.
+            handler.EnabledBatchMode = request.BatchMode;
+            handler.RequestedBatchSize = request.BatchSize;
+            handler.OverrideDataImportSafetyChecks = request.OverrideSafetyChecks;
+            handler.PrefetchRecordLimitSize = request.PrefetchLimit;
+
+            // Also set via AppSettings — the handler's internal methods may
+            // re-read these from AppSettingsHelper, overwriting the property values.
+            // This AppSettings mutation is safe because CMT runs in a subprocess
+            // and does not share process state with the parent CLI host.
+            ConfigurationManager.AppSettings["DMT.EnableBatchMode"] = request.BatchMode ? "true" : "false";
+            ConfigurationManager.AppSettings["DMT.RequestedBatchSize"] = request.BatchSize.ToString();
+            ConfigurationManager.AppSettings["DMT.OverrideSafetyChecks"] = request.OverrideSafetyChecks ? "true" : "false";
+            ConfigurationManager.AppSettings["DMT.PrefetchRecordLimitCount"] = request.PrefetchLimit.ToString();
+            // SchemaValidator uses this to recognize FileAttributeMetadata columns (type="filedata").
+            ConfigurationManager.AppSettings["ExportFiles"] = "true";
+
             // 4. Wire progress event handlers.
             handler.AddNewProgressItem += OnAddNewProgressItem;
             handler.UpdateProgressItem += OnUpdateProgressItem;
 
             // 5. Create clone connections for parallel import.
+            // ImportConnections expects Dictionary<int, CrmServiceClient> where
+            // keys are 1-based connection indices.
             if (request.ConnectionCount > 1)
             {
-                var clones = new List<object>();
+                var clones = new Dictionary<int, CrmServiceClient>();
                 for (int i = 1; i < request.ConnectionCount; i++)
                 {
                     try
@@ -191,7 +211,7 @@ public sealed class CmtImportRunner
 
                         if (clone.IsReady)
                         {
-                            clones.Add(clone);
+                            clones.Add(i, clone);
                         }
                     }
                     catch (Exception ex)
@@ -228,6 +248,9 @@ public sealed class CmtImportRunner
 
             // 8. Import data (synchronous — blocks via internal WaitOne).
             _logger.LogInformation("Starting data import...");
+            // NOTE: The deleteBeforeAdd parameter is accepted by CMT's API but
+            // is never actually used internally — the delete functionality was
+            // never implemented in ImportCrmDataHandler.
             await Task.Run(() => handler.ImportDataToCrm(workingFolder, deleteBeforeAdd: false));
 
             // CMT often swallows exceptions internally and only reports
@@ -271,7 +294,8 @@ public sealed class CmtImportRunner
     /// <summary>
     /// Wires a <see cref="ConsoleTraceListener"/> to CMT's internal
     /// TraceSource so that import progress and errors are visible in
-    /// the console output in real time.
+    /// the console output in real time, and sets the trace level based
+    /// on the <paramref name="verbose"/> flag.
     /// </summary>
     private void TryWireCmtConsoleLogging(ImportCrmDataHandler handler, bool verbose)
     {
@@ -290,6 +314,16 @@ public sealed class CmtImportRunner
                 return;
             }
 
+            // Set trace level — Verbose when --verbose, Information otherwise.
+            // Without this, CMT's TraceLogger may filter out lower-level messages.
+            MethodInfo? setLevel = logger.GetType()
+                .GetMethod("SetTraceLevel", BindingFlags.Public | BindingFlags.Instance);
+            if (setLevel is not null)
+            {
+                SourceLevels level = verbose ? SourceLevels.Verbose : SourceLevels.Information;
+                setLevel.Invoke(logger, new object[] { level });
+            }
+
             // Try AddTraceListener(TraceListener) — available on TraceLogger.
             MethodInfo? addListener = logger.GetType()
                 .GetMethod("AddTraceListener", BindingFlags.Public | BindingFlags.Instance, null,
@@ -299,7 +333,7 @@ public sealed class CmtImportRunner
             {
                 addListener.Invoke(logger, new object[] { new ConsoleTraceListener() });
                 if (verbose)
-                    _logger.LogDebug("CMT console trace listener wired");
+                    _logger.LogDebug("CMT console trace listener wired (level: Verbose)");
             }
             else if (verbose)
             {

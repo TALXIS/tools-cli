@@ -11,8 +11,7 @@ namespace TALXIS.CLI.Features.Workspace;
     Name = "explain")]
 public class WorkspaceExplainCliCommand : TxcLeafCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(WorkspaceExplainCliCommand));
-    protected override ILogger Logger => _logger;
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(WorkspaceExplainCliCommand));
 
     private const string ExplanationText =
 @"Repository Structure Overview

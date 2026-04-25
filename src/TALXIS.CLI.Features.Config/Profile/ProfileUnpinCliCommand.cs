@@ -23,8 +23,7 @@ namespace TALXIS.CLI.Features.Config.Profile;
 )]
 public class ProfileUnpinCliCommand : TxcLeafCommand, IDestructiveCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(ProfileUnpinCliCommand));
-    protected override ILogger Logger => _logger;
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ProfileUnpinCliCommand));
 
     [CliOption(Name = "--yes", Description = "Skip confirmation for this destructive operation.", Required = false)]
     public bool Yes { get; set; }
@@ -38,20 +37,20 @@ public class ProfileUnpinCliCommand : TxcLeafCommand, IDestructiveCommand
 
         if (!File.Exists(workspaceFile))
         {
-            _logger.LogInformation("No workspace pin found at '{Path}'. Nothing to do.", workspaceFile);
+            Logger.LogInformation("No workspace pin found at '{Path}'. Nothing to do.", workspaceFile);
             OutputFormatter.WriteResult("succeeded", "No workspace pin found. Nothing to do.");
             return Task.FromResult(ExitSuccess);
         }
 
         File.Delete(workspaceFile);
-        _logger.LogInformation("Removed workspace pin at '{Path}'.", workspaceFile);
+        Logger.LogInformation("Removed workspace pin at '{Path}'.", workspaceFile);
 
         // Clean up the `.txc` directory when it's empty so `ls` stays tidy.
         if (Directory.Exists(workspaceDir) &&
             !Directory.EnumerateFileSystemEntries(workspaceDir).Any())
         {
             Directory.Delete(workspaceDir);
-            _logger.LogDebug("Removed empty '{Dir}'.", workspaceDir);
+            Logger.LogDebug("Removed empty '{Dir}'.", workspaceDir);
         }
 
         OutputFormatter.WriteResult("succeeded", $"Workspace pin removed at '{workspaceFile}'.");

@@ -2,10 +2,10 @@ namespace TALXIS.CLI.Core.Contracts.Dataverse;
 
 public enum SolutionUninstallStatus
 {
-    Success,
-    NotFound,
-    Ambiguous,
-    Failed,
+    Success = 0,
+    NotFound = 1,
+    Ambiguous = 2,
+    Failed = 3,
 }
 
 public sealed record SolutionUninstallOutcome(

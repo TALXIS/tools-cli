@@ -50,7 +50,7 @@ public abstract class TxcLeafCommand
     protected abstract ILogger Logger { get; }
 
     /// <summary>
-    /// Entry point called by the DotMake runtime (discovered by convention).
+    /// Entry point called by the DotMake runtime (resolved by convention).
     /// Sets up the output context from the <c>--format</c> flag, then delegates
     /// to <see cref="ExecuteAsync"/> inside a standardized try/catch.
     /// <para>

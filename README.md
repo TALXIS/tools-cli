@@ -17,7 +17,9 @@
 
 ---
 
-TALXIS CLI (`txc`) is a modular, extensible .NET global tool for automating development, data, and solution management tasks - especially for Power Platform and enterprise projects. It helps developers scaffold, transform, and manage code and data in local repositories.
+TALXIS CLI (`txc`) is a modular, extensible .NET global tool for Power Platform and Dataverse development. It's built around a **code-first** philosophy: scaffold and manage components locally in your repo — fast, offline and coding agent-friendly — then synchronize to a live environment.
+
+This makes `txc` ideal for **coding agents** and CI/CD pipelines where hitting a live environment on every operation is too slow and too fragile. Work locally, build, sync.
 
 ---
 
@@ -28,6 +30,9 @@ TALXIS CLI (`txc`) is a modular, extensible .NET global tool for automating deve
 - [Local Development & Debugging](#local-development--debugging)
 - [Versioning & Release](#versioning--release)
 - [Collaboration](#collaboration)
+
+**Detailed guides:**
+[Schema Management](docs/schema-management.md) · [Changeset Staging](docs/changeset-staging.md) · [Architecture](docs/architecture.md) · [Profiles & Auth](docs/profiles-and-authentication.md) · [Output Contract](docs/output-contract.md)
 
 ---
 
@@ -70,17 +75,51 @@ For explicit credential / connection / profile steps, repository pinning, or hea
 ## Example Usage
 
 > [!IMPORTANT]
-> `txc` runs both **Dataverse Package Deployer** and **Configuration Migration Tool (CMT)** on **modern .NET**, including **macOS** and **Linux**. The goal is a better developer experience: cross-platform automation, simpler happy-path commands, and better visibility into what happened during deploys.
+> `txc` runs on **modern .NET** across **macOS**, **Linux**, and **Windows** — including Dataverse Package Deployer and Configuration Migration Tool (CMT), which traditionally require Windows.
 
-The examples below assume you have an active profile (see [above](#identity-connections--profiles)). Pass `--profile <name>` to any command to override the active profile for a single invocation.
+`txc` commands fall into two layers:
 
-`txc` organises environment operations into three planes, mirroring how the Power Platform itself separates concerns:
+| Layer | Purpose | Speed | Commands |
+|-------|---------|-------|----------|
+| **Workspace** | Scaffold & manage components locally in your repo | ⚡ Instant (no network) | `txc workspace …` |
+| **Environment** | Synchronize with and operate on a live Dataverse environment | 🌐 Network-bound | `txc env …`, `txc data …` |
 
-| Plane | What it covers | API surface | Commands |
-|-------|---------------|-------------|----------|
-| **Control plane** | Environment-level governance & feature toggles | `api.powerplatform.com/environmentmanagement` | `txc env setting …` |
-| **Application plane** | Solutions, packages, deployments | Dataverse Web API + Package Deployer | `txc env sln …`, `txc env pkg …`, `txc env deploy …` |
-| **Data plane** | Records, queries, bulk operations, CMT data import | Dataverse Web API (OData / FetchXML / SQL) | `txc env data …`, `txc data …` |
+**The recommended workflow:** Use `txc workspace` to create and modify components locally (entities, attributes, solution structures), then deploy to the environment with `txc env`. This is dramatically faster than round-tripping every change through a live org — especially for coding agents that make dozens of changes per session.
+
+The environment layer is organised into three planes:
+
+| Plane | What it covers | Commands |
+|-------|---------------|----------|
+| **Control** | Environment settings, feature toggles, governance | `txc env setting …` |
+| **Application** | Solutions, packages, deployments, schema management | `txc env sln …`, `txc env pkg …`, `txc env deploy …`, `txc env entity …` |
+| **Data** | Records, queries, bulk operations, CMT import/export | `txc env data …`, `txc data …` |
+
+### Workspace — Local-First Development
+
+The fastest way to build Dataverse components. Everything happens locally in your repo — no environment round-trips, no publish waits. Ideal for coding agents that need to scaffold dozens of components in a session.
+
+```sh
+# Explore available component types and their parameters
+txc workspace component type list
+txc workspace component explain pp-entity
+
+# Scaffold a Dataverse entity — instant, local, no environment needed
+txc workspace component create pp-entity \
+  --param Behavior=New \
+  --param PublisherPrefix=tom \
+  --param LogicalName=location \
+  --param DisplayName=Location \
+  --param DisplayNamePlural=Locations \
+  --param SolutionRootPath=Declarations
+
+# When ready, deploy the solution to a live environment
+txc env sln import ./out/MySolution_managed.zip
+```
+
+> [!IMPORTANT]
+> Component scaffolding relies on the [TALXIS/tools-devkit-templates](https://github.com/TALXIS/tools-devkit-templates) repository, where all component types, metadata, and definitions are maintained.
+
+The environment commands below assume you have an active profile (see [above](#identity-connections--profiles)). Pass `--profile <name>` to override for a single call.
 
 ### Control Plane
 
@@ -100,111 +139,91 @@ txc env setting update --name powerApps_AllowCodeApps --value true
 
 Deploy, inspect, and manage solutions and packages in the target environment.
 
-**Deploy the latest package from NuGet:**
 ```sh
+# Deploy a package straight from NuGet, inspect the result
 txc env pkg import TALXIS.Controls.FileExplorer.Package
-```
-
-**Inspect the latest package deployment with findings:**
-```sh
 txc env deploy show --package-name TALXIS.Controls.FileExplorer.Package
-```
 
-**Uninstall a package from its source artifact:**
-```sh
-txc env pkg uninstall TALXIS.Controls.FileExplorer.Package --yes
-```
-
-**Import a solution and follow the async operation when needed:**
-```sh
-txc env sln import ./Solutions/MySolution_managed.zip
-
-txc env deploy show --async-operation-id <asyncOperationId>
-```
-
-**Target a different environment for a single call without switching profiles:**
-```sh
+# Import a solution, target a different environment for one call
 txc env sln import ./Solutions/MySolution_managed.zip --profile customer-b-prod
+
+# Uninstall a package cleanly
+txc env pkg uninstall TALXIS.Controls.FileExplorer.Package --yes
 ```
 
 ### Data Plane
 
-Query, create, update, and bulk-operate on Dataverse records. Supports OData, FetchXML, and a T-SQL subset — all through the Dataverse Web API. Also includes Configuration Migration Tool (CMT) data import and conversion.
+Query, create, update, and bulk-operate on Dataverse records — all cross-platform on modern .NET.
 
-**Query with OData:**
+**Three query languages — pick the one you think in:**
+
 ```sh
+# OData — familiar, filterable, composable
 txc env data query odata accounts --select "name,revenue" --filter "revenue gt 1000000" --top 10
-```
 
-**Run a FetchXML query:**
-```sh
+# FetchXML — full aggregation, linked entities, fiscal date filters
 txc env data query fetchxml '<fetch top="5"><entity name="contact"><attribute name="fullname"/></entity></fetch>'
-```
 
-**Run a SQL query:**
-```sh
+# T-SQL — because sometimes you just want SELECT ... WHERE
 txc env data query sql "SELECT fullname, emailaddress1 FROM contact WHERE statecode = 0" --top 20
 ```
 
-**Get a single record by ID:**
+**Record CRUD, file columns, relationships, bulk:**
+
 ```sh
-txc env data record get --entity account 00000000-0000-0000-0000-000000000001 --columns "name,revenue"
+txc env data record create --entity account --data '{"name":"Contoso Ltd","revenue":5000000}' --apply
+txc env data record upload-file --entity account $ID --column logo --file ./logo.png --apply
+txc env data record associate $ID --entity account \
+  --target $TARGET_ID --target-entity contact --relationship accountleads_association --apply
+txc env data bulk upsert --entity contact --file ./contacts.json   # CreateMultiple/UpsertMultiple under the hood
 ```
 
-**Create a record:**
-```sh
-txc env data record create --entity account --data '{"name":"Contoso Ltd","revenue":5000000}'
-```
+**Configuration Migration Tool (CMT)** — import, export, convert. Runs natively on macOS/Linux (no Windows VM needed). Exports to a folder by default so you can commit data directly to your repo:
 
-**Bulk upsert records from a JSON file:**
 ```sh
-txc env data bulk upsert --entity contact --file ./contacts.json
-```
-
-**Import a CMT data folder into Dataverse:**
-```sh
+# Export → folder → edit → import round-trip
+txc data pkg export --schema ./data_schema.xml --output ./data-package --export-files
 txc data pkg import ./data-package
-```
 
-**Convert Excel to CMT XML:**
-```sh
+# Advanced tuning options not exposed by PAC CLI or CMT GUI:
+txc data pkg import ./data-package \
+  --batch-mode                  # ExecuteMultiple batching (vs one-by-one) \
+  --batch-size 500              # records per batch (default: 200) \
+  --connection-count 4          # parallel service channels \
+  --override-safety-checks      # skip duplicate detection \
+  --prefetch-limit 100          # pre-cache record lookups
+
 txc data pkg convert --input export.xlsx --output data.xml
 ```
 
-### Workspace Scaffolding
+See [docs/configuration-migration.md](docs/configuration-migration.md) for the full deep-dive into CMT internals, deduplication logic, and tuning strategies.
 
-Scaffold and manage project components from templates.
+### Application Plane — Schema Management
 
-**List available workspace components:**
+Define your Dataverse schema from the terminal — entities, columns, relationships, option sets. Every mutating command supports `--apply` (execute now) or `--stage` (queue for batch). See [docs/schema-management.md](docs/schema-management.md).
+
 ```sh
-txc workspace component type list
+# Spin up a new entity with a money column in seconds
+txc env entity create --name tom_project \
+  --display-name "Project" --plural-name "Projects" \
+  --ownership user --apply
+
+txc env entity attribute create --entity tom_project \
+  --name tom_budget --type money --display-name "Budget" --apply
+
+# Or stage everything and apply in one optimised batch
+txc env entity create --name tom_invoice \
+  --display-name "Invoice" --plural-name "Invoices" --stage
+txc env entity attribute create --entity tom_invoice \
+  --name tom_amount --type money --display-name "Amount" --stage
+txc env entity attribute create --entity tom_invoice \
+  --name tom_duedate --type datetime --display-name "Due Date" --stage
+
+txc env changeset status          # review what's queued
+txc env changeset apply --strategy batch   # one batch, one publish
 ```
 
-> [!IMPORTANT]
-> Component scaffolding in this CLI relies on the [TALXIS/tools-devkit-templates](https://github.com/TALXIS/tools-devkit-templates) repository, where all component types, metadata, and definitions are maintained.
-
-**Show details about a component:**
-```sh
-txc workspace component explain pp-entity
-```
-
-**List parameters required for a specific component template:**
-```sh
-txc workspace component parameter list pp-entity
-```
-
-**Scaffold a Dataverse entity component:**
-```sh
-txc workspace component create pp-entity \
-  --output "/Users/tomasprokop/Desktop/mcp-test/test" \
-  --param Behavior=New \
-  --param PublisherPrefix=tom \
-  --param LogicalName=location \
-  --param LogicalNamePlural=locations \
-  --param DisplayName=Location \
-  --param DisplayNamePlural=Locations \
-  --param SolutionRootPath=Declarations
-```
+Changeset staging batches entity creation via the `CreateEntities` SDK action and consolidates all publishes into a single `PublishXml` call — dramatically faster than sequential operations. See [docs/changeset-staging.md](docs/changeset-staging.md).
 
 > [!NOTE]
 > Run `txc --help` or `txc <command> --help` for the full command reference.

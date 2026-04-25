@@ -96,15 +96,15 @@ public class ProfileEndToEndTests : IDisposable
 
         // 7. Cleanup — delete profile, credential (with vault secret), and connection.
         var delProfile = await CliRunner.RunRawAsync(
-            new[] { "config", "profile", "delete", "e2e-profile" }, env: _env);
+            new[] { "config", "profile", "delete", "e2e-profile", "--yes" }, env: _env);
         Assert.Equal(0, delProfile.ExitCode);
 
         var delAuth = await CliRunner.RunRawAsync(
-            new[] { "config", "auth", "delete", "e2e-sp" }, env: _env);
+            new[] { "config", "auth", "delete", "e2e-sp", "--yes" }, env: _env);
         Assert.Equal(0, delAuth.ExitCode);
 
         var delConn = await CliRunner.RunRawAsync(
-            new[] { "config", "connection", "delete", "e2e-conn" }, env: _env);
+            new[] { "config", "connection", "delete", "e2e-conn", "--yes" }, env: _env);
         Assert.Equal(0, delConn.ExitCode);
     }
 

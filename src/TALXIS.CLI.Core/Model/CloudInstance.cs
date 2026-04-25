@@ -7,9 +7,9 @@ namespace TALXIS.CLI.Core.Model;
 /// </summary>
 public enum CloudInstance
 {
-    Public,
-    Gcc,
-    GccHigh,
-    Dod,
-    China,
+    Public = 0,
+    Gcc = 1,
+    GccHigh = 2,
+    Dod = 3,
+    China = 4,
 }

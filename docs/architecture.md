@@ -10,7 +10,7 @@ The `txc` CLI is organized around five architectural planes. Each plane maps to 
 | **Control** | Power Platform admin APIs, environment provisioning, governance | `TALXIS.CLI.Platform.PowerPlatform.Control` |
 | **Application** | Solution/package/deployment operations inside a Dataverse environment | `TALXIS.CLI.Platform.Dataverse.Application` |
 | **Runtime** | Dataverse-specific auth, tokens, connection creation, live checking | `TALXIS.CLI.Platform.Dataverse.Runtime` |
-| **Data** | Dataverse instance data access (CRUD, queries, imports) | `TALXIS.CLI.Platform.Dataverse.Data` (placeholder) |
+| **Data** | Dataverse instance data access (CRUD, queries, imports), changeset apply pipeline | `TALXIS.CLI.Platform.Dataverse.Data` |
 
 ## Project Map
 
@@ -34,7 +34,8 @@ src/
   TALXIS.CLI.Platform.Dataverse.Runtime         # Dataverse runtime: auth, MSAL, connection factory
   TALXIS.CLI.Platform.Dataverse.Application     # Application plane: services + SDK orchestration
     Sdk/                                         # Low-level SDK helpers (SolutionImporter, etc.)
-  TALXIS.CLI.Platform.Dataverse.Data            # Data plane placeholder (future CRUD operations)
+  TALXIS.CLI.Platform.Dataverse.Data            # Data plane: ChangesetApplier, data strategy execution
+  TALXIS.CLI.Analyzers                          # Custom Roslyn analyzers (TXC001–TXC009)
   TALXIS.CLI.Platform.Xrm                       # Legacy Xrm Tooling runners (Package Deployer, CMT)
   TALXIS.CLI.Platform.XrmShim                   # Compatibility shims for legacy Xrm assemblies
 
@@ -60,6 +61,7 @@ src/
 | Is shared MSAL/Entra infrastructure (token cache, assertions, authority) | `TALXIS.CLI.Core/Identity/` |
 | Is a provider-agnostic abstraction, model, or service contract | `TALXIS.CLI.Core` |
 | Adds a new provider (Jira, Azure DevOps, etc.) | New `TALXIS.CLI.Platform.<Provider>` project, implementing Core abstractions |
+| Is a custom Roslyn analyzer rule (TXC0xx) | `TALXIS.CLI.Analyzers` |
 
 ## Adding a New Provider
 

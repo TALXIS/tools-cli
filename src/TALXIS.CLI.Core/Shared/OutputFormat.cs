@@ -6,8 +6,8 @@ namespace TALXIS.CLI.Core;
 public enum OutputFormat
 {
     /// <summary>Machine-readable JSON (default for pipes and automation).</summary>
-    Json,
+    Json = 0,
 
     /// <summary>Human-friendly text tables (default for interactive terminals).</summary>
-    Text
+    Text = 1
 }

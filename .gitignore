@@ -419,3 +419,6 @@ FodyWeavers.xsd
 
 temp
 .DS_Store
+
+# TALXIS CLI local changeset store
+.txc/

@@ -26,8 +26,7 @@ namespace TALXIS.CLI.Features.Config.Auth;
 )]
 public class AuthAddServicePrincipalCliCommand : TxcLeafCommand
 {
-    private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(AuthAddServicePrincipalCliCommand));
-    protected override ILogger Logger => _logger;
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(AuthAddServicePrincipalCliCommand));
 
     [CliOption(Name = "--alias", Description = "Credential alias used to reference this service principal.", Required = true)]
     public string Alias { get; set; } = string.Empty;
@@ -49,25 +48,17 @@ public class AuthAddServicePrincipalCliCommand : TxcLeafCommand
 
     protected override async Task<int> ExecuteAsync()
     {
-        try
-        {
-            var headless = TxcServices.Get<IHeadlessDetector>();
-            headless.EnsureKindAllowed(CredentialKind.ClientSecret);
-        }
-        catch (HeadlessAuthRequiredException ex)
-        {
-            _logger.LogError("{Message}", ex.Message);
-            return ExitError;
-        }
+        var headless = TxcServices.Get<IHeadlessDetector>();
+        headless.EnsureKindAllowed(CredentialKind.ClientSecret);
 
         var alias = Alias.Trim();
         if (string.IsNullOrEmpty(alias))
         {
-            _logger.LogError("--alias must not be empty.");
+            Logger.LogError("--alias must not be empty.");
             return ExitError;
         }
 
-        var secret = ReadSecret(SecretFromEnv, _logger);
+        var secret = ReadSecret(SecretFromEnv, Logger);
         if (secret is null) return ExitError;
 
         var store = TxcServices.Get<ICredentialStore>();
@@ -88,7 +79,7 @@ public class AuthAddServicePrincipalCliCommand : TxcLeafCommand
         };
         await store.UpsertAsync(credential, CancellationToken.None).ConfigureAwait(false);
 
-        _logger.LogInformation("Saved service-principal credential '{Alias}' (app {AppId}, tenant {Tenant}).",
+        Logger.LogInformation("Saved service-principal credential '{Alias}' (app {AppId}, tenant {Tenant}).",
             alias, credential.ApplicationId, credential.TenantId);
 
         OutputFormatter.WriteData(new

@@ -16,4 +16,19 @@ internal static class DiagnosticIds
 
     /// <summary>Leaf commands must declare [CliDestructive], [CliReadOnly], or [CliIdempotent]; [CliDestructive] commands must implement IDestructiveCommand.</summary>
     public const string MustDeclareAccessLevel = "TXC004";
+
+    /// <summary>ExecuteAsync must not return raw integer literals — use ExitSuccess/ExitError/ExitValidationError.</summary>
+    public const string NoRawIntegerReturn = "TXC005";
+
+    /// <summary>ExecuteAsync must not contain try-catch blocks — the base class handles errors.</summary>
+    public const string NoTryCatchInExecuteAsync = "TXC006";
+
+    /// <summary>Leaf commands must not declare a --json CLI option — use the inherited --format flag.</summary>
+    public const string NoJsonCliOption = "TXC007";
+
+    /// <summary>Leaf commands must override the Logger property, not shadow it with a field.</summary>
+    public const string MustOverrideLogger = "TXC008";
+
+    /// <summary>Public enum members must have explicit integer values to prevent silent reordering breaks.</summary>
+    public const string EnumMustHaveExplicitValues = "TXC009";
 }

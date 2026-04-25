@@ -14,5 +14,17 @@ public sealed record CmtImportRequest(
     /// <summary>Number of parallel import connections. Defaults to 1.</summary>
     int ConnectionCount,
 
+    /// <summary>Enable batch mode for import (ExecuteMultiple/UpsertMultiple).</summary>
+    bool BatchMode,
+
+    /// <summary>Number of records per batch request (requires batch mode).</summary>
+    int BatchSize,
+
+    /// <summary>Skip duplicate detection — always create records, never update existing ones.</summary>
+    bool OverrideSafetyChecks,
+
+    /// <summary>Maximum number of records to preload into cache per entity for duplicate detection.</summary>
+    int PrefetchLimit,
+
     /// <summary>Enable verbose CMT trace output.</summary>
     bool Verbose);

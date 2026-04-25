@@ -5,7 +5,7 @@ namespace TALXIS.CLI.Platform.Dataverse.Data.DependencyInjection;
 
 /// <summary>
 /// Registers the data-plane Dataverse services (query, record CRUD, bulk
-/// operations, entity metadata). Call after <c>AddTxcDataverseProvider()</c>.
+/// operations, file operations). Call after <c>AddTxcDataverseProvider()</c>.
 /// </summary>
 public static class DataverseDataServiceCollectionExtensions
 {
@@ -14,7 +14,8 @@ public static class DataverseDataServiceCollectionExtensions
         services.AddSingleton<IDataverseQueryService, DataverseQueryService>();
         services.AddSingleton<IDataverseRecordService, DataverseRecordService>();
         services.AddSingleton<IDataverseBulkService, DataverseBulkService>();
-        services.AddSingleton<IDataverseEntityMetadataService, DataverseEntityMetadataService>();
+        services.AddSingleton<IDataverseFileService, DataverseFileService>();
+        services.AddTransient<IChangesetApplier, ChangesetApplier>();
         return services;
     }
 }
