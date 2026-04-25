@@ -17,9 +17,9 @@
 
 ---
 
-TALXIS CLI (`txc`) is a modular, extensible .NET global tool for Power Platform and Dataverse development. It's built around a **workspace-first** philosophy: scaffold and manage components locally in your repo — fast, offline, and agent-friendly — then synchronize to a live environment when you're ready.
+TALXIS CLI (`txc`) is a modular, extensible .NET global tool for Power Platform and Dataverse development. It's built around a **code-first** philosophy: scaffold and manage components locally in your repo — fast, offline and coding agent-friendly — then synchronize to a live environment.
 
-This makes `txc` ideal for **coding agents** and CI/CD pipelines where hitting a live environment on every operation is too slow and too fragile. Work locally, sync once.
+This makes `txc` ideal for **coding agents** and CI/CD pipelines where hitting a live environment on every operation is too slow and too fragile. Work locally, build, sync.
 
 ---
 
