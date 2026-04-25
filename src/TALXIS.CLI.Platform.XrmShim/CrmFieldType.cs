@@ -19,5 +19,6 @@ public enum CrmFieldType
     String,
     UniqueIdentifier,
     Image,
-    File
+    File,
+    Raw
 }
