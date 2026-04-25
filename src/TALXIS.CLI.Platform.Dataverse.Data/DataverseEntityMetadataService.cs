@@ -452,13 +452,14 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
     {
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
 
-        // Retrieve the current attribute metadata so we only change what was requested.
+        // Retrieve the published attribute metadata (not as-if-published) so
+        // we base our update on what Dataverse currently has active.
         var retrieveResponse = (RetrieveAttributeResponse)await conn.Client.ExecuteAsync(
             new RetrieveAttributeRequest
             {
                 EntityLogicalName = entityLogicalName,
                 LogicalName = attributeLogicalName,
-                RetrieveAsIfPublished = true
+                RetrieveAsIfPublished = false
             }, ct).ConfigureAwait(false);
 
         var attribute = retrieveResponse.AttributeMetadata;
@@ -478,16 +479,57 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
                 "required" => AttributeRequiredLevel.ApplicationRequired,
                 _ => throw new ArgumentException($"Invalid required level '{requiredLevel}'. Use: none, recommended, required.")
             };
-            attribute.RequiredLevel = new AttributeRequiredLevelManagedProperty(level);
+            // Modify the existing managed property's Value rather than replacing
+            // the entire object — preserves CanBeChanged and other flags.
+            if (attribute.RequiredLevel is not null)
+            {
+                attribute.RequiredLevel.Value = level;
+            }
+            else
+            {
+                attribute.RequiredLevel = new AttributeRequiredLevelManagedProperty(level);
+            }
         }
+
+        conn.Client.ForceServerMetadataCacheConsistency = true;
 
         await conn.Client.ExecuteAsync(new UpdateAttributeRequest
         {
             EntityName = entityLogicalName,
-            Attribute = attribute
+            Attribute = attribute,
+            MergeLabels = false
         }, ct).ConfigureAwait(false);
 
         await PublishEntityAsync(conn, entityLogicalName, ct).ConfigureAwait(false);
+
+        // Verify the update was applied
+        var verifyResp = (RetrieveAttributeResponse)await conn.Client.ExecuteAsync(
+            new RetrieveAttributeRequest
+            {
+                EntityLogicalName = entityLogicalName,
+                LogicalName = attributeLogicalName,
+                RetrieveAsIfPublished = false
+            }, ct).ConfigureAwait(false);
+
+        if (requiredLevel is not null)
+        {
+            var expected = requiredLevel.ToLowerInvariant() switch
+            {
+                "required" => "ApplicationRequired",
+                "recommended" => "Recommended",
+                _ => "None"
+            };
+            var actual = verifyResp.AttributeMetadata.RequiredLevel?.Value.ToString();
+            if (actual != expected)
+            {
+                // SDK UpdateAttributeRequest is known to silently drop
+                // RequiredLevel changes. Warn the user.
+                throw new InvalidOperationException(
+                    $"RequiredLevel change to '{requiredLevel}' was not applied by the server. " +
+                    $"Current value is still '{actual}'. This is a known SDK limitation — " +
+                    $"use the Power Apps maker portal (make.powerapps.com) to change the requirement level.");
+            }
+        }
     }
 
     /// <inheritdoc />
@@ -499,11 +541,15 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
     {
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
 
+        // Force the server to refresh its metadata cache so that recently
+        // published changes (e.g. RequiredLevel updates) are visible immediately.
+        conn.Client.ForceServerMetadataCacheConsistency = true;
+
         var request = new RetrieveAttributeRequest
         {
             EntityLogicalName = entityLogicalName,
             LogicalName = attributeLogicalName,
-            RetrieveAsIfPublished = true
+            RetrieveAsIfPublished = false
         };
 
         var response = (RetrieveAttributeResponse)
@@ -527,6 +573,7 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
             ["Description"] = attr.Description?.UserLocalizedLabel?.Label ?? "-",
             ["Attribute Type"] = attr.AttributeTypeName?.Value ?? attr.AttributeType?.ToString() ?? "Unknown",
             ["Required Level"] = attr.RequiredLevel?.Value.ToString() ?? "-",
+            ["Required Level Can Change"] = attr.RequiredLevel?.CanBeChanged,
             ["Is Custom"] = attr.IsCustomAttribute == true,
             ["Is Auditable"] = attr.IsAuditEnabled?.Value == true,
         };
