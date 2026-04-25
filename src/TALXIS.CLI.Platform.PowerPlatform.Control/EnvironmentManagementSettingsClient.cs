@@ -18,6 +18,46 @@ public sealed class EnvironmentManagementSettingsClient
     private const string ApiVersion = "1";
     private static readonly Uri PowerPlatformApiAudience = new("https://api.powerplatform.com/");
 
+    /// <summary>
+    /// Known environment management setting names from the Power Platform API
+    /// schema. The GET endpoint requires <c>$select</c> to return setting
+    /// values — without it only the <c>Id</c> is returned.
+    /// </summary>
+    internal static readonly string[] KnownSettingNames =
+    {
+        "allowedIpRangeForStorageAccessSignatures",
+        "copilotStudio_CodeInterpreter",
+        "copilotStudio_ComputerUseAppAllowlist",
+        "copilotStudio_ComputerUseCredentialsAllowed",
+        "copilotStudio_ComputerUseSharedMachines",
+        "copilotStudio_ComputerUseWebAllowlist",
+        "copilotStudio_ConnectedAgents",
+        "copilotStudio_ConversationAuditLoggingEnabled",
+        "d365CustomerService_AIAgents",
+        "d365CustomerService_Copilot",
+        "enableIpBasedStorageAccessSignatureRule",
+        "ipBasedStorageAccessSignatureMode",
+        "loggingEnabledForIpBasedStorageAccessSignature",
+        "PowerApps_AllowCodeApps",
+        "powerApps_ChartVisualization",
+        "powerApps_CopilotChat",
+        "powerApps_EnableFormInsights",
+        "powerApps_FormPredictAutomatic",
+        "powerApps_FormPredictSmartPaste",
+        "powerApps_NLSearch",
+        "powerPages_AllowIntelligentFormsCopilotForSites",
+        "powerPages_AllowListSummaryCopilotForSites",
+        "powerPages_AllowMakerCopilotsForExistingSites",
+        "powerPages_AllowMakerCopilotsForNewSites",
+        "powerPages_AllowNonProdPublicSites",
+        "powerPages_AllowNonProdPublicSites_Exemptions",
+        "powerPages_AllowProDevCopilotsForEnvironment",
+        "powerPages_AllowProDevCopilotsForSites",
+        "powerPages_AllowSearchSummaryCopilotForSites",
+        "powerPages_AllowSiteCopilotForSites",
+        "powerPages_AllowSummarizationAPICopilotForSites",
+    };
+
     private readonly IAccessTokenService _tokens;
     private readonly IHttpClientFactoryWrapper _httpFactory;
 
@@ -41,9 +81,14 @@ public sealed class EnvironmentManagementSettingsClient
         CancellationToken ct)
     {
         var baseUri = GetBaseUri(connection.Cloud ?? CloudInstance.Public);
-        var url = $"{baseUri}environmentmanagement/environments/{environmentId}/settings?api-version={ApiVersion}";
-        if (!string.IsNullOrWhiteSpace(selectFilter))
-            url += $"&$select={Uri.EscapeDataString(selectFilter)}";
+
+        // The API requires $select to return setting values — without it
+        // only the Id field is included in the response. When no explicit
+        // select filter is provided, request all known setting names.
+        var select = string.IsNullOrWhiteSpace(selectFilter)
+            ? string.Join(",", KnownSettingNames)
+            : selectFilter;
+        var url = $"{baseUri}environmentmanagement/environments/{environmentId}/settings?api-version={ApiVersion}&$select={Uri.EscapeDataString(select)}";
 
         var token = await _tokens.AcquireForResourceAsync(connection, credential, PowerPlatformApiAudience, ct)
             .ConfigureAwait(false);
