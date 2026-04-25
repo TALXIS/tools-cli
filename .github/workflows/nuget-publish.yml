@@ -77,6 +77,56 @@ jobs:
           fetch-depth: 0
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
+      - name: Assemble cumulative release notes
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Fetch all published releases (newest first) and build a plain-text changelog
+          # that nuget.org renders nicely in the "Release Notes" tab.
+          $releases = gh release list --limit 100 --json tagName,name --template '{{range .}}{{.tagName}}{{"\n"}}{{end}}'
+          $changelog = ""
+          foreach ($tag in ($releases -split "`n" | Where-Object { $_ -ne "" })) {
+            $version = $tag -replace '^v', ''
+            $body = gh release view $tag --json body --template '{{.body}}'
+
+            # Strip markdown formatting to plain text for nuget.org
+            $plain = $body `
+              -replace '#{1,6}\s*', '' `
+              -replace '\*{1,2}([^*]+)\*{1,2}', '$1' `
+              -replace '`([^`]+)`', '$1' `
+              -replace '\[([^\]]+)\]\([^\)]+\)', '$1' `
+              -replace '```[\s\S]*?```', '' `
+              -replace '\r\n', "`n" `
+              -replace '\r', "`n"
+
+            # Indent each non-empty line
+            $indented = ($plain -split "`n" | ForEach-Object {
+              if ($_.Trim() -ne "") { "  $_" } else { "" }
+            }) -join "`n"
+
+            $changelog += "${version}:`n${indented}`n`n"
+          }
+
+          Set-Content -Path "release-notes.txt" -Value $changelog -Encoding UTF8
+          Write-Host "--- Release notes preview (first 500 chars) ---"
+          Write-Host ($changelog.Substring(0, [Math]::Min(500, $changelog.Length)))
+      - name: Write release notes targets file
+        if: github.event_name == 'release'
+        run: |
+          # Write a .targets file that MSBuild auto-imports from the src/ directory.
+          # Using Directory.Build.targets ensures it runs after all other property
+          # evaluation, so PackageReleaseNotes is set reliably.
+          $notes = Get-Content "release-notes.txt" -Raw -Encoding UTF8
+          $escaped = [System.Security.SecurityElement]::Escape($notes)
+          $targetsContent = @"
+          <Project>
+            <PropertyGroup>
+              <PackageReleaseNotes>$escaped</PackageReleaseNotes>
+            </PropertyGroup>
+          </Project>
+          "@
+          Set-Content -Path "src/Directory.Build.targets" -Value $targetsContent -Encoding UTF8
       - name: Create NuGet package
         run: |
           $pkgVer = "${{ needs.resolve-version.outputs.package-version }}"
