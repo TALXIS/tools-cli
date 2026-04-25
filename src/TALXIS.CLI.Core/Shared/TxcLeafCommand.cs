@@ -64,16 +64,26 @@ public abstract class TxcLeafCommand
         if (formatError.HasValue)
             return formatError.Value;
 
+        // Production guard runs first so users aren't prompted with --yes
+        // only to be immediately blocked for missing --allow-production.
+        try
+        {
+            var guardResult = await PreExecuteAsync().ConfigureAwait(false);
+            if (guardResult.HasValue)
+                return guardResult.Value;
+        }
+        catch (Exception ex) when (ex is Abstractions.ConfigurationResolutionException)
+        {
+            // If profile resolution fails in the guard, fall through — ExecuteAsync
+            // will produce a better error message.
+        }
+
         var confirmError = await CheckDestructiveConfirmationAsync().ConfigureAwait(false);
         if (confirmError.HasValue)
             return confirmError.Value;
 
         try
         {
-            var guardResult = await PreExecuteAsync().ConfigureAwait(false);
-            if (guardResult.HasValue)
-                return guardResult.Value;
-
             return await ExecuteAsync().ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is Abstractions.ConfigurationResolutionException)

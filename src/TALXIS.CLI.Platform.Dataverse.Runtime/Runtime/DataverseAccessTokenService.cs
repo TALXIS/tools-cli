@@ -73,11 +73,10 @@ public sealed class DataverseAccessTokenService : IDataverseAccessTokenService
         if (!resourceUri.IsAbsoluteUri)
             throw new ArgumentException($"Resource URI '{resourceUri}' must be absolute.", nameof(resourceUri));
 
-        // Use credential-stored scopes when available; otherwise derive from
-        // the resource URI dynamically (backward-compatible default).
-        var scope = credential.Scopes is { Length: > 0 }
-            ? credential.Scopes[0]
-            : DataverseScope.BuildDefault(resourceUri);
+        // Always derive the scope from the actual resource URI. Credential.Scopes
+        // is for diagnostics only — using it here would break non-Dataverse
+        // resources (e.g. Power Platform admin API) and multi-environment credentials.
+        var scope = DataverseScope.BuildDefault(resourceUri);
         var cacheKey = InMemoryTokenCache.BuildKey(credential.Id, credential.TenantId, resourceUri.GetLeftPart(UriPartial.Authority));
 
         // Fast path: return a cached token that is still valid beyond the
@@ -174,6 +173,10 @@ public sealed class DataverseAccessTokenService : IDataverseAccessTokenService
                         .ConfigureAwait(false);
                     _tokenCache.Set(cacheKey, interactiveResult);
                     return interactiveResult.AccessToken;
+                }
+                catch (OperationCanceledException)
+                {
+                    throw; // Propagate Ctrl+C / browser close cancellation.
                 }
                 catch (Exception reAuthEx)
                 {

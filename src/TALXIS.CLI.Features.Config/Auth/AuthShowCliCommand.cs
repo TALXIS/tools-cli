@@ -27,7 +27,7 @@ public class AuthShowCliCommand : TxcLeafCommand
     [CliArgument(Description = "Credential alias (id).")]
     public required string Alias { get; set; }
 
-    [CliOption(Name = "--check-token", Description = "Attempt a silent token acquisition and report expiry/status.", Required = false)]
+    [CliOption(Name = "--check-token", Description = "Check token status and expiry; interactive re-authentication may occur for interactive credentials.", Required = false)]
     public bool CheckToken { get; set; }
 
     protected override async Task<int> ExecuteAsync()
