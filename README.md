@@ -82,10 +82,8 @@ The examples below assume you have an active profile (see [above](#identity-conn
 | Plane | What it covers | API surface | Commands |
 |-------|---------------|-------------|----------|
 | **Control plane** | Environment-level governance & feature toggles | `api.powerplatform.com/environmentmanagement` | `txc env setting …` |
-| **Application plane** | Solutions, packages, deployments | Dataverse Web API + Package Deployer | `txc env sln …`, `txc env pkg …`, `txc env deploy …` |
+| **Application plane** | Solutions, packages, deployments, schema management | Dataverse Web API + SDK + Package Deployer | `txc env sln …`, `txc env pkg …`, `txc env deploy …`, `txc env entity …` |
 | **Data plane** | Records, queries, bulk operations, CMT data import/export | Dataverse Web API (OData / FetchXML / SQL) | `txc env data …`, `txc data …` |
-| **Schema** | Entity, attribute, relationship, option-set management | Dataverse Web API + SDK | `txc env entity …` |
-| **Changeset** | Stage mutations locally, apply in optimised batches | Local `.txc/changeset.json` → Dataverse | `txc env changeset …` |
 
 ### Control Plane
 
@@ -134,131 +132,68 @@ txc env sln import ./Solutions/MySolution_managed.zip --profile customer-b-prod
 
 ### Data Plane
 
-Query, create, update, and bulk-operate on Dataverse records. Supports OData, FetchXML, and a T-SQL subset — all through the Dataverse Web API. Also includes Configuration Migration Tool (CMT) data import and conversion.
+Query, create, update, and bulk-operate on Dataverse records. Three query languages, full record CRUD with file/image columns, N:N relationship management, and Configuration Migration Tool (CMT) data import/export — all cross-platform on modern .NET.
 
-**Query with OData:**
 ```sh
+# Query with OData, FetchXML, or SQL — your choice
 txc env data query odata accounts --select "name,revenue" --filter "revenue gt 1000000" --top 10
-```
-
-**Run a FetchXML query:**
-```sh
 txc env data query fetchxml '<fetch top="5"><entity name="contact"><attribute name="fullname"/></entity></fetch>'
-```
-
-**Run a SQL query:**
-```sh
 txc env data query sql "SELECT fullname, emailaddress1 FROM contact WHERE statecode = 0" --top 20
-```
 
-**Get a single record by ID:**
-```sh
-txc env data record get --entity account 00000000-0000-0000-0000-000000000001 --columns "name,revenue"
-```
+# Full record lifecycle
+txc env data record get --entity account $ID --columns "name,revenue"
+txc env data record create --entity account --data '{"name":"Contoso Ltd","revenue":5000000}' --apply
+txc env data record update --entity account $ID --data '{"name":"Contoso International"}' --apply
+txc env data record delete --entity account $ID --yes --apply
 
-**Create a record:**
-```sh
-txc env data record create --entity account --data '{"name":"Contoso Ltd","revenue":5000000}'
-```
+# File & image columns — chunked streaming, not memory-bound
+txc env data record upload-file --entity account $ID --column logo --file ./logo.png --apply
+txc env data record download-file --entity account $ID --column logo --output ./logo.png
 
-**Bulk upsert records from a JSON file:**
-```sh
+# N:N relationship management
+txc env data record associate $ID --entity account \
+  --target $TARGET_ID --target-entity contact --relationship accountleads_association --apply
+
+# Bulk operations
 txc env data bulk upsert --entity contact --file ./contacts.json
 ```
 
-**Import a CMT data folder into Dataverse:**
-```sh
-txc data pkg import ./data-package
-```
+**Configuration Migration Tool (CMT)** — import, export, convert. Runs CMT natively on macOS/Linux (no Windows VM needed):
 
-**Export a CMT data package from Dataverse:**
 ```sh
-txc data pkg export --schema ./data_schema.xml --output ./export.zip
-```
-
-**Convert Excel to CMT XML:**
-```sh
+txc data pkg export --schema ./data_schema.xml --output ./export.zip --export-files
+txc data pkg import ./data-package --batch-mode --batch-size 500 --connection-count 4
 txc data pkg convert --input export.xlsx --output data.xml
 ```
 
-**Update a record:**
+See [docs/configuration-migration.md](docs/configuration-migration.md) for tuning options and deep-dive into CMT internals.
+
+### Application Plane — Schema Management
+
+Define your Dataverse schema from the terminal — entities, columns, relationships, option sets. Every mutating command supports `--apply` (execute now) or `--stage` (queue for batch). See [docs/schema-management.md](docs/schema-management.md).
+
 ```sh
-txc env data record update --entity account 00000000-0000-0000-0000-000000000001 \
-  --data '{"name":"Contoso International"}'  --apply
-```
-
-**Delete a record:**
-```sh
-txc env data record delete --entity account 00000000-0000-0000-0000-000000000001 --yes --apply
-```
-
-**Upload a file to a file/image column:**
-```sh
-txc env data record upload-file --entity account 00000000-0000-0000-0000-000000000001 \
-  --column logo --file ./logo.png --apply
-```
-
-**Download a file from a file/image column:**
-```sh
-txc env data record download-file --entity account 00000000-0000-0000-0000-000000000001 \
-  --column logo --output ./logo.png
-```
-
-**Associate two records (N:N relationship):**
-```sh
-txc env data record associate 00000000-0000-0000-0000-000000000001 \
-  --entity account --target 00000000-0000-0000-0000-000000000002 \
-  --target-entity contact --relationship accountleads_association --apply
-```
-
-**Disassociate two records:**
-```sh
-txc env data record disassociate 00000000-0000-0000-0000-000000000001 \
-  --entity account --target 00000000-0000-0000-0000-000000000002 \
-  --target-entity contact --relationship accountleads_association --yes --apply
-```
-
-### Schema
-
-Create, inspect, and manage Dataverse entities, attributes, relationships, and option sets directly from the CLI. All schema commands support the `--apply` / `--stage` execution mode — see [Changeset Staging](#changeset-staging) below.
-
-For the full command reference, see [docs/schema-management.md](docs/schema-management.md).
-
-**Create an entity:**
-```sh
+# Spin up a new entity with a money column in seconds
 txc env entity create --name tom_project \
   --display-name "Project" --plural-name "Projects" \
   --ownership user --apply
-```
 
-**Add a column:**
-```sh
 txc env entity attribute create --entity tom_project \
   --name tom_budget --type money --display-name "Budget" --apply
-```
 
-**List relationships:**
-```sh
-txc env entity relationship list --entity account
-```
-
-### Changeset Staging
-
-Stage multiple mutations locally and apply them in a single optimised batch — reducing round-trips and publish calls.
-
-For the full workflow guide, see [docs/changeset-staging.md](docs/changeset-staging.md).
-
-```sh
-# Stage several changes
+# Or stage everything and apply in one optimised batch
 txc env entity create --name tom_invoice \
   --display-name "Invoice" --plural-name "Invoices" --stage
 txc env entity attribute create --entity tom_invoice \
   --name tom_amount --type money --display-name "Amount" --stage
+txc env entity attribute create --entity tom_invoice \
+  --name tom_duedate --type datetime --display-name "Due Date" --stage
 
-# Review and apply
-txc env changeset status
-txc env changeset apply --strategy batch
+txc env changeset status          # review what's queued
+txc env changeset apply --strategy batch   # one batch, one publish
 ```
+
+Changeset staging batches entity creation via the `CreateEntities` SDK action and consolidates all publishes into a single `PublishXml` call — dramatically faster than sequential operations. See [docs/changeset-staging.md](docs/changeset-staging.md).
 
 ### Workspace Scaffolding
 
