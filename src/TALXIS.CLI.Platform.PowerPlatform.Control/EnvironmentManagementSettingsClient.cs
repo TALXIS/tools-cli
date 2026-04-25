@@ -15,7 +15,7 @@ namespace TALXIS.CLI.Platform.PowerPlatform.Control;
 /// </summary>
 public sealed class EnvironmentManagementSettingsClient
 {
-    private const string ApiVersion = "2022-03-01-preview";
+    private const string ApiVersion = "1";
     private static readonly Uri PowerPlatformApiAudience = new("https://api.powerplatform.com/");
 
     private readonly IAccessTokenService _tokens;
@@ -65,7 +65,11 @@ public sealed class EnvironmentManagementSettingsClient
     }
 
     /// <summary>
-    /// PATCH a single environment management setting.
+    /// Creates or updates an environment management setting. Tries PATCH
+    /// (update) first; if the settings row doesn't exist yet (404), falls
+    /// back to POST (create) + PATCH. This mirrors the Power Platform API
+    /// contract where settings must be explicitly created before they can
+    /// be updated.
     /// </summary>
     public async Task UpdateAsync(
         Connection connection,
@@ -82,21 +86,58 @@ public sealed class EnvironmentManagementSettingsClient
             .ConfigureAwait(false);
 
         var payload = new JsonObject { [settingName] = CoerceValue(value) };
+        var payloadString = payload.ToJsonString();
 
         using var http = _httpFactory.Create();
-        using var request = new HttpRequestMessage(HttpMethod.Patch, url);
+
+        // Try PATCH first (most common case — settings row already exists).
+        var patchResponse = await SendSettingsRequestAsync(http, HttpMethod.Patch, url, token, payloadString, ct)
+            .ConfigureAwait(false);
+
+        if (patchResponse.IsSuccess)
+            return;
+
+        if (patchResponse.StatusCode == 404)
+        {
+            // Settings row doesn't exist yet — create it with POST, then PATCH.
+            var postResponse = await SendSettingsRequestAsync(http, HttpMethod.Post, url, token, payloadString, ct)
+                .ConfigureAwait(false);
+
+            if (!postResponse.IsSuccess)
+                throw new InvalidOperationException(
+                    $"Environment management settings create (POST) failed ({postResponse.StatusCode}): {Truncate(postResponse.Body, 500)}");
+
+            // POST creates the row; PATCH sets the actual value.
+            var retryPatch = await SendSettingsRequestAsync(http, HttpMethod.Patch, url, token, payloadString, ct)
+                .ConfigureAwait(false);
+
+            if (!retryPatch.IsSuccess)
+                throw new InvalidOperationException(
+                    $"Environment management settings update (PATCH) failed after create ({retryPatch.StatusCode}): {Truncate(retryPatch.Body, 500)}");
+
+            return;
+        }
+
+        throw new InvalidOperationException(
+            $"Environment management settings update failed ({patchResponse.StatusCode}): {Truncate(patchResponse.Body, 500)}");
+    }
+
+    private static async Task<SettingsResponse> SendSettingsRequestAsync(
+        HttpClient http, HttpMethod method, string url, string token, string payload, CancellationToken ct)
+    {
+        using var request = new HttpRequestMessage(method, url);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        request.Content = new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json");
+        request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
 
         using var response = await http.SendAsync(request, HttpCompletionOption.ResponseContentRead, ct)
             .ConfigureAwait(false);
         var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
 
-        if (!response.IsSuccessStatusCode)
-            throw new InvalidOperationException(
-                $"Environment management settings PATCH failed ({(int)response.StatusCode} {response.ReasonPhrase}): {Truncate(body, 500)}");
+        return new SettingsResponse(response.IsSuccessStatusCode, (int)response.StatusCode, body);
     }
+
+    private sealed record SettingsResponse(bool IsSuccess, int StatusCode, string Body);
 
     /// <summary>
     /// Parses the <c>GetEnvironmentManagementSettingResponse</c> envelope and
@@ -128,7 +169,9 @@ public sealed class EnvironmentManagementSettingsClient
         foreach (var prop in firstItem.EnumerateObject())
         {
             // Skip envelope identifiers — they are not settings.
-            if (prop.Name is "id" or "tenantId")
+            // The API returns these with varying casing (e.g. "Id" vs "id").
+            if (prop.Name.Equals("id", StringComparison.OrdinalIgnoreCase)
+                || prop.Name.Equals("tenantId", StringComparison.OrdinalIgnoreCase))
                 continue;
 
             object? value = prop.Value.ValueKind switch
