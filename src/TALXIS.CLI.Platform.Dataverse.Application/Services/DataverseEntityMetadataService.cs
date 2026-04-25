@@ -256,6 +256,16 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
                 await ExecuteCreateAttribute(conn, options, imgMeta, ct).ConfigureAwait(false);
                 break;
 
+            case "bigint":
+                await ExecuteCreateAttribute(conn, options, new BigIntAttributeMetadata
+                {
+                    SchemaName = options.SchemaName,
+                    DisplayName = displayLabel,
+                    Description = descriptionLabel,
+                    RequiredLevel = requiredLevel
+                }, ct).ConfigureAwait(false);
+                break;
+
             case "file":
                 await ExecuteCreateAttribute(conn, options, new FileAttributeMetadata
                 {
@@ -632,6 +642,8 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
             ["Required Level Can Change"] = attr.RequiredLevel?.CanBeChanged,
             ["Is Custom"] = attr.IsCustomAttribute == true,
             ["Is Auditable"] = attr.IsAuditEnabled?.Value == true,
+            ["Is Searchable"] = attr.IsValidForAdvancedFind?.Value ?? true,
+            ["Is Secured"] = attr.IsSecured == true,
         };
 
         switch (attr)
@@ -689,6 +701,9 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
                     ["Label"] = o.Label?.UserLocalizedLabel?.Label,
                     ["Value"] = o.Value
                 }).ToList<object?>();
+                break;
+            case BigIntAttributeMetadata:
+                // No type-specific properties for BigInt.
                 break;
             case LookupAttributeMetadata l:
                 detail["Targets"] = l.Targets;
@@ -826,6 +841,11 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
     private static async Task ExecuteCreateAttribute(
         DataverseConnection conn, CreateAttributeOptions options, AttributeMetadata attribute, CancellationToken ct)
     {
+        // Apply shared metadata properties to all attribute types.
+        attribute.IsAuditEnabled = new BooleanManagedProperty(options.IsAuditable);
+        attribute.IsValidForAdvancedFind = new BooleanManagedProperty(options.IsSearchable);
+        attribute.IsSecured = options.IsSecured;
+
         var request = new CreateAttributeRequest
         {
             EntityName = options.EntityLogicalName,
@@ -917,6 +937,16 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
         var prefix = options.SchemaName.Contains('_') ? options.SchemaName[..options.SchemaName.IndexOf('_')] : options.SchemaName;
         var relationshipSchemaName = $"{prefix}_{options.EntityLogicalName}_{options.TargetEntity}_{columnSuffix}";
 
+        var lookupMeta = new LookupAttributeMetadata
+        {
+            SchemaName = options.SchemaName,
+            DisplayName = displayLabel,
+            RequiredLevel = requiredLevel,
+            IsAuditEnabled = new BooleanManagedProperty(options.IsAuditable),
+            IsValidForAdvancedFind = new BooleanManagedProperty(options.IsSearchable),
+            IsSecured = options.IsSecured
+        };
+
         var lookupRequest = new CreateOneToManyRequest
         {
             OneToManyRelationship = new OneToManyRelationshipMetadata
@@ -934,12 +964,7 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
                     Unshare = CascadeType.NoCascade
                 }
             },
-            Lookup = new LookupAttributeMetadata
-            {
-                SchemaName = options.SchemaName,
-                DisplayName = displayLabel,
-                RequiredLevel = requiredLevel
-            }
+            Lookup = lookupMeta
         };
 
         if (!string.IsNullOrWhiteSpace(options.SolutionUniqueName))
@@ -982,7 +1007,10 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
             {
                 SchemaName = options.SchemaName,
                 DisplayName = displayLabel,
-                RequiredLevel = requiredLevel
+                RequiredLevel = requiredLevel,
+                IsAuditEnabled = new BooleanManagedProperty(options.IsAuditable),
+                IsValidForAdvancedFind = new BooleanManagedProperty(options.IsSearchable),
+                IsSecured = options.IsSecured
             },
             OneToManyRelationships = relationships
         };
@@ -1008,7 +1036,10 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
             {
                 SchemaName = options.SchemaName,
                 DisplayName = displayLabel,
-                RequiredLevel = requiredLevel
+                RequiredLevel = requiredLevel,
+                IsAuditEnabled = new BooleanManagedProperty(options.IsAuditable),
+                IsValidForAdvancedFind = new BooleanManagedProperty(options.IsSearchable),
+                IsSecured = options.IsSecured
             },
             OneToManyRelationships = new[]
             {

@@ -12,7 +12,7 @@ public sealed record CreateAttributeOptions
     public required string EntityLogicalName { get; init; }
     public required string SchemaName { get; init; }
 
-    /// <summary>Lowercase type key: string, memo, number, decimal, float, money, bool, datetime, choice, multichoice, lookup, polymorphiclookup, customer, image, file.</summary>
+    /// <summary>Lowercase type key: string, memo, number, decimal, float, money, bool, datetime, choice, multichoice, lookup, polymorphiclookup, customer, image, file, bigint.</summary>
     public required string Type { get; init; }
 
     public string? DisplayName { get; init; }
@@ -76,4 +76,10 @@ public sealed record CreateAttributeOptions
 
     public int? MaxSizeKb { get; init; }
     public bool CanStoreFullImage { get; init; } = true;
+
+    // === Shared metadata properties ===
+
+    public bool IsAuditable { get; init; }
+    public bool IsSearchable { get; init; } = true;
+    public bool IsSecured { get; init; }
 }

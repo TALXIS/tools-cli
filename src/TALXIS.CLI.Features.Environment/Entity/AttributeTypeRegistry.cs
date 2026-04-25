@@ -21,7 +21,8 @@ public static class AttributeTypeRegistry
     /// </summary>
     public static IReadOnlyList<string> SharedParameterNames { get; } = new[]
     {
-        "entity", "name", "display-name", "description", "required", "solution"
+        "entity", "name", "display-name", "description", "required", "solution",
+        "is-auditable", "is-searchable", "is-secured"
     };
 
     private static ReadOnlyCollection<AttributeTypeInfo> BuildAllTypes()
@@ -168,6 +169,9 @@ public static class AttributeTypeRegistry
                 new("max-size-kb", "int", "Maximum file size in kilobytes.",
                     "FileAttributeMetadata.MaxSizeInKB", Default: "131072"),
             }),
+
+            new("bigint", "Large whole number (64-bit integer)", "BigIntAttributeMetadata",
+                Array.Empty<AttributeParameterInfo>()),
         };
 
         return types.AsReadOnly();

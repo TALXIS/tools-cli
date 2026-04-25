@@ -32,7 +32,7 @@ public class EntityAttributeCreateCliCommand : StagedCliCommand
     [CliOption(Name = "--name", Description = "Schema name for the new column.", Required = true)]
     public string Name { get; set; } = null!;
 
-    [CliOption(Name = "--type", Description = "Column type: string, memo, number, decimal, float, money, bool, datetime, choice, multichoice, lookup, polymorphic-lookup, customer, image, file.", Required = true)]
+    [CliOption(Name = "--type", Description = "Column type: string, memo, number, decimal, float, money, bool, datetime, choice, multichoice, lookup, polymorphic-lookup, customer, image, file, bigint.", Required = true)]
     public AttributeTypeArg Type { get; set; }
 
     // === Optional for all types ===
@@ -49,6 +49,18 @@ public class EntityAttributeCreateCliCommand : StagedCliCommand
 
     [CliOption(Name = "--solution", Description = "Solution unique name to add the column to.", Required = false)]
     public string? Solution { get; set; }
+
+    [CliOption(Name = "--is-auditable", Description = "Enable auditing for this column to track value changes.", Required = false)]
+    [DefaultValue(false)]
+    public bool IsAuditable { get; set; }
+
+    [CliOption(Name = "--is-searchable", Description = "Make this column available in Advanced Find and Dataverse search.", Required = false)]
+    [DefaultValue(true)]
+    public bool IsSearchable { get; set; } = true;
+
+    [CliOption(Name = "--is-secured", Description = "Enable field-level security for this column.", Required = false)]
+    [DefaultValue(false)]
+    public bool IsSecured { get; set; }
 
     // === String/Memo ===
 
@@ -164,7 +176,10 @@ public class EntityAttributeCreateCliCommand : StagedCliCommand
                     ["targetEntities"] = TargetEntities,
                     ["cascadeDelete"] = CascadeDelete,
                     ["maxSizeKb"] = MaxSizeKb,
-                    ["canStoreFullImage"] = CanStoreFullImage
+                    ["canStoreFullImage"] = CanStoreFullImage,
+                    ["isAuditable"] = IsAuditable,
+                    ["isSearchable"] = IsSearchable,
+                    ["isSecured"] = IsSecured
                 }
             });
             OutputWriter.WriteLine($"Staged: CREATE attribute '{Entity}.{Name}' (type: {Type})");
@@ -269,7 +284,12 @@ public class EntityAttributeCreateCliCommand : StagedCliCommand
 
             // Image/File
             MaxSizeKb = MaxSizeKb,
-            CanStoreFullImage = CanStoreFullImage
+            CanStoreFullImage = CanStoreFullImage,
+
+            // Shared metadata properties
+            IsAuditable = IsAuditable,
+            IsSearchable = IsSearchable,
+            IsSecured = IsSecured
         };
     }
 
@@ -370,5 +390,6 @@ public enum AttributeTypeArg
     [Description("polymorphic-lookup")] PolymorphicLookup,
     Customer,
     Image,
-    File
+    File,
+    BigInt
 }
