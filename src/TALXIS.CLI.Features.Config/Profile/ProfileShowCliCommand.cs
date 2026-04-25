@@ -14,6 +14,7 @@ namespace TALXIS.CLI.Features.Config.Profile;
 /// connection + credential inline so users can see everything in one
 /// blob without three round-trips.
 /// </summary>
+[McpToolAnnotations(ReadOnlyHint = true)]
 [CliCommand(
     Name = "show",
     Description = "Show a profile with its expanded connection + credential. Defaults to the active profile."

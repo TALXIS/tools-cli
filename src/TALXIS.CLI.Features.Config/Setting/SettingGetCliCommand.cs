@@ -13,6 +13,7 @@ namespace TALXIS.CLI.Features.Config.Setting;
 /// listing the known keys so shell scripts can distinguish "empty"
 /// (default) from "typo".
 /// </summary>
+[McpToolAnnotations(ReadOnlyHint = true)]
 [CliCommand(
     Name = "get",
     Description = "Get a tool-wide preference value by key."

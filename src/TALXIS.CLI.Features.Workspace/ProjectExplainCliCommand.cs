@@ -5,6 +5,7 @@ using TALXIS.CLI.Core;
 
 namespace TALXIS.CLI.Features.Workspace;
 
+[McpToolAnnotations(ReadOnlyHint = true)]
 [CliCommand(
     Description = "Provides a summary of MSBuild/.NET project types which can be created in the workspace, how componets should be segmented between them, their structure and references. Use this tool whenever the user asks about projects in the workspace.",
     Name = "explain")]

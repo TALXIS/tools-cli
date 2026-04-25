@@ -1,4 +1,5 @@
 using System.Reflection;
+using ModelContextProtocol.Protocol;
 using TALXIS.CLI.Core;
 
 namespace TALXIS.CLI.MCP
@@ -41,7 +42,8 @@ namespace TALXIS.CLI.MCP
                 {
                     Name = fullName,
                     Description = attr.Description,
-                    CliCommandClass = cmdType
+                    CliCommandClass = cmdType,
+                    Annotations = BuildAnnotations(cmdType)
                 });
             }
 
@@ -51,6 +53,25 @@ namespace TALXIS.CLI.MCP
                 EnumerateRecursive(child, segments, rootType, results);
             }
         }
+        /// <summary>
+        /// Reads <see cref="McpToolAnnotationsAttribute"/> from the command type and converts
+        /// it to an MCP protocol <see cref="ToolAnnotations"/> instance. Returns null when the
+        /// attribute is absent, so the protocol omits the annotations field entirely.
+        /// </summary>
+        private static ToolAnnotations? BuildAnnotations(Type cmdType)
+        {
+            var attr = cmdType.GetCustomAttribute<McpToolAnnotationsAttribute>();
+            if (attr is null) return null;
+
+            return new ToolAnnotations
+            {
+                DestructiveHint = attr.DestructiveHint ? true : null,
+                ReadOnlyHint = attr.ReadOnlyHint ? true : null,
+                IdempotentHint = attr.IdempotentHint ? true : null,
+                OpenWorldHint = attr.OpenWorldHint ? true : null,
+            };
+        }
+
         public Type? FindCommandTypeByToolName(string toolName, Type rootType)
         {
             var segments = toolName.Split('_', StringSplitOptions.RemoveEmptyEntries);

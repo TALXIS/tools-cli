@@ -14,7 +14,7 @@ namespace TALXIS.CLI.Features.Config.Profile;
 /// calls don't break scripts. Also removes the empty <c>.txc</c>
 /// directory when the workspace file was the only thing inside it.
 /// </summary>
-[McpIgnore]
+[McpToolAnnotations(DestructiveHint = true, IdempotentHint = true)]
 [CliCommand(
     Name = "unpin",
     Description = "Remove <cwd>/.txc/workspace.json (no-op if absent)."

@@ -30,6 +30,13 @@ public class CliCommandLookupServiceTests
     [CliCommand(Description = "Root with ignored subtree", Children = new[] { typeof(IgnoredParentWithChildren) })]
     private class FakeRootWithIgnoredSubtree { public void Run() { } }
 
+    [McpToolAnnotations(DestructiveHint = true)]
+    [CliCommand(Name = "annotated", Description = "Annotated leaf")]
+    private class AnnotatedChild { public void Run() { } }
+
+    [CliCommand(Description = "Root with annotated child", Children = new[] { typeof(AnnotatedChild), typeof(VisibleChild) })]
+    private class FakeRootWithAnnotatedChild { public void Run() { } }
+
     [Fact]
     public void EnumerateAllCommands_ExcludesIgnoredLeaf()
     {
@@ -49,26 +56,73 @@ public class CliCommandLookupServiceTests
     }
 
     [Fact]
+    public void EnumerateAllCommands_PopulatesAnnotationsFromAttribute()
+    {
+        var tools = _sut.EnumerateAllCommands(typeof(FakeRootWithAnnotatedChild)).ToList();
+
+        var annotated = tools.FirstOrDefault(t => t.Name == "annotated");
+        Assert.NotNull(annotated);
+        Assert.NotNull(annotated!.Annotations);
+        Assert.True(annotated.Annotations!.DestructiveHint);
+
+        // Non-annotated tool should have null annotations.
+        var visible = tools.FirstOrDefault(t => t.Name == "visible");
+        Assert.NotNull(visible);
+        Assert.Null(visible!.Annotations);
+    }
+
+    [Fact]
     public void EnumerateAllCommands_RealTree_ExcludesKnownHiddenCommands()
     {
         var sut = new CliCommandLookupService();
         var tools = sut.EnumerateAllCommands(typeof(TxcCliCommand)).Select(t => t.Name).ToList();
 
-        // Commands that carry [McpIgnore] must not appear.
+        // Commands that still carry [McpIgnore] must not appear.
         Assert.DoesNotContain(tools, n => n.EndsWith("_start"));               // transform server start
-        Assert.DoesNotContain("config_auth_login", tools);
-        Assert.DoesNotContain("config_auth_delete", tools);
-        Assert.DoesNotContain("config_connection_delete", tools);
-        Assert.DoesNotContain("config_profile_delete", tools);
-        Assert.DoesNotContain("config_profile_update", tools);
-        Assert.DoesNotContain("config_profile_validate", tools);
-        Assert.DoesNotContain("config_profile_pin", tools);
-        Assert.DoesNotContain("config_profile_unpin", tools);
+        Assert.DoesNotContain("config_auth_login", tools);                     // interactive browser flow
+        Assert.DoesNotContain("config_clear", tools);                          // nuclear config wipe
+
+        // Previously ignored commands that are now visible with annotations.
+        Assert.Contains("config_auth_delete", tools);
+        Assert.Contains("config_connection_delete", tools);
+        Assert.Contains("config_profile_delete", tools);
+        Assert.Contains("config_profile_update", tools);
+        Assert.Contains("config_profile_validate", tools);
+        Assert.Contains("config_profile_pin", tools);
+        Assert.Contains("config_profile_unpin", tools);
+        Assert.Contains("environment_solution_uninstall", tools);
+        Assert.Contains("environment_package_uninstall", tools);
 
         // Core tools must still be present.
         Assert.Contains("config_profile_create", tools);
         Assert.Contains("config_profile_select", tools);
         Assert.Contains("config_auth_add-service-principal", tools);
         Assert.Contains("workspace_explain", tools);
+    }
+
+    [Fact]
+    public void EnumerateAllCommands_RealTree_DestructiveToolsHaveAnnotations()
+    {
+        var sut = new CliCommandLookupService();
+        var tools = sut.EnumerateAllCommands(typeof(TxcCliCommand)).ToList();
+
+        var destructiveTools = new[]
+        {
+            "config_auth_delete",
+            "config_connection_delete",
+            "config_profile_delete",
+            "config_profile_unpin",
+            "environment_solution_uninstall",
+            "environment_package_uninstall",
+        };
+
+        foreach (var name in destructiveTools)
+        {
+            var tool = tools.FirstOrDefault(t => t.Name == name);
+            Assert.NotNull(tool);
+            Assert.NotNull(tool!.Annotations);
+            Assert.True(tool.Annotations!.DestructiveHint,
+                $"Tool '{name}' should have DestructiveHint = true");
+        }
     }
 }

@@ -15,6 +15,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Query;
 ///   txc environment data query odata accounts --select "name,accountnumber" --filter "statecode eq 0" --top 10
 ///   txc env data query odata contacts --select "fullname,emailaddress1" --format json
 /// </example>
+[McpToolAnnotations(ReadOnlyHint = true)]
 [CliCommand(
     Name = "odata",
     Description = "Execute an OData query against the Dataverse environment."

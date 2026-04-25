@@ -6,6 +6,7 @@ using TALXIS.CLI.Features.Workspace.TemplateEngine;
 
 namespace TALXIS.CLI.Features.Workspace;
 
+[McpToolAnnotations(ReadOnlyHint = true)]
 [CliCommand(
     Description = "Lists available solution components",
     Name = "list"

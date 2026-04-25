@@ -8,6 +8,7 @@ using TALXIS.CLI.Core;
 
 namespace TALXIS.CLI.Features.Environment.Deployment;
 
+[McpToolAnnotations(ReadOnlyHint = true)]
 [CliCommand(
     Name = "show",
     Description = "Show details and findings for a single deployment run. Specify exactly one of --package-run-id, --solution-run-id, --async-operation-id, --package-name, --solution-name, or --latest."

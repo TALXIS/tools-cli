@@ -12,7 +12,7 @@ namespace TALXIS.CLI.Features.Environment.Solution;
     Name = "uninstall",
     Description = "Uninstall a single solution by unique name from the target environment."
 )]
-[McpIgnore] // Destructive operation requiring --yes confirmation
+[McpToolAnnotations(DestructiveHint = true, OpenWorldHint = true)]
 public class SolutionUninstallCliCommand : ProfiledCliCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(SolutionUninstallCliCommand));

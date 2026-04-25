@@ -16,7 +16,7 @@ namespace TALXIS.CLI.Features.Config.Connection;
 /// <c>config auth delete</c>: the connection is removed and the
 /// referring profiles are left orphaned with a warning each.
 /// </summary>
-[McpIgnore]
+[McpToolAnnotations(DestructiveHint = true)]
 [CliCommand(
     Name = "delete",
     Description = "Delete a connection. Fails if profiles reference it unless --force-orphan-profiles."

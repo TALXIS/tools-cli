@@ -13,6 +13,7 @@ namespace TALXIS.CLI.Features.Config.Setting;
 /// discovery surface so users don't have to hunt through docs to find
 /// the supported keys.
 /// </summary>
+[McpToolAnnotations(ReadOnlyHint = true)]
 [CliCommand(
     Name = "list",
     Description = "List all known setting keys with current values as JSON."

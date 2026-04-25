@@ -7,6 +7,7 @@ using TALXIS.CLI.Core;
 
 namespace TALXIS.CLI.Features.Environment.Solution;
 
+[McpToolAnnotations(ReadOnlyHint = true)]
 [CliCommand(
     Name = "list",
     Description = "List installed solutions in the target environment."

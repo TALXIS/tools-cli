@@ -12,6 +12,7 @@ namespace TALXIS.CLI.Features.Config.Connection;
 /// connection as JSON. Exits with code 2 when the connection is not
 /// found (so scripts can distinguish "missing" from "error").
 /// </summary>
+[McpToolAnnotations(ReadOnlyHint = true)]
 [CliCommand(
     Name = "show",
     Description = "Show a single connection as JSON. Exit 2 if not found."

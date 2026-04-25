@@ -6,6 +6,7 @@ using TALXIS.CLI.Features.Workspace.TemplateEngine;
 
 namespace TALXIS.CLI.Features.Workspace;
 
+[McpToolAnnotations(ReadOnlyHint = true)]
 [CliCommand(
     Description = "Explains a solution component type. Use names returned by 'component type list' command",
     Name = "explain"
