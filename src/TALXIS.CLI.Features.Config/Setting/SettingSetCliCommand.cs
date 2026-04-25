@@ -46,16 +46,7 @@ public class SettingSetCliCommand : TxcLeafCommand
             return ExitValidationError;
         }
 
-        string normalized;
-        try
-        {
-            normalized = SettingRegistry.NormalizeValue(descriptor, Value);
-        }
-        catch (ArgumentException ex)
-        {
-            Logger.LogError("{Error}", ex.Message);
-            return ExitValidationError;
-        }
+        var normalized = SettingRegistry.NormalizeValue(descriptor, Value);
 
         var store = TxcServices.Get<IGlobalConfigStore>();
         var config = await store.LoadAsync(CancellationToken.None).ConfigureAwait(false);

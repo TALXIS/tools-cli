@@ -86,7 +86,7 @@ public abstract class TxcLeafCommand
         {
             return await ExecuteAsync().ConfigureAwait(false);
         }
-        catch (Exception ex) when (ex is Abstractions.ConfigurationResolutionException)
+        catch (Exception ex) when (ex is Abstractions.ConfigurationResolutionException or ArgumentException)
         {
             Logger.LogError("{Error}", ex.Message);
             return ExitValidationError;
