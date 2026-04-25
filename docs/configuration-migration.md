@@ -225,7 +225,7 @@ Fields are nested inside a `<fields>` collection on each entity.
 <fields>
   <field name="accountid" displayname="Account" type="guid" primaryKey="true" />
   <field name="name" displayname="Account Name" type="string" />
-  <field name="primarycontactid" displayname="Primary Contact" type="lookup"
+  <field name="primarycontactid" displayname="Primary Contact" type="entityreference"
          lookupType="contact" />
   <field name="cr4c2_dedup_key" displayname="Dedup Key" type="string"
          updateCompare="true" customfield="true" />
@@ -346,9 +346,9 @@ Relationships are nested inside a `<relationships>` collection on each entity. T
              primaryKey="true" />
       <field name="name" displayname="Account Name" type="string" />
       <field name="accountnumber" displayname="Account Number" type="string" />
-      <field name="primarycontactid" displayname="Primary Contact" type="lookup"
+      <field name="primarycontactid" displayname="Primary Contact" type="entityreference"
              lookupType="contact" />
-      <field name="transactioncurrencyid" displayname="Currency" type="lookup"
+      <field name="transactioncurrencyid" displayname="Currency" type="entityreference"
              lookupType="transactioncurrency" />
       <field name="statecode" displayname="Status" type="state" />
       <field name="statuscode" displayname="Status Reason" type="status" />
@@ -387,7 +387,7 @@ Relationships are nested inside a `<relationships>` collection on each entity. T
       <field name="firstname" displayname="First Name" type="string" />
       <field name="lastname" displayname="Last Name" type="string" />
       <field name="emailaddress1" displayname="Email" type="string" />
-      <field name="parentcustomerid" displayname="Company Name" type="customer"
+      <field name="parentcustomerid" displayname="Company Name" type="entityreference"
              lookupType="account" />
     </fields>
   </entity>
