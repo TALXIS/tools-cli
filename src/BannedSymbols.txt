@@ -22,3 +22,26 @@ M:System.Console.WriteLine(System.String,System.Object[]);Use OutputWriter.Write
 M:System.Console.ReadKey;Use IHeadlessDetector and a prompt abstraction instead
 M:System.Console.ReadKey(System.Boolean);Use IHeadlessDetector and a prompt abstraction instead
 M:System.Console.ReadLine;Use IHeadlessDetector and a prompt abstraction instead
+
+# Thread.Sleep — blocks the thread; use Task.Delay() in async code
+M:System.Threading.Thread.Sleep(System.Int32);Use await Task.Delay() instead of Thread.Sleep
+M:System.Threading.Thread.Sleep(System.TimeSpan);Use await Task.Delay() instead of Thread.Sleep
+
+# new HttpClient() — causes socket exhaustion; use IHttpClientFactory or shared static instance
+M:System.Net.Http.HttpClient.#ctor;Use IHttpClientFactory or a shared static HttpClient instance
+M:System.Net.Http.HttpClient.#ctor(System.Net.Http.HttpMessageHandler);Use IHttpClientFactory or a shared static HttpClient instance
+
+# new JsonSerializerOptions() — use TxcOutputJsonOptions.Default (output) or TxcJsonOptions.Default (storage)
+M:System.Text.Json.JsonSerializerOptions.#ctor;Use TxcOutputJsonOptions.Default or TxcJsonOptions.Default
+M:System.Text.Json.JsonSerializerOptions.#ctor(System.Text.Json.JsonSerializerDefaults);Use TxcOutputJsonOptions.Default or TxcJsonOptions.Default
+
+# throw new Exception() — use a specific exception type
+M:System.Exception.#ctor(System.String);Use a specific exception type (InvalidOperationException, ArgumentException, etc.)
+
+# Newtonsoft.Json — use System.Text.Json with TxcOutputJsonOptions.Default
+T:Newtonsoft.Json.JsonConvert;Use System.Text.Json with TxcOutputJsonOptions.Default or TxcJsonOptions.Default
+
+# Task.Result / .GetAwaiter().GetResult() — deadlock risk in async contexts
+P:System.Threading.Tasks.Task`1.Result;Use await instead of .Result to avoid deadlocks
+M:System.Runtime.CompilerServices.TaskAwaiter.GetResult;Use await instead of .GetAwaiter().GetResult()
+M:System.Runtime.CompilerServices.TaskAwaiter`1.GetResult;Use await instead of .GetAwaiter().GetResult()

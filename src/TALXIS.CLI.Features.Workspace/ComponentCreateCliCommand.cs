@@ -87,7 +87,9 @@ public class ComponentCreateCliCommand : TxcLeafCommand, ICliGetCompletions
                 try
                 {
                     using var scaffolder = new TemplateInvoker();
+#pragma warning disable RS0030 // Sync-over-async required: GetCompletions is a synchronous interface method
                     var templates = scaffolder.ListTemplatesAsync().Result;
+#pragma warning restore RS0030
                     if (templates != null)
                     {
                         return templates.Select(t => new CompletionItem(t.ShortNameList.FirstOrDefault() ?? t.Name));

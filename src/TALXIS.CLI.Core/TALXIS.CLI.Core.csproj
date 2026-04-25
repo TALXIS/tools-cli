@@ -9,7 +9,7 @@
 
   <!-- Infrastructure project: legitimate Console usage in OutputWriter, HeadlessDetector, etc. -->
   <ItemGroup>
-    <AdditionalFiles Remove="$(MSBuildThisFileDirectory)BannedSymbols.txt" />
+    <AdditionalFiles Remove="$(MSBuildThisFileDirectory)..\BannedSymbols.txt" />
   </ItemGroup>
 
   <ItemGroup>

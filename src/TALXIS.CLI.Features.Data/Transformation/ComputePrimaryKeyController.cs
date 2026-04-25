@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Security.Cryptography;
+using TALXIS.CLI.Core.Storage;
 
 namespace TALXIS.CLI.Features.Data.DataServer;
 
@@ -13,7 +14,7 @@ public class ComputePrimaryKeyController
         {
             using var reader = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding);
             var body = await reader.ReadToEndAsync();
-            var input = JsonSerializer.Deserialize<ComputePrimaryKeyRequest>(body, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            var input = JsonSerializer.Deserialize<ComputePrimaryKeyRequest>(body, TxcJsonOptions.Default);
             if (string.IsNullOrWhiteSpace(input?.Entity) || input?.AlternateKeys == null || input.AlternateKeys.Count == 0)
             {
                 context.Response.StatusCode = 400;

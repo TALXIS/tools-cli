@@ -25,7 +25,7 @@
 
   <!-- Infrastructure project: legitimate Console usage in MCP server hosting -->
   <ItemGroup>
-    <AdditionalFiles Remove="$(MSBuildThisFileDirectory)BannedSymbols.txt" />
+    <AdditionalFiles Remove="$(MSBuildThisFileDirectory)..\BannedSymbols.txt" />
   </ItemGroup>
 
   <ItemGroup>

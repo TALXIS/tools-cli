@@ -38,9 +38,11 @@ public static class DataverseProviderServiceCollectionExtensions
             var paths = sp.GetRequiredService<ConfigPaths>();
             var env = sp.GetRequiredService<IEnvironmentReader>();
             var logger = sp.GetRequiredService<ILogger<MsalTokenCacheBinder>>();
+#pragma warning disable RS0030 // Sync-over-async required: DI service factory lambda is synchronous
             return MsalTokenCacheBinder
                 .CreateAsync(paths, env, logger)
                 .GetAwaiter().GetResult();
+#pragma warning restore RS0030
         });
         services.AddSingleton<ITokenCacheStore>(sp => sp.GetRequiredService<MsalTokenCacheBinder>());
 
