@@ -9,7 +9,7 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 [CliCommand(
     Name = "entity",
     Description = "Entity discovery and schema metadata for the live environment.",
-    Children = new[] { typeof(EntityListCliCommand), typeof(EntityDescribeCliCommand) }
+    Children = new[] { typeof(EntityListCliCommand), typeof(EntityDescribeCliCommand), typeof(EntityAttributeCliCommand), typeof(EntityRelationshipCliCommand) }
 )]
 public class EntityCliCommand
 {

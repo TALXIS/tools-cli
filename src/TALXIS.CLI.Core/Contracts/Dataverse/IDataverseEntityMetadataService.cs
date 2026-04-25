@@ -27,6 +27,18 @@ public sealed record EntityAttributeRecord(
     string? Description);
 
 /// <summary>
+/// Relationship summary for an entity, returned by
+/// <see cref="IDataverseEntityMetadataService.ListRelationshipsAsync"/>.
+/// </summary>
+public sealed record EntityRelationshipRecord(
+    string SchemaName,
+    string RelationshipType,
+    string Entity1LogicalName,
+    string Entity2LogicalName,
+    bool IsCustomRelationship,
+    string? IntersectEntityName);
+
+/// <summary>
 /// Schema/metadata introspection for Dataverse entities. All calls go
 /// through <c>ServiceClient</c> using the metadata API
 /// (<c>RetrieveAllEntitiesRequest</c> / <c>RetrieveEntityRequest</c>).
@@ -50,5 +62,38 @@ public interface IDataverseEntityMetadataService
         string? profileName,
         string entityLogicalName,
         bool includeSystem,
+        CancellationToken ct);
+
+    /// <summary>
+    /// Creates an attribute (column) on the specified entity.
+    /// </summary>
+    Task CreateAttributeAsync(
+        string? profileName,
+        string entityLogicalName,
+        string schemaName,
+        string displayName,
+        string type,
+        bool required,
+        string? targetEntity,
+        string[]? options,
+        CancellationToken ct);
+
+    /// <summary>
+    /// Creates a many-to-many relationship between two entities.
+    /// </summary>
+    Task CreateManyToManyRelationshipAsync(
+        string? profileName,
+        string entity1,
+        string entity2,
+        string schemaName,
+        string? displayName,
+        CancellationToken ct);
+
+    /// <summary>
+    /// Lists all relationships (1:N, N:1, N:N) for the specified entity.
+    /// </summary>
+    Task<IReadOnlyList<EntityRelationshipRecord>> ListRelationshipsAsync(
+        string? profileName,
+        string entityLogicalName,
         CancellationToken ct);
 }
