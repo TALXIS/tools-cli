@@ -252,8 +252,14 @@ dotnet run --project src/TALXIS.CLI -- workspace explain
 
 ## Versioning & Release
 
-- Versioning is managed in `Directory.Build.props` (Microsoft-style versioning).
-- Releases are published to NuGet.org via GitHub Actions.
+Releases are published through [GitHub Releases](https://github.com/TALXIS/tools-cli/releases):
+
+1. Go to **Releases** → **Draft a new release**
+2. Create a tag in the format `vX.Y.Z` (e.g. `v1.7.0`)
+3. Write the changelog in the release body
+4. Click **Publish release**
+
+The publish workflow then runs tests, builds NuGet packages with the tag version, pushes them to [nuget.org](https://www.nuget.org/packages/TALXIS.CLI), and commits the version bump back to `Directory.Build.props`.
 
 ---
 
