@@ -48,14 +48,14 @@ For **bulk transactional data** or **ETL workloads**, consider the Dataverse Imp
 ```bash
 txc data package export \
   --schema data_schema.xml \
-  --output data.zip \
+  --output ./data-package \
   --profile myprofile
 ```
 
 ### Import data
 
 ```bash
-txc data package import data.zip --profile myprofile
+txc data package import ./data-package --profile myprofile
 ```
 
 ### Typical workflow
@@ -70,13 +70,14 @@ txc data package import data.zip --profile myprofile
 │  2. Export from source environment    │
 │     txc data package export          │
 │       --schema data_schema.xml       │
-│       --output data.zip              │
+│       --output ./data-package        │
 │       --profile source-env           │
 └──────────────┬───────────────────────┘
                ▼
 ┌──────────────────────────────────────┐
 │  3. Import into target environment   │
-│     txc data package import data.zip │
+│     txc data package import          │
+│       ./data-package                 │
 │       --profile target-env           │
 └──────────────────────────────────────┘
 ```
@@ -96,19 +97,31 @@ txc data package export --schema <path> --output <path> [options]
 | Option | Alias | Required | Default | Description |
 |---|---|---|---|---|
 | `--schema <path>` | `-s` | **Yes** | — | Path to the schema file (`data_schema.xml`) that defines which entities, fields, and relationships to export. You can create this file using the Configuration Migration Tool GUI or write it by hand. |
-| `--output <path>` | `-o` | **Yes** | — | Where to save the exported data package (`.zip` file). The zip will contain `data.xml` with the records and a copy of the schema. |
-| `--export-files` | — | No | `false` | Also download binary file and image columns (e.g. profile pictures, attachments). These are saved inside the zip in a `files/` folder. Off by default because it can be slow for large files. |
-| `--overwrite` | — | No | `false` | Allow overwriting the output file if it already exists. Without this flag, the command will refuse to overwrite. |
+| `--output <path>` | `-o` | **Yes** | — | Output folder for the extracted data package (default), or path to a `.zip` file when `--zip` is used. |
+| `--export-files` | — | No | `false` | Also download binary file and image columns (e.g. profile pictures, attachments). These are saved inside the package in a `files/` folder. Off by default because it can be slow for large files. |
+| `--zip` | — | No | `false` | Produce a `.zip` archive instead of extracting to a folder. |
+| `--overwrite` | — | No | `false` | Allow overwriting the output (folder or file) if it already exists. Without this flag, the command will refuse to overwrite. |
 | `--profile <name>` | `-p` | No | *(active profile)* | Profile name to resolve (falls back to `TXC_PROFILE`, workspace pin, or global active). |
 | `--verbose` | — | No | `false` | Emit verbose logging for this invocation. |
 
-**Example — export with file columns:**
+**Example — export to folder with file columns:**
+
+```bash
+txc data package export \
+  --schema data_schema.xml \
+  --output ./data-package \
+  --export-files \
+  --overwrite \
+  --profile dev
+```
+
+**Example — export as zip archive:**
 
 ```bash
 txc data package export \
   --schema data_schema.xml \
   --output data.zip \
-  --export-files \
+  --zip \
   --overwrite \
   --profile dev
 ```
@@ -587,10 +600,12 @@ Use the `--export-files` flag to include file columns in the export:
 ```bash
 txc data package export \
   --schema data_schema.xml \
-  --output data.zip \
+  --output ./data-package \
   --export-files \
   --profile myprofile
 ```
+
+> **Tip:** Pass `--zip` to produce a `.zip` archive instead of a folder.
 
 During export:
 1. CMT identifies fields with type `filedata` in the schema.
@@ -598,10 +613,12 @@ During export:
 3. Files are stored in a `files/` directory inside the zip, named by their GUID (e.g. `files/{guid}.bin`).
 4. The `data.xml` records the file's GUID in the `value` attribute and the original filename in the `filename` attribute.
 
-### Zip structure
+### Package structure
+
+By default the export produces a folder. Pass `--zip` to get a `.zip` archive with the same layout.
 
 ```
-export.zip
+data-package/             # folder (default) or .zip (with --zip)
 ├── data.xml              # Record data
 ├── data_schema.xml       # Schema definition (copy of input)
 └── files/                # Binary files (only when --export-files is used)

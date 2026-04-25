@@ -161,7 +161,7 @@ txc env data bulk upsert --entity contact --file ./contacts.json
 **Configuration Migration Tool (CMT)** — import, export, convert. Runs CMT natively on macOS/Linux (no Windows VM needed):
 
 ```sh
-txc data pkg export --schema ./data_schema.xml --output ./export.zip --export-files
+txc data pkg export --schema ./data_schema.xml --output ./data-package --export-files
 txc data pkg import ./data-package --batch-mode --batch-size 500 --connection-count 4
 txc data pkg convert --input export.xlsx --output data.xml
 ```

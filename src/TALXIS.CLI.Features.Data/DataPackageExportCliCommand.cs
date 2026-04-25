@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.IO.Compression;
 using DotMake.CommandLine;
 using TALXIS.CLI.Core;
 using Microsoft.Extensions.Logging;
@@ -20,14 +21,18 @@ public class DataPackageExportCliCommand : ProfiledCliCommand
     [CliOption(Name = "--schema", Alias = "-s", Description = "Path to the schema file (data_schema.xml) that defines which entities, fields and relationships to export. You can create this file using the Configuration Migration Tool GUI or write it by hand.", Required = true)]
     public required string Schema { get; set; }
 
-    [CliOption(Name = "--output", Alias = "-o", Description = "Where to save the exported data package (.zip file). The zip will contain data.xml with the records and a copy of the schema.", Required = true)]
+    [CliOption(Name = "--output", Alias = "-o", Description = "Output folder for the extracted data package (default), or path to a .zip file when --zip is used.", Required = true)]
     public required string Output { get; set; }
 
     [CliOption(Name = "--export-files", Description = "Also download binary file and image columns (e.g. profile pictures, attachments). These are saved inside the zip in a 'files' folder. Off by default because it can be slow for large files.", Required = false)]
     [DefaultValue(false)]
     public bool ExportFiles { get; set; }
 
-    [CliOption(Name = "--overwrite", Description = "Allow overwriting the output file if it already exists. Without this flag, the command will refuse to overwrite.", Required = false)]
+    [CliOption(Name = "--zip", Description = "Produce a .zip archive instead of extracting to a folder.", Required = false)]
+    [DefaultValue(false)]
+    public bool Zip { get; set; }
+
+    [CliOption(Name = "--overwrite", Description = "Allow overwriting the output (folder or file) if it already exists. Without this flag, the command will refuse to overwrite.", Required = false)]
     [DefaultValue(false)]
     public bool Overwrite { get; set; }
 
@@ -51,14 +56,28 @@ public class DataPackageExportCliCommand : ProfiledCliCommand
             return ExitError;
         }
 
-        if (File.Exists(Output) && !Overwrite)
+        if (Zip)
         {
-            Logger.LogError("Output file already exists: {OutputPath}. Use --overwrite to replace it.", Output);
-            return ExitError;
+            if (File.Exists(Output) && !Overwrite)
+            {
+                Logger.LogError("Output file already exists: {OutputPath}. Use --overwrite to replace it.", Output);
+                return ExitError;
+            }
+        }
+        else
+        {
+            if (Directory.Exists(Output) && Directory.EnumerateFileSystemEntries(Output).Any() && !Overwrite)
+            {
+                Logger.LogError("Output folder already exists and is not empty: {OutputPath}. Use --overwrite to replace it.", Output);
+                return ExitError;
+            }
         }
 
+        // CMT always produces a zip. When folder output is requested, export to a temp zip first.
+        var exportPath = Zip ? Output : Path.Combine(Path.GetTempPath(), $"txc-export-{Guid.NewGuid():N}.zip");
+
         var service = TxcServices.Get<IDataPackageService>();
-        var result = await service.ExportAsync(Profile, Schema, Output, ExportFiles, Verbose, CancellationToken.None).ConfigureAwait(false);
+        var result = await service.ExportAsync(Profile, Schema, exportPath, ExportFiles, Verbose, CancellationToken.None).ConfigureAwait(false);
 
         if (result.InteractiveAuthRequired)
         {
@@ -74,6 +93,28 @@ public class DataPackageExportCliCommand : ProfiledCliCommand
             }
             Logger.LogError("Data export failed.");
             return ExitError;
+        }
+
+        if (!Zip)
+        {
+            try
+            {
+                if (Directory.Exists(Output) && Overwrite)
+                {
+                    Directory.Delete(Output, recursive: true);
+                }
+
+                Directory.CreateDirectory(Output);
+                Logger.LogInformation("Extracting to folder: {Path}", Path.GetFullPath(Output));
+                ZipFile.ExtractToDirectory(exportPath, Output);
+            }
+            finally
+            {
+                if (File.Exists(exportPath))
+                {
+                    File.Delete(exportPath);
+                }
+            }
         }
 
         Logger.LogInformation("Data export completed successfully. Output: {OutputPath}", Path.GetFullPath(Output));
