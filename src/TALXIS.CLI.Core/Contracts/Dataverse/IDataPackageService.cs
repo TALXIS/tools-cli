@@ -31,7 +31,6 @@ public interface IDataPackageService
         int batchSize,
         bool overrideSafetyChecks,
         int prefetchLimit,
-        bool deleteBeforeImport,
         bool verbose,
         CancellationToken ct);
 

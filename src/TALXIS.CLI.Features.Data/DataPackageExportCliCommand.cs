@@ -16,17 +16,17 @@ public class DataPackageExportCliCommand : ProfiledCliCommand
 {
     private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(DataPackageExportCliCommand));
 
-    [CliOption(Name = "--schema", Alias = "-s", Description = "Path to the CMT schema file (data_schema.xml) defining entities and fields to export.", Required = true)]
+    [CliOption(Name = "--schema", Alias = "-s", Description = "Path to the schema file (data_schema.xml) that defines which entities, fields and relationships to export. You can create this file using the Configuration Migration Tool GUI or write it by hand.", Required = true)]
     public required string Schema { get; set; }
 
-    [CliOption(Name = "--output", Alias = "-o", Description = "Path for the output data package (.zip file).", Required = true)]
+    [CliOption(Name = "--output", Alias = "-o", Description = "Where to save the exported data package (.zip file). The zip will contain data.xml with the records and a copy of the schema.", Required = true)]
     public required string Output { get; set; }
 
-    [CliOption(Name = "--export-files", Description = "Include binary file and image columns in the export.", Required = false)]
+    [CliOption(Name = "--export-files", Description = "Also download binary file and image columns (e.g. profile pictures, attachments). These are saved inside the zip in a 'files' folder. Off by default because it can be slow for large files.", Required = false)]
     [DefaultValue(false)]
     public bool ExportFiles { get; set; }
 
-    [CliOption(Name = "--overwrite", Description = "Overwrite the output file if it already exists.", Required = false)]
+    [CliOption(Name = "--overwrite", Description = "Allow overwriting the output file if it already exists. Without this flag, the command will refuse to overwrite.", Required = false)]
     [DefaultValue(false)]
     public bool Overwrite { get; set; }
 

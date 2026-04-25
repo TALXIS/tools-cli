@@ -236,7 +236,10 @@ public sealed class CmtImportRunner
 
             // 8. Import data (synchronous — blocks via internal WaitOne).
             _logger.LogInformation("Starting data import...");
-            await Task.Run(() => handler.ImportDataToCrm(workingFolder, deleteBeforeAdd: request.DeleteBeforeImport));
+            // NOTE: The deleteBeforeAdd parameter is accepted by CMT's API but
+            // is never actually used internally — the delete functionality was
+            // never implemented in ImportCrmDataHandler (confirmed by decompilation).
+            await Task.Run(() => handler.ImportDataToCrm(workingFolder, deleteBeforeAdd: false));
 
             // CMT often swallows exceptions internally and only reports
             // failures through progress events. Check whether any stages

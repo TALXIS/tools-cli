@@ -26,8 +26,5 @@ public sealed record CmtImportRequest(
     /// <summary>Maximum number of records to preload into cache per entity for duplicate detection.</summary>
     int PrefetchLimit,
 
-    /// <summary>Delete existing records before importing new data.</summary>
-    bool DeleteBeforeImport,
-
     /// <summary>Enable verbose CMT trace output.</summary>
     bool Verbose);

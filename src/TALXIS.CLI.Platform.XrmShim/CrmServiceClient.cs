@@ -262,11 +262,79 @@ public class CrmServiceClient : ServiceClient, IDisposable
         return (Guid)response.Results["UserId"];
     }
 
+    /// <summary>
+    /// Matches the original <c>CrmServiceClient.GetDataByKeyFromResultsSet&lt;T&gt;</c>
+    /// behavior: attempts a direct type check first, falls back to the
+    /// <c>_Property</c> entry (which holds the raw SDK typed value), and
+    /// returns <c>default(T)</c> when the value type doesn't match.
+    /// Never throws — CMT relies on this returning default for type mismatches
+    /// (e.g. calling <c>GetDataByKeyFromResultsSet&lt;Guid&gt;</c> on a string field
+    /// returns <c>Guid.Empty</c>).
+    /// </summary>
     public T GetDataByKeyFromResultsSet<T>(Dictionary<string, object> results, string key)
     {
-        if (results != null && results.TryGetValue(key, out var value))
+        try
         {
-            return (T)value;
+            if (results == null || !results.ContainsKey(key))
+            {
+                return default!;
+            }
+
+            // PICKLIST handling for int/string (matches original behavior)
+            if (typeof(T) == typeof(int) || typeof(T) == typeof(string))
+            {
+                try
+                {
+                    string text = (string)results[key];
+                    if (text.Contains("PICKLIST:"))
+                    {
+                        try
+                        {
+                            var parts = text.Split(':');
+                            if (typeof(T) == typeof(int))
+                            {
+                                return (T)(object)Convert.ToInt32(parts[1], System.Globalization.CultureInfo.InvariantCulture);
+                            }
+                            return (T)(object)parts[3];
+                        }
+                        catch
+                        {
+                            return (T)results[key];
+                        }
+                    }
+                }
+                catch
+                {
+                    if (results[key] is T val)
+                    {
+                        return val;
+                    }
+                }
+            }
+
+            // Direct type check — the primary happy path.
+            if (results[key] is T typedValue)
+            {
+                return typedValue;
+            }
+
+            // Fallback: check _Property entry which holds the raw SDK typed value.
+            // The original CrmServiceClient stores each attribute twice:
+            // "key" → formatted string or raw value
+            // "key_Property" → KeyValuePair<string, object> with the raw SDK value
+            if (results.ContainsKey(key + "_Property"))
+            {
+                var kvp = (KeyValuePair<string, object>)results[key + "_Property"];
+                if (kvp.Value is T propertyValue)
+                {
+                    return propertyValue;
+                }
+            }
+        }
+        catch
+        {
+            // Original logs "Error In GetDataByKeyFromResultsSet (Non-Fatal)"
+            // and returns default — CMT depends on this never throwing.
         }
         return default!;
     }
@@ -821,16 +889,31 @@ public class CrmServiceClient : ServiceClient, IDisposable
         return result;
     }
 
+    /// <summary>
+    /// Converts an <see cref="Entity"/> to the dictionary format expected by the
+    /// original <c>CrmServiceClient</c>. Each attribute produces two entries:
+    /// <c>"key"</c> → formatted value (string) or raw SDK value, and
+    /// <c>"key_Property"</c> → the raw <see cref="KeyValuePair{TKey,TValue}"/>
+    /// with the typed SDK value. CMT's <c>GetDataByKeyFromResultsSet&lt;T&gt;</c>
+    /// uses the <c>_Property</c> fallback when the primary value is a string
+    /// but a typed value (e.g. Guid) is needed.
+    /// </summary>
     private static Dictionary<string, object> EntityToDictionary(Entity entity)
     {
         var dict = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
         foreach (var attr in entity.Attributes)
         {
-            dict[attr.Key] = attr.Value;
+            // Store _Property entry with the raw typed value (KeyValuePair).
+            dict[attr.Key + "_Property"] = attr;
+            // Store the display/formatted value if available, otherwise raw value.
+            dict[attr.Key] = entity.FormattedValues.ContainsKey(attr.Key)
+                ? entity.FormattedValues[attr.Key]
+                : attr.Value;
         }
         if (!dict.ContainsKey(entity.LogicalName + "id"))
         {
             dict[entity.LogicalName + "id"] = entity.Id;
+            dict[entity.LogicalName + "id_Property"] = new KeyValuePair<string, object>(entity.LogicalName + "id", entity.Id);
         }
         return dict;
     }

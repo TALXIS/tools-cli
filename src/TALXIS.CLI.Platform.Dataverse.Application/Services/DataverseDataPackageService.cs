@@ -17,7 +17,6 @@ internal sealed class DataverseDataPackageService : IDataPackageService
         int batchSize,
         bool overrideSafetyChecks,
         int prefetchLimit,
-        bool deleteBeforeImport,
         bool verbose,
         CancellationToken ct)
     {
@@ -34,7 +33,7 @@ internal sealed class DataverseDataPackageService : IDataPackageService
             return new DataPackageImportResult(false, ex.Message, InteractiveAuthRequired: false);
         }
 
-        var request = new CmtImportRequest(Path.GetFullPath(dataPackagePath), connectionCount, batchMode, batchSize, overrideSafetyChecks, prefetchLimit, deleteBeforeImport, verbose);
+        var request = new CmtImportRequest(Path.GetFullPath(dataPackagePath), connectionCount, batchMode, batchSize, overrideSafetyChecks, prefetchLimit, verbose);
         CmtImportResult result = await LegacyAssemblyHostSubprocess
             .RunCmtImportAsync(request, profileName ?? string.Empty, ct)
             .ConfigureAwait(false);
