@@ -109,8 +109,7 @@ txc workspace component create pp-entity \
   --param PublisherPrefix=tom \
   --param LogicalName=location \
   --param DisplayName=Location \
-  --param DisplayNamePlural=Locations \
-  --param SolutionRootPath=Declarations
+  --param DisplayNamePlural=Locations
 
 # When ready, deploy the solution to a live environment
 txc env sln import ./out/MySolution_managed.zip
