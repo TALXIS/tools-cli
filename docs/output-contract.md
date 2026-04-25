@@ -120,8 +120,8 @@ In text mode, only the human-readable message is printed.
 
 - Use `ILogger` (via `TxcLoggerFactory.CreateLogger(nameof(X))`) for all diagnostic output
 - Logs go to **stderr** in all modes:
-  - **Terminal mode:** colored single-line text to stderr
-  - **Pipe/MCP mode:** structured JSON lines to stderr (`TXC_LOG_FORMAT=json`)
+  - **Terminal mode:** `TxcConsoleFormatter` — `[INFO]`/`[WARN]`/`[ERROR]` prefixes with ANSI color, `HH:mm:ss` timestamps, no category names. Stack traces are suppressed by default; shown only at `Debug` level or with `--verbose`.
+  - **Pipe/MCP mode:** structured JSON lines to stderr (`TXC_LOG_FORMAT=json`) — always includes full exception details.
 - Log level controlled by `TXC_LOG_LEVEL` env var (default: `Information`)
 
 ## MCP integration
@@ -137,9 +137,13 @@ Since commands default to JSON when stdout is redirected, the MCP server gets st
 
 | Mechanism | What it catches | When |
 |-----------|----------------|------|
-| `BannedApiAnalyzers` (RS0030) | `Console.Write*`, `Console.ReadKey` | Build time (error) |
+| `BannedApiAnalyzers` (RS0030) | `Console.Write*`, `Console.ReadKey`, `new HttpClient()`, `new JsonSerializerOptions()`, `Thread.Sleep`, `Task.Result`/`.GetAwaiter().GetResult()`, `throw new Exception()`, `Newtonsoft.Json` | Build time (error) |
 | `TxcLeafCommand` abstract members | Missing `Logger`, missing `ExecuteAsync()` | Build time (error) |
+| `TXC001` (Roslyn analyzer) | Leaf `[CliCommand]` not inheriting `TxcLeafCommand` | Build time (error) |
+| `TXC002` (Roslyn analyzer) | Leaf command defining own `RunAsync()` | Build time (error) |
+| `TXC003` (Roslyn analyzer) | Direct `OutputWriter` calls in command code (auto-suppresses text-renderer lambdas) | Build time (error) |
 | `CommandConventionTests` | Non-conforming commands, stale `--json` flags, local `JsonSerializerOptions` | Test time |
+| `LayeringTests` | Feature→Feature project references, `--yes` commands missing `[McpIgnore]` | Test time |
 
 ## Adding a new command
 

@@ -121,7 +121,12 @@ A `--force` flag by itself is ambiguous and is not used.
 
 ## Short-flag forms
 
-Short-flag aliases (`-v`, `-y`, etc.) are out of scope until there is a concrete usability case for a specific flag. Long-form flags only until then.
+Short-flag aliases are reserved for high-frequency flags only. Currently allocated:
+
+- `-p` for `--profile` (on `ProfiledCliCommand` — the most frequently typed option)
+- `-f` for `--format` (on `TxcLeafCommand` — inherited by every leaf command)
+
+All other flags remain long-form only. Do not add new short aliases without updating this list.
 
 ---
 
@@ -148,7 +153,7 @@ Rules:
 - **Canonical names drive everything machine-readable.** MCP tool names, help anchors, the SDK surface — all built from `Name`. Aliases are a typing shortcut for humans; they never leak into tool IDs.
 - **One alias per command.** If you find yourself reaching for a second alias, rename the canonical instead.
 - **Prefer README and docs to use the alias** in example snippets — that's what the alias is for. Use the canonical name in reference tables, help output, and anywhere a reader needs to scan the full taxonomy.
-- **Short-alias exception for `--profile`.** Because `config profile select` is the single most frequently typed command on a dev laptop, the `--profile` flag on every auth-requiring leaf command exposes the short form `-p`. This is the only flag-level short alias in the CLI.
+- **Short-alias exception for `--profile` and `--format`.** The `--profile` flag exposes `-p` on every `ProfiledCliCommand` leaf. The `--format` flag exposes `-f` on every `TxcLeafCommand` leaf. These are the only flag-level short aliases in the CLI.
 
 ---
 
