@@ -30,7 +30,8 @@ internal static class SolutionComponentQueryReader
         if (componentTypeFilter.HasValue)
             filter += $" and (({DataverseSchema.MsdynSolutionComponentSummary.ComponentType} eq {componentTypeFilter.Value}))";
         if (!string.IsNullOrWhiteSpace(entityFilter))
-            filter += $" and {DataverseSchema.MsdynSolutionComponentSummary.PrimaryEntityName} eq '{entityFilter}'";
+            filter += $" and {DataverseSchema.MsdynSolutionComponentSummary.PrimaryEntityName} eq '{entityFilter.Replace("'", "''")}'";
+
 
         var path = $"{DataverseSchema.MsdynSolutionComponentSummary.EntitySetName}" +
                    $"?$filter={filter}" +
@@ -41,7 +42,8 @@ internal static class SolutionComponentQueryReader
                    $"{DataverseSchema.MsdynSolutionComponentSummary.ObjectId}," +
                    $"{DataverseSchema.MsdynSolutionComponentSummary.IsManaged}," +
                    $"{DataverseSchema.MsdynSolutionComponentSummary.IsCustomizable}" +
-                   "&api-version=9.1";
+                   "&api-version=9.1" +
+                   (top.HasValue ? $"&$top={top.Value}" : "");
 
         var headers = new Dictionary<string, List<string>>
         {
@@ -82,8 +84,7 @@ internal static class SolutionComponentQueryReader
     private static ComponentSummaryRow ParseSummaryRow(JsonElement item)
     {
         var typeName = GetStringOrDefault(item, DataverseSchema.MsdynSolutionComponentSummary.ComponentTypeName);
-        var typeCode = item.TryGetProperty(DataverseSchema.MsdynSolutionComponentSummary.ComponentType, out var tc)
-            ? tc.GetInt32() : 0;
+        var typeCode = GetIntOrDefault(item, DataverseSchema.MsdynSolutionComponentSummary.ComponentType);
         var displayName = GetStringOrDefault(item, DataverseSchema.MsdynSolutionComponentSummary.DisplayName);
         var name = GetStringOrDefault(item, DataverseSchema.MsdynSolutionComponentSummary.Name);
         var objectId = GetStringOrDefault(item, DataverseSchema.MsdynSolutionComponentSummary.ObjectId) ?? "";
@@ -100,6 +101,19 @@ internal static class SolutionComponentQueryReader
             ObjectId: objectId,
             Managed: managed,
             Customizable: customizable);
+    }
+
+    private static int GetIntOrDefault(JsonElement element, string propertyName)
+    {
+        if (!element.TryGetProperty(propertyName, out var prop))
+            return 0;
+
+        return prop.ValueKind switch
+        {
+            JsonValueKind.Number => prop.GetInt32(),
+            JsonValueKind.String => int.TryParse(prop.GetString(), out var i) ? i : 0,
+            _ => 0,
+        };
     }
 
     private static string? GetStringOrDefault(JsonElement element, string propertyName)

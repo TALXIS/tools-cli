@@ -101,10 +101,8 @@ internal static class SolutionDetailReader
             {
                 var typeName = item.TryGetProperty(DataverseSchema.MsdynSolutionComponentCountSummary.ComponentLogicalName, out var tn)
                     ? tn.GetString() : null;
-                var typeCode = item.TryGetProperty(DataverseSchema.MsdynSolutionComponentCountSummary.ComponentType, out var tc)
-                    ? tc.GetInt32() : 0;
-                var total = item.TryGetProperty(DataverseSchema.MsdynSolutionComponentCountSummary.Total, out var t)
-                    ? t.GetInt32() : 0;
+                var typeCode = GetIntOrDefault(item, DataverseSchema.MsdynSolutionComponentCountSummary.ComponentType);
+                var total = GetIntOrDefault(item, DataverseSchema.MsdynSolutionComponentCountSummary.Total);
 
                 if (total > 0)
                     rows.Add(new ComponentCountRow(typeName ?? typeCode.ToString(), typeCode, typeName, total));
@@ -112,6 +110,18 @@ internal static class SolutionDetailReader
         }
 
         return rows.OrderByDescending(r => r.Count).ToList();
+    }
+
+    private static int GetIntOrDefault(JsonElement element, string propertyName)
+    {
+        if (!element.TryGetProperty(propertyName, out var prop))
+            return 0;
+        return prop.ValueKind switch
+        {
+            JsonValueKind.Number => prop.GetInt32(),
+            JsonValueKind.String => int.TryParse(prop.GetString(), out var i) ? i : 0,
+            _ => 0,
+        };
     }
 
     private static SolutionDetail ToSolutionDetail(Entity entity)

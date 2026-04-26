@@ -35,6 +35,7 @@ public class SolutionUninstallCheckCliCommand : ProfiledCliCommand
             OutputFormatter.WriteData(
                 new { status = "blocked", solution = Name, blockingDependencies = deps.Count, dependencies = deps },
                 _ => PrintBlocked(deps));
+            return ExitError;
         }
 
         return ExitSuccess;
