@@ -2,23 +2,23 @@ using System.ComponentModel;
 using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
-using TALXIS.CLI.Core.DependencyInjection;
-using TALXIS.CLI.Core.Contracts.Dataverse;
-using TALXIS.CLI.Logging;
 using TALXIS.CLI.Core;
+using TALXIS.CLI.Core.Contracts.Dataverse;
+using TALXIS.CLI.Core.DependencyInjection;
+using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.Solution;
 
 [CliIdempotent]
 [CliCommand(
     Name = "import",
-    Description = "Import a solution .zip into the target environment."
+    Description = "Import a solution into the target environment. Accepts a .zip file, an unpacked solution folder, or a project directory (.cdsproj/.csproj)."
 )]
 public class SolutionImportCliCommand : ProfiledCliCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(SolutionImportCliCommand));
 
-    [CliArgument(Name = "solution-zip", Description = "Path to the solution .zip to import.")]
+    [CliArgument(Name = "solution-path", Description = "Path to a solution .zip file or an unpacked solution folder.")]
     public required string SolutionZip { get; set; }
 
     [CliOption(Name = "--stage-and-upgrade", Description = "Use single-step upgrade when applicable.", Required = false)]
@@ -40,20 +40,60 @@ public class SolutionImportCliCommand : ProfiledCliCommand
     [CliOption(Name = "--wait", Description = "Wait for completion. By default solution imports return after queueing.", Required = false)]
     public bool Wait { get; set; }
 
+    [CliOption(Name = "--managed", Description = "When importing from a folder, pack as managed solution.", Required = false)]
+    public bool Managed { get; set; }
+
     protected override async Task<int> ExecuteAsync()
     {
         if (string.IsNullOrWhiteSpace(SolutionZip))
         {
-            Logger.LogError("'solution-zip' argument is required.");
+            Logger.LogError("'solution-path' argument is required.");
             return ExitValidationError;
         }
 
         string solutionPath = Path.GetFullPath(SolutionZip);
-        if (!File.Exists(solutionPath))
+        string? tempZipPath = null;
+
+        // Auto-detect input format:
+        // 1. ZIP file → use directly
+        // 2. Directory with *.cdsproj → unpacked solution root is <dir>/src
+        // 3. Directory with Other/Solution.xml → unpacked solution folder
+        // 4. Directory → treated as unpacked solution folder
+        if (Directory.Exists(solutionPath))
         {
-            Logger.LogError("Solution file not found: {Path}", solutionPath);
+            // Check for cdsproj/csproj project convention: <project-dir>/src is the solution root
+            var projFiles = Directory.GetFiles(solutionPath, "*.cdsproj")
+                .Concat(Directory.GetFiles(solutionPath, "*.csproj"))
+                .ToArray();
+            if (projFiles.Length > 0)
+            {
+                var srcFolder = Path.Combine(solutionPath, "src");
+                if (Directory.Exists(srcFolder))
+                {
+                    Logger.LogInformation("Found project file — using '{SrcFolder}' as solution root.", srcFolder);
+                    solutionPath = srcFolder;
+                }
+                else
+                {
+                    Logger.LogError("Found project file but '{SrcFolder}' does not exist.", srcFolder);
+                    return ExitValidationError;
+                }
+            }
+
+            Logger.LogInformation("Input is a folder — packing to ZIP before import...");
+            tempZipPath = Path.Combine(Path.GetTempPath(), $"txc_import_{Guid.NewGuid():N}.zip");
+            var packager = TxcServices.Get<ISolutionPackagerService>();
+            packager.Pack(solutionPath, tempZipPath, Managed);
+            solutionPath = tempZipPath;
+        }
+        else if (!File.Exists(solutionPath))
+        {
+            Logger.LogError("Solution path not found: {Path}. Provide a .zip file, an unpacked solution folder, or a project directory (.cdsproj/.csproj).", solutionPath);
             return ExitValidationError;
         }
+
+        try
+        {
 
         var options = new SolutionImportOptions(
             StageAndUpgrade: StageAndUpgrade,
@@ -102,6 +142,13 @@ public class SolutionImportCliCommand : ProfiledCliCommand
         }
 
         return ExitSuccess;
+        }
+        finally
+        {
+            // Clean up temporary ZIP if we packed from a folder
+            if (tempZipPath is not null && File.Exists(tempZipPath))
+                File.Delete(tempZipPath);
+        }
     }
 
     private static string FormatPath(SolutionImportPath path) => path switch
