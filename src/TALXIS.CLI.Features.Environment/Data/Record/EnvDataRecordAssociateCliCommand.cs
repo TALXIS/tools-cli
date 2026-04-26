@@ -20,13 +20,17 @@ public class EnvDataRecordAssociateCliCommand : StagedCliCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EnvDataRecordAssociateCliCommand));
 
-    [CliArgument(Description = "The GUID of the source record.")]
+    [CliArgument(
+        Description = "The GUID of the source record.",
+        ValidationPattern = CliValidation.GuidPattern,
+        ValidationMessage = CliValidation.GuidValidationMessage)]
     public Guid RecordId { get; set; }
 
     [CliOption(Name = "--entity", Description = "Entity logical name of the source record.", Required = true)]
     public string Entity { get; set; } = null!;
 
-    [CliOption(Name = "--target", Description = "The GUID of the target record to associate.", Required = true)]
+    [CliOption(Name = "--target", Description = "The GUID of the target record to associate.", Required = true,
+        ValidationPattern = CliValidation.GuidPattern, ValidationMessage = CliValidation.GuidValidationMessage)]
     public Guid Target { get; set; }
 
     [CliOption(Name = "--target-entity", Description = "Entity logical name of the target record.", Required = true)]

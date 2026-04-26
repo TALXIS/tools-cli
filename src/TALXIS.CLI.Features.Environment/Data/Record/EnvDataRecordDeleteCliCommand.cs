@@ -26,7 +26,10 @@ public class EnvDataRecordDeleteCliCommand : StagedCliCommand, IDestructiveComma
     [CliOption(Name = "--entity", Description = "Entity logical name (e.g. account).", Required = true)]
     public string Entity { get; set; } = null!;
 
-    [CliArgument(Description = "The GUID of the record to delete.")]
+    [CliArgument(
+        Description = "The GUID of the record to delete.",
+        ValidationPattern = CliValidation.GuidPattern,
+        ValidationMessage = CliValidation.GuidValidationMessage)]
     public Guid RecordId { get; set; }
 
     protected override async Task<int> ExecuteAsync()

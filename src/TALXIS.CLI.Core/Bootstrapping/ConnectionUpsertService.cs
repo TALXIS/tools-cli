@@ -1,3 +1,5 @@
+using System.Net;
+using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Core.Storage;
@@ -21,10 +23,12 @@ public sealed record ConnectionUpsertResult(Connection? Connection, string? Erro
 public sealed class ConnectionUpsertService
 {
     private readonly IConnectionStore _store;
+    private readonly ILogger<ConnectionUpsertService>? _logger;
 
-    public ConnectionUpsertService(IConnectionStore store)
+    public ConnectionUpsertService(IConnectionStore store, ILogger<ConnectionUpsertService>? logger = null)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
+        _logger = logger;
     }
 
     /// <summary>
@@ -77,6 +81,17 @@ public sealed class ConnectionUpsertService
                 return new ConnectionUpsertResult(null,
                     $"--environment-id must be a GUID: '{environmentId}'.");
             parsedEnvironmentId = eid;
+        }
+
+        // Non-blocking DNS reachability check — warn if the hostname cannot be resolved.
+        // Let cancellation propagate so user Ctrl+C is not swallowed.
+        try
+        {
+            await Dns.GetHostAddressesAsync(envUri.Host, ct).ConfigureAwait(false);
+        }
+        catch (Exception) when (!ct.IsCancellationRequested)
+        {
+            _logger?.LogWarning("Hostname '{Host}' could not be resolved. The connection will be saved but may not work at runtime.", envUri.Host);
         }
 
         // Check if a connection already exists to preserve CreatedAt.

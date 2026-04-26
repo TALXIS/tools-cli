@@ -23,7 +23,10 @@ public class EnvDataRecordGetCliCommand : ProfiledCliCommand
     [CliOption(Name = "--entity", Description = "Entity logical name (e.g. account).", Required = true)]
     public string Entity { get; set; } = null!;
 
-    [CliArgument(Description = "The GUID of the record to retrieve.")]
+    [CliArgument(
+        Description = "The GUID of the record to retrieve.",
+        ValidationPattern = CliValidation.GuidPattern,
+        ValidationMessage = CliValidation.GuidValidationMessage)]
     public Guid RecordId { get; set; }
 
     [CliOption(Name = "--columns", Description = "Comma-separated column names to retrieve.", Required = false)]

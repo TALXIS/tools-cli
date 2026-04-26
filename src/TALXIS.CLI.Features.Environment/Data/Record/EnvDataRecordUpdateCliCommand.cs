@@ -24,7 +24,10 @@ public class EnvDataRecordUpdateCliCommand : StagedCliCommand
     [CliOption(Name = "--entity", Description = "Entity logical name (e.g. account).", Required = true)]
     public string Entity { get; set; } = null!;
 
-    [CliArgument(Description = "The GUID of the record to update.")]
+    [CliArgument(
+        Description = "The GUID of the record to update.",
+        ValidationPattern = CliValidation.GuidPattern,
+        ValidationMessage = CliValidation.GuidValidationMessage)]
     public Guid RecordId { get; set; }
 
     [CliOption(Name = "--data", Description = "Inline JSON object with attributes to update.", Required = false)]

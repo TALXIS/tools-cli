@@ -52,13 +52,21 @@ internal sealed class DataverseQueryService : IDataverseQueryService
 
         var headers = BuildHeaders(includeAnnotations);
         var queryPath = $"{entitySetName}?sql={Uri.EscapeDataString(sql)}";
-        var response = conn.Client.ExecuteWebRequest(HttpMethod.Get, queryPath, string.Empty, headers);
 
         var records = new List<JsonElement>();
-        await ParseValueArrayAsync(response, records, ct).ConfigureAwait(false);
+        try
+        {
+            using var response = conn.Client.ExecuteWebRequest(HttpMethod.Get, queryPath, string.Empty, headers);
+            await ParseValueArrayAsync(response, records, ct).ConfigureAwait(false);
 
-        // Follow @odata.nextLink pages until exhausted or top limit reached.
-        await FollowNextLinksAsync(conn, response, records, top, headers, ct).ConfigureAwait(false);
+            // Follow @odata.nextLink pages until exhausted or top limit reached.
+            await FollowNextLinksAsync(conn, response, records, top, headers, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw new InvalidOperationException(
+                $"SQL query against '{entitySetName}' failed: {ex.Message}", ex);
+        }
 
         if (!includeAnnotations)
             StripAnnotations(records);
@@ -133,16 +141,24 @@ internal sealed class DataverseQueryService : IDataverseQueryService
 
         var queryPath = BuildODataQueryPath(entitySetOrPath, select, filter, orderBy, top);
         var headers = BuildHeaders(includeAnnotations);
-        var response = conn.Client.ExecuteWebRequest(HttpMethod.Get, queryPath, string.Empty, headers);
 
         var records = new List<JsonElement>();
-        await ParseValueArrayAsync(response, records, ct).ConfigureAwait(false);
+        try
+        {
+            using var response = conn.Client.ExecuteWebRequest(HttpMethod.Get, queryPath, string.Empty, headers);
+            await ParseValueArrayAsync(response, records, ct).ConfigureAwait(false);
 
-        // Dataverse can still return @odata.nextLink when $top is specified
-        // (for example when the requested top exceeds the server page size).
-        // Always follow pagination links and let the helper stop once the
-        // requested number of records has been accumulated.
-        await FollowNextLinksAsync(conn, response, records, top, headers, ct).ConfigureAwait(false);
+            // Dataverse can still return @odata.nextLink when $top is specified
+            // (for example when the requested top exceeds the server page size).
+            // Always follow pagination links and let the helper stop once the
+            // requested number of records has been accumulated.
+            await FollowNextLinksAsync(conn, response, records, top, headers, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw new InvalidOperationException(
+                $"OData query against '{entitySetOrPath}' failed: {ex.Message}", ex);
+        }
 
         if (!includeAnnotations)
             StripAnnotations(records);
@@ -175,7 +191,7 @@ internal sealed class DataverseQueryService : IDataverseQueryService
         // Simple regex to grab the first table name after FROM.
         var match = Regex.Match(sql, @"\bFROM\s+(\w+)", RegexOptions.IgnoreCase);
         if (!match.Success)
-            throw new InvalidOperationException("Could not parse a table name from the SQL FROM clause.");
+            throw new InvalidOperationException($"Could not parse a table name from the SQL FROM clause in: '{sql}'.");
 
         var tableName = match.Groups[1].Value.ToLowerInvariant();
 
@@ -225,6 +241,8 @@ internal sealed class DataverseQueryService : IDataverseQueryService
 
     /// <summary>
     /// Parses the <c>value</c> array from a Web API JSON response.
+    /// Throws <see cref="InvalidOperationException"/> with the server error
+    /// message when the response indicates a non-success HTTP status code.
     /// </summary>
     private static async Task ParseValueArrayAsync(
         HttpResponseMessage response,
@@ -232,6 +250,16 @@ internal sealed class DataverseQueryService : IDataverseQueryService
         CancellationToken ct)
     {
         var content = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var serverMessage = TryExtractODataErrorMessage(content);
+            throw new InvalidOperationException(
+                string.IsNullOrEmpty(serverMessage)
+                    ? $"Dataverse returned HTTP {(int)response.StatusCode} ({response.StatusCode})."
+                    : $"Dataverse returned HTTP {(int)response.StatusCode} ({response.StatusCode}): {serverMessage}");
+        }
+
         using var doc = JsonDocument.Parse(content);
 
         if (doc.RootElement.TryGetProperty("value", out var valueArray) &&
@@ -240,6 +268,41 @@ internal sealed class DataverseQueryService : IDataverseQueryService
             foreach (var item in valueArray.EnumerateArray())
                 target.Add(item.Clone());
         }
+    }
+
+    /// <summary>
+    /// Attempts to extract the <c>error.message</c> field from an OData
+    /// error response body. Returns <c>null</c> when the body is not valid
+    /// OData error JSON.
+    /// </summary>
+    private static string? TryExtractODataErrorMessage(string responseBody)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(responseBody);
+            if (doc.RootElement.TryGetProperty("error", out var errorElement) &&
+                errorElement.TryGetProperty("message", out var messageElement))
+            {
+                if (messageElement.ValueKind == JsonValueKind.String)
+                {
+                    return messageElement.GetString();
+                }
+
+                // OData error payloads may represent "message" as an object
+                // such as { "lang": "en-US", "value": "..." }.
+                if (messageElement.ValueKind == JsonValueKind.Object &&
+                    messageElement.TryGetProperty("value", out var valueElement) &&
+                    valueElement.ValueKind == JsonValueKind.String)
+                {
+                    return valueElement.GetString();
+                }
+            }
+        }
+        catch (JsonException)
+        {
+            // Response is not valid JSON — fall through.
+        }
+        return null;
     }
 
     /// <summary>
@@ -274,12 +337,27 @@ internal sealed class DataverseQueryService : IDataverseQueryService
             // Extract relative path from the absolute nextLink URL.
             var relativePath = ExtractRelativePath(nextLinkUrl, conn);
 
-            currentResponse = conn.Client.ExecuteWebRequest(HttpMethod.Get, relativePath, string.Empty, headers);
-            await ParseValueArrayAsync(currentResponse, records, ct).ConfigureAwait(false);
+            // Dispose paginated responses to avoid socket/handler leaks.
+            var nextResponse = conn.Client.ExecuteWebRequest(HttpMethod.Get, relativePath, string.Empty, headers);
+            try
+            {
+                await ParseValueArrayAsync(nextResponse, records, ct).ConfigureAwait(false);
+            }
+            finally
+            {
+                // Keep the reference for the next iteration's content read.
+                if (currentResponse != lastResponse)
+                    currentResponse.Dispose();
+                currentResponse = nextResponse;
+            }
 
             if (top.HasValue && records.Count >= top.Value)
                 break;
         }
+
+        // Dispose the last paginated response (but not the caller's initial response).
+        if (currentResponse != lastResponse)
+            currentResponse.Dispose();
     }
 
     /// <summary>

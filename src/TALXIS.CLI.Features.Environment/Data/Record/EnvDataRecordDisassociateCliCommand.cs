@@ -24,13 +24,17 @@ public class EnvDataRecordDisassociateCliCommand : StagedCliCommand, IDestructiv
     [CliOption(Name = "--yes", Description = "Skip interactive confirmation for this destructive operation.", Required = false)]
     public bool Yes { get; set; }
 
-    [CliArgument(Description = "The GUID of the source record.")]
+    [CliArgument(
+        Description = "The GUID of the source record.",
+        ValidationPattern = CliValidation.GuidPattern,
+        ValidationMessage = CliValidation.GuidValidationMessage)]
     public Guid RecordId { get; set; }
 
     [CliOption(Name = "--entity", Description = "Entity logical name of the source record.", Required = true)]
     public string Entity { get; set; } = null!;
 
-    [CliOption(Name = "--target", Description = "The GUID of the target record to disassociate.", Required = true)]
+    [CliOption(Name = "--target", Description = "The GUID of the target record to disassociate.", Required = true,
+        ValidationPattern = CliValidation.GuidPattern, ValidationMessage = CliValidation.GuidValidationMessage)]
     public Guid Target { get; set; }
 
     [CliOption(Name = "--target-entity", Description = "Entity logical name of the target record.", Required = true)]
