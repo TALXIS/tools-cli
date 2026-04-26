@@ -6,7 +6,7 @@ namespace TALXIS.CLI.Features.Environment.Solution;
     Name = "solution",
     Alias = "sln",
     Description = "Manage solutions in the target environment.",
-    Children = new[] { typeof(SolutionImportCliCommand), typeof(SolutionUninstallCliCommand), typeof(SolutionListCliCommand), typeof(SolutionShowCliCommand), typeof(SolutionUninstallCheckCliCommand), typeof(Component.SolutionComponentCliCommand) },
+    Children = new[] { typeof(SolutionImportCliCommand), typeof(SolutionUninstallCliCommand), typeof(SolutionDeleteCliCommand), typeof(SolutionListCliCommand), typeof(SolutionShowCliCommand), typeof(SolutionUninstallCheckCliCommand), typeof(Component.SolutionComponentCliCommand) },
     ShortFormAutoGenerate = CliNameAutoGenerate.None
 )]
 public class SolutionCliCommand

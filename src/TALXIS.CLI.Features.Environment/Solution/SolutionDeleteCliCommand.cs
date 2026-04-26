@@ -10,13 +10,13 @@ using TALXIS.CLI.Core.Abstractions;
 namespace TALXIS.CLI.Features.Environment.Solution;
 
 [CliCommand(
-    Name = "uninstall",
-    Description = "Uninstall a managed solution and remove all its components from the environment."
+    Name = "delete",
+    Description = "Delete an unmanaged solution container (components remain in the environment)."
 )]
-[CliDestructive("Permanently removes the managed solution and all its components from the environment.")]
-public class SolutionUninstallCliCommand : ProfiledCliCommand, IDestructiveCommand
+[CliDestructive("Removes the unmanaged solution container. Components are NOT deleted — they remain in the environment.")]
+public class SolutionDeleteCliCommand : ProfiledCliCommand, IDestructiveCommand
 {
-    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(SolutionUninstallCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(SolutionDeleteCliCommand));
 
     [CliArgument(Name = "name", Description = "Solution unique name.")]
     public required string Name { get; set; }
@@ -33,12 +33,11 @@ public class SolutionUninstallCliCommand : ProfiledCliCommand, IDestructiveComma
         }
 
         var service = TxcServices.Get<ISolutionUninstallService>();
-        var outcome = await service.UninstallByUniqueNameAsync(Profile, Name, expectManaged: true, CancellationToken.None).ConfigureAwait(false);
+        var outcome = await service.UninstallByUniqueNameAsync(Profile, Name, expectManaged: false, CancellationToken.None).ConfigureAwait(false);
 
         return RenderSingle(outcome);
     }
 
-    // TODO: Refactor to use OutputFormatter instead of manual OutputContext.IsJson branching.
 #pragma warning disable TXC003
     private int RenderSingle(SolutionUninstallOutcome outcome)
     {
