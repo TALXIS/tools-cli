@@ -37,8 +37,8 @@ internal static class DependencyOutputHelper
             var reqType = Resolver.ResolveName(d.RequiredComponentType);
             var depKind = d.DependencyType switch
             {
-                1 => "Published",
-                2 => "Internal",
+                1 => "Internal",
+                2 => "Published",
                 4 => "Unpublished",
                 _ => d.DependencyType.ToString(),
             };
