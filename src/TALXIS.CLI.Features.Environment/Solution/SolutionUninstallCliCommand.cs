@@ -32,6 +32,14 @@ public class SolutionUninstallCliCommand : ProfiledCliCommand, IDestructiveComma
             return ExitValidationError;
         }
 
+        // Pre-check: warn about blocking dependencies before uninstalling
+        var depService = TxcServices.Get<ISolutionDependencyService>();
+        var deps = await depService.CheckUninstallAsync(Profile, Name, CancellationToken.None).ConfigureAwait(false);
+        if (deps.Count > 0)
+        {
+            Logger.LogWarning("Solution '{Name}' has {Count} blocking dependency(ies). Uninstall may fail or leave the environment in an inconsistent state.", Name, deps.Count);
+        }
+
         var service = TxcServices.Get<ISolutionUninstallService>();
         var outcome = await service.UninstallByUniqueNameAsync(Profile, Name, expectManaged: true, CancellationToken.None).ConfigureAwait(false);
 

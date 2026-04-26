@@ -9,6 +9,7 @@ namespace TALXIS.CLI.Features.Environment.Component.Layer;
     {
         typeof(ComponentLayerListCliCommand),
         typeof(ComponentLayerShowCliCommand),
+        typeof(ComponentLayerRemoveCustomizationCliCommand),
     },
     ShortFormAutoGenerate = CliNameAutoGenerate.None
 )]
