@@ -24,6 +24,9 @@ public static class DataverseApplicationServiceCollectionExtensions
         services.AddTransient<IDataverseEntityMetadataService, DataverseEntityMetadataService>();
         services.AddTransient<IDataverseRelationshipService, DataverseRelationshipService>();
         services.AddTransient<IDataverseOptionSetService, DataverseOptionSetService>();
+        services.AddSingleton<ISolutionDetailService, DataverseSolutionDetailService>();
+        services.AddSingleton<ISolutionComponentQueryService, DataverseSolutionComponentQueryService>();
+        services.AddSingleton<ISolutionDependencyService, DataverseSolutionDependencyService>();
         return services;
     }
 }
