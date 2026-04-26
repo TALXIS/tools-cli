@@ -21,7 +21,7 @@ public class DataPackageExportCliCommand : ProfiledCliCommand
     [CliOption(Name = "--schema", Alias = "-s", Description = "Path to the schema file (data_schema.xml) that defines which entities, fields and relationships to export. You can create this file using the Configuration Migration Tool GUI or write it by hand.", Required = true)]
     public required string Schema { get; set; }
 
-    [CliOption(Name = "--output", Alias = "-o", Description = "Output folder for the extracted data package (default), or path to a .zip file when --zip is used.", Required = true)]
+    [CliOption(Name = "--output", Alias = "-o", Description = "Directory path for the extracted data package (default), or file path to a .zip archive when --zip is used.", Required = true)]
     public required string Output { get; set; }
 
     [CliOption(Name = "--export-files", Description = "Also download binary file and image columns (e.g. profile pictures, attachments). These are saved inside the zip in a 'files' folder. Off by default because it can be slow for large files.", Required = false)]

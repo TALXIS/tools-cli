@@ -18,6 +18,7 @@ public class DataModelConvertCliCommand : TxcLeafCommand
 
     [CliOption(
         Name = "--input",
+        Aliases = ["-i"],
         Description = "Path to the input: a solution project folder (.cdsproj/.csproj with SolutionRootPath), a declarations folder, or a .zip solution file. Defaults to the current directory.",
         Required = false
     )]
@@ -33,7 +34,8 @@ public class DataModelConvertCliCommand : TxcLeafCommand
 
     [CliOption(
         Name = "--output",
-        Description = $"Directory to write the output file into. Defaults to the '{ExportsFolderName}/' folder in the current directory (auto-created and gitignored).",
+        Aliases = ["-o"],
+        Description = $"Directory path to write the output file into. Defaults to the '{ExportsFolderName}/' folder in the current directory (auto-created and gitignored).",
         Required = false
     )]
     public string? OutputDirectory { get; set; }

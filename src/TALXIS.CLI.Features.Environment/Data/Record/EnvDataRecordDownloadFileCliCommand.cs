@@ -32,7 +32,7 @@ public class EnvDataRecordDownloadFileCliCommand : ProfiledCliCommand
     [CliOption(Name = "--column", Description = "Logical name of the file/image column.", Required = true)]
     public string Column { get; set; } = null!;
 
-    [CliOption(Name = "--output", Description = "Local path where the file will be saved.", Required = true)]
+    [CliOption(Name = "--output", Aliases = ["-o"], Description = "Local file path where the downloaded file will be saved.", Required = true)]
     public string Output { get; set; } = null!;
 
     protected override async Task<int> ExecuteAsync()
