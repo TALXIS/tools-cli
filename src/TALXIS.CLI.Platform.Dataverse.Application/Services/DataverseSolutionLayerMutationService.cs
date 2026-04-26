@@ -11,6 +11,7 @@ internal sealed class DataverseSolutionLayerMutationService : ISolutionLayerMuta
         string? profileName,
         Guid componentId,
         int componentType,
+        string componentTypeName,
         CancellationToken ct)
     {
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
@@ -21,7 +22,7 @@ internal sealed class DataverseSolutionLayerMutationService : ISolutionLayerMuta
         {
             ["ComponentId"] = componentId,
             ["ComponentType"] = componentType,
-            ["SolutionComponentName"] = componentType.ToString(),
+            ["SolutionComponentName"] = componentTypeName,
         };
 
         await conn.Client.ExecuteAsync(request, ct).ConfigureAwait(false);

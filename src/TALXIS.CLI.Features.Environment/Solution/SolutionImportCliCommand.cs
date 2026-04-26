@@ -61,24 +61,34 @@ public class SolutionImportCliCommand : ProfiledCliCommand
         // 4. Directory → treated as unpacked solution folder
         if (Directory.Exists(solutionPath))
         {
-            // Check for cdsproj/csproj project convention: <project-dir>/src is the solution root
-            var projFiles = Directory.GetFiles(solutionPath, "*.cdsproj")
-                .Concat(Directory.GetFiles(solutionPath, "*.csproj"))
-                .ToArray();
-            if (projFiles.Length > 0)
+            // Check for Dataverse project convention: <project-dir>/src is the solution root.
+            // *.cdsproj is the Dataverse convention (always use src/).
+            // *.csproj is checked as a fallback but only used if src/ exists (avoids false
+            // positives with non-Dataverse C# projects in the same directory).
+            var srcFolder = Path.Combine(solutionPath, "src");
+            var hasCdsProj = Directory.GetFiles(solutionPath, "*.cdsproj").Length > 0;
+            var hasCsProj = Directory.GetFiles(solutionPath, "*.csproj").Length > 0;
+
+            if (hasCdsProj)
             {
-                var srcFolder = Path.Combine(solutionPath, "src");
                 if (Directory.Exists(srcFolder))
                 {
-                    Logger.LogInformation("Found project file — using '{SrcFolder}' as solution root.", srcFolder);
+                    Logger.LogInformation("Found .cdsproj — using '{SrcFolder}' as solution root.", srcFolder);
                     solutionPath = srcFolder;
                 }
                 else
                 {
-                    Logger.LogError("Found project file but '{SrcFolder}' does not exist.", srcFolder);
+                    Logger.LogError("Found .cdsproj but '{SrcFolder}' does not exist.", srcFolder);
                     return ExitValidationError;
                 }
             }
+            else if (hasCsProj && Directory.Exists(srcFolder))
+            {
+                // .csproj with src/ subfolder — likely a Dataverse project
+                Logger.LogInformation("Found .csproj with src/ folder — using '{SrcFolder}' as solution root.", srcFolder);
+                solutionPath = srcFolder;
+            }
+            // Otherwise: treat directory as-is (unpacked solution folder)
 
             Logger.LogInformation("Input is a folder — packing to ZIP before import...");
             tempZipPath = Path.Combine(Path.GetTempPath(), $"txc_import_{Guid.NewGuid():N}.zip");

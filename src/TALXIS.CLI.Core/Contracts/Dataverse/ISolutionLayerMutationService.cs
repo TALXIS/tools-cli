@@ -10,5 +10,6 @@ public interface ISolutionLayerMutationService
         string? profileName,
         Guid componentId,
         int componentType,
+        string componentTypeName,
         CancellationToken ct);
 }

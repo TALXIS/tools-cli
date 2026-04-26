@@ -60,10 +60,9 @@ public class ComponentLayerRemoveCustomizationCliCommand : ProfiledCliCommand, I
         }
 
         // Execute removal
-        var mutationService = TxcServices.Get<ISolutionLayerMutationService>();
-        await mutationService.RemoveCustomizationAsync(Profile, id, typeCode, CancellationToken.None).ConfigureAwait(false);
-
         var typeName = resolver.ResolveName(typeCode);
+        var mutationService = TxcServices.Get<ISolutionLayerMutationService>();
+        await mutationService.RemoveCustomizationAsync(Profile, id, typeCode, typeName, CancellationToken.None).ConfigureAwait(false);
         OutputFormatter.WriteData(
             new { status = "removed", componentId = ComponentId, componentType = typeName },
             _ =>
