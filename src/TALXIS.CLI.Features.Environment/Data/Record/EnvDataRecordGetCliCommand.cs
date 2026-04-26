@@ -23,7 +23,10 @@ public class EnvDataRecordGetCliCommand : ProfiledCliCommand
     [CliOption(Name = "--entity", Description = "Entity logical name (e.g. account).", Required = true)]
     public string Entity { get; set; } = null!;
 
-    [CliArgument(Description = "The GUID of the record to retrieve.")]
+    [CliArgument(
+        Description = "The GUID of the record to retrieve.",
+        ValidationPattern = @"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+        ValidationMessage = "Value must be a valid GUID (e.g. 00000000-0000-0000-0000-000000000000).")]
     public Guid RecordId { get; set; }
 
     [CliOption(Name = "--columns", Description = "Comma-separated column names to retrieve.", Required = false)]

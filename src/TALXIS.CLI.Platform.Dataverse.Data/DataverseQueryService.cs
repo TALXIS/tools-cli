@@ -52,10 +52,28 @@ internal sealed class DataverseQueryService : IDataverseQueryService
 
         var headers = BuildHeaders(includeAnnotations);
         var queryPath = $"{entitySetName}?sql={Uri.EscapeDataString(sql)}";
-        var response = conn.Client.ExecuteWebRequest(HttpMethod.Get, queryPath, string.Empty, headers);
+
+        HttpResponseMessage response;
+        try
+        {
+            response = conn.Client.ExecuteWebRequest(HttpMethod.Get, queryPath, string.Empty, headers);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                $"SQL query against '{entitySetName}' failed: {ex.Message}", ex);
+        }
 
         var records = new List<JsonElement>();
-        await ParseValueArrayAsync(response, records, ct).ConfigureAwait(false);
+        try
+        {
+            await ParseValueArrayAsync(response, records, ct).ConfigureAwait(false);
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw new InvalidOperationException(
+                $"SQL query against '{entitySetName}' failed: {ex.Message}", ex);
+        }
 
         // Follow @odata.nextLink pages until exhausted or top limit reached.
         await FollowNextLinksAsync(conn, response, records, top, headers, ct).ConfigureAwait(false);
@@ -133,10 +151,28 @@ internal sealed class DataverseQueryService : IDataverseQueryService
 
         var queryPath = BuildODataQueryPath(entitySetOrPath, select, filter, orderBy, top);
         var headers = BuildHeaders(includeAnnotations);
-        var response = conn.Client.ExecuteWebRequest(HttpMethod.Get, queryPath, string.Empty, headers);
+
+        HttpResponseMessage response;
+        try
+        {
+            response = conn.Client.ExecuteWebRequest(HttpMethod.Get, queryPath, string.Empty, headers);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                $"OData query against '{entitySetOrPath}' failed: {ex.Message}", ex);
+        }
 
         var records = new List<JsonElement>();
-        await ParseValueArrayAsync(response, records, ct).ConfigureAwait(false);
+        try
+        {
+            await ParseValueArrayAsync(response, records, ct).ConfigureAwait(false);
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw new InvalidOperationException(
+                $"OData query against '{entitySetOrPath}' failed: {ex.Message}", ex);
+        }
 
         // Dataverse can still return @odata.nextLink when $top is specified
         // (for example when the requested top exceeds the server page size).
@@ -175,7 +211,7 @@ internal sealed class DataverseQueryService : IDataverseQueryService
         // Simple regex to grab the first table name after FROM.
         var match = Regex.Match(sql, @"\bFROM\s+(\w+)", RegexOptions.IgnoreCase);
         if (!match.Success)
-            throw new InvalidOperationException("Could not parse a table name from the SQL FROM clause.");
+            throw new InvalidOperationException($"Could not parse a table name from the SQL FROM clause in: '{sql}'.");
 
         var tableName = match.Groups[1].Value.ToLowerInvariant();
 
@@ -225,6 +261,8 @@ internal sealed class DataverseQueryService : IDataverseQueryService
 
     /// <summary>
     /// Parses the <c>value</c> array from a Web API JSON response.
+    /// Throws <see cref="InvalidOperationException"/> with the server error
+    /// message when the response indicates a non-success HTTP status code.
     /// </summary>
     private static async Task ParseValueArrayAsync(
         HttpResponseMessage response,
@@ -232,6 +270,16 @@ internal sealed class DataverseQueryService : IDataverseQueryService
         CancellationToken ct)
     {
         var content = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var serverMessage = TryExtractODataErrorMessage(content);
+            throw new InvalidOperationException(
+                string.IsNullOrEmpty(serverMessage)
+                    ? $"Dataverse returned HTTP {(int)response.StatusCode} ({response.StatusCode})."
+                    : $"Dataverse returned HTTP {(int)response.StatusCode} ({response.StatusCode}): {serverMessage}");
+        }
+
         using var doc = JsonDocument.Parse(content);
 
         if (doc.RootElement.TryGetProperty("value", out var valueArray) &&
@@ -240,6 +288,29 @@ internal sealed class DataverseQueryService : IDataverseQueryService
             foreach (var item in valueArray.EnumerateArray())
                 target.Add(item.Clone());
         }
+    }
+
+    /// <summary>
+    /// Attempts to extract the <c>error.message</c> field from an OData
+    /// error response body. Returns <c>null</c> when the body is not valid
+    /// OData error JSON.
+    /// </summary>
+    private static string? TryExtractODataErrorMessage(string responseBody)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(responseBody);
+            if (doc.RootElement.TryGetProperty("error", out var errorElement) &&
+                errorElement.TryGetProperty("message", out var messageElement))
+            {
+                return messageElement.GetString();
+            }
+        }
+        catch (JsonException)
+        {
+            // Response is not valid JSON — fall through.
+        }
+        return null;
     }
 
     /// <summary>

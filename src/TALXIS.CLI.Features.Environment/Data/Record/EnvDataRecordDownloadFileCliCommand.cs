@@ -23,7 +23,10 @@ public class EnvDataRecordDownloadFileCliCommand : ProfiledCliCommand
     [CliOption(Name = "--entity", Description = "Entity logical name (e.g. fin_mytable).", Required = true)]
     public string Entity { get; set; } = null!;
 
-    [CliArgument(Description = "The GUID of the record containing the file.")]
+    [CliArgument(
+        Description = "The GUID of the record containing the file.",
+        ValidationPattern = @"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+        ValidationMessage = "Value must be a valid GUID (e.g. 00000000-0000-0000-0000-000000000000).")]
     public Guid RecordId { get; set; }
 
     [CliOption(Name = "--column", Description = "Logical name of the file/image column.", Required = true)]

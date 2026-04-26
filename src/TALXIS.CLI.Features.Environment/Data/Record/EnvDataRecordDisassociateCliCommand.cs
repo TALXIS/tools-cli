@@ -24,7 +24,10 @@ public class EnvDataRecordDisassociateCliCommand : StagedCliCommand, IDestructiv
     [CliOption(Name = "--yes", Description = "Skip interactive confirmation for this destructive operation.", Required = false)]
     public bool Yes { get; set; }
 
-    [CliArgument(Description = "The GUID of the source record.")]
+    [CliArgument(
+        Description = "The GUID of the source record.",
+        ValidationPattern = @"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+        ValidationMessage = "Value must be a valid GUID (e.g. 00000000-0000-0000-0000-000000000000).")]
     public Guid RecordId { get; set; }
 
     [CliOption(Name = "--entity", Description = "Entity logical name of the source record.", Required = true)]
