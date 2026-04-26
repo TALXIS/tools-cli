@@ -55,6 +55,16 @@ internal static class PublisherManager
         return await service.CreateAsync(entity, ct).ConfigureAwait(false);
     }
 
+    public static async Task DeleteAsync(
+        IOrganizationServiceAsync2 service, string uniqueName, CancellationToken ct)
+    {
+        var pub = await ShowAsync(service, uniqueName, ct).ConfigureAwait(false);
+        if (pub is null)
+            throw new InvalidOperationException($"Publisher '{uniqueName}' not found.");
+
+        await service.DeleteAsync("publisher", pub.Id, ct).ConfigureAwait(false);
+    }
+
     private static PublisherRecord ToRecord(Entity e) => new(
         Id: e.Id,
         UniqueName: e.GetAttributeValue<string>("uniquename") ?? "(unknown)",

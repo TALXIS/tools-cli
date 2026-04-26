@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
@@ -31,8 +32,16 @@ public class SolutionCreateCliCommand : ProfiledCliCommand
     [CliOption(Name = "--description", Description = "Solution description.", Required = false)]
     public string? Description { get; set; }
 
+    private static readonly Regex UniqueNamePattern = new(@"^[A-Za-z_][A-Za-z0-9_]*$", RegexOptions.Compiled);
+
     protected override async Task<int> ExecuteAsync()
     {
+        if (!UniqueNamePattern.IsMatch(Name))
+        {
+            Logger.LogError("Invalid solution name '{Name}'. Only [A-Z], [a-z], [0-9], or _ are allowed. Must start with a letter or _.", Name);
+            return ExitValidationError;
+        }
+
         if (!System.Version.TryParse(Version, out _))
         {
             Logger.LogError("Invalid version '{Version}'. Use format: major.minor.build.revision", Version);

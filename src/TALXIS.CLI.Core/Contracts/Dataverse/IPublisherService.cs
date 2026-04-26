@@ -19,4 +19,5 @@ public interface IPublisherService
     Task<IReadOnlyList<PublisherRecord>> ListAsync(string? profileName, CancellationToken ct);
     Task<PublisherRecord?> ShowAsync(string? profileName, string uniqueName, CancellationToken ct);
     Task<Guid> CreateAsync(string? profileName, PublisherCreateOptions options, CancellationToken ct);
+    Task DeleteAsync(string? profileName, string uniqueName, CancellationToken ct);
 }

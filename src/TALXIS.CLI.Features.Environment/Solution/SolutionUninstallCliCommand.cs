@@ -24,6 +24,9 @@ public class SolutionUninstallCliCommand : ProfiledCliCommand, IDestructiveComma
     [CliOption(Name = "--yes", Description = "Skip interactive confirmation for this destructive operation.", Required = false)]
     public bool Yes { get; set; }
 
+    [CliOption(Name = "--force", Description = "Proceed even if blocking dependencies are found.", Required = false)]
+    public bool Force { get; set; }
+
     protected override async Task<int> ExecuteAsync()
     {
         if (string.IsNullOrWhiteSpace(Name))
@@ -32,12 +35,20 @@ public class SolutionUninstallCliCommand : ProfiledCliCommand, IDestructiveComma
             return ExitValidationError;
         }
 
-        // Pre-check: warn about blocking dependencies before uninstalling
+        // Pre-check: block on dependencies unless --force is given
         var depService = TxcServices.Get<ISolutionDependencyService>();
         var deps = await depService.CheckUninstallAsync(Profile, Name, CancellationToken.None).ConfigureAwait(false);
-        if (deps.Count > 0)
+        if (deps.Count > 0 && !Force)
         {
-            Logger.LogWarning("Solution '{Name}' has {Count} blocking dependency(ies). Uninstall may fail or leave the environment in an inconsistent state.", Name, deps.Count);
+            Logger.LogError(
+                "Solution '{Name}' has {Count} blocking dependency(ies). " +
+                "Run 'txc env sln uninstall-check {Name}' to see details, or use --force to proceed anyway.",
+                Name, deps.Count, Name);
+            return ExitError;
+        }
+        if (deps.Count > 0 && Force)
+        {
+            Logger.LogWarning("Solution '{Name}' has {Count} blocking dependency(ies). Proceeding because --force was specified.", Name, deps.Count);
         }
 
         var service = TxcServices.Get<ISolutionUninstallService>();

@@ -33,7 +33,8 @@ public class ComponentDependencyRequiredCliCommand : ProfiledCliCommand
         var resolver = new ComponentTypeResolver();
         if (!resolver.TryResolveCode(Type, out var typeCode))
         {
-            Logger.LogError("Unknown component type '{Type}'.", Type);
+            var known = string.Join(", ", resolver.GetKnownNames().Take(15));
+            Logger.LogError("Unknown component type '{Type}'. Available types: {Known}. Or use an integer code.", Type, known);
             return ExitValidationError;
         }
 

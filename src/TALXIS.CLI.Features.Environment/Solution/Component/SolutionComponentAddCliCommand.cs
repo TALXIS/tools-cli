@@ -42,8 +42,18 @@ public class SolutionComponentAddCliCommand : ProfiledCliCommand
         var resolver = new ComponentTypeResolver();
         if (!resolver.TryResolveCode(Type, out var typeCode))
         {
-            Logger.LogError("Unknown component type '{Type}'.", Type);
+            var known = string.Join(", ", resolver.GetKnownNames().Take(15));
+            Logger.LogError("Unknown component type '{Type}'. Available types: {Known}. Or use an integer code.", Type, known);
             return ExitValidationError;
+        }
+
+        // Pre-check: reject managed solutions (can't add components to managed)
+        var detailService = TxcServices.Get<ISolutionDetailService>();
+        var (solution, _) = await detailService.ShowAsync(Profile, SolutionName, CancellationToken.None).ConfigureAwait(false);
+        if (solution.Managed)
+        {
+            Logger.LogError("Cannot add components to managed solution '{SolutionName}'.", SolutionName);
+            return ExitError;
         }
 
         var options = new ComponentAddOptions(SolutionName, id, typeCode, AddRequired, ExcludeSubcomponents);

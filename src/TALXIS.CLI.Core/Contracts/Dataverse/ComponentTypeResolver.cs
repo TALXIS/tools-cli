@@ -29,6 +29,9 @@ public sealed class ComponentTypeResolver
         return _nameToCode.TryGetValue(nameOrCode, out code);
     }
 
+    /// <summary>Returns all known friendly names for use in error messages.</summary>
+    public IEnumerable<string> GetKnownNames() => _nameToCode.Keys.Order();
+
     /// <summary>Resolves an integer type code to a friendly name.</summary>
     public string ResolveName(int code)
         => _codeToName.TryGetValue(code, out var name) ? name : code.ToString();

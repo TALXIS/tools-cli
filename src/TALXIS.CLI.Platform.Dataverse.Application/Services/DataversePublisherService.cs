@@ -23,4 +23,10 @@ internal sealed class DataversePublisherService : IPublisherService
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
         return await PublisherManager.CreateAsync(conn.Client, options, ct).ConfigureAwait(false);
     }
+
+    public async Task DeleteAsync(string? profileName, string uniqueName, CancellationToken ct)
+    {
+        using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+        await PublisherManager.DeleteAsync(conn.Client, uniqueName, ct).ConfigureAwait(false);
+    }
 }
