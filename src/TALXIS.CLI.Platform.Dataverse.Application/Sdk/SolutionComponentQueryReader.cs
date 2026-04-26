@@ -33,15 +33,18 @@ internal static class SolutionComponentQueryReader
             filter += $" and {DataverseSchema.MsdynSolutionComponentSummary.PrimaryEntityName} eq '{entityFilter.Replace("'", "''")}'";
 
 
+        var selectColumns = string.Join(",",
+            DataverseSchema.MsdynSolutionComponentSummary.ComponentType,
+            DataverseSchema.MsdynSolutionComponentSummary.ComponentTypeName,
+            DataverseSchema.MsdynSolutionComponentSummary.DisplayName,
+            DataverseSchema.MsdynSolutionComponentSummary.Name,
+            DataverseSchema.MsdynSolutionComponentSummary.ObjectId,
+            DataverseSchema.MsdynSolutionComponentSummary.IsManaged,
+            DataverseSchema.MsdynSolutionComponentSummary.IsCustomizable);
+
         var path = $"{DataverseSchema.MsdynSolutionComponentSummary.EntitySetName}" +
-                   $"?$filter={filter}" +
-                   $"&$select={DataverseSchema.MsdynSolutionComponentSummary.ComponentType}," +
-                   $"{DataverseSchema.MsdynSolutionComponentSummary.ComponentTypeName}," +
-                   $"{DataverseSchema.MsdynSolutionComponentSummary.DisplayName}," +
-                   $"{DataverseSchema.MsdynSolutionComponentSummary.Name}," +
-                   $"{DataverseSchema.MsdynSolutionComponentSummary.ObjectId}," +
-                   $"{DataverseSchema.MsdynSolutionComponentSummary.IsManaged}," +
-                   $"{DataverseSchema.MsdynSolutionComponentSummary.IsCustomizable}" +
+                   $"?$filter={Uri.EscapeDataString(filter)}" +
+                   $"&$select={Uri.EscapeDataString(selectColumns)}" +
                    "&api-version=9.1" +
                    (top.HasValue ? $"&$top={top.Value}" : "");
 

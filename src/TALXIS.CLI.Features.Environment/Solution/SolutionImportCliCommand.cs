@@ -92,9 +92,6 @@ public class SolutionImportCliCommand : ProfiledCliCommand
 
             Logger.LogInformation("Input is a folder — packing to ZIP before import...");
             tempZipPath = Path.Combine(Path.GetTempPath(), $"txc_import_{Guid.NewGuid():N}.zip");
-            var packager = TxcServices.Get<ISolutionPackagerService>();
-            packager.Pack(solutionPath, tempZipPath, Managed);
-            solutionPath = tempZipPath;
         }
         else if (!File.Exists(solutionPath))
         {
@@ -104,6 +101,13 @@ public class SolutionImportCliCommand : ProfiledCliCommand
 
         try
         {
+        // Pack folder to temp ZIP if needed (inside try/finally for cleanup)
+        if (tempZipPath is not null)
+        {
+            var packager = TxcServices.Get<ISolutionPackagerService>();
+            packager.Pack(solutionPath, tempZipPath, Managed);
+            solutionPath = tempZipPath;
+        }
 
         var options = new SolutionImportOptions(
             StageAndUpgrade: StageAndUpgrade,

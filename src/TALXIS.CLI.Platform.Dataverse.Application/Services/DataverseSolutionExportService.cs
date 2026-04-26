@@ -33,7 +33,9 @@ internal sealed class DataverseSolutionExportService : ISolutionExportService
                 ? options.OutputPath
                 : Path.Combine(options.OutputPath, $"{options.SolutionUniqueName}.zip");
 
-            Directory.CreateDirectory(Path.GetDirectoryName(zipPath)!);
+            var zipDir = Path.GetDirectoryName(Path.GetFullPath(zipPath));
+            if (!string.IsNullOrEmpty(zipDir))
+                Directory.CreateDirectory(zipDir);
             await File.WriteAllBytesAsync(zipPath, zipBytes, ct).ConfigureAwait(false);
             return zipPath;
         }

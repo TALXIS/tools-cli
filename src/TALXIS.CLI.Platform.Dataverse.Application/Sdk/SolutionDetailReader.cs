@@ -81,8 +81,9 @@ internal static class SolutionDetailReader
         if (service is not ServiceClient client)
             throw new InvalidOperationException("Component count queries require a ServiceClient instance.");
 
+        var filter = $"{DataverseSchema.MsdynSolutionComponentCountSummary.SolutionId} eq {solutionId}";
         var path = $"{DataverseSchema.MsdynSolutionComponentCountSummary.EntitySetName}" +
-                   $"?$filter={DataverseSchema.MsdynSolutionComponentCountSummary.SolutionId} eq {solutionId}";
+                   $"?$filter={Uri.EscapeDataString(filter)}";
 
         var headers = new Dictionary<string, List<string>>
         {

@@ -50,7 +50,7 @@ internal sealed class DataverseSolutionLayerQueryService : ISolutionLayerQuerySe
             filter += $" and {DataverseSchema.MsdynComponentLayer.SolutionName} eq '{filterActive}'";
 
         // Note: $select does NOT reduce payload — msdyn_componentjson and msdyn_changes are always returned.
-        var path = $"{DataverseSchema.MsdynComponentLayer.EntitySetName}?$filter={filter}";
+        var path = $"{DataverseSchema.MsdynComponentLayer.EntitySetName}?$filter={Uri.EscapeDataString(filter)}";
 
         var headers = new Dictionary<string, List<string>>
         {
