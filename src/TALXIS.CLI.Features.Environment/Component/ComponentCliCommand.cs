@@ -9,6 +9,7 @@ namespace TALXIS.CLI.Features.Environment.Component;
     Children = new[]
     {
         typeof(Layer.ComponentLayerCliCommand),
+        typeof(Dependency.ComponentDependencyCliCommand),
     },
     ShortFormAutoGenerate = CliNameAutoGenerate.None
 )]

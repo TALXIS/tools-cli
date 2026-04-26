@@ -18,4 +18,34 @@ internal sealed class DataverseSolutionDependencyService : ISolutionDependencySe
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
         return await SolutionDependencyReader.CheckUninstallAsync(conn.Client, solutionUniqueName, ct).ConfigureAwait(false);
     }
+
+    public async Task<IReadOnlyList<DependencyRow>> GetDependentsAsync(
+        string? profileName,
+        Guid componentId,
+        int componentType,
+        CancellationToken ct)
+    {
+        using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+        return await SolutionDependencyReader.GetDependentsAsync(conn.Client, componentId, componentType, ct).ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<DependencyRow>> GetRequiredAsync(
+        string? profileName,
+        Guid componentId,
+        int componentType,
+        CancellationToken ct)
+    {
+        using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+        return await SolutionDependencyReader.GetRequiredAsync(conn.Client, componentId, componentType, ct).ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<DependencyRow>> CheckDeleteAsync(
+        string? profileName,
+        Guid componentId,
+        int componentType,
+        CancellationToken ct)
+    {
+        using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+        return await SolutionDependencyReader.CheckDeleteAsync(conn.Client, componentId, componentType, ct).ConfigureAwait(false);
+    }
 }

@@ -55,6 +55,63 @@ internal static class SolutionDependencyReader
     }
 
     /// <summary>
+    /// Returns components that depend on the specified component.
+    /// </summary>
+    public static async Task<IReadOnlyList<DependencyRow>> GetDependentsAsync(
+        IOrganizationServiceAsync2 service,
+        Guid componentId,
+        int componentType,
+        CancellationToken ct)
+    {
+        var request = new RetrieveDependentComponentsRequest
+        {
+            ObjectId = componentId,
+            ComponentType = componentType,
+        };
+        var response = (RetrieveDependentComponentsResponse)
+            await service.ExecuteAsync(request, ct).ConfigureAwait(false);
+        return ParseDependencies(response.EntityCollection);
+    }
+
+    /// <summary>
+    /// Returns components that the specified component requires.
+    /// </summary>
+    public static async Task<IReadOnlyList<DependencyRow>> GetRequiredAsync(
+        IOrganizationServiceAsync2 service,
+        Guid componentId,
+        int componentType,
+        CancellationToken ct)
+    {
+        var request = new RetrieveRequiredComponentsRequest
+        {
+            ObjectId = componentId,
+            ComponentType = componentType,
+        };
+        var response = (RetrieveRequiredComponentsResponse)
+            await service.ExecuteAsync(request, ct).ConfigureAwait(false);
+        return ParseDependencies(response.EntityCollection);
+    }
+
+    /// <summary>
+    /// Returns dependencies that would block deletion of the specified component.
+    /// </summary>
+    public static async Task<IReadOnlyList<DependencyRow>> CheckDeleteAsync(
+        IOrganizationServiceAsync2 service,
+        Guid componentId,
+        int componentType,
+        CancellationToken ct)
+    {
+        var request = new RetrieveDependenciesForDeleteRequest
+        {
+            ObjectId = componentId,
+            ComponentType = componentType,
+        };
+        var response = (RetrieveDependenciesForDeleteResponse)
+            await service.ExecuteAsync(request, ct).ConfigureAwait(false);
+        return ParseDependencies(response.EntityCollection);
+    }
+
+    /// <summary>
     /// Gets an integer value from an entity attribute that may be stored as
     /// <see cref="OptionSetValue"/> or raw <see cref="int"/>.
     /// </summary>

@@ -16,18 +16,45 @@ public sealed record DependencyRow(
 
 /// <summary>
 /// Dependency analysis operations for solution components.
-/// Extended incrementally — starts with <see cref="CheckUninstallAsync"/>;
-/// additional methods added when the corresponding CLI commands land.
 /// </summary>
 public interface ISolutionDependencyService
 {
     /// <summary>
-    /// Returns all dependencies that would block uninstalling the solution
-    /// identified by <paramref name="solutionUniqueName"/>.
+    /// Returns all dependencies that would block uninstalling the solution.
     /// An empty list means the solution can be safely uninstalled.
     /// </summary>
     Task<IReadOnlyList<DependencyRow>> CheckUninstallAsync(
         string? profileName,
         string solutionUniqueName,
+        CancellationToken ct);
+
+    /// <summary>
+    /// Returns components that depend on the specified component
+    /// ("what would break if I modify/remove this?").
+    /// </summary>
+    Task<IReadOnlyList<DependencyRow>> GetDependentsAsync(
+        string? profileName,
+        Guid componentId,
+        int componentType,
+        CancellationToken ct);
+
+    /// <summary>
+    /// Returns components that the specified component requires
+    /// ("what must exist for this to work?").
+    /// </summary>
+    Task<IReadOnlyList<DependencyRow>> GetRequiredAsync(
+        string? profileName,
+        Guid componentId,
+        int componentType,
+        CancellationToken ct);
+
+    /// <summary>
+    /// Returns dependencies that would block deletion of the specified component.
+    /// An empty list means the component can be safely deleted.
+    /// </summary>
+    Task<IReadOnlyList<DependencyRow>> CheckDeleteAsync(
+        string? profileName,
+        Guid componentId,
+        int componentType,
         CancellationToken ct);
 }
