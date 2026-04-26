@@ -40,7 +40,6 @@ public class ComponentLayerListCliCommand : ProfiledCliCommand
         if (resolved is null)
             return ExitValidationError;
         var (componentId, typeName) = resolved.Value;
-            return ExitValidationError;
 
         var service = TxcServices.Get<ISolutionLayerQueryService>();
         var layers = await service.ListLayersAsync(Profile, componentId, typeName, CancellationToken.None).ConfigureAwait(false);

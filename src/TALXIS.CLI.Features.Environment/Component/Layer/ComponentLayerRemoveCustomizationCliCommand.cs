@@ -38,7 +38,6 @@ public class ComponentLayerRemoveCustomizationCliCommand : ProfiledCliCommand, I
         if (resolved is null)
             return ExitValidationError;
         var (componentId, typeName) = resolved.Value;
-            return ExitValidationError;
 
         if (!Guid.TryParse(componentId, out var guid))
         {
