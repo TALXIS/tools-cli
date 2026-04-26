@@ -26,7 +26,7 @@ public class SolutionComponentRemoveCliCommand : ProfiledCliCommand, IDestructiv
     [CliOption(Name = "--type", Description = "Component type (name or code, e.g. 'Entity' or '1').", Required = true)]
     public string Type { get; set; } = null!;
 
-    [CliOption(Name = "--yes", Description = "Skip interactive confirmation.", Required = false)]
+    [CliOption(Name = "--yes", Description = "Skip interactive confirmation for this destructive operation.", Required = false)]
     public bool Yes { get; set; }
 
     protected override async Task<int> ExecuteAsync()

@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
@@ -18,8 +17,8 @@ public class SolutionImportCliCommand : ProfiledCliCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(SolutionImportCliCommand));
 
-    [CliArgument(Name = "solution-path", Description = "Path to a solution .zip file or an unpacked solution folder.")]
-    public required string SolutionZip { get; set; }
+    [CliArgument(Name = "solution-path", Description = "Path to a solution .zip file, an unpacked solution folder, or a project directory (.cdsproj/.csproj).")]
+    public string SolutionZip { get; set; } = null!;
 
     [CliOption(Name = "--stage-and-upgrade", Description = "Use single-step upgrade when applicable.", Required = false)]
     [DefaultValue(true)]
@@ -120,40 +119,35 @@ public class SolutionImportCliCommand : ProfiledCliCommand
         var service = TxcServices.Get<ISolutionImportService>();
         var result = await service.ImportAsync(Profile, solutionPath, options, CancellationToken.None).ConfigureAwait(false);
 
-        if (OutputContext.IsJson)
+        var payload = new
         {
-            var payload = new
-            {
-                path = FormatPath(result.Path),
-                uniqueName = result.Source.UniqueName,
-                sourceVersion = result.Source.Version.ToString(),
-                sourceManaged = result.Source.Managed,
-                existingVersion = result.ExistingTarget?.Version.ToString(),
-                existingManaged = result.ExistingTarget?.Managed,
-                importJobId = result.ImportJobId,
-                asyncOperationId = result.AsyncOperationId,
-                startedAtUtc = result.StartedAtUtc.ToString("O"),
-                completedAtUtc = result.CompletedAtUtc?.ToString("O"),
-                smartDiffExpected = result.SmartDiffExpected,
-                status = result.Status,
-            };
-#pragma warning disable TXC003 // TODO: Refactor to use OutputFormatter
-            OutputWriter.WriteLine(JsonSerializer.Serialize(payload, TxcOutputJsonOptions.Default));
-#pragma warning restore TXC003
-        }
+            path = FormatPath(result.Path),
+            uniqueName = result.Source.UniqueName,
+            sourceVersion = result.Source.Version.ToString(),
+            sourceManaged = result.Source.Managed,
+            existingVersion = result.ExistingTarget?.Version.ToString(),
+            existingManaged = result.ExistingTarget?.Managed,
+            importJobId = result.ImportJobId,
+            asyncOperationId = result.AsyncOperationId,
+            startedAtUtc = result.StartedAtUtc.ToString("O"),
+            completedAtUtc = result.CompletedAtUtc?.ToString("O"),
+            smartDiffExpected = result.SmartDiffExpected,
+            status = result.Status,
+        };
 
-        Logger.LogInformation("Import path: {Path}", FormatPath(result.Path));
-        Logger.LogInformation("Status: {Status}", result.Status);
-        Logger.LogInformation("ImportJobId: {ImportJobId}", result.ImportJobId);
-        if (result.AsyncOperationId is { } asyncId)
+        OutputFormatter.WriteData(payload, _ =>
         {
-            Logger.LogInformation("AsyncOperationId: {AsyncOperationId}", asyncId);
-        }
-        Logger.LogInformation("Started (UTC): {Start}", result.StartedAtUtc.ToString("O"));
-        if (result.CompletedAtUtc is { } completed)
-        {
-            Logger.LogInformation("Completed (UTC): {End}", completed.ToString("O"));
-        }
+#pragma warning disable TXC003
+            OutputWriter.WriteLine($"Import path: {FormatPath(result.Path)}");
+            OutputWriter.WriteLine($"Status: {result.Status}");
+            OutputWriter.WriteLine($"ImportJobId: {result.ImportJobId}");
+            if (result.AsyncOperationId is { } asyncId)
+                OutputWriter.WriteLine($"AsyncOperationId: {asyncId}");
+            OutputWriter.WriteLine($"Started (UTC): {result.StartedAtUtc:O}");
+            if (result.CompletedAtUtc is { } completed)
+                OutputWriter.WriteLine($"Completed (UTC): {completed:O}");
+#pragma warning restore TXC003
+        });
 
         return ExitSuccess;
         }
