@@ -5,7 +5,7 @@ namespace TALXIS.CLI.Features.Environment.Solution.Component;
 [CliCommand(
     Name = "component",
     Description = "Manage components within a solution.",
-    Children = new[] { typeof(SolutionComponentListCliCommand), typeof(SolutionComponentCountCliCommand) },
+    Children = new[] { typeof(SolutionComponentListCliCommand), typeof(SolutionComponentCountCliCommand), typeof(SolutionComponentAddCliCommand), typeof(SolutionComponentRemoveCliCommand) },
     ShortFormAutoGenerate = CliNameAutoGenerate.None
 )]
 public class SolutionComponentCliCommand
