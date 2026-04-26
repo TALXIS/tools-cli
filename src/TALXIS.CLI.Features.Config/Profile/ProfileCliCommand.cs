@@ -10,7 +10,6 @@ namespace TALXIS.CLI.Features.Config.Profile;
 /// </summary>
 [CliCommand(
     Name = "profile",
-    Aliases = new[] { "p" },
     Description = "Manage profiles (bind one auth to one connection).",
     Children = new[]
     {
@@ -23,7 +22,8 @@ namespace TALXIS.CLI.Features.Config.Profile;
         typeof(ProfileUnpinCliCommand),
         typeof(ProfileValidateCliCommand),
         typeof(ProfileDeleteCliCommand),
-    }
+    },
+    ShortFormAutoGenerate = CliNameAutoGenerate.None
 )]
 public class ProfileCliCommand
 {

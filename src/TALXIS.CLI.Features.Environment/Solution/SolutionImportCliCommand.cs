@@ -18,7 +18,7 @@ public class SolutionImportCliCommand : ProfiledCliCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(SolutionImportCliCommand));
 
-    [CliArgument(Name = "solution-zip", Description = "Path to the solution .zip to import.", Required = true)]
+    [CliArgument(Name = "solution-zip", Description = "Path to the solution .zip to import.")]
     public required string SolutionZip { get; set; }
 
     [CliOption(Name = "--stage-and-upgrade", Description = "Use single-step upgrade when applicable.", Required = false)]

@@ -19,7 +19,8 @@ namespace TALXIS.CLI.Features.Config.Connection;
         typeof(ConnectionListCliCommand),
         typeof(ConnectionShowCliCommand),
         typeof(ConnectionDeleteCliCommand),
-    }
+    },
+    ShortFormAutoGenerate = CliNameAutoGenerate.None
 )]
 public class ConnectionCliCommand
 {

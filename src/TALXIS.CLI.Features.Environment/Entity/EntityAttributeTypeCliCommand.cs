@@ -9,7 +9,8 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 [CliCommand(
     Name = "type",
     Description = "Discover available attribute types and their parameters.",
-    Children = new[] { typeof(EntityAttributeTypeListCliCommand), typeof(EntityAttributeTypeDescribeCliCommand) }
+    Children = new[] { typeof(EntityAttributeTypeListCliCommand), typeof(EntityAttributeTypeDescribeCliCommand) },
+    ShortFormAutoGenerate = CliNameAutoGenerate.None
 )]
 public class EntityAttributeTypeCliCommand
 {

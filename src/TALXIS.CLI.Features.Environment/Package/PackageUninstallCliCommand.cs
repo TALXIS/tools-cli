@@ -18,7 +18,7 @@ public class PackageUninstallCliCommand : ProfiledCliCommand, IDestructiveComman
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(PackageUninstallCliCommand));
 
-    [CliArgument(Name = "package", Description = "NuGet package name, local .pdpkg.zip/.pdpkg/.zip archive path, or extracted package folder path.", Required = true)]
+    [CliArgument(Name = "package", Description = "NuGet package name, local .pdpkg.zip/.pdpkg/.zip archive path, or extracted package folder path.")]
     public required string Package { get; set; }
 
     [CliOption(Name = "--version", Description = "NuGet package version when 'package' is a NuGet name. Defaults to 'latest'.", Required = false)]
@@ -27,7 +27,7 @@ public class PackageUninstallCliCommand : ProfiledCliCommand, IDestructiveComman
     [CliOption(Name = "--output", Aliases = ["-o"], Description = "Directory for temporary/downloaded package assets when resolving from NuGet.", Required = false)]
     public string? OutputDirectory { get; set; }
 
-    [CliOption(Name = "--yes", Description = "Confirm destructive uninstall actions.", Required = false)]
+    [CliOption(Name = "--yes", Description = "Skip interactive confirmation for this destructive operation.", Required = false)]
     public bool Yes { get; set; }
 
     protected override async Task<int> ExecuteAsync()

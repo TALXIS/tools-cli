@@ -17,8 +17,8 @@ public class ComponentCreateCliCommand : TxcLeafCommand, ICliGetCompletions
     [CliArgument(Description = "Type of the component (e.g. 'pp-entity')")]
     public required string Type { get; set; }
 
-    [CliOption(Name = "--output", Aliases = ["-o"], Description = "Directory path where the new component will be scaffolded")]
-    public required string OutputPath { get; set; }
+    [CliOption(Name = "--output", Aliases = ["-o"], Description = "Directory path where the new component will be scaffolded", Required = true)]
+    public string OutputPath { get; set; } = null!;
 
     // Conflicts with OutputPath in our templates
     // [CliOption(Name = "name", Aliases = ["-n"], Description = "The name for the created output. If not specified, the name of the output directory is used.", Required = false)]

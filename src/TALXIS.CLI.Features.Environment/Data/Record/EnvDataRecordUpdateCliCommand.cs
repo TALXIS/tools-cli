@@ -28,7 +28,7 @@ public class EnvDataRecordUpdateCliCommand : StagedCliCommand
         Description = "The GUID of the record to update.",
         ValidationPattern = CliValidation.GuidPattern,
         ValidationMessage = CliValidation.GuidValidationMessage)]
-    public Guid RecordId { get; set; }
+    public required Guid RecordId { get; set; }
 
     [CliOption(Name = "--data", Description = "Inline JSON object with attributes to update.", Required = false)]
     public string? Data { get; set; }

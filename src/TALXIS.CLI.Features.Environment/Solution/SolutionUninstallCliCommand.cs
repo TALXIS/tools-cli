@@ -18,10 +18,10 @@ public class SolutionUninstallCliCommand : ProfiledCliCommand, IDestructiveComma
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(SolutionUninstallCliCommand));
 
-    [CliArgument(Name = "name", Description = "Solution unique name.", Required = true)]
+    [CliArgument(Name = "name", Description = "Solution unique name.")]
     public required string Name { get; set; }
 
-    [CliOption(Name = "--yes", Description = "Confirm destructive uninstall action.", Required = false)]
+    [CliOption(Name = "--yes", Description = "Skip interactive confirmation for this destructive operation.", Required = false)]
     public bool Yes { get; set; }
 
     protected override async Task<int> ExecuteAsync()

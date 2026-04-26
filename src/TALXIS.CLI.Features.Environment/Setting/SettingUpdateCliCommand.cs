@@ -20,10 +20,10 @@ public class SettingUpdateCliCommand : ProfiledCliCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(SettingUpdateCliCommand));
 
-    [CliOption(Name = "--name", Aliases = new[] { "-n" }, Description = "Name of the setting to update (e.g. PowerApps_AllowCodeApps, isauditenabled).", Required = true)]
+    [CliArgument(Description = "Name of the setting to update (e.g. PowerApps_AllowCodeApps, isauditenabled).")]
     public required string Name { get; set; }
 
-    [CliOption(Name = "--value", Aliases = new[] { "-v" }, Description = "Value to set. Booleans (true/false) and integers are auto-coerced.", Required = true)]
+    [CliArgument(Description = "Value to set. Booleans (true/false) and integers are auto-coerced.")]
     public required string Value { get; set; }
 
     protected override async Task<int> ExecuteAsync()

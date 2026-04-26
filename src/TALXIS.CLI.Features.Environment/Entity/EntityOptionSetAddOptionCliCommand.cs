@@ -10,11 +10,11 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 
 /// <summary>
 /// Adds an option value to a local or global option set.
-/// Usage: <c>txc environment entity optionset add-option --label &lt;text&gt; (--global-optionset &lt;name&gt; | --entity &lt;name&gt; --attribute &lt;name&gt;) [--value &lt;int&gt;]</c>
+/// Usage: <c>txc environment entity optionset option add --label &lt;text&gt; (--global-optionset &lt;name&gt; | --entity &lt;name&gt; --attribute &lt;name&gt;) [--value &lt;int&gt;]</c>
 /// </summary>
 [CliIdempotent]
 [CliCommand(
-    Name = "add-option",
+    Name = "add",
     Description = "Add an option value to a local or global option set."
 )]
 #pragma warning disable TXC003

@@ -16,7 +16,8 @@ namespace TALXIS.CLI.Features.Config.Setting;
         typeof(SettingSetCliCommand),
         typeof(SettingGetCliCommand),
         typeof(SettingListCliCommand),
-    }
+    },
+    ShortFormAutoGenerate = CliNameAutoGenerate.None
 )]
 public class SettingCliCommand
 {

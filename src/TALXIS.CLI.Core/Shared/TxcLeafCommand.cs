@@ -37,7 +37,7 @@ public abstract class TxcLeafCommand
 
     [CliOption(
         Name = "--format",
-        Aliases = new[] { "-f" },
+        Aliases = ["-f"],
         Description = "Output format: json (default when piped) or text (default in terminal).",
         Required = false)]
     public string? Format { get; set; }

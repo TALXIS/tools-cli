@@ -9,7 +9,8 @@ namespace TALXIS.CLI.Features.Environment.Data;
 [CliCommand(
     Name = "data",
     Description = "Data operations against a live Dataverse environment (query, record CRUD, bulk operations)",
-    Children = new[] { typeof(Query.EnvDataQueryCliCommand), typeof(Record.EnvDataRecordCliCommand), typeof(Bulk.EnvDataBulkCliCommand) }
+    Children = new[] { typeof(Query.EnvDataQueryCliCommand), typeof(Record.EnvDataRecordCliCommand), typeof(Bulk.EnvDataBulkCliCommand) },
+    ShortFormAutoGenerate = CliNameAutoGenerate.None
 )]
 public class EnvDataCliCommand
 {

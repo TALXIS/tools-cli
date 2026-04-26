@@ -18,7 +18,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Record;
 )]
 public class EnvDataRecordDeleteCliCommand : StagedCliCommand, IDestructiveCommand
 {
-    [CliOption(Name = "--yes", Description = "Skip confirmation for this destructive operation.", Required = false)]
+    [CliOption(Name = "--yes", Description = "Skip interactive confirmation for this destructive operation.", Required = false)]
     public bool Yes { get; set; }
 
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EnvDataRecordDeleteCliCommand));
@@ -30,7 +30,7 @@ public class EnvDataRecordDeleteCliCommand : StagedCliCommand, IDestructiveComma
         Description = "The GUID of the record to delete.",
         ValidationPattern = CliValidation.GuidPattern,
         ValidationMessage = CliValidation.GuidValidationMessage)]
-    public Guid RecordId { get; set; }
+    public required Guid RecordId { get; set; }
 
     protected override async Task<int> ExecuteAsync()
     {

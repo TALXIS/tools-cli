@@ -10,11 +10,11 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 
 /// <summary>
 /// Lists all global option sets in the environment.
-/// Usage: <c>txc environment entity optionset list-global [--format json]</c>
+/// Usage: <c>txc environment entity optionset global list [--format json]</c>
 /// </summary>
 [CliReadOnly]
 [CliCommand(
-    Name = "list-global",
+    Name = "list",
     Description = "List all global option sets in the environment."
 )]
 #pragma warning disable TXC003

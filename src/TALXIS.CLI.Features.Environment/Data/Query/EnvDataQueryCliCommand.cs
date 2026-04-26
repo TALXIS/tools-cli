@@ -8,7 +8,8 @@ namespace TALXIS.CLI.Features.Environment.Data.Query;
 [CliCommand(
     Name = "query",
     Description = "Execute data queries against the environment.",
-    Children = new[] { typeof(EnvDataQuerySqlCliCommand), typeof(EnvDataQueryFetchXmlCliCommand), typeof(EnvDataQueryODataCliCommand) }
+    Children = new[] { typeof(EnvDataQuerySqlCliCommand), typeof(EnvDataQueryFetchXmlCliCommand), typeof(EnvDataQueryODataCliCommand) },
+    ShortFormAutoGenerate = CliNameAutoGenerate.None
 )]
 public class EnvDataQueryCliCommand
 {

@@ -27,7 +27,7 @@ public class EnvDataRecordDownloadFileCliCommand : ProfiledCliCommand
         Description = "The GUID of the record containing the file.",
         ValidationPattern = CliValidation.GuidPattern,
         ValidationMessage = CliValidation.GuidValidationMessage)]
-    public Guid RecordId { get; set; }
+    public required Guid RecordId { get; set; }
 
     [CliOption(Name = "--column", Description = "Logical name of the file/image column.", Required = true)]
     public string Column { get; set; } = null!;

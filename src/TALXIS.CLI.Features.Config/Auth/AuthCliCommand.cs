@@ -19,7 +19,8 @@ namespace TALXIS.CLI.Features.Config.Auth;
         typeof(AuthListCliCommand),
         typeof(AuthShowCliCommand),
         typeof(AuthDeleteCliCommand),
-    }
+    },
+    ShortFormAutoGenerate = CliNameAutoGenerate.None
 )]
 public class AuthCliCommand
 {

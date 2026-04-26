@@ -6,7 +6,8 @@ namespace TALXIS.CLI.Features.Data;
     Name = "package",
     Alias = "pkg",
     Description = "Configuration migration tool (CMT) for moving data between different environments",
-    Children = new[] { typeof(DataPackageConvertCliCommand), typeof(DataPackageImportCliCommand), typeof(DataPackageExportCliCommand) }
+    Children = new[] { typeof(DataPackageConvertCliCommand), typeof(DataPackageImportCliCommand), typeof(DataPackageExportCliCommand) },
+    ShortFormAutoGenerate = CliNameAutoGenerate.None
 )]
 public class DataPackageCliCommand
 {

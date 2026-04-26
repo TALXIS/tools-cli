@@ -4,11 +4,12 @@ namespace TALXIS.CLI.Features.Workspace;
 
 [CliCommand(
     Description = "Work with MSBuild projects in your workspace (solutions, plugins, libraries, controls...)",
-    Alias = "p",
+    Alias = "proj",
     Children = new[]
     {
         typeof(ProjectExplainCliCommand)
-    }
+    },
+    ShortFormAutoGenerate = CliNameAutoGenerate.None
 )]
 public class ProjectCliCommand
 {

@@ -22,7 +22,7 @@ public class ChangesetDiscardCliCommand : TxcLeafCommand, IDestructiveCommand
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ChangesetDiscardCliCommand));
 
     /// <inheritdoc />
-    [CliOption(Name = "--yes", Description = "Skip confirmation prompt.", Required = false)]
+    [CliOption(Name = "--yes", Description = "Skip interactive confirmation for this destructive operation.", Required = false)]
     public bool Yes { get; set; }
 
     protected override Task<int> ExecuteAsync()

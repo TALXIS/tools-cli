@@ -24,7 +24,7 @@ public class EnvDataRecordAssociateCliCommand : StagedCliCommand
         Description = "The GUID of the source record.",
         ValidationPattern = CliValidation.GuidPattern,
         ValidationMessage = CliValidation.GuidValidationMessage)]
-    public Guid RecordId { get; set; }
+    public required Guid RecordId { get; set; }
 
     [CliOption(Name = "--entity", Description = "Entity logical name of the source record.", Required = true)]
     public string Entity { get; set; } = null!;
