@@ -25,8 +25,8 @@ public class EnvDataRecordUploadFileCliCommand : StagedCliCommand
 
     [CliArgument(
         Description = "The GUID of the record to upload the file to.",
-        ValidationPattern = @"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-        ValidationMessage = "Value must be a valid GUID (e.g. 00000000-0000-0000-0000-000000000000).")]
+        ValidationPattern = CliValidation.GuidPattern,
+        ValidationMessage = CliValidation.GuidValidationMessage)]
     public Guid RecordId { get; set; }
 
     [CliOption(Name = "--column", Description = "Logical name of the file/image column.", Required = true)]

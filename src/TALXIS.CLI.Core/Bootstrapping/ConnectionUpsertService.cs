@@ -84,11 +84,12 @@ public sealed class ConnectionUpsertService
         }
 
         // Non-blocking DNS reachability check — warn if the hostname cannot be resolved.
+        // Let cancellation propagate so user Ctrl+C is not swallowed.
         try
         {
             await Dns.GetHostAddressesAsync(envUri.Host, ct).ConfigureAwait(false);
         }
-        catch (Exception)
+        catch (Exception) when (!ct.IsCancellationRequested)
         {
             _logger?.LogWarning("Hostname '{Host}' could not be resolved. The connection will be saved but may not work at runtime.", envUri.Host);
         }
