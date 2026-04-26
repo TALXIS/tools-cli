@@ -9,6 +9,13 @@ namespace TALXIS.CLI.Platform.Dataverse.Application.Services;
 /// </summary>
 internal sealed class DataverseSolutionExportService : ISolutionExportService
 {
+    private readonly ISolutionPackagerService _packager;
+
+    public DataverseSolutionExportService(ISolutionPackagerService packager)
+    {
+        _packager = packager;
+    }
+
     public async Task<string> ExportAsync(
         string? profileName,
         SolutionExportOptions options,
@@ -38,7 +45,7 @@ internal sealed class DataverseSolutionExportService : ISolutionExportService
             await File.WriteAllBytesAsync(tempZip, zipBytes, ct).ConfigureAwait(false);
 
             Directory.CreateDirectory(options.OutputPath);
-            SolutionPackagerService.Unpack(tempZip, options.OutputPath, options.Managed);
+            _packager.Unpack(tempZip, options.OutputPath, options.Managed);
 
             return options.OutputPath;
         }

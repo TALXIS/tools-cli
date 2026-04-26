@@ -1,17 +1,18 @@
 using System.Diagnostics;
 using Microsoft.Crm.Tools.SolutionPackager;
+using TALXIS.CLI.Core.Contracts.Dataverse;
 
 namespace TALXIS.CLI.Platform.Dataverse.Application.Sdk;
 
 /// <summary>
 /// Wraps SolutionPackagerLib for packing and unpacking Dataverse solution ZIPs.
 /// </summary>
-internal static class SolutionPackagerService
+internal sealed class SolutionPackagerServiceImpl : ISolutionPackagerService
 {
     /// <summary>
     /// Unpacks a solution ZIP file into a folder structure.
     /// </summary>
-    public static void Unpack(string zipPath, string outputFolder, bool managed)
+    public void Unpack(string zipPath, string outputFolder, bool managed)
     {
         var arguments = new PackagerArguments
         {
@@ -31,7 +32,7 @@ internal static class SolutionPackagerService
     /// <summary>
     /// Packs a folder structure into a solution ZIP file.
     /// </summary>
-    public static void Pack(string folder, string zipPath, bool managed)
+    public void Pack(string folder, string zipPath, bool managed)
     {
         var arguments = new PackagerArguments
         {
