@@ -18,10 +18,11 @@ internal sealed class DataverseSolutionLayerMutationService : ISolutionLayerMuta
 
         // RemoveActiveCustomizationsRequest is not in the SDK proxy DLL at this version,
         // so we construct the OrganizationRequest manually.
+        // RemoveActiveCustomizations accepts only ComponentId and SolutionComponentName.
+        // ComponentType is not a recognized parameter for this action.
         var request = new OrganizationRequest("RemoveActiveCustomizations")
         {
             ["ComponentId"] = componentId,
-            ["ComponentType"] = componentType,
             ["SolutionComponentName"] = componentTypeName,
         };
 
