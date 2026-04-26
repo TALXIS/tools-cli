@@ -98,15 +98,19 @@ public abstract class TxcLeafCommand
         }
         catch (Exception ex)
         {
-            // Log the message at Error (always visible) and the full exception
-            // at Debug (only visible with --verbose / TXC_LOG_LEVEL=Debug).
-            // This keeps the default terminal output clean while preserving
-            // full diagnostics for troubleshooting.
-            // Surface the innermost exception message when it differs from the
-            // outer one — it typically contains the actionable root cause
-            // (e.g. "Run 'txc config auth login' and retry.").
+            // Surface the innermost exception message — it typically contains the
+            // actionable root cause (e.g. "Run 'txc config auth login' and retry.").
             var root = GetInnermostException(ex);
-            if (root != ex && !string.Equals(root.Message, ex.Message, StringComparison.Ordinal))
+            var hasDistinctCause = root != ex && !string.Equals(root.Message, ex.Message, StringComparison.Ordinal);
+            var errorMessage = hasDistinctCause ? root.Message : ex.Message;
+
+            // Write structured error to stdout so scripts, pipes, and MCP get
+            // a machine-readable error envelope instead of empty stdout.
+            OutputFormatter.WriteResult("failed", errorMessage);
+
+            // Also log to stderr for diagnostic visibility (log lines are always
+            // forwarded as MCP notifications and are visible with --verbose).
+            if (hasDistinctCause)
             {
                 Logger.LogError("Command failed: {Error}", ex.Message);
                 Logger.LogError("Cause: {RootCause}", root.Message);

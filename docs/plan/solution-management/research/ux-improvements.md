@@ -7,11 +7,12 @@ Observations from running 35 integration tests against a live environment.
 ### 1. Error messages go to stderr only — stdout is empty on failure
 **Impact:** High. Scripts piping stdout get no output when commands fail. The error is in stderr as structured JSON logs, which is correct for machine parsing but poor for human troubleshooting in scripts.
 
-**Suggestion:** Consider writing a brief human-readable error line to stdout (in addition to the structured log on stderr) when `--format text` is active. Something like:
-```
-Error: Solution 'nonexistent' not found.
-```
-This way `txc env sln show nonexistent 2>/dev/null` produces useful output instead of nothing.
+**Plan (follow-up PR):** Add `OutputFormatter.WriteResult("failed", errorMessage)` in `TxcLeafCommand.RunAsync()` catch block. This writes:
+- **Text mode:** clean error message to stdout
+- **JSON mode:** `{ "status": "failed", "message": "..." }` envelope to stdout
+- **MCP:** Update `BuildToolResult()` to prefer stdout over stderr on failure
+
+This is safe — no analyzer violations, no stream separation breach (error result IS result data), no breaking changes. See [output-error-review.md](./output-error-review.md) for full analysis. ~20 lines across 2 files.
 
 ### 2. Auth errors show generic "Failed to connect to Dataverse" before the root cause
 **Impact:** Medium. The `TxcLeafCommand` already surfaces the innermost exception ("Run `txc config auth login`"), but the two-line pattern is confusing:

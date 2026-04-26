@@ -363,10 +363,13 @@ CallToolResult BuildToolResult(string toolName, CliSubprocessResult result)
     }
     else
     {
-        // Failure: include error summary as text
-        var errorText = !string.IsNullOrWhiteSpace(result.LastErrors)
-            ? result.LastErrors
-            : $"Tool '{toolName}' failed with exit code {result.ExitCode}.";
+        // Failure: prefer stdout (contains structured error envelope from
+        // OutputFormatter.WriteResult), fall back to stderr error lines.
+        var errorText = !string.IsNullOrWhiteSpace(result.Output)
+            ? result.Output
+            : !string.IsNullOrWhiteSpace(result.LastErrors)
+                ? result.LastErrors
+                : $"Tool '{toolName}' failed with exit code {result.ExitCode}.";
         content.Add(new TextContentBlock { Text = errorText });
 
         // Store the full execution log and add a resource_link so the client can fetch details
