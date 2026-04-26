@@ -32,6 +32,11 @@ txc environment (alias: env)
 │   ├── component add <solution>             # Phase 3 — add existing component to solution
 │   └── component remove <solution>          # Phase 3 — remove component from solution
 │
+├── publisher                                # Publisher resource (prerequisite for solutions)
+│   ├── list                                 # Phase 2 — list publishers
+│   ├── show <name>                          # Phase 2 — publisher details
+│   └── create <name>                        # Phase 2 — create publisher
+│
 └── component (alias: comp)                  # Component resource (solution-independent)
     ├── export <component-id>                # Phase 1 — export component via temp solution
     ├── layer
