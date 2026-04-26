@@ -10,7 +10,8 @@ namespace TALXIS.CLI.Features.Workspace;
         typeof(ComponentCliCommand),
         typeof(ProjectCliCommand),
         typeof(WorkspaceExplainCliCommand)
-    })]
+    },
+    ShortFormAutoGenerate = CliNameAutoGenerate.None)]
 public class WorkspaceCliCommand
 {
     public void Run(CliContext context)

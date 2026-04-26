@@ -10,11 +10,11 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 
 /// <summary>
 /// Creates a new global option set (choice) in Dataverse.
-/// Usage: <c>txc environment entity optionset create-global --name &lt;schema-name&gt; --display-name &lt;label&gt; --options &lt;csv&gt; [--description &lt;text&gt;] [--solution &lt;name&gt;]</c>
+/// Usage: <c>txc environment entity optionset global create --name &lt;schema-name&gt; --display-name &lt;label&gt; --options &lt;csv&gt; [--description &lt;text&gt;] [--solution &lt;name&gt;]</c>
 /// </summary>
 [CliIdempotent]
 [CliCommand(
-    Name = "create-global",
+    Name = "create",
     Description = "Create a new global option set (choice)."
 )]
 #pragma warning disable TXC003

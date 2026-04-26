@@ -50,7 +50,7 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
 
     [CliOption(
         Name = "--profile",
-        Aliases = new[] { "-p" },
+        Aliases = ["-p"],
         Description = "Profile name to resolve (falls back to TXC_PROFILE, workspace pin, or global active).",
         Required = false)]
     public string? Profile { get; set; }

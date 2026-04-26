@@ -3,7 +3,8 @@ using DotMake.CommandLine;
 namespace TALXIS.CLI.Features.Data;
 
 [CliCommand(
-    Description = "Data-related utilities for ETL, Power Query and migration scenarios"
+    Description = "Data-related utilities for ETL, Power Query and migration scenarios",
+    ShortFormAutoGenerate = CliNameAutoGenerate.None
 )]
 public class TransformCliCommand
 {
@@ -14,7 +15,8 @@ public class TransformCliCommand
     [CliCommand(
         Description = "HTTP server for ETL and data transformation tasks",
         Children = new[] { typeof(TransformServerStartCliCommand) },
-        Name = "server")]
+        Name = "server",
+        ShortFormAutoGenerate = CliNameAutoGenerate.None)]
     public class TransformServerCliCommand
     {
         public void Run(CliContext context)

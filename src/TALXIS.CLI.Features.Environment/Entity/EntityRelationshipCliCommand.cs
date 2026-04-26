@@ -9,7 +9,8 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 [CliCommand(
     Name = "relationship",
     Description = "Create and list entity relationships.",
-    Children = new[] { typeof(EntityRelationshipCreateCliCommand), typeof(EntityRelationshipListCliCommand), typeof(EntityRelationshipDeleteCliCommand) }
+    Children = new[] { typeof(EntityRelationshipCreateCliCommand), typeof(EntityRelationshipListCliCommand), typeof(EntityRelationshipDeleteCliCommand) },
+    ShortFormAutoGenerate = CliNameAutoGenerate.None
 )]
 public class EntityRelationshipCliCommand
 {

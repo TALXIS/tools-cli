@@ -11,7 +11,7 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 
 /// <summary>
 /// Creates an attribute (column) on a Dataverse entity.
-/// Usage: <c>txc environment entity attribute create --entity &lt;name&gt; --name &lt;schema-name&gt; --type &lt;type&gt; [options]</c>
+/// Usage: <c>txc environment entity attribute create &lt;entity&gt; --name &lt;schema-name&gt; --type &lt;type&gt; [options]</c>
 /// Use <c>txc environment entity attribute type describe &lt;type&gt;</c> to see type-specific parameters.
 /// </summary>
 [CliIdempotent]
@@ -26,7 +26,7 @@ public class EntityAttributeCreateCliCommand : StagedCliCommand
 
     // === Required for all types ===
 
-    [CliOption(Name = "--entity", Description = "Entity logical name.", Required = true)]
+    [CliArgument(Description = "Entity logical name.")]
     public string Entity { get; set; } = null!;
 
     [CliOption(Name = "--name", Description = "Schema name for the new column.", Required = true)]

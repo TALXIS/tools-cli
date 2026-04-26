@@ -27,7 +27,7 @@ public class AuthDeleteCliCommand : TxcLeafCommand, IDestructiveCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(AuthDeleteCliCommand));
 
-    [CliOption(Name = "--yes", Description = "Skip confirmation for this destructive operation.", Required = false)]
+    [CliOption(Name = "--yes", Description = "Skip interactive confirmation for this destructive operation.", Required = false)]
     public bool Yes { get; set; }
 
     [CliArgument(Description = "Credential alias (id) to delete.")]

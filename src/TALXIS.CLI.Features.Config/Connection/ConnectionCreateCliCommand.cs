@@ -31,16 +31,16 @@ public class ConnectionCreateCliCommand : TxcLeafCommand
     [CliOption(Name = "--provider", Description = "Connection provider. Only 'dataverse' is supported in v1.", Required = true)]
     public ProviderKind Provider { get; set; }
 
-    [CliOption(Name = "--environment", Aliases = new[] { "--url" }, Description = "Dataverse environment URL (required for --provider dataverse).", Required = false)]
+    [CliOption(Name = "--environment", Aliases = ["--url"], Description = "Dataverse environment URL (required for --provider dataverse).", Required = false)]
     public string? EnvironmentUrl { get; set; }
 
     [CliOption(Name = "--cloud", Description = "Sovereign cloud for Dataverse. Default: public.", Required = false)]
     public CloudInstance? Cloud { get; set; }
 
-    [CliOption(Name = "--organization-id", Aliases = new[] { "--org-id" }, Description = "Dataverse organization id (GUID). Optional.", Required = false)]
+    [CliOption(Name = "--organization-id", Aliases = ["--org-id"], Description = "Dataverse organization id (GUID). Optional.", Required = false)]
     public string? OrganizationId { get; set; }
 
-    [CliOption(Name = "--environment-id", Aliases = new[] { "--env-id" }, Description = "Power Platform environment id (GUID) used by the control plane API. Optional — if omitted, it may be resolved later during `txc config profile create --url ...` bootstrap or at runtime when calling control-plane commands.", Required = false)]
+    [CliOption(Name = "--environment-id", Aliases = ["--env-id"], Description = "Power Platform environment id (GUID) used by the control plane API. Optional — if omitted, it may be resolved later during `txc config profile create --url ...` bootstrap or at runtime when calling control-plane commands.", Required = false)]
     public string? EnvironmentId { get; set; }
 
     [CliOption(Name = "--tenant", Description = "Entra tenant id or domain. Optional — defaults to the credential's tenant at resolve time.", Required = false)]

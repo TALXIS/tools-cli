@@ -21,7 +21,7 @@ namespace TALXIS.CLI.Features.Config.Auth;
 [CliIdempotent]
 [CliCommand(
     Name = "add-service-principal",
-    Aliases = new[] { "add-sp" },
+    Aliases = ["add-sp"],
     Description = "Register a client-secret service principal credential."
 )]
 public class AuthAddServicePrincipalCliCommand : TxcLeafCommand
@@ -34,7 +34,7 @@ public class AuthAddServicePrincipalCliCommand : TxcLeafCommand
     [CliOption(Name = "--tenant", Description = "Entra tenant id or domain.", Required = true)]
     public string Tenant { get; set; } = string.Empty;
 
-    [CliOption(Name = "--application-id", Aliases = new[] { "--app-id", "--client-id" }, Description = "Entra application (client) id.", Required = true)]
+    [CliOption(Name = "--application-id", Aliases = ["--app-id", "--client-id"], Description = "Entra application (client) id.", Required = true)]
     public string ApplicationId { get; set; } = string.Empty;
 
     [CliOption(Name = "--cloud", Description = "Sovereign cloud. Default: public.", Required = false)]

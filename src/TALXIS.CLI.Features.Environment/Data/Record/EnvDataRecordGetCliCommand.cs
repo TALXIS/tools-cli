@@ -27,7 +27,7 @@ public class EnvDataRecordGetCliCommand : ProfiledCliCommand
         Description = "The GUID of the record to retrieve.",
         ValidationPattern = CliValidation.GuidPattern,
         ValidationMessage = CliValidation.GuidValidationMessage)]
-    public Guid RecordId { get; set; }
+    public required Guid RecordId { get; set; }
 
     [CliOption(Name = "--columns", Description = "Comma-separated column names to retrieve.", Required = false)]
     public string? Columns { get; set; }

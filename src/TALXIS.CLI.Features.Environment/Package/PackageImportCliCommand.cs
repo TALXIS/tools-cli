@@ -19,7 +19,7 @@ public class PackageImportCliCommand : ProfiledCliCommand
     private readonly NuGetPackageInstallerService _packageInstaller = new();
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(PackageImportCliCommand));
 
-    [CliArgument(Name = "package", Description = "NuGet package name, local .pdpkg.zip/.pdpkg/.zip archive path, or extracted package folder path.", Required = true)]
+    [CliArgument(Name = "package", Description = "NuGet package name, local .pdpkg.zip/.pdpkg/.zip archive path, or extracted package folder path.")]
     public required string Package { get; set; }
 
     [CliOption(Name = "--version", Description = "NuGet package version (only when 'package' is a NuGet name).", Required = false)]

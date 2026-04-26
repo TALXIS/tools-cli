@@ -8,7 +8,8 @@ namespace TALXIS.CLI.Features.Environment.Changeset;
 [CliCommand(
     Name = "changeset",
     Description = "Manage staged operations for batch apply to the environment.",
-    Children = new[] { typeof(ChangesetStatusCliCommand), typeof(ChangesetDiscardCliCommand), typeof(ChangesetApplyCliCommand) }
+    Children = new[] { typeof(ChangesetStatusCliCommand), typeof(ChangesetDiscardCliCommand), typeof(ChangesetApplyCliCommand) },
+    ShortFormAutoGenerate = CliNameAutoGenerate.None
 )]
 public class ChangesetCliCommand
 {

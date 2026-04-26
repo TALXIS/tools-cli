@@ -27,12 +27,12 @@ public class EnvDataRecordDownloadFileCliCommand : ProfiledCliCommand
         Description = "The GUID of the record containing the file.",
         ValidationPattern = CliValidation.GuidPattern,
         ValidationMessage = CliValidation.GuidValidationMessage)]
-    public Guid RecordId { get; set; }
+    public required Guid RecordId { get; set; }
 
     [CliOption(Name = "--column", Description = "Logical name of the file/image column.", Required = true)]
     public string Column { get; set; } = null!;
 
-    [CliOption(Name = "--output", Description = "Local path where the file will be saved.", Required = true)]
+    [CliOption(Name = "--output", Aliases = ["-o"], Description = "Local file path where the downloaded file will be saved.", Required = true)]
     public string Output { get; set; } = null!;
 
     protected override async Task<int> ExecuteAsync()

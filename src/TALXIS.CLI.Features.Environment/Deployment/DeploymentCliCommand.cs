@@ -6,7 +6,8 @@ namespace TALXIS.CLI.Features.Environment.Deployment;
     Name = "deployment",
     Alias = "deploy",
     Description = "Inspect past package and solution deployment runs in the target environment.",
-    Children = new[] { typeof(DeploymentListCliCommand), typeof(DeploymentShowCliCommand) }
+    Children = new[] { typeof(DeploymentListCliCommand), typeof(DeploymentShowCliCommand) },
+    ShortFormAutoGenerate = CliNameAutoGenerate.None
 )]
 public class DeploymentCliCommand
 {

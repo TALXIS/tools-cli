@@ -120,9 +120,9 @@ Creates a new attribute (column) on an entity. The `--type` flag determines whic
 
 **Common options (all types):**
 
-| Option | Required | Default | Description |
-|--------|----------|---------|-------------|
-| `--entity` | Yes | — | Target entity logical name |
+| Argument/Option | Required | Default | Description |
+|-----------------|----------|---------|-------------|
+| `<entity>` (positional) | Yes | — | Target entity logical name |
 | `--name` | Yes | — | Attribute logical name |
 | `--type` | Yes | — | Attribute type (see [types](#attribute-types)) |
 | `--display-name` | No | — | Display name |
@@ -233,22 +233,22 @@ Creates a new attribute (column) on an entity. The `--type` flag determines whic
 
 ```sh
 # String attribute
-txc env entity attribute create --entity tom_project \
+txc env entity attribute create tom_project \
   --name tom_code --type string --display-name "Code" \
   --max-length 20 --required required --apply
 
 # Money attribute
-txc env entity attribute create --entity tom_project \
+txc env entity attribute create tom_project \
   --name tom_budget --type money --display-name "Budget" \
   --precision 2 --apply
 
 # Lookup attribute
-txc env entity attribute create --entity tom_project \
+txc env entity attribute create tom_project \
   --name tom_accountid --type lookup --display-name "Account" \
   --target-entity account --apply
 
 # Choice attribute
-txc env entity attribute create --entity tom_project \
+txc env entity attribute create tom_project \
   --name tom_priority --type choice --display-name "Priority" \
   --options "Low,Medium,High,Critical" --apply
 ```
@@ -257,22 +257,22 @@ txc env entity attribute create --entity tom_project \
 
 Retrieves detailed metadata for a single attribute.
 
-| Option | Required | Description |
-|--------|----------|-------------|
-| `--entity` | Yes | Entity logical name |
+| Argument/Option | Required | Description |
+|-----------------|----------|-------------|
+| `<entity>` (positional) | Yes | Entity logical name |
 | `--name` | Yes | Attribute logical name |
 
 ```sh
-txc env entity attribute get --entity account --name name
+txc env entity attribute get account --name name
 ```
 
 ### `txc env entity attribute update`
 
 Updates an existing attribute's display metadata.
 
-| Option | Required | Description |
-|--------|----------|-------------|
-| `--entity` | Yes | Entity logical name |
+| Argument/Option | Required | Description |
+|-----------------|----------|-------------|
+| `<entity>` (positional) | Yes | Entity logical name |
 | `--name` | Yes | Attribute logical name |
 | `--display-name` | No | New display name |
 | `--description` | No | New description |
@@ -281,7 +281,7 @@ Updates an existing attribute's display metadata.
 > **Note:** Updating `RequiredLevel` uses a Web API `PUT` (full replacement) internally, because the SDK's `UpdateAttributeRequest` silently ignores `RequiredLevel` changes. See [dataverse-metadata-performance.md](dataverse-metadata-performance.md) for details.
 
 ```sh
-txc env entity attribute update --entity account --name name \
+txc env entity attribute update account --name name \
   --required required --apply
 ```
 
@@ -289,14 +289,14 @@ txc env entity attribute update --entity account --name name \
 
 Deletes an attribute. Destructive — requires `--yes`.
 
-| Option | Required | Description |
-|--------|----------|-------------|
-| `--entity` | Yes | Entity logical name |
+| Argument/Option | Required | Description |
+|-----------------|----------|-------------|
+| `<entity>` (positional) | Yes | Entity logical name |
 | `--name` | Yes | Attribute logical name |
 | `--yes` | No | Skip confirmation prompt |
 
 ```sh
-txc env entity attribute delete --entity tom_project --name tom_code --yes --apply
+txc env entity attribute delete tom_project --name tom_code --yes --apply
 ```
 
 ---
@@ -379,7 +379,7 @@ txc env entity relationship delete --name tom_project_account --yes --apply
 
 Manage global option sets and individual options on both local and global option sets.
 
-### `txc env entity optionset create-global`
+### `txc env entity optionset global create`
 
 Creates a new global option set.
 
@@ -392,12 +392,12 @@ Creates a new global option set.
 | `--solution` | No | Solution unique name |
 
 ```sh
-txc env entity optionset create-global \
+txc env entity optionset global create \
   --name tom_priority --display-name "Priority" \
   --options "Low,Medium,High,Critical" --apply
 ```
 
-### `txc env entity optionset delete-global`
+### `txc env entity optionset global delete`
 
 Deletes a global option set. Destructive — requires `--yes`.
 
@@ -406,7 +406,15 @@ Deletes a global option set. Destructive — requires `--yes`.
 | `--name` | Yes | Global option set name |
 | `--yes` | No | Skip confirmation prompt |
 
-### `txc env entity optionset add-option`
+### `txc env entity optionset global list`
+
+Lists all global option sets in the environment.
+
+```sh
+txc env entity optionset global list
+```
+
+### `txc env entity optionset option add`
 
 Adds an option to a local or global option set. Target the option set by providing either `--entity` + `--attribute` (local) or `--global-optionset` (global).
 
@@ -421,11 +429,11 @@ Adds an option to a local or global option set. Target the option set by providi
 \* Provide either `--entity` + `--attribute` or `--global-optionset`.
 
 ```sh
-txc env entity optionset add-option \
+txc env entity optionset option add \
   --global-optionset tom_priority --label "Urgent" --apply
 ```
 
-### `txc env entity optionset delete-option`
+### `txc env entity optionset option delete`
 
 Removes an option from a local or global option set. Destructive — requires `--yes`.
 
@@ -436,11 +444,3 @@ Removes an option from a local or global option set. Destructive — requires `-
 | `--global-optionset` | No* | Global option set name |
 | `--value` | Yes | Integer value of the option to remove |
 | `--yes` | No | Skip confirmation prompt |
-
-### `txc env entity optionset list-global`
-
-Lists all global option sets in the environment.
-
-```sh
-txc env entity optionset list-global
-```

@@ -10,11 +10,11 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 
 /// <summary>
 /// Deletes an option value from a local or global option set.
-/// Usage: <c>txc environment entity optionset delete-option --value &lt;int&gt; (--global-optionset &lt;name&gt; | --entity &lt;name&gt; --attribute &lt;name&gt;)</c>
+/// Usage: <c>txc environment entity optionset option delete --value &lt;int&gt; (--global-optionset &lt;name&gt; | --entity &lt;name&gt; --attribute &lt;name&gt;)</c>
 /// </summary>
 [CliDestructive("Permanently deletes the option from the option set.")]
 [CliCommand(
-    Name = "delete-option",
+    Name = "delete",
     Description = "Delete an option value from a local or global option set."
 )]
 #pragma warning disable TXC003

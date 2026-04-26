@@ -15,6 +15,7 @@ public class DataPackageConvertCliCommand : TxcLeafCommand
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(DataPackageConvertCliCommand));
     [CliOption(
         Name = "--input",
+        Aliases = ["-i"],
         Description = "Path to the input XLSX file",
         Required = true
     )]
@@ -22,7 +23,8 @@ public class DataPackageConvertCliCommand : TxcLeafCommand
 
     [CliOption(
         Name = "--output",
-        Description = "Path to the output XML file",
+        Aliases = ["-o"],
+        Description = "File path for the output XML file",
         Required = true
     )]
     public string? OutputPath { get; set; }

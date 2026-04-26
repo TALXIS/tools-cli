@@ -14,14 +14,19 @@ namespace TALXIS.CLI.Features.Config;
 /// profiles, connections, credentials, settings, secret vault, MSAL token
 /// cache, and the workspace pin discoverable from the current directory.
 /// </summary>
+[CliDestructive("Permanently removes all persisted txc configuration, credentials, and auth state from this device.")]
 [McpIgnore]
 [CliCommand(
     Name = "clear",
     Description = "Remove all persisted txc configuration and auth state from this device."
 )]
-public sealed class ConfigClearCliCommand : TxcLeafCommand
+public sealed class ConfigClearCliCommand : TxcLeafCommand, IDestructiveCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ConfigClearCliCommand));
+
+    /// <inheritdoc />
+    [CliOption(Name = "--yes", Description = "Skip interactive confirmation for this destructive operation.", Required = false)]
+    public bool Yes { get; set; }
 
     protected override async Task<int> ExecuteAsync()
     {

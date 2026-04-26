@@ -5,7 +5,8 @@ namespace TALXIS.CLI.Features.Data;
 [CliCommand(
     Name = "model",
     Description = "Data modeling utilities",
-    Children = new[] { typeof(DataModelConvertCliCommand) }
+    Children = new[] { typeof(DataModelConvertCliCommand) },
+    ShortFormAutoGenerate = CliNameAutoGenerate.None
 )]
 public class DataModelCliCommand
 {

@@ -10,11 +10,11 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 
 /// <summary>
 /// Deletes an existing global option set (choice) from Dataverse.
-/// Usage: <c>txc environment entity optionset delete-global --name &lt;schema-name&gt; [-p profile] --apply</c>
+/// Usage: <c>txc environment entity optionset global delete --name &lt;schema-name&gt; [-p profile] --apply</c>
 /// </summary>
 [CliDestructive("Permanently deletes the global option set from the remote environment.")]
 [CliCommand(
-    Name = "delete-global",
+    Name = "delete",
     Description = "Delete a global option set (choice)."
 )]
 #pragma warning disable TXC003

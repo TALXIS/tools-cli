@@ -20,6 +20,7 @@ namespace TALXIS.CLI.Features.Config.Auth;
 /// Fails fast with exit 1 in headless contexts — interactive browser is
 /// never a permitted headless kind. See <see cref="HeadlessAuthRequiredException"/>.
 /// </remarks>
+[CliIdempotent]
 [McpIgnore]
 [CliCommand(
     Name = "login",

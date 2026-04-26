@@ -9,7 +9,8 @@ namespace TALXIS.CLI.Features.Environment.Data.Bulk;
 [CliCommand(
     Name = "bulk",
     Description = "Bulk operations (CreateMultiple, UpdateMultiple, UpsertMultiple) against the environment.",
-    Children = new[] { typeof(EnvDataBulkCreateCliCommand), typeof(EnvDataBulkUpdateCliCommand), typeof(EnvDataBulkUpsertCliCommand) }
+    Children = new[] { typeof(EnvDataBulkCreateCliCommand), typeof(EnvDataBulkUpdateCliCommand), typeof(EnvDataBulkUpsertCliCommand) },
+    ShortFormAutoGenerate = CliNameAutoGenerate.None
 )]
 public class EnvDataBulkCliCommand
 {

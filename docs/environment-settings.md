@@ -4,7 +4,7 @@
 
 ```sh
 txc env setting list [--filter <substring>] [--format json|text]
-txc env setting update --name <setting> --value <value>
+txc env setting update <setting> <value>
 ```
 
 All commands respect `--profile` for targeting a specific environment. See [profiles-and-authentication.md](profiles-and-authentication.md).
@@ -17,7 +17,7 @@ Copilot and AI features are enabled by default in new environments. You can turn
 
 **Disable Copilot control in model-driven apps:**
 ```sh
-txc env setting update --name appcopilotenabled --value 0
+txc env setting update appcopilotenabled 0
 ```
 
 **Disable AI form fill assistance (automatic predictions on edit forms):**
@@ -40,17 +40,17 @@ txc env setting list --filter EnableFormInsights
 
 **Disable AI Builder preview scenarios:**
 ```sh
-txc env setting update --name paipreviewscenarioenabled --value false
+txc env setting update paipreviewscenarioenabled false
 ```
 
 **Disable AI Prompts:**
 ```sh
-txc env setting update --name aipromptsenabled --value false
+txc env setting update aipromptsenabled false
 ```
 
 **Disable the maker Copilot bot:**
 ```sh
-txc env setting update --name powerappsmakerbotenabled --value false
+txc env setting update powerappsmakerbotenabled false
 ```
 
 You can verify the changes by listing the relevant settings:
@@ -64,7 +64,7 @@ txc env setting list --filter ai
 Power Apps code-first (custom pages, code components beyond PCF) requires an explicit opt-in at the environment level via the control plane:
 
 ```sh
-txc env setting update --name PowerApps_AllowCodeApps --value true
+txc env setting update PowerApps_AllowCodeApps true
 ```
 
 Verify:
@@ -77,7 +77,7 @@ txc env setting list --filter AllowCodeApps
 Enable or disable Dataverse auditing:
 
 ```sh
-txc env setting update --name isauditenabled --value true
+txc env setting update isauditenabled true
 ```
 
 ### File upload limits
@@ -85,7 +85,7 @@ txc env setting update --name isauditenabled --value true
 Increase the maximum file upload size (in KB):
 
 ```sh
-txc env setting update --name maxuploadfilesize --value 131072
+txc env setting update maxuploadfilesize 131072
 ```
 
 ### Blocked file extensions
@@ -93,7 +93,7 @@ txc env setting update --name maxuploadfilesize --value 131072
 Update the list of blocked attachment file extensions:
 
 ```sh
-txc env setting update --name blockedattachments --value "exe;bat;com;cmd"
+txc env setting update blockedattachments "exe;bat;com;cmd"
 ```
 
 ## Discovering settings

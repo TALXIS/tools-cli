@@ -41,7 +41,7 @@ public class ProfileCreateCliCommand : TxcLeafCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ProfileCreateCliCommand));
 
-    [CliOption(Name = "--name", Aliases = new[] { "-n" }, Description = "Profile name (slug). Optional — derived from the Power Platform environment name and URL host, or from --connection when omitted.", Required = false)]
+    [CliOption(Name = "--name", Aliases = ["-n"], Description = "Profile name (slug). Optional — derived from the Power Platform environment name and URL host, or from --connection when omitted.", Required = false)]
     public string? Name { get; set; }
 
     [CliOption(Name = "--url", Description = "Service URL to bootstrap from. Triggers interactive sign-in, credential upsert, and connection creation in one step.", Required = false)]

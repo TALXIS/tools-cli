@@ -32,10 +32,10 @@ txc env entity create --name tom_project \
   --ownership user --stage
 
 # Stage attributes on the new entity
-txc env entity attribute create --entity tom_project \
+txc env entity attribute create tom_project \
   --name tom_name --type string --display-name "Name" --stage
 
-txc env entity attribute create --entity tom_project \
+txc env entity attribute create tom_project \
   --name tom_budget --type money --display-name "Budget" --stage
 ```
 
@@ -137,17 +137,17 @@ txc env entity create --name tom_invoice \
   --ownership user --has-notes --stage
 
 # 2. Stage attributes
-txc env entity attribute create --entity tom_invoice \
+txc env entity attribute create tom_invoice \
   --name tom_number --type string --display-name "Invoice Number" --stage
 
-txc env entity attribute create --entity tom_invoice \
+txc env entity attribute create tom_invoice \
   --name tom_amount --type money --display-name "Amount" --stage
 
-txc env entity attribute create --entity tom_invoice \
+txc env entity attribute create tom_invoice \
   --name tom_issuedate --type datetime --display-name "Issue Date" \
   --datetime-format dateonly --stage
 
-txc env entity attribute create --entity tom_invoice \
+txc env entity attribute create tom_invoice \
   --name tom_status --type choice --display-name "Status" \
   --options "Draft,Sent,Paid,Cancelled" --stage
 
