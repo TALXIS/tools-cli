@@ -39,10 +39,10 @@ public class SolutionUninstallCliCommand : ProfiledCliCommand, IDestructiveComma
         var deps = await depService.CheckUninstallAsync(Profile, Name, CancellationToken.None).ConfigureAwait(false);
         if (deps.Count > 0 && !Force)
         {
-            Logger.LogError(
-                "Solution '{Name}' has {Count} blocking dependency(ies). " +
-                "Run 'txc env sln uninstall-check {Name}' to see details, or use --force to proceed anyway.",
-                Name, deps.Count, Name);
+            var msg = $"Solution '{Name}' has {deps.Count} blocking dependency(ies). " +
+                      $"Run 'txc env sln uninstall-check {Name}' to see details, or use --force to proceed anyway.";
+            OutputFormatter.WriteResult("failed", msg);
+            Logger.LogError("{Message}", msg);
             return ExitError;
         }
         if (deps.Count > 0 && Force)
