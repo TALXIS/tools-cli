@@ -159,7 +159,11 @@ txc env sln import ./src/MySolution/
 # Export, edit locally, re-import
 txc env sln export MySolution --output ./export/
 
-# Inspect component layers and dependencies by name — no GUIDs needed
+# Inspect solution metadata and component breakdown
+txc env sln show MySolution
+txc env sln component list MySolution --type entity
+
+# Drill into component layers and dependencies by name — no GUIDs needed
 txc env component layer list --entity account --attribute revenue
 txc env component dep delete-check --entity tom_project
 ```
