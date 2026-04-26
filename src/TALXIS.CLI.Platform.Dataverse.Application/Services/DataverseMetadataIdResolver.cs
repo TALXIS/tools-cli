@@ -14,7 +14,7 @@ internal sealed class DataverseMetadataIdResolver : IMetadataIdResolver
         if (conn.Client is not ServiceClient client)
             throw new InvalidOperationException("Metadata resolution requires a ServiceClient instance.");
 
-        var path = $"EntityDefinitions?$filter={Uri.EscapeDataString($"LogicalName eq '{entityLogicalName}'")}&$select=MetadataId";
+        var path = $"EntityDefinitions?$filter={Uri.EscapeDataString($"LogicalName eq '{entityLogicalName.Replace("'", "''")}'")}&$select=MetadataId";
         var headers = new Dictionary<string, List<string>>();
         using var response = client.ExecuteWebRequest(HttpMethod.Get, path, string.Empty, headers);
         response.EnsureSuccessStatusCode();
@@ -40,8 +40,8 @@ internal sealed class DataverseMetadataIdResolver : IMetadataIdResolver
         if (conn.Client is not ServiceClient client)
             throw new InvalidOperationException("Metadata resolution requires a ServiceClient instance.");
 
-        var filter = Uri.EscapeDataString($"LogicalName eq '{attributeLogicalName}'");
-        var path = $"EntityDefinitions(LogicalName='{entityLogicalName}')/Attributes?$filter={filter}&$select=MetadataId";
+        var filter = Uri.EscapeDataString($"LogicalName eq '{attributeLogicalName.Replace("'", "''")}'");
+        var path = $"EntityDefinitions(LogicalName='{entityLogicalName.Replace("'", "''")}')/Attributes?$filter={filter}&$select=MetadataId";
         var headers = new Dictionary<string, List<string>>();
         using var response = client.ExecuteWebRequest(HttpMethod.Get, path, string.Empty, headers);
         response.EnsureSuccessStatusCode();

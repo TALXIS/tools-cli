@@ -9,7 +9,6 @@ public interface ISolutionLayerMutationService
     Task RemoveCustomizationAsync(
         string? profileName,
         Guid componentId,
-        int componentType,
         string componentTypeName,
         CancellationToken ct);
 }

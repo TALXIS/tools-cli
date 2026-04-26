@@ -12,56 +12,48 @@ internal static class ComponentIdResolver
 {
     /// <summary>
     /// Resolves component ID and type name from either direct ID or entity/attribute names.
-    /// Returns false if parameters are invalid (logs the error).
+    /// Returns null if parameters are invalid (logs the error).
     /// </summary>
-    public static bool TryResolve(
+    public static async Task<(string ComponentId, string TypeName)?> TryResolveAsync(
         string? id, string? type,
         string? entity, string? attribute,
         string? profile,
         ILogger logger,
-        out string componentId, out string typeName)
+        CancellationToken ct)
     {
-        componentId = "";
-        typeName = "";
-
         if (!string.IsNullOrWhiteSpace(entity))
         {
             if (!string.IsNullOrWhiteSpace(id))
             {
                 logger.LogError("Use either --id or --entity, not both.");
-                return false;
+                return null;
             }
 
             var resolver = TxcServices.Get<IMetadataIdResolver>();
             if (!string.IsNullOrWhiteSpace(attribute))
             {
-                componentId = resolver.ResolveAttributeIdAsync(profile, entity, attribute, CancellationToken.None)
-                    .ConfigureAwait(false).GetAwaiter().GetResult().ToString();
-                typeName = "Attribute";
+                var resolved = await resolver.ResolveAttributeIdAsync(profile, entity, attribute, ct).ConfigureAwait(false);
+                return (resolved.ToString(), "Attribute");
             }
             else
             {
-                componentId = resolver.ResolveEntityIdAsync(profile, entity, CancellationToken.None)
-                    .ConfigureAwait(false).GetAwaiter().GetResult().ToString();
-                typeName = "Entity";
+                var resolved = await resolver.ResolveEntityIdAsync(profile, entity, ct).ConfigureAwait(false);
+                return (resolved.ToString(), "Entity");
             }
-            return true;
         }
 
         if (string.IsNullOrWhiteSpace(id))
         {
             logger.LogError("Provide --id <guid> --type <type>, or --entity <name> [--attribute <name>].");
-            return false;
+            return null;
         }
 
         if (string.IsNullOrWhiteSpace(type))
         {
             logger.LogError("--type is required when using --id.");
-            return false;
+            return null;
         }
 
-        componentId = id;
-        typeName = type;
-        return true;
+        return (id, type);
     }
 }

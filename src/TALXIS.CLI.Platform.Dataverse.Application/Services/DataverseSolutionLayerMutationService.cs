@@ -10,7 +10,6 @@ internal sealed class DataverseSolutionLayerMutationService : ISolutionLayerMuta
     public async Task RemoveCustomizationAsync(
         string? profileName,
         Guid componentId,
-        int componentType,
         string componentTypeName,
         CancellationToken ct)
     {

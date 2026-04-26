@@ -34,7 +34,10 @@ public class ComponentLayerRemoveCustomizationCliCommand : ProfiledCliCommand, I
 
     protected override async Task<int> ExecuteAsync()
     {
-        if (!ComponentIdResolver.TryResolve(Id, Type, Entity, Attribute, Profile, Logger, out var componentId, out var typeName))
+        var resolved = await ComponentIdResolver.TryResolveAsync(Id, Type, Entity, Attribute, Profile, Logger, CancellationToken.None).ConfigureAwait(false);
+        if (resolved is null)
+            return ExitValidationError;
+        var (componentId, typeName) = resolved.Value;
             return ExitValidationError;
 
         if (!Guid.TryParse(componentId, out var guid))
@@ -62,7 +65,7 @@ public class ComponentLayerRemoveCustomizationCliCommand : ProfiledCliCommand, I
 
         // Execute removal
         var mutationService = TxcServices.Get<ISolutionLayerMutationService>();
-        await mutationService.RemoveCustomizationAsync(Profile, guid, 0, typeName, CancellationToken.None).ConfigureAwait(false);
+        await mutationService.RemoveCustomizationAsync(Profile, guid, typeName, CancellationToken.None).ConfigureAwait(false);
 
         OutputFormatter.WriteData(
             new { status = "removed", componentId, componentType = typeName },

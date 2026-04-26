@@ -53,20 +53,39 @@ internal static class SolutionComponentQueryReader
             ["Prefer"] = new() { "odata.maxpagesize=5000" },
         };
 
-        using var response = client.ExecuteWebRequest(HttpMethod.Get, path, string.Empty, headers);
+        var response = client.ExecuteWebRequest(HttpMethod.Get, path, string.Empty, headers);
         response.EnsureSuccessStatusCode();
 
-        var json = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-        using var doc = JsonDocument.Parse(json);
-
         var rows = new List<ComponentSummaryRow>();
-        if (doc.RootElement.TryGetProperty("value", out var valueArray))
+        await ParsePageAsync(response, rows, ct).ConfigureAwait(false);
+
+        // Follow @odata.nextLink for paging (server may return less than maxpagesize)
+        while (!top.HasValue || rows.Count < top.Value)
         {
-            foreach (var item in valueArray.EnumerateArray())
-            {
-                rows.Add(ParseSummaryRow(item));
-            }
+            var pageJson = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            using var pageDoc = JsonDocument.Parse(pageJson);
+            if (!pageDoc.RootElement.TryGetProperty("@odata.nextLink", out var nextLink))
+                break;
+
+            var nextUrl = nextLink.GetString();
+            if (string.IsNullOrWhiteSpace(nextUrl))
+                break;
+
+            // nextLink is absolute — extract the relative path for ExecuteWebRequest
+            var uri = new Uri(nextUrl);
+            var relativePath = uri.PathAndQuery.TrimStart('/');
+            if (relativePath.StartsWith("api/data/", StringComparison.OrdinalIgnoreCase))
+                relativePath = relativePath[(relativePath.IndexOf("/v", StringComparison.Ordinal) + 1)..];
+            if (relativePath.StartsWith("v9", StringComparison.OrdinalIgnoreCase))
+                relativePath = relativePath[(relativePath.IndexOf('/') + 1)..];
+
+            response.Dispose();
+            response = client.ExecuteWebRequest(HttpMethod.Get, relativePath, string.Empty, headers);
+            response.EnsureSuccessStatusCode();
+            await ParsePageAsync(response, rows, ct).ConfigureAwait(false);
         }
+
+        response.Dispose();
 
         if (top.HasValue && rows.Count > top.Value)
             rows.RemoveRange(top.Value, rows.Count - top.Value);
@@ -83,6 +102,17 @@ internal static class SolutionComponentQueryReader
         Guid solutionId,
         CancellationToken ct)
         => SolutionDetailReader.QueryComponentCountsAsync(service, solutionId, ct);
+
+    private static async Task ParsePageAsync(HttpResponseMessage response, List<ComponentSummaryRow> rows, CancellationToken ct)
+    {
+        var json = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+        using var doc = JsonDocument.Parse(json);
+        if (doc.RootElement.TryGetProperty("value", out var valueArray))
+        {
+            foreach (var item in valueArray.EnumerateArray())
+                rows.Add(ParseSummaryRow(item));
+        }
+    }
 
     private static ComponentSummaryRow ParseSummaryRow(JsonElement item)
     {

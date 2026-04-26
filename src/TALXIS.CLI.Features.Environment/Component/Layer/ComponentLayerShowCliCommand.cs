@@ -30,7 +30,10 @@ public class ComponentLayerShowCliCommand : ProfiledCliCommand
 
     protected override async Task<int> ExecuteAsync()
     {
-        if (!ComponentIdResolver.TryResolve(Id, Type, Entity, Attribute, Profile, Logger, out var componentId, out var typeName))
+        var resolved = await ComponentIdResolver.TryResolveAsync(Id, Type, Entity, Attribute, Profile, Logger, CancellationToken.None).ConfigureAwait(false);
+        if (resolved is null)
+            return ExitValidationError;
+        var (componentId, typeName) = resolved.Value;
             return ExitValidationError;
 
         var service = TxcServices.Get<ISolutionLayerQueryService>();
