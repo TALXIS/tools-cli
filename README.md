@@ -91,7 +91,7 @@ The environment layer is organised into three planes:
 | Plane | What it covers | Commands |
 |-------|---------------|----------|
 | **Control** | Environment settings, feature toggles, governance | `txc env setting …` |
-| **Application** | Solutions, packages, deployments, schema, layers, dependencies, publishers | `txc env sln …`, `txc env pkg …`, `txc env component …`, `txc env publisher …`, `txc env entity …` |
+| **Application** | Solutions, packages, deployments, schema management | `txc env sln …`, `txc env pkg …`, `txc env deploy …`, `txc env entity …` |
 | **Data** | Records, queries, bulk operations, CMT import/export | `txc env data …`, `txc data …` |
 
 ### Workspace — Local-First Development
@@ -136,18 +136,32 @@ txc env setting update powerApps_AllowCodeApps true
 
 ### Application Plane
 
-Deploy, inspect, and manage solutions, components, and packages.
+Deploy, inspect, and manage solutions and packages in the target environment.
 
 ```sh
-# Import a solution — pass a ZIP, a folder (auto-packs), or a .cdsproj project
+# Deploy a package straight from NuGet, inspect the result
+txc env pkg import TALXIS.Controls.FileExplorer.Package
+txc env deploy show --package-name TALXIS.Controls.FileExplorer.Package
+
+# Import a solution, target a different environment for one call
+txc env sln import ./Solutions/MySolution_managed.zip --profile customer-b-prod
+
+# Uninstall a package cleanly
+txc env pkg uninstall TALXIS.Controls.FileExplorer.Package --yes
+```
+
+**Solution round-tripping and component inspection:**
+
+```sh
+# Import from a folder or .cdsproj project — auto-packs via SolutionPackager
 txc env sln import ./src/MySolution/
+
+# Export, edit locally, re-import
+txc env sln export MySolution --output ./export/
 
 # Inspect component layers and dependencies by name — no GUIDs needed
 txc env component layer list --entity account --attribute revenue
 txc env component dep delete-check --entity tom_project
-
-# Deploy a NuGet package directly
-txc env pkg import TALXIS.Controls.FileExplorer.Package
 ```
 
 ### Data Plane
@@ -199,15 +213,30 @@ See [docs/configuration-migration.md](docs/configuration-migration.md) for the f
 
 ### Application Plane — Schema Management
 
-Define your Dataverse schema from the terminal — entities, columns, relationships, option sets. Use `--apply` to execute immediately or `--stage` to queue changes for a single optimised batch. See [docs/schema-management.md](docs/schema-management.md) and [docs/changeset-staging.md](docs/changeset-staging.md).
+Define your Dataverse schema from the terminal — entities, columns, relationships, option sets. Every mutating command supports `--apply` (execute now) or `--stage` (queue for batch). See [docs/schema-management.md](docs/schema-management.md).
 
 ```sh
+# Spin up a new entity with a money column in seconds
 txc env entity create --name tom_project \
-  --display-name "Project" --plural-name "Projects" --stage
+  --display-name "Project" --plural-name "Projects" \
+  --ownership user --apply
+
 txc env entity attribute create tom_project \
-  --name tom_budget --type money --display-name "Budget" --stage
+  --name tom_budget --type money --display-name "Budget" --apply
+
+# Or stage everything and apply in one optimised batch
+txc env entity create --name tom_invoice \
+  --display-name "Invoice" --plural-name "Invoices" --stage
+txc env entity attribute create tom_invoice \
+  --name tom_amount --type money --display-name "Amount" --stage
+txc env entity attribute create tom_invoice \
+  --name tom_duedate --type datetime --display-name "Due Date" --stage
+
+txc env changeset status          # review what's queued
 txc env changeset apply --strategy batch   # one batch, one publish
 ```
+
+Changeset staging batches entity creation via the `CreateEntities` SDK action and consolidates all publishes into a single `PublishXml` call — dramatically faster than sequential operations. See [docs/changeset-staging.md](docs/changeset-staging.md).
 
 > [!NOTE]
 > Run `txc --help` or `txc <command> --help` for the full command reference.
