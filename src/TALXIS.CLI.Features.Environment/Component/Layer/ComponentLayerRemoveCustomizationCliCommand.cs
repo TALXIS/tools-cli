@@ -17,39 +17,40 @@ public class ComponentLayerRemoveCustomizationCliCommand : ProfiledCliCommand, I
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ComponentLayerRemoveCustomizationCliCommand));
 
-    [CliArgument(Name = "component-id", Description = "Component GUID.")]
-    public string ComponentId { get; set; } = null!;
+    [CliOption(Name = "--id", Description = "Component GUID (MetadataId / objectId). Required unless --entity is given.", Required = false)]
+    public string? Id { get; set; }
 
-    [CliOption(Name = "--type", Description = "Component type (name or code, e.g. 'Entity' or '1').", Required = true)]
-    public string Type { get; set; } = null!;
+    [CliOption(Name = "--type", Description = "Component type name. Auto-detected when using --entity.", Required = false)]
+    public string? Type { get; set; }
 
-    [CliOption(Name = "--yes", Description = "Skip interactive confirmation.", Required = false)]
+    [CliOption(Name = "--entity", Description = "Entity logical name. Resolves MetadataId automatically.", Required = false)]
+    public string? Entity { get; set; }
+
+    [CliOption(Name = "--attribute", Description = "Attribute logical name (requires --entity).", Required = false)]
+    public string? Attribute { get; set; }
+
+    [CliOption(Name = "--yes", Description = "Skip interactive confirmation for this destructive operation.", Required = false)]
     public bool Yes { get; set; }
 
     protected override async Task<int> ExecuteAsync()
     {
-        if (!Guid.TryParse(ComponentId, out var id))
-        {
-            Logger.LogError("Invalid component ID '{ComponentId}'. Must be a valid GUID.", ComponentId);
+        if (!ComponentIdResolver.TryResolve(Id, Type, Entity, Attribute, Profile, Logger, out var componentId, out var typeName))
             return ExitValidationError;
-        }
 
-        var resolver = new ComponentTypeResolver();
-        if (!resolver.TryResolveCode(Type, out var typeCode))
+        if (!Guid.TryParse(componentId, out var guid))
         {
-            var known = string.Join(", ", resolver.GetKnownNames().Take(15));
-            Logger.LogError("Unknown component type '{Type}'. Available types: {Known}. Or use an integer code.", Type, known);
+            Logger.LogError("Invalid component ID '{ComponentId}'. Must be a valid GUID.", componentId);
             return ExitValidationError;
         }
 
         // Pre-check: verify an active layer exists
         var layerService = TxcServices.Get<ISolutionLayerQueryService>();
-        var layers = await layerService.ListLayersAsync(Profile, ComponentId, resolver.ResolveName(typeCode), CancellationToken.None).ConfigureAwait(false);
+        var layers = await layerService.ListLayersAsync(Profile, componentId, typeName, CancellationToken.None).ConfigureAwait(false);
 
         var activeLayer = layers.FirstOrDefault(l => l.SolutionName == "Active");
         if (activeLayer is null)
         {
-            Logger.LogWarning("No active (unmanaged) layer found for component {ComponentId}. Nothing to remove.", ComponentId);
+            Logger.LogWarning("No active (unmanaged) layer found for component {ComponentId}. Nothing to remove.", componentId);
             return ExitSuccess;
         }
 
@@ -60,15 +61,15 @@ public class ComponentLayerRemoveCustomizationCliCommand : ProfiledCliCommand, I
         }
 
         // Execute removal
-        var typeName = resolver.ResolveName(typeCode);
         var mutationService = TxcServices.Get<ISolutionLayerMutationService>();
-        await mutationService.RemoveCustomizationAsync(Profile, id, typeCode, typeName, CancellationToken.None).ConfigureAwait(false);
+        await mutationService.RemoveCustomizationAsync(Profile, guid, 0, typeName, CancellationToken.None).ConfigureAwait(false);
+
         OutputFormatter.WriteData(
-            new { status = "removed", componentId = ComponentId, componentType = typeName },
+            new { status = "removed", componentId, componentType = typeName },
             _ =>
             {
 #pragma warning disable TXC003
-                OutputWriter.WriteLine($"Removed active customization layer for {typeName} {ComponentId}. Component reverted to managed layer behavior.");
+                OutputWriter.WriteLine($"Removed active customization layer for {typeName} {componentId}. Component reverted to managed layer behavior.");
 #pragma warning restore TXC003
             });
 

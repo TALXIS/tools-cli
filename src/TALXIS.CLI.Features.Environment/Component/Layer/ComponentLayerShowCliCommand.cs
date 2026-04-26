@@ -16,20 +16,29 @@ public class ComponentLayerShowCliCommand : ProfiledCliCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ComponentLayerShowCliCommand));
 
-    [CliArgument(Name = "component-id", Description = "Component GUID (objectId from solution component).")]
-    public string ComponentId { get; set; } = null!;
+    [CliOption(Name = "--id", Description = "Component GUID (MetadataId / objectId). Required unless --entity is given.", Required = false)]
+    public string? Id { get; set; }
 
-    [CliOption(Name = "--type", Description = "Component type name (e.g. Entity, Attribute, Workflow).", Required = true)]
-    public string Type { get; set; } = null!;
+    [CliOption(Name = "--type", Description = "Component type name. Auto-detected when using --entity.", Required = false)]
+    public string? Type { get; set; }
+
+    [CliOption(Name = "--entity", Description = "Entity logical name. Resolves MetadataId automatically.", Required = false)]
+    public string? Entity { get; set; }
+
+    [CliOption(Name = "--attribute", Description = "Attribute logical name (requires --entity).", Required = false)]
+    public string? Attribute { get; set; }
 
     protected override async Task<int> ExecuteAsync()
     {
+        if (!ComponentIdResolver.TryResolve(Id, Type, Entity, Attribute, Profile, Logger, out var componentId, out var typeName))
+            return ExitValidationError;
+
         var service = TxcServices.Get<ISolutionLayerQueryService>();
-        var json = await service.GetActiveLayerJsonAsync(Profile, ComponentId, Type, CancellationToken.None).ConfigureAwait(false);
+        var json = await service.GetActiveLayerJsonAsync(Profile, componentId, typeName, CancellationToken.None).ConfigureAwait(false);
 
         if (json is null)
         {
-            Logger.LogWarning("No active layer found for component {ComponentId} of type {Type}.", ComponentId, Type);
+            Logger.LogWarning("No active layer found for component {ComponentId} of type {Type}.", componentId, typeName);
             return ExitError;
         }
 

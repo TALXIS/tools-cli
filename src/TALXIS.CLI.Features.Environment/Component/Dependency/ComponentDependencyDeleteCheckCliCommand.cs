@@ -16,25 +16,34 @@ public class ComponentDependencyDeleteCheckCliCommand : ProfiledCliCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ComponentDependencyDeleteCheckCliCommand));
 
-    [CliArgument(Name = "component-id", Description = "Component GUID.")]
-    public string ComponentId { get; set; } = null!;
+    [CliOption(Name = "--id", Description = "Component GUID (MetadataId / objectId). Required unless --entity is given.", Required = false)]
+    public string? Id { get; set; }
 
-    [CliOption(Name = "--type", Description = "Component type (name or code, e.g. 'Entity' or '1').", Required = true)]
-    public string Type { get; set; } = null!;
+    [CliOption(Name = "--type", Description = "Component type (name or code). Auto-detected when using --entity.", Required = false)]
+    public string? Type { get; set; }
+
+    [CliOption(Name = "--entity", Description = "Entity logical name. Resolves MetadataId automatically.", Required = false)]
+    public string? Entity { get; set; }
+
+    [CliOption(Name = "--attribute", Description = "Attribute logical name (requires --entity).", Required = false)]
+    public string? Attribute { get; set; }
 
     protected override async Task<int> ExecuteAsync()
     {
-        if (!Guid.TryParse(ComponentId, out var id))
+        if (!ComponentIdResolver.TryResolve(Id, Type, Entity, Attribute, Profile, Logger, out var componentId, out var typeName))
+            return ExitValidationError;
+
+        if (!Guid.TryParse(componentId, out var id))
         {
-            Logger.LogError("Invalid component ID '{ComponentId}'. Must be a valid GUID.", ComponentId);
+            Logger.LogError("Invalid component ID '{{componentId}'. Must be a valid GUID.", componentId);
             return ExitValidationError;
         }
 
         var resolver = new ComponentTypeResolver();
-        if (!resolver.TryResolveCode(Type, out var typeCode))
+        if (!resolver.TryResolveCode(typeName, out var typeCode))
         {
             var known = string.Join(", ", resolver.GetKnownNames().Take(15));
-            Logger.LogError("Unknown component type '{Type}'. Available types: {Known}. Or use an integer code.", Type, known);
+            Logger.LogError("Unknown component type '{Type}'. Available types: {Known}.", typeName, known);
             return ExitValidationError;
         }
 
@@ -44,20 +53,20 @@ public class ComponentDependencyDeleteCheckCliCommand : ProfiledCliCommand
         if (deps.Count == 0)
         {
             OutputFormatter.WriteData(
-                new { status = "safe", componentId = ComponentId, componentType = Type, blockingDependencies = 0 },
+                new { status = "safe", componentId, componentType = typeName, blockingDependencies = 0 },
                 _ =>
                 {
 #pragma warning disable TXC003
-                    OutputWriter.WriteLine($"No blocking dependencies — component {ComponentId} ({Type}) can be safely deleted.");
+                    OutputWriter.WriteLine($"No blocking dependencies — component {componentId} ({typeName}) can be safely deleted.");
 #pragma warning restore TXC003
                 });
             return ExitSuccess;
         }
 
         OutputFormatter.WriteData(
-            new { status = "blocked", componentId = ComponentId, componentType = Type, blockingDependencies = deps.Count, dependencies = deps },
+            new { status = "blocked", componentId = componentId, componentType = typeName, blockingDependencies = deps.Count, dependencies = deps },
             _ => DependencyOutputHelper.PrintDependencyTable(deps, "Dependent", "Required",
-                $"Deleting component {ComponentId} ({Type}) is blocked by {deps.Count} dependency(ies)."));
+                $"Deleting component {componentId} ({typeName}) is blocked by {deps.Count} dependency(ies)."));
         return ExitError;
     }
 }
