@@ -13,10 +13,11 @@ internal sealed class DataverseSolutionUninstallService : ISolutionUninstallServ
     public async Task<SolutionUninstallOutcome> UninstallByUniqueNameAsync(
         string? profileName,
         string uniqueName,
-        CancellationToken ct)
+        bool? expectManaged = null,
+        CancellationToken ct = default)
     {
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
         var uninstaller = new SolutionUninstaller(conn.Client, _logger);
-        return await uninstaller.UninstallByUniqueNameAsync(uniqueName).ConfigureAwait(false);
+        return await uninstaller.UninstallByUniqueNameAsync(uniqueName, expectManaged, ct).ConfigureAwait(false);
     }
 }

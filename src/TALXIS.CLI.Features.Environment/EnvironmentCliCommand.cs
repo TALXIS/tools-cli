@@ -6,7 +6,7 @@ namespace TALXIS.CLI.Features.Environment;
     Name = "environment",
     Alias = "env",
     Description = "Manage the footprint of your project in a live target environment (packages, solutions, deployment history).",
-    Children = new[] { typeof(Package.PackageCliCommand), typeof(Solution.SolutionCliCommand), typeof(Deployment.DeploymentCliCommand), typeof(Data.EnvDataCliCommand), typeof(Entity.EntityCliCommand), typeof(Setting.SettingCliCommand), typeof(Changeset.ChangesetCliCommand) },
+    Children = new[] { typeof(Package.PackageCliCommand), typeof(Solution.SolutionCliCommand), typeof(Deployment.DeploymentCliCommand), typeof(Data.EnvDataCliCommand), typeof(Entity.EntityCliCommand), typeof(Setting.SettingCliCommand), typeof(Changeset.ChangesetCliCommand), typeof(Component.ComponentCliCommand), typeof(Publisher.PublisherCliCommand) },
     ShortFormAutoGenerate = CliNameAutoGenerate.None
 )]
 public class EnvironmentCliCommand

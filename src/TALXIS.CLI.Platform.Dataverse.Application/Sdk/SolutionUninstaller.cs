@@ -32,8 +32,18 @@ public sealed class SolutionUninstaller
         _logger = logger;
     }
 
+    /// <summary>
+    /// Deletes a solution by unique name. When <paramref name="expectManaged"/>
+    /// is specified, rejects solutions that don't match the expected type.
+    /// </summary>
+    /// <param name="uniqueName">Solution unique name.</param>
+    /// <param name="expectManaged">
+    /// <c>true</c> = expect managed (uninstall), <c>false</c> = expect unmanaged (delete),
+    /// <c>null</c> = no type check (legacy behavior).
+    /// </param>
     public async Task<SolutionUninstallOutcome> UninstallByUniqueNameAsync(
         string uniqueName,
+        bool? expectManaged = null,
         CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(uniqueName);
@@ -51,6 +61,17 @@ public sealed class SolutionUninstaller
         }
 
         var target = matches[0];
+        var isManaged = target.GetAttributeValue<bool>("ismanaged");
+
+        // Type check: reject mismatched solution types with actionable guidance.
+        if (expectManaged.HasValue && isManaged != expectManaged.Value)
+        {
+            var message = isManaged
+                ? $"Solution '{trimmed}' is managed. Use 'txc env sln uninstall' to remove it and all its components."
+                : $"Solution '{trimmed}' is unmanaged. Use 'txc env sln delete' to remove the solution container (components will remain).";
+            return new SolutionUninstallOutcome(trimmed, target.Id, SolutionUninstallStatus.TypeMismatch, message);
+        }
+
         try
         {
             var request = new DeleteRequest
@@ -59,11 +80,15 @@ public sealed class SolutionUninstaller
                 RequestId = Guid.NewGuid(),
             };
             await _service.ExecuteAsync(request, ct).ConfigureAwait(false);
-            return new SolutionUninstallOutcome(trimmed, target.Id, SolutionUninstallStatus.Success, "Uninstalled.");
+
+            var successMessage = isManaged
+                ? "Uninstalled. All components from this managed solution have been removed."
+                : "Deleted. The solution container has been removed; components remain in the environment.";
+            return new SolutionUninstallOutcome(trimmed, target.Id, SolutionUninstallStatus.Success, successMessage);
         }
         catch (Exception ex)
         {
-            _logger?.LogDebug(ex, "Failed to uninstall solution {SolutionName}.", trimmed);
+            _logger?.LogDebug(ex, "Failed to delete solution {SolutionName}.", trimmed);
             return new SolutionUninstallOutcome(trimmed, target.Id, SolutionUninstallStatus.Failed, ex.Message);
         }
     }
@@ -83,7 +108,7 @@ public sealed class SolutionUninstaller
         var outcomes = new List<SolutionUninstallOutcome>(distinct.Count);
         foreach (var name in distinct)
         {
-            outcomes.Add(await UninstallByUniqueNameAsync(name, ct).ConfigureAwait(false));
+            outcomes.Add(await UninstallByUniqueNameAsync(name, expectManaged: null, ct).ConfigureAwait(false));
         }
 
         return outcomes;

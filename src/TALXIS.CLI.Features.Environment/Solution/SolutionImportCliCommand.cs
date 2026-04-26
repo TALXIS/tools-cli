@@ -1,25 +1,24 @@
 using System.ComponentModel;
-using System.Text.Json;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
-using TALXIS.CLI.Core.DependencyInjection;
-using TALXIS.CLI.Core.Contracts.Dataverse;
-using TALXIS.CLI.Logging;
 using TALXIS.CLI.Core;
+using TALXIS.CLI.Core.Contracts.Dataverse;
+using TALXIS.CLI.Core.DependencyInjection;
+using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.Solution;
 
 [CliIdempotent]
 [CliCommand(
     Name = "import",
-    Description = "Import a solution .zip into the target environment."
+    Description = "Import a solution into the target environment. Accepts a .zip file, an unpacked solution folder, or a project directory (.cdsproj/.csproj)."
 )]
 public class SolutionImportCliCommand : ProfiledCliCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(SolutionImportCliCommand));
 
-    [CliArgument(Name = "solution-zip", Description = "Path to the solution .zip to import.")]
-    public required string SolutionZip { get; set; }
+    [CliArgument(Name = "solution-path", Description = "Path to a solution .zip file, an unpacked solution folder, or a project directory (.cdsproj/.csproj).")]
+    public string SolutionZip { get; set; } = null!;
 
     [CliOption(Name = "--stage-and-upgrade", Description = "Use single-step upgrade when applicable.", Required = false)]
     [DefaultValue(true)]
@@ -40,19 +39,73 @@ public class SolutionImportCliCommand : ProfiledCliCommand
     [CliOption(Name = "--wait", Description = "Wait for completion. By default solution imports return after queueing.", Required = false)]
     public bool Wait { get; set; }
 
+    [CliOption(Name = "--managed", Description = "When importing from a folder, pack as managed solution.", Required = false)]
+    public bool Managed { get; set; }
+
     protected override async Task<int> ExecuteAsync()
     {
         if (string.IsNullOrWhiteSpace(SolutionZip))
         {
-            Logger.LogError("'solution-zip' argument is required.");
+            Logger.LogError("'solution-path' argument is required.");
             return ExitValidationError;
         }
 
         string solutionPath = Path.GetFullPath(SolutionZip);
-        if (!File.Exists(solutionPath))
+        string? tempZipPath = null;
+
+        // Auto-detect input format:
+        // 1. ZIP file → use directly
+        // 2. Directory with *.cdsproj → unpacked solution root is <dir>/src
+        // 3. Directory with Other/Solution.xml → unpacked solution folder
+        // 4. Directory → treated as unpacked solution folder
+        if (Directory.Exists(solutionPath))
         {
-            Logger.LogError("Solution file not found: {Path}", solutionPath);
+            // Check for Dataverse project convention: <project-dir>/src is the solution root.
+            // *.cdsproj is the Dataverse convention (always use src/).
+            // *.csproj is checked as a fallback but only used if src/ exists (avoids false
+            // positives with non-Dataverse C# projects in the same directory).
+            var srcFolder = Path.Combine(solutionPath, "src");
+            var hasCdsProj = Directory.GetFiles(solutionPath, "*.cdsproj").Length > 0;
+            var hasCsProj = Directory.GetFiles(solutionPath, "*.csproj").Length > 0;
+
+            if (hasCdsProj)
+            {
+                if (Directory.Exists(srcFolder))
+                {
+                    Logger.LogInformation("Found .cdsproj — using '{SrcFolder}' as solution root.", srcFolder);
+                    solutionPath = srcFolder;
+                }
+                else
+                {
+                    Logger.LogError("Found .cdsproj but '{SrcFolder}' does not exist.", srcFolder);
+                    return ExitValidationError;
+                }
+            }
+            else if (hasCsProj && Directory.Exists(srcFolder))
+            {
+                // .csproj with src/ subfolder — likely a Dataverse project
+                Logger.LogInformation("Found .csproj with src/ folder — using '{SrcFolder}' as solution root.", srcFolder);
+                solutionPath = srcFolder;
+            }
+            // Otherwise: treat directory as-is (unpacked solution folder)
+
+            Logger.LogInformation("Input is a folder — packing to ZIP before import...");
+            tempZipPath = Path.Combine(Path.GetTempPath(), $"txc_import_{Guid.NewGuid():N}.zip");
+        }
+        else if (!File.Exists(solutionPath))
+        {
+            Logger.LogError("Solution path not found: {Path}. Provide a .zip file, an unpacked solution folder, or a project directory (.cdsproj/.csproj).", solutionPath);
             return ExitValidationError;
+        }
+
+        try
+        {
+        // Pack folder to temp ZIP if needed (inside try/finally for cleanup)
+        if (tempZipPath is not null)
+        {
+            var packager = TxcServices.Get<ISolutionPackagerService>();
+            packager.Pack(solutionPath, tempZipPath, Managed);
+            solutionPath = tempZipPath;
         }
 
         var options = new SolutionImportOptions(
@@ -66,42 +119,44 @@ public class SolutionImportCliCommand : ProfiledCliCommand
         var service = TxcServices.Get<ISolutionImportService>();
         var result = await service.ImportAsync(Profile, solutionPath, options, CancellationToken.None).ConfigureAwait(false);
 
-        if (OutputContext.IsJson)
+        var payload = new
         {
-            var payload = new
-            {
-                path = FormatPath(result.Path),
-                uniqueName = result.Source.UniqueName,
-                sourceVersion = result.Source.Version.ToString(),
-                sourceManaged = result.Source.Managed,
-                existingVersion = result.ExistingTarget?.Version.ToString(),
-                existingManaged = result.ExistingTarget?.Managed,
-                importJobId = result.ImportJobId,
-                asyncOperationId = result.AsyncOperationId,
-                startedAtUtc = result.StartedAtUtc.ToString("O"),
-                completedAtUtc = result.CompletedAtUtc?.ToString("O"),
-                smartDiffExpected = result.SmartDiffExpected,
-                status = result.Status,
-            };
-#pragma warning disable TXC003 // TODO: Refactor to use OutputFormatter
-            OutputWriter.WriteLine(JsonSerializer.Serialize(payload, TxcOutputJsonOptions.Default));
-#pragma warning restore TXC003
-        }
+            path = FormatPath(result.Path),
+            uniqueName = result.Source.UniqueName,
+            sourceVersion = result.Source.Version.ToString(),
+            sourceManaged = result.Source.Managed,
+            existingVersion = result.ExistingTarget?.Version.ToString(),
+            existingManaged = result.ExistingTarget?.Managed,
+            importJobId = result.ImportJobId,
+            asyncOperationId = result.AsyncOperationId,
+            startedAtUtc = result.StartedAtUtc.ToString("O"),
+            completedAtUtc = result.CompletedAtUtc?.ToString("O"),
+            smartDiffExpected = result.SmartDiffExpected,
+            status = result.Status,
+        };
 
-        Logger.LogInformation("Import path: {Path}", FormatPath(result.Path));
-        Logger.LogInformation("Status: {Status}", result.Status);
-        Logger.LogInformation("ImportJobId: {ImportJobId}", result.ImportJobId);
-        if (result.AsyncOperationId is { } asyncId)
+        OutputFormatter.WriteData(payload, _ =>
         {
-            Logger.LogInformation("AsyncOperationId: {AsyncOperationId}", asyncId);
-        }
-        Logger.LogInformation("Started (UTC): {Start}", result.StartedAtUtc.ToString("O"));
-        if (result.CompletedAtUtc is { } completed)
-        {
-            Logger.LogInformation("Completed (UTC): {End}", completed.ToString("O"));
-        }
+#pragma warning disable TXC003
+            OutputWriter.WriteLine($"Import path: {FormatPath(result.Path)}");
+            OutputWriter.WriteLine($"Status: {result.Status}");
+            OutputWriter.WriteLine($"ImportJobId: {result.ImportJobId}");
+            if (result.AsyncOperationId is { } asyncId)
+                OutputWriter.WriteLine($"AsyncOperationId: {asyncId}");
+            OutputWriter.WriteLine($"Started (UTC): {result.StartedAtUtc:O}");
+            if (result.CompletedAtUtc is { } completed)
+                OutputWriter.WriteLine($"Completed (UTC): {completed:O}");
+#pragma warning restore TXC003
+        });
 
         return ExitSuccess;
+        }
+        finally
+        {
+            // Clean up temporary ZIP if we packed from a folder
+            if (tempZipPath is not null && File.Exists(tempZipPath))
+                File.Delete(tempZipPath);
+        }
     }
 
     private static string FormatPath(SolutionImportPath path) => path switch

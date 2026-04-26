@@ -422,3 +422,8 @@ temp
 
 # TALXIS CLI local changeset store
 .txc/
+
+# Local planning & research (not for PR)
+docs/plan/
+docs/research/
+temp/
