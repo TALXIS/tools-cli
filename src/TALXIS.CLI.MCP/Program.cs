@@ -76,10 +76,7 @@ PREFER LOCAL OPERATIONS: Workspace operations are instant and reversible. Enviro
         options.SendTaskStatusNotifications = true;
         options.Capabilities = new ServerCapabilities
         {
-            Tools = new ToolsCapability
-            {
-                ListChanged = false
-            },
+            Tools = new ToolsCapability {},
             Logging = new LoggingCapability {},
             Resources = new ResourcesCapability {}
         };
@@ -154,7 +151,7 @@ async ValueTask<CallToolResult> HandleGuideToolAsync(
     string guideName, IDictionary<string, JsonElement>? arguments, McpServer server, CancellationToken ct)
 {
     var query = arguments?.TryGetValue("query", out var queryEl) == true ? queryEl.GetString() ?? "" : "";
-    var top = arguments?.TryGetValue("top", out var topEl) == true ? topEl.GetInt32() : 5;
+    var top = arguments?.TryGetValue("top", out var topEl) == true ? (int)(topEl.GetDouble()) : 5;
     var workflow = arguments?.TryGetValue("workflow", out var wfEl) == true ? wfEl.GetString() : null;
 
     // Map domain guide name to workflow scope
@@ -168,7 +165,7 @@ async ValueTask<CallToolResult> HandleGuideToolAsync(
         _ => null // generic guide
     };
 
-    (CallToolResult result, bool toolsInjected) outcome;
+    CallToolResult result;
 
     if (guideName == "guide_environment")
     {
@@ -181,11 +178,11 @@ async ValueTask<CallToolResult> HandleGuideToolAsync(
         {
             // Return all environment tools
             var tools = allEnvEntries.Select(McpToolRegistry.BuildToolDefinition).ToList();
-            bool injected = activeToolSet.InjectTools(tools);
-            outcome = (new CallToolResult
+            activeToolSet.InjectTools(tools);
+            result = new CallToolResult
             {
                 Content = [new TextContentBlock { Text = GuideHandler.BuildGuidanceResponse(allEnvEntries, query) }]
-            }, injected);
+            };
         }
         else
         {
@@ -198,34 +195,32 @@ async ValueTask<CallToolResult> HandleGuideToolAsync(
 
             var inspectionResult = inspectionTask.Result;
             var mutationResult = mutationTask.Result;
-            bool anyInjected = inspectionResult.ToolsInjected || mutationResult.ToolsInjected;
 
             // Merge text from both results
             var parts = new List<string>();
-            var inspText = inspectionResult.Result.Content.OfType<TextContentBlock>().FirstOrDefault()?.Text;
-            var mutText = mutationResult.Result.Content.OfType<TextContentBlock>().FirstOrDefault()?.Text;
+            var inspText = inspectionResult.Content.OfType<TextContentBlock>().FirstOrDefault()?.Text;
+            var mutText = mutationResult.Content.OfType<TextContentBlock>().FirstOrDefault()?.Text;
             if (!string.IsNullOrEmpty(inspText)) parts.Add(inspText);
             if (!string.IsNullOrEmpty(mutText)) parts.Add(mutText);
 
-            outcome = (new CallToolResult
+            result = new CallToolResult
             {
                 Content = [new TextContentBlock { Text = string.Join("\n\n", parts) }]
-            }, anyInjected);
+            };
         }
     }
     else if (workflowScope is not null)
     {
-        outcome = await guideHandler.HandleWorkflowGuideAsync(workflowScope, query, top, server, ct, guideName);
+        result = await guideHandler.HandleWorkflowGuideAsync(workflowScope, query, top, server, ct, guideName);
     }
     else
     {
-        outcome = await guideHandler.HandleAsync(query, workflow, top, server, ct);
+        result = await guideHandler.HandleAsync(query, workflow, top, server, ct);
     }
 
-    // Injected tools will be visible when the client re-fetches list_tools on the next turn.
-    // No listChanged notification needed — Copilot CLI re-fetches between turns automatically.
+    // Clients discover injected tools by re-fetching tools/list on subsequent turns.
 
-    return outcome.result;
+    return result;
 }
 
 // Bridge: execute_operation dispatches any tool from the internal catalog
@@ -252,7 +247,7 @@ async ValueTask<CallToolResult> HandleExecuteOperationAsync(
             if (!string.IsNullOrEmpty(argsStr))
             {
                 try { opArguments = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(argsStr); }
-                catch { throw new McpException($"Invalid JSON in 'arguments': {argsStr}"); }
+                catch (JsonException ex) { throw new McpException($"Invalid JSON in 'arguments' parameter: {ex.Message}"); }
             }
         }
         else if (argsEl.ValueKind == JsonValueKind.Object)
@@ -279,7 +274,7 @@ async ValueTask<CallToolResult> HandleExecuteOperationAsync(
 async ValueTask<CallToolResult> DispatchCliToolAsync(
     string toolName, CallToolRequestParams? p, RequestContext<CallToolRequestParams> ctx, CancellationToken ct)
 {
-    // Check if it's an active tool (injected via listChanged) or in the internal catalog
+    // Check if it's an active tool (injected via guide) or in the internal catalog
     var cmdType = mcpToolRegistry.FindCommandTypeByToolName(toolName);
     if (cmdType == null)
         throw new McpException($"Tool '{toolName}' not found. Use a guide tool to discover available operations, then call execute_operation or wait for the tool to appear in your tool list.");
@@ -591,7 +586,7 @@ JsonElement BuildGuideInputSchema()
             },
             ["top"] = new Dictionary<string, object?>
             {
-                ["type"] = "number",
+                ["type"] = "integer",
                 ["description"] = "Number of results to return (default 5)"
             },
             ["workflow"] = new Dictionary<string, object?>
@@ -620,8 +615,7 @@ JsonElement BuildExecuteOperationInputSchema()
             },
             ["arguments"] = new Dictionary<string, object?>
             {
-                ["type"] = "string",
-                ["description"] = "JSON string of arguments matching the tool's schema"
+                ["description"] = "Arguments matching the tool's schema. Pass as a JSON object or a JSON-encoded string."
             }
         },
         ["required"] = new List<string> { "operation" }

@@ -40,16 +40,14 @@ public class ActiveToolSet
     }
 
     /// <summary>
-    /// Injects tools discovered by a guide call. These are available for direct calling
-    /// after the client processes the listChanged notification (next turn).
+    /// Injects tools discovered by a guide call. These become visible when clients
+    /// re-fetch tools/list on subsequent turns.
     /// Uses LRU eviction when the injected set exceeds <see cref="MaxInjectedTools"/>.
     /// </summary>
-    /// <returns>True if any new tools were injected (caller should send listChanged).</returns>
-    public bool InjectTools(IEnumerable<Tool> tools)
+    public void InjectTools(IEnumerable<Tool> tools)
     {
         lock (_lock)
         {
-            bool changed = false;
             foreach (var tool in tools)
             {
                 // Don't inject if it's an always-on tool
@@ -66,7 +64,6 @@ public class ActiveToolSet
                 // Add to end of list (most recently used)
                 var node = _injected.AddLast((tool.Name, tool));
                 _injectedIndex[tool.Name] = node;
-                changed = true;
             }
 
             // Evict oldest injected tools if over cap
@@ -76,8 +73,6 @@ public class ActiveToolSet
                 _injected.RemoveFirst();
                 _injectedIndex.Remove(oldest.Name);
             }
-
-            return changed;
         }
     }
 

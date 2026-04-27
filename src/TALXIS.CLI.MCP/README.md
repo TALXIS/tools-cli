@@ -248,7 +248,7 @@ MCP clients like GitHub Copilot have practical limits on the number of tools the
 1. **Guide call** — The client calls a guide tool (e.g., `guide_workspace`) with a natural language query describing the task.
 2. **Sampling** — The guide sends a `sampling/createMessage` request to the client's LLM with the full internal catalog, asking it to select the most relevant tools. Internal reasoning skills are injected for domain-specific expertise.
 3. **Same-turn execution** — The guide returns structured results with tool names and schemas. The client can immediately call `execute_operation` with the selected tool name and arguments — no round-trip needed.
-4. **Direct calls (next turn)** — Matched tools are injected into the `ActiveToolSet` and a `listChanged` notification is sent. On the next turn, the client can call the injected tools directly by name.
+4. **Direct calls (next turn)** — Matched tools are injected into the `ActiveToolSet`. Clients discover injected tools by re-fetching tools/list on subsequent turns, and can then call them directly by name.
 
 ### Skills Architecture
 

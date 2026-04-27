@@ -90,11 +90,11 @@ The client's LLM selects the most relevant tools and returns a JSON array of too
 
 ### `execute_operation` Bridges Same-Turn Execution
 
-After a guide returns its results, the client can immediately call `execute_operation` with the tool name and arguments — without waiting for a `listChanged` round-trip. `execute_operation` looks up the tool in the `ToolCatalog`, resolves its command type, and dispatches execution through the standard `CliSubprocessRunner` pipeline.
+After a guide returns its results, the client can immediately call `execute_operation` with the tool name and arguments. `execute_operation` looks up the tool in the `ToolCatalog`, resolves its command type, and dispatches execution through the standard `CliSubprocessRunner` pipeline.
 
 ### `ActiveToolSet` Manages Injected Tools
 
-When a guide discovers tools, it injects them into `ActiveToolSet` via `InjectTools()` and triggers a `listChanged` notification. On the next turn, the client sees the injected tools in `tools/list` and can call them directly. `ActiveToolSet` uses LRU eviction (default cap: 40 injected tools) to keep the active set bounded. Always-on tools are never evicted.
+When a guide discovers tools, it injects them into `ActiveToolSet` via `InjectTools()`. Clients discover injected tools by re-fetching tools/list on subsequent turns and can then call them directly. `ActiveToolSet` uses LRU eviction (default cap: 40 injected tools) to keep the active set bounded. Always-on tools are never evicted.
 
 ### Two-Tier Skills Architecture
 

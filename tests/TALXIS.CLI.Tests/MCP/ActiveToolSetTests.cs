@@ -30,35 +30,29 @@ public class ActiveToolSetTests
     }
 
     [Fact]
-    public void InjectTools_AddsToolsAndReturnsTrue()
+    public void InjectTools_AddsToolsToActiveSet()
     {
         var tools = new[] { CreateTool("workspace_build"), CreateTool("workspace_test") };
 
-        bool changed = _toolSet.InjectTools(tools);
+        _toolSet.InjectTools(tools);
 
-        Assert.True(changed);
         var active = _toolSet.ListActiveTools();
         Assert.Contains(active, t => t.Name == "workspace_build");
         Assert.Contains(active, t => t.Name == "workspace_test");
     }
 
     [Fact]
-    public void InjectTools_ReturnsFalse_IfToolsAlreadyExist_NoChange()
+    public void InjectTools_ReinjectionUpdatesLruOrder()
     {
-        // First injection — should return true (new tools added)
+        // First injection
         var tools = new[] { CreateTool("workspace_build") };
-        bool first = _toolSet.InjectTools(tools);
-        Assert.True(first);
+        _toolSet.InjectTools(tools);
+        Assert.Equal(1, _toolSet.InjectedCount);
 
-        // Second injection of same tools — still returns true because InjectTools
-        // moves existing tools to end (LRU update), which counts as a change
-        // Actually per the implementation, re-injecting removes and re-adds, so changed = true
-        // Let's verify the actual behavior
-        bool second = _toolSet.InjectTools(tools);
-        // The implementation always sets changed = true for each tool processed,
-        // even if it was already injected (it removes and re-adds for LRU ordering).
-        // This is correct behavior — the tool set changed its ordering.
-        Assert.True(second);
+        // Second injection of same tool — LRU order updated, count stays the same
+        _toolSet.InjectTools(tools);
+        Assert.Equal(1, _toolSet.InjectedCount);
+        Assert.True(_toolSet.IsActive("workspace_build"));
     }
 
     [Fact]
@@ -132,10 +126,9 @@ public class ActiveToolSetTests
         _toolSet.AddAlwaysOn(CreateTool("guide", "Always-on guide"));
 
         // Try to inject the same tool that's already always-on
-        bool changed = _toolSet.InjectTools([CreateTool("guide", "Injected guide")]);
+        _toolSet.InjectTools([CreateTool("guide", "Injected guide")]);
 
-        // guide was skipped, no other tools injected — changed should be false
-        Assert.False(changed);
+        // guide was skipped, no other tools injected
         Assert.Equal(1, _toolSet.AlwaysOnCount);
         Assert.Equal(0, _toolSet.InjectedCount);
     }

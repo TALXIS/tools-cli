@@ -27,15 +27,15 @@ public class GuideHandler
 
     /// <summary>
     /// Handles a guide call — discovers tools matching the query, returns structured guidance,
-    /// and injects matched tools via listChanged.
+    /// and injects matched tools so clients discover them by re-fetching tools/list on subsequent turns.
     /// </summary>
     /// <param name="query">Natural language description of what the user wants to do.</param>
     /// <param name="workflow">Optional explicit workflow filter.</param>
     /// <param name="top">Maximum number of tools to return.</param>
-    /// <param name="server">MCP server instance for sampling and listChanged notifications.</param>
+    /// <param name="server">MCP server instance for sampling.</param>
     /// <param name="ct">Cancellation token.</param>
-    /// <returns>A CallToolResult with structured guidance text and a flag indicating if tools were injected.</returns>
-    public async Task<(CallToolResult Result, bool ToolsInjected)> HandleAsync(
+    /// <returns>A CallToolResult with structured guidance text.</returns>
+    public async Task<CallToolResult> HandleAsync(
         string query, string? workflow, int top, McpServer server, CancellationToken ct)
     {
         IEnumerable<ToolCatalogEntry> matchedEntries;
@@ -54,29 +54,29 @@ public class GuideHandler
         var entries = matchedEntries.ToList();
         if (entries.Count == 0)
         {
-            return (new CallToolResult
+            return new CallToolResult
             {
                 Content = [new TextContentBlock { Text = $"No matching tools found for: {query}\n\nAvailable workflows: local-development, environment-inspection, environment-mutation, data-operations, deployment, configuration, changeset-management\n\nTry calling with a workflow parameter to see all tools in a domain." }]
-            }, false);
+            };
         }
 
-        // Inject matched tools into ActiveToolSet for direct calling next turn
+        // Inject matched tools into ActiveToolSet for direct calling on subsequent turns
         var toolDefinitions = entries.Select(McpToolRegistry.BuildToolDefinition).ToList();
-        bool injected = _activeToolSet.InjectTools(toolDefinitions);
+        _activeToolSet.InjectTools(toolDefinitions);
 
         // Build structured response
         var response = BuildGuidanceResponse(entries, query);
 
-        return (new CallToolResult
+        return new CallToolResult
         {
             Content = [new TextContentBlock { Text = response }]
-        }, injected);
+        };
     }
 
     /// <summary>
     /// Handles a domain-specific guide call. Scopes to a specific workflow's catalog.
     /// </summary>
-    public async Task<(CallToolResult Result, bool ToolsInjected)> HandleWorkflowGuideAsync(
+    public async Task<CallToolResult> HandleWorkflowGuideAsync(
         string workflowScope, string query, int top, McpServer server, CancellationToken ct, string guideName = "guide")
     {
         IEnumerable<ToolCatalogEntry> matchedEntries;
@@ -96,14 +96,14 @@ public class GuideHandler
         var entries = matchedEntries.ToList();
 
         var toolDefinitions = entries.Select(McpToolRegistry.BuildToolDefinition).ToList();
-        bool injected = _activeToolSet.InjectTools(toolDefinitions);
+        _activeToolSet.InjectTools(toolDefinitions);
 
         var response = BuildGuidanceResponse(entries, query);
 
-        return (new CallToolResult
+        return new CallToolResult
         {
             Content = [new TextContentBlock { Text = response }]
-        }, injected);
+        };
     }
 
     /// <summary>
@@ -288,7 +288,7 @@ Return ONLY a JSON array of tool names, nothing else. Example: [""workspace_comp
 
         sb.AppendLine("---");
         sb.AppendLine("To use immediately: call `execute_operation` with the operation name and arguments above.");
-        sb.AppendLine("On your next turn: the operations above will be available as direct tool calls.");
+        sb.AppendLine("On your next turn: discovered operations may be available as direct tool calls. You can always use `execute_operation` to run any discovered operation immediately.");
 
         return sb.ToString();
     }
