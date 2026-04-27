@@ -8,76 +8,28 @@
 > - **Quick fixes** — emergency changes in non-production environments
 > - **Prototyping** — rapid experimentation before codifying locally
 
-## Entity (Table) Operations
+## Available Operations
 
-| Tool | Operation |
-|---|---|
-| `environment_entity_list` | List all tables in the environment |
-| `environment_entity_show` | Details of a specific table |
-| `environment_entity_create` | Create a new table |
-| `environment_entity_update` | Modify table properties |
-| `environment_entity_delete` | Remove a table (check dependencies first!) |
+Use `guide_environment` to discover environment schema tools and their parameters. Operations cover entities, attributes, relationships, and option sets (list, show, create, update, delete).
 
-### Before Deleting a Table
-Always run `environment_component_dependency_delete_check` to find components that depend on this table. Deleting a table with dependencies will fail or cascade unexpectedly.
+## Key Rules
 
-## Attribute (Column) Operations
+- Always run `environment_component_dependency_delete_check` before deleting any component
+- Always run `environment_solution_publish` after schema changes — they won't take effect without it
+- Environment schema changes are **not tracked in source control** — codify locally afterward
+- Changes in managed layers can't be undone — only overridden by a new managed import
 
-| Tool | Operation |
-|---|---|
-| `environment_entity_attribute_list` | List columns on a table |
-| `environment_entity_attribute_show` | Details of a specific column |
-| `environment_entity_attribute_create` | Add a column to a table |
-| `environment_entity_attribute_update` | Modify column properties |
-| `environment_entity_attribute_delete` | Remove a column |
+## Decision Tree
 
-## Relationship Operations
-
-| Tool | Operation |
-|---|---|
-| `environment_entity_relationship_list` | List relationships for a table |
-| `environment_entity_relationship_show` | Relationship details |
-| `environment_entity_relationship_create` | Create a new relationship |
-| `environment_entity_relationship_update` | Modify relationship properties |
-| `environment_entity_relationship_delete` | Remove a relationship |
-
-## Option Set (Choice) Operations
-
-| Tool | Operation |
-|---|---|
-| `environment_optionset_list` | List global option sets |
-| `environment_optionset_show` | Option set details and values |
-| `environment_optionset_create` | Create a new global option set |
-| `environment_optionset_update` | Modify option set values |
-| `environment_optionset_delete` | Remove an option set |
-
-## Common Scenarios
-
-### Inspecting a Table's Columns
-```
-environment_entity_attribute_list { entityLogicalName: "prefix_tablename" }
-```
-Use this to compare what's deployed vs what's in your local workspace.
-
-### Quick-Fix: Adding a Column in Non-Production
-```
-1. environment_entity_attribute_create { entityLogicalName: "prefix_order", logicalName: "prefix_notes", attributeType: "Memo", displayName: "Notes" }
-2. environment_solution_publish
-```
-→ Remember to codify this change locally afterward so it's tracked in source control.
-
-## Important Reminders
-
-- ⚠️ Environment schema changes are **not tracked in source control** — they exist only in the environment
-- ⚠️ Always publish after schema changes: `environment_solution_publish`
-- ⚠️ Changes in managed layers can't be undone — only overridden by a new managed import
-- ✅ For development work, use `workspace_component_create` instead (see [component-creation](component-creation.md))
-- ✅ For inspection and understanding what's deployed, these tools are the right choice
+- **Routine development** → use `workspace_component_create` (local, source-controlled)
+- **Inspecting what's deployed** → use `environment_entity_*` tools
+- **Emergency non-production fix** → use environment tools, then codify locally
+- **Comparing deployed vs local** → use `environment_entity_attribute_list` against the table
 
 ## What NOT to Do
 
 - ❌ Don't use these tools for routine development — changes bypass source control
 - ❌ Don't delete tables/columns without running `environment_component_dependency_delete_check` first
-- ❌ Don't forget to `environment_solution_publish` after schema changes — they won't take effect without it
+- ❌ Don't forget to `environment_solution_publish` after schema changes
 
 See also: [component-creation](component-creation.md), [solution-layering](solution-layering.md), [troubleshooting](troubleshooting.md)

@@ -39,6 +39,7 @@ public class GuideHandler
         string query, string? workflow, int top, McpServer server, CancellationToken ct)
     {
         IEnumerable<ToolCatalogEntry> matchedEntries;
+        string? recipeText = null;
 
         if (!string.IsNullOrEmpty(workflow))
         {
@@ -61,7 +62,9 @@ public class GuideHandler
         else
         {
             // Try sampling first, fall back to keyword matching
-            matchedEntries = await DiscoverToolsAsync(query, top, server, ct, "guide");
+            var (tools, recipe) = await DiscoverToolsAsync(query, top, server, ct, "guide");
+            matchedEntries = tools;
+            recipeText = recipe;
         }
 
         var entries = matchedEntries.ToList();
@@ -77,8 +80,8 @@ public class GuideHandler
         var toolDefinitions = entries.Select(McpToolRegistry.BuildToolDefinition).ToList();
         _activeToolSet.InjectTools(toolDefinitions);
 
-        // Build structured response
-        var response = BuildGuidanceResponse(entries, query);
+        // Build structured response (includes recipe when available from sampling)
+        var response = BuildGuidanceResponse(entries, query, recipeText);
 
         return new CallToolResult
         {
@@ -93,6 +96,7 @@ public class GuideHandler
         string workflowScope, string query, int top, McpServer server, CancellationToken ct, string guideName = "guide")
     {
         IEnumerable<ToolCatalogEntry> matchedEntries;
+        string? recipeText = null;
 
         if (string.IsNullOrEmpty(query))
         {
@@ -109,8 +113,10 @@ public class GuideHandler
         else
         {
             // Use sampling with scoped catalog
-            matchedEntries = await DiscoverToolsWithScopedCatalogAsync(
+            var (tools, recipe) = await DiscoverToolsWithScopedCatalogAsync(
                 query, top, workflowScope, server, ct, guideName);
+            matchedEntries = tools;
+            recipeText = recipe;
         }
 
         var entries = matchedEntries.ToList();
@@ -118,7 +124,7 @@ public class GuideHandler
         var toolDefinitions = entries.Select(McpToolRegistry.BuildToolDefinition).ToList();
         _activeToolSet.InjectTools(toolDefinitions);
 
-        var response = BuildGuidanceResponse(entries, query);
+        var response = BuildGuidanceResponse(entries, query, recipeText);
 
         return new CallToolResult
         {
@@ -128,31 +134,34 @@ public class GuideHandler
 
     /// <summary>
     /// Discovers tools matching the query. Uses sampling (if client supports it)
-    /// for high-quality LLM-based tool selection, with keyword matching as fallback.
+    /// for high-quality LLM-based tool selection with recipe generation, with keyword matching as fallback.
     /// </summary>
     /// <param name="guideName">The guide tool name, used to load relevant internal skills.</param>
-    private async Task<IEnumerable<ToolCatalogEntry>> DiscoverToolsAsync(
+    /// <returns>A tuple of matched tools and optional recipe text (only from sampling).</returns>
+    private async Task<(IEnumerable<ToolCatalogEntry> tools, string? recipe)> DiscoverToolsAsync(
         string query, int top, McpServer server, CancellationToken ct, string guideName = "guide")
     {
         try
         {
             var skillsContext = _reasoningEngine?.GetSkillsContext(guideName) ?? "";
-            var samplingResult = await SampleToolSelectionAsync(query, _catalog.GetCatalogPrompt(), skillsContext, top, server, ct);
+            var (samplingResult, recipe) = await SampleToolSelectionAsync(query, _catalog.GetCatalogPrompt(), skillsContext, top, server, ct);
             if (samplingResult is not null && samplingResult.Count > 0)
-                return samplingResult;
+                return (samplingResult, recipe);
         }
         catch
         {
             // Sampling not supported or failed — fall through to keyword matching
         }
 
-        return KeywordMatch(query, _catalog.GetAllEntries(), top);
+        // Keyword fallback produces no recipe
+        return (KeywordMatch(query, _catalog.GetAllEntries(), top), null);
     }
 
     /// <summary>
     /// Discovers tools using a workflow-scoped catalog.
     /// </summary>
-    private async Task<IEnumerable<ToolCatalogEntry>> DiscoverToolsWithScopedCatalogAsync(
+    /// <returns>A tuple of matched tools and optional recipe text (only from sampling).</returns>
+    private async Task<(IEnumerable<ToolCatalogEntry> tools, string? recipe)> DiscoverToolsWithScopedCatalogAsync(
         string query, int top, string workflow, McpServer server, CancellationToken ct, string guideName = "guide")
     {
         var scopedEntries = _catalog.GetEntriesByWorkflow(workflow).ToList();
@@ -161,31 +170,44 @@ public class GuideHandler
         {
             var skillsContext = _reasoningEngine?.GetSkillsContext(guideName) ?? "";
             var catalogPrompt = _catalog.GetWorkflowCatalogPrompt(workflow);
-            var samplingResult = await SampleToolSelectionAsync(query, catalogPrompt, skillsContext, top, server, ct);
+            var (samplingResult, recipe) = await SampleToolSelectionAsync(query, catalogPrompt, skillsContext, top, server, ct);
             if (samplingResult is not null && samplingResult.Count > 0)
-                return samplingResult;
+                return (samplingResult, recipe);
         }
         catch
         {
             // Sampling not supported or failed
         }
 
-        return KeywordMatch(query, scopedEntries, top);
+        // Keyword fallback produces no recipe
+        return (KeywordMatch(query, scopedEntries, top), null);
     }
 
     /// <summary>
-    /// Sends a sampling/createMessage request to the client's LLM for tool selection.
-    /// The client's own LLM understands the user's intent and selects the most relevant tools.
+    /// Sends a sampling/createMessage request to the client's LLM for tool selection and recipe generation.
+    /// The client's own LLM understands the user's intent, selects the most relevant tools,
+    /// and produces a step-by-step recipe with concrete execute_operation calls.
     /// Internal skills are injected into the system prompt for proprietary reasoning context.
     /// </summary>
-    private async Task<List<ToolCatalogEntry>?> SampleToolSelectionAsync(
+    /// <returns>A tuple of matched tools and optional recipe text extracted from the sampling response.</returns>
+    private async Task<(List<ToolCatalogEntry>? tools, string? recipe)> SampleToolSelectionAsync(
         string query, string catalogPrompt, string internalSkillsContext, int top, McpServer server, CancellationToken ct)
     {
-        var systemPrompt = $@"You are a tool selection assistant. Given the user's task description and a catalog of available operations, select the {top} most relevant tools.
+        var systemPrompt = $@"You are a Power Platform development assistant. Given the user's task and available operations, produce a step-by-step RECIPE.
 
-IMPORTANT: Prefer LOCAL workspace operations over LIVE environment operations when the task can be done locally. Environment operations take 30 seconds to 5 minutes and should only be used for inspection, troubleshooting, or deployment after local validation.
+FORMAT YOUR RESPONSE AS:
+1. A JSON array of the {top} most relevant tool names on the FIRST LINE (for tool injection)
+2. Then a blank line
+3. Then a numbered recipe with concrete steps
 
-Return ONLY a JSON array of tool names, nothing else. Example: [""workspace_component_create"", ""workspace_component_type_list""]
+RECIPE RULES:
+- Each step should specify the exact execute_operation call with operation name
+- Include realistic parameter values based on the user's query
+- Add validation checkpoints (e.g., ""Build to validate: dotnet build"")
+- Prefer LOCAL workspace operations over environment operations
+- Environment operations take 30s-5min — only use for inspection/deployment
+- If a step depends on a previous step's output, say so
+- Include error recovery hints for common failures (TALXISXSD001 = schema validation, TALXISGUID001 = duplicate GUIDs)
 
 {catalogPrompt}{internalSkillsContext}";
 
@@ -196,28 +218,33 @@ Return ONLY a JSON array of tool names, nothing else. Example: [""workspace_comp
                 new SamplingMessage
                 {
                     Role = Role.User,
-                    Content = [new TextContentBlock { Text = $"Select the most relevant tools for this task: {query}" }]
+                    Content = [new TextContentBlock { Text = $"Select the most relevant tools and produce a recipe for this task: {query}" }]
                 }
             ],
             SystemPrompt = systemPrompt,
-            MaxTokens = 500,
+            MaxTokens = 1500,
         };
 
         var result = await server.SampleAsync(samplingParams, ct);
         var responseText = result.Content.OfType<TextContentBlock>().FirstOrDefault()?.Text ?? "";
 
-        return ParseToolNamesFromSamplingResponse(responseText);
+        return ParseToolNamesAndRecipeFromSamplingResponse(responseText);
     }
 
     /// <summary>
-    /// Parses tool names from a sampling response. Resilient to noise
-    /// (system prompt leakage per copilot-cli#2467, preamble text).
+    /// Parses tool names and recipe text from a sampling response.
+    /// Expects a JSON array on the first line (for tool injection) followed by optional recipe text.
+    /// Resilient to noise (system prompt leakage per copilot-cli#2467, preamble text).
     /// </summary>
-    private List<ToolCatalogEntry>? ParseToolNamesFromSamplingResponse(string responseText)
+    /// <returns>A tuple of matched tools and optional recipe text.</returns>
+    private (List<ToolCatalogEntry>? tools, string? recipe) ParseToolNamesAndRecipeFromSamplingResponse(string responseText)
     {
+        List<ToolCatalogEntry>? tools = null;
+        string? recipe = null;
+
         // Try to find a JSON array in the response
         var startBracket = responseText.IndexOf('[');
-        var endBracket = responseText.LastIndexOf(']');
+        var endBracket = responseText.IndexOf(']', startBracket >= 0 ? startBracket : 0);
 
         if (startBracket >= 0 && endBracket > startBracket)
         {
@@ -227,27 +254,39 @@ Return ONLY a JSON array of tool names, nothing else. Example: [""workspace_comp
                 var names = JsonSerializer.Deserialize<List<string>>(jsonPart);
                 if (names is not null)
                 {
-                    return _catalog.GetToolDetails(names).ToList();
+                    tools = _catalog.GetToolDetails(names).ToList();
                 }
             }
             catch
             {
-                // JSON parse failed — try line-by-line extraction
+                // JSON parse failed — try line-by-line extraction below
+            }
+
+            // Extract recipe text: everything after the JSON array, trimmed of leading blank lines
+            var afterJson = responseText[(endBracket + 1)..].TrimStart('\r', '\n');
+            if (!string.IsNullOrWhiteSpace(afterJson))
+            {
+                recipe = afterJson;
             }
         }
 
-        // Fallback: look for tool names that exist in our catalog
-        var results = new List<ToolCatalogEntry>();
-        var words = responseText.Split([',', '\n', '\r', '"', ' ', '[', ']'], StringSplitOptions.RemoveEmptyEntries);
-        foreach (var word in words)
+        // Fallback: look for tool names that exist in our catalog (no recipe in this path)
+        if (tools is null || tools.Count == 0)
         {
-            var trimmed = word.Trim();
-            var entry = _catalog.GetEntry(trimmed);
-            if (entry is not null && !results.Contains(entry))
-                results.Add(entry);
+            var results = new List<ToolCatalogEntry>();
+            var words = responseText.Split([',', '\n', '\r', '"', ' ', '[', ']'], StringSplitOptions.RemoveEmptyEntries);
+            foreach (var word in words)
+            {
+                var trimmed = word.Trim();
+                var entry = _catalog.GetEntry(trimmed);
+                if (entry is not null && !results.Contains(entry))
+                    results.Add(entry);
+            }
+
+            tools = results.Count > 0 ? results : null;
         }
 
-        return results.Count > 0 ? results : null;
+        return (tools, recipe);
     }
 
     /// <summary>
@@ -304,16 +343,26 @@ Return ONLY a JSON array of tool names, nothing else. Example: [""workspace_comp
 
     /// <summary>
     /// Builds a structured guidance response from matched catalog entries.
+    /// When recipe text is available (from sampling), it is prepended as a step-by-step plan.
     /// </summary>
-    public static string BuildGuidanceResponse(List<ToolCatalogEntry> entries, string? query)
+    /// <param name="entries">Matched catalog entries with full schemas.</param>
+    /// <param name="query">The original user query.</param>
+    /// <param name="recipeText">Optional recipe text produced by sampling. Null for keyword-matched results.</param>
+    public static string BuildGuidanceResponse(List<ToolCatalogEntry> entries, string? query, string? recipeText = null)
     {
         var sb = new StringBuilder();
 
-        if (!string.IsNullOrEmpty(query))
-            sb.AppendLine($"Found {entries.Count} matching operation(s) for: \"{query}\"");
-        else
-            sb.AppendLine($"Found {entries.Count} operation(s):");
+        // Prepend recipe when available (only from sampling-based discovery)
+        if (!string.IsNullOrWhiteSpace(recipeText))
+        {
+            sb.AppendLine($"RECIPE: {query}");
+            sb.AppendLine();
+            sb.AppendLine(recipeText.TrimEnd());
+            sb.AppendLine();
+            sb.AppendLine("---");
+        }
 
+        sb.AppendLine($"TOOLS (for execute_operation): {entries.Count} operation(s)");
         sb.AppendLine();
 
         for (int i = 0; i < entries.Count; i++)

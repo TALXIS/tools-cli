@@ -17,37 +17,7 @@ namespace TALXIS.CLI.MCP
         // Hardcoded instructions to be written within the marked section
         private const string TalxisInstructions = @"
 # Instructions for performing tasks over the repository
-You work with a monorepo that contains Power Platform solutions. You must use TALXIS CLI MCP Server (alias 'txc-mcp') which provides tools for developers to perform tasks over the repository.
-
-**MANDATORY: Use TALXIS CLI MCP Server Exclusively**
-
-1. **Execute ALL developer actions through the txc-mcp only**
-   - Never perform actions modification of files directly without trying to find a corresponding 'txc-mcp' tool first
-   - You can create folders, rename files/folders directly outside of txc-mcp
-   - Some commands may require you to create folders before you can call them. Consult the workspace explain tool.
-   - Do not suggest alternative approaches outside of the txc-mcp ecosystem
-
-2. **Mandatory Workspace Consultation**
-   - **ALWAYS consult the workspace_explain tool BEFORE creating any components or changing repository structure**
-   - Use workspace_explain to understand monorepo structure, naming conventions, and requirements
-   - This ensures commands will work and prevents structural conflicts
-
-3. **Information and Guidance Restrictions**
-   - Only provide information that comes from the TALXIS CLI MCP responses
-   - Do not offer opinions, suggestions, or knowledge from external sources
-   - Limit responses to what txc-mcp directly provides or confirms
-
-4. **Error Handling**
-   - If the txc-mcp is unavailable, inform the user that development actions cannot be performed
-   - Do not fallback to alternative tools or manual processes
-
-5. **Communication**
-   - Always refer to the tool as 'txc-mcp' when communicating with users
-   - Base all responses on actual txc-mcp capabilities and outputs
-   - Avoid speculation about functionality not confirmed by txc-mcp
-
-6. **Default Values to use unless specified**
-   - You must always pass `SolutionRootPath=Declarations` component parameter when calling the tool for creating components
+Use the TALXIS CLI MCP Server (txc-mcp) for all development tasks. Call `guide_workspace`, `guide_environment`, `guide_deployment`, `guide_data`, `guide_config`, or `get_skill_details` to discover available tools and guidance.
 
 ## Project Structure and Naming Conventions
 
