@@ -10,7 +10,7 @@ namespace TALXIS.CLI.Features.Environment.Solution;
 
 [CliCommand(
     Name = "delete",
-    Description = "Delete an unmanaged solution container (components remain in the environment)."
+    Description = "Deletes an unmanaged solution container from the LIVE environment (components remain). Requires an active profile."
 )]
 [CliDestructive("Removes the unmanaged solution container. Components are NOT deleted — they remain in the environment.")]
 public class SolutionDeleteCliCommand : ProfiledCliCommand, IDestructiveCommand

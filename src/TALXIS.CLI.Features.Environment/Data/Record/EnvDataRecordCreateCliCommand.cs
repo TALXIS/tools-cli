@@ -14,7 +14,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Record;
 [CliIdempotent]
 [CliCommand(
     Name = "create",
-    Description = "Create a single record from JSON attributes."
+    Description = "Creates a single Dataverse record in the LIVE connected environment from inline JSON or file. Requires an active profile. For LOCAL component scaffolding, use 'workspace component create' instead."
 )]
 #pragma warning disable TXC003
 public class EnvDataRecordCreateCliCommand : StagedCliCommand

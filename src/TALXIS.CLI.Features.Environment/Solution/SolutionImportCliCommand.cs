@@ -9,9 +9,10 @@ using TALXIS.CLI.Logging;
 namespace TALXIS.CLI.Features.Environment.Solution;
 
 [CliIdempotent]
+[CliLongRunning]
 [CliCommand(
     Name = "import",
-    Description = "Import a solution into the target environment. Accepts a .zip file, an unpacked solution folder, or a project directory (.cdsproj/.csproj)."
+    Description = "Import a Dataverse solution .zip into the LIVE target environment. Requires an active profile. Accepts a .zip file, an unpacked solution folder, or a project directory (.cdsproj/.csproj). For Package Deployer packages, use 'environment package import' instead."
 )]
 public class SolutionImportCliCommand : ProfiledCliCommand
 {

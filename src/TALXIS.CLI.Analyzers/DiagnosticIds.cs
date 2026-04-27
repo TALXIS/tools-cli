@@ -31,4 +31,16 @@ internal static class DiagnosticIds
 
     /// <summary>Public enum members must have explicit integer values to prevent silent reordering breaks.</summary>
     public const string EnumMustHaveExplicitValues = "TXC009";
+
+    /// <summary>Leaf [CliCommand] Description must be at least 20 characters — short descriptions degrade AI tool discovery.</summary>
+    public const string DescriptionMinLength = "TXC010";
+
+    /// <summary>ProfiledCliCommand subclass Description should mention "profile" or "environment" so the AI knows prerequisites.</summary>
+    public const string ProfiledDescriptionContext = "TXC011";
+
+    /// <summary>[CliDestructive] command Description should signal danger (delete, remove, uninstall, destructive, etc.).</summary>
+    public const string DestructiveDescriptionSignal = "TXC012";
+
+    /// <summary>Leaf command with ambiguous name should declare [CliWorkflow] to prevent workflow misclassification.</summary>
+    public const string WorkflowRecommended = "TXC013";
 }

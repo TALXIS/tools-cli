@@ -1,0 +1,16 @@
+[
+  {"id": "project-structure", "title": "Workspace & Project Organization", "summary": "How to organize a Power Platform monorepo with solution projects, plugin projects, and packages.", "tags": ["workspace", "local-development"]},
+  {"id": "component-creation", "title": "Creating Dataverse Components", "summary": "Step-by-step guide for scaffolding tables, forms, views, and other components locally.", "tags": ["workspace", "local-development", "scaffolding"]},
+  {"id": "solution-layering", "title": "Solution Layering & Segmentation", "summary": "How to organize solutions, manage component ownership, and inspect solution layers.", "tags": ["deployment", "environment"]},
+  {"id": "deployment-workflow", "title": "Deployment Workflow", "summary": "The full deployment pipeline: build → pack → import → publish → verify.", "tags": ["deployment"]},
+  {"id": "data-migration", "title": "Data Migration & Seed Data", "summary": "Export, transform, and import data using CMT packages and bulk operations.", "tags": ["data-operations"]},
+  {"id": "troubleshooting", "title": "Troubleshooting Common Issues", "summary": "Decision trees for deployment failures, component conflicts, auth issues, and dependency problems.", "tags": ["troubleshooting", "environment"]},
+  {"id": "environment-management", "title": "Environment Setup & Profiles", "summary": "Configure auth, connections, and profiles to connect to Dataverse environments.", "tags": ["configuration"]},
+  {"id": "schema-management", "title": "Schema CRUD on Live Environments", "summary": "Create, update, and delete entities, attributes, relationships, and option sets on live environments.", "tags": ["environment", "schema"]},
+  {"id": "plugin-development", "title": "Plugin & Custom Code Development", "summary": "Plugin project structure, class patterns, registration chain, execution stages, and testing with FakeXrmEasy.", "tags": ["workspace", "local-development", "plugins"]},
+  {"id": "form-xml-reference", "title": "Form XML Structure Reference", "summary": "Form XML hierarchy (Tab→Column→Section→Row→Cell→Control), Control ClassID mapping, dialog forms, and fragment concept.", "tags": ["workspace", "local-development", "forms"]},
+  {"id": "custom-api-development", "title": "Custom API Development", "summary": "Custom API definition, request/response parameters, type codes, plugin backing, and registration workflow.", "tags": ["workspace", "local-development", "integration"]},
+  {"id": "bpf-development", "title": "Business Process Flow Development", "summary": "BPF entity structure, stage and step configuration, branching logic, and scaffolding chain.", "tags": ["workspace", "local-development", "bpf"]},
+  {"id": "pcf-controls", "title": "PCF Control Development", "summary": "PCF project structure, ControlManifest, lifecycle methods, dataset vs field controls, and build workflow.", "tags": ["workspace", "local-development", "pcf"]},
+  {"id": "build-errors", "title": "Build Error Recovery", "summary": "Diagnose and fix TALXISXSD001, TALXISGUID001, and other build validation errors.", "tags": ["troubleshooting", "build", "validation"]}
+]

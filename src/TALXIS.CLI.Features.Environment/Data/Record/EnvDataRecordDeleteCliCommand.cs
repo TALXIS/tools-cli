@@ -14,7 +14,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Record;
 [CliDestructive("Permanently deletes the record from the remote environment.")]
 [CliCommand(
     Name = "delete",
-    Description = "Delete a single record by ID."
+    Description = "Permanently deletes a single Dataverse record by GUID from the LIVE connected environment. Requires an active profile and --yes confirmation."
 )]
 public class EnvDataRecordDeleteCliCommand : StagedCliCommand, IDestructiveCommand
 {

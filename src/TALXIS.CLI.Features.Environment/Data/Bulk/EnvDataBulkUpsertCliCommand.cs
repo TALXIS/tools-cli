@@ -14,7 +14,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Bulk;
 [CliIdempotent]
 [CliCommand(
     Name = "upsert",
-    Description = "Upsert multiple records in a single UpsertMultiple request."
+    Description = "Creates or updates (upserts) multiple Dataverse records by primary/alternate key in a single batch on the LIVE connected environment. Requires an active profile."
 )]
 public class EnvDataBulkUpsertCliCommand : ProfiledCliCommand
 {

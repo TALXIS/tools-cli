@@ -10,6 +10,7 @@ using TALXIS.CLI.Logging;
 namespace TALXIS.CLI.Features.Environment.Package;
 
 [CliIdempotent]
+[CliLongRunning]
 [CliCommand(
     Name = "import",
     Description = "Import a deployable package into the target environment."

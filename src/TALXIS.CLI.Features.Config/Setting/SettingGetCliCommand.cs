@@ -16,7 +16,7 @@ namespace TALXIS.CLI.Features.Config.Setting;
 [CliReadOnly]
 [CliCommand(
     Name = "get",
-    Description = "Get a tool-wide preference value by key."
+    Description = "Gets a LOCAL CLI preference value by key. For LIVE Dataverse environment settings, use 'environment setting list' instead."
 )]
 public class SettingGetCliCommand : TxcLeafCommand
 {

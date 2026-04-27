@@ -19,7 +19,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Query;
 [CliReadOnly]
 [CliCommand(
     Name = "sql",
-    Description = "Execute a SQL query against the Dataverse environment."
+    Description = "Executes a read-only SQL SELECT query against the LIVE Dataverse environment. Requires an active profile."
 )]
 public class EnvDataQuerySqlCliCommand : ProfiledCliCommand
 {

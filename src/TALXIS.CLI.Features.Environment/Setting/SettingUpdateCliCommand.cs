@@ -14,7 +14,7 @@ namespace TALXIS.CLI.Features.Environment.Setting;
 [CliIdempotent]
 [CliCommand(
     Name = "update",
-    Description = "Update an environment setting."
+    Description = "Updates a Dataverse environment-level setting on the LIVE connected environment. Requires an active profile. For LOCAL CLI preferences, use 'config setting set' instead."
 )]
 public class SettingUpdateCliCommand : ProfiledCliCommand
 {

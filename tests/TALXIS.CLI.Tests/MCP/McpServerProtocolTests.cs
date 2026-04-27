@@ -39,17 +39,20 @@ public class McpServerProtocolTests : IAsyncDisposable
                 pollInterval: TimeSpan.FromMilliseconds(100)
             );
             options.SendTaskStatusNotifications = true;
+            // Mirror production: ListChanged is not advertised (progressive disclosure via client re-fetch)
             options.Capabilities = new ServerCapabilities
             {
-                Tools = new ToolsCapability { ListChanged = true },
+                Tools = new ToolsCapability { },
                 Logging = new LoggingCapability { }
             };
         })
         .WithStreamServerTransport(
             _clientToServer.Reader.AsStream(),
             _serverToClient.Writer.AsStream())
+        // Note: returns full catalog for protocol-level tests. Production uses ActiveToolSet
+        // (always-on tools only at startup, with progressive disclosure via guide injection).
         .WithListToolsHandler((ctx, ct) =>
-            ValueTask.FromResult(new ListToolsResult { Tools = _registry.ListTools() }))
+            ValueTask.FromResult(new ListToolsResult { Tools = _registry.Catalog.GetAllEntries().Select(McpToolRegistry.BuildToolDefinition).ToList() }))
         .WithCallToolHandler(async (ctx, ct) =>
         {
             var toolName = ctx.Params?.Name ?? string.Empty;
@@ -163,7 +166,7 @@ public class McpServerProtocolTests : IAsyncDisposable
     [Fact]
     public async Task ListTools_LongRunningToolsHaveTaskSupport()
     {
-        var tools = _registry.ListTools();
+        var tools = _registry.Catalog.GetAllEntries().Select(McpToolRegistry.BuildToolDefinition).ToList();
 
         var deployTool = tools.FirstOrDefault(t => t.Name == "environment_package_import");
         Assert.NotNull(deployTool);
@@ -179,7 +182,7 @@ public class McpServerProtocolTests : IAsyncDisposable
     [Fact]
     public async Task ListTools_ShortLivedToolsDoNotHaveTaskSupport()
     {
-        var tools = _registry.ListTools();
+        var tools = _registry.Catalog.GetAllEntries().Select(McpToolRegistry.BuildToolDefinition).ToList();
 
         // copilot-instructions is a short-lived MCP-only tool (no task support)
         var copilotTool = tools.FirstOrDefault(t => t.Name == "copilot-instructions");

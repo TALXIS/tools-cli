@@ -18,7 +18,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Query;
 [CliReadOnly]
 [CliCommand(
     Name = "odata",
-    Description = "Execute an OData query against the Dataverse environment."
+    Description = "Executes an OData query against the LIVE Dataverse environment. Requires an active profile. Preferred for simple, strongly-typed queries."
 )]
 public class EnvDataQueryODataCliCommand : ProfiledCliCommand
 {

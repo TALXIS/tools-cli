@@ -16,7 +16,7 @@ namespace TALXIS.CLI.Features.Config.Setting;
 [CliReadOnly]
 [CliCommand(
     Name = "list",
-    Description = "List all known setting keys with current values as JSON."
+    Description = "Lists all LOCAL CLI preference keys with current values as JSON. For LIVE Dataverse environment settings, use 'environment setting list' instead."
 )]
 public class SettingListCliCommand : TxcLeafCommand
 {

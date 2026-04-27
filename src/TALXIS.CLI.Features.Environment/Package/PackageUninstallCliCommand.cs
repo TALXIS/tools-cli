@@ -9,6 +9,7 @@ using TALXIS.CLI.Core.Abstractions;
 
 namespace TALXIS.CLI.Features.Environment.Package;
 
+[CliLongRunning]
 [CliCommand(
     Name = "uninstall",
     Description = "Uninstall all solutions belonging to a package from the target environment, in reverse import order."

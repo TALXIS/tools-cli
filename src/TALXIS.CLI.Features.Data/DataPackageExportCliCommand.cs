@@ -10,9 +10,10 @@ using TALXIS.CLI.Logging;
 namespace TALXIS.CLI.Features.Data;
 
 [CliIdempotent]
+[CliWorkflow("data-operations")]
 [CliCommand(
     Name = "export",
-    Description = "Export data from a Dataverse environment using a CMT schema file"
+    Description = "Exports data from a LIVE Dataverse environment using a CMT schema file. Requires an active profile."
 )]
 public class DataPackageExportCliCommand : ProfiledCliCommand
 {

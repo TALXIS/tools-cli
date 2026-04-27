@@ -13,7 +13,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Record;
 [CliReadOnly]
 [CliCommand(
     Name = "download-file",
-    Description = "Download a file/image column from a record."
+    Description = "Downloads a file/image column from a Dataverse record in the LIVE environment. Requires an active profile."
 )]
 #pragma warning disable TXC003
 public class EnvDataRecordDownloadFileCliCommand : ProfiledCliCommand
