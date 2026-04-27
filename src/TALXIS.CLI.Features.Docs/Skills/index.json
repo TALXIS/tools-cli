@@ -11,5 +11,6 @@
   {"id": "form-xml-reference", "title": "Form XML Structure Reference", "summary": "Form XML hierarchy (Tab→Column→Section→Row→Cell→Control), Control ClassID mapping, dialog forms, and fragment concept.", "tags": ["workspace", "local-development", "forms"]},
   {"id": "custom-api-development", "title": "Custom API Development", "summary": "Custom API definition, request/response parameters, type codes, plugin backing, and registration workflow.", "tags": ["workspace", "local-development", "integration"]},
   {"id": "bpf-development", "title": "Business Process Flow Development", "summary": "BPF entity structure, stage and step configuration, branching logic, and scaffolding chain.", "tags": ["workspace", "local-development", "bpf"]},
-  {"id": "pcf-controls", "title": "PCF Control Development", "summary": "PCF project structure, ControlManifest, lifecycle methods, dataset vs field controls, and build workflow.", "tags": ["workspace", "local-development", "pcf"]}
+  {"id": "pcf-controls", "title": "PCF Control Development", "summary": "PCF project structure, ControlManifest, lifecycle methods, dataset vs field controls, and build workflow.", "tags": ["workspace", "local-development", "pcf"]},
+  {"id": "build-errors", "title": "Build Error Recovery", "summary": "Diagnose and fix TALXISXSD001, TALXISGUID001, and other build validation errors.", "tags": ["troubleshooting", "build", "validation"]}
 ]
