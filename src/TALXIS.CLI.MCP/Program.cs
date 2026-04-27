@@ -189,7 +189,23 @@ async ValueTask<CallToolResult> HandleGuideToolAsync(
         }
         else
         {
-            outcome = await guideHandler.HandleAsync(query, null, top, server, ct);
+            // Scoped discovery across both environment workflows
+            var inspectionResult = await guideHandler.HandleWorkflowGuideAsync(
+                "environment-inspection", query, top, server, ct, guideName);
+            var mutationResult = await guideHandler.HandleWorkflowGuideAsync(
+                "environment-mutation", query, top, server, ct, guideName);
+
+            // Merge: combine both results, prefer whichever injected tools
+            bool anyInjected = inspectionResult.ToolsInjected || mutationResult.ToolsInjected;
+            var combinedText = inspectionResult.Result.Content.OfType<TextContentBlock>().FirstOrDefault()?.Text ?? "";
+            var mutationText = mutationResult.Result.Content.OfType<TextContentBlock>().FirstOrDefault()?.Text ?? "";
+            if (!string.IsNullOrEmpty(mutationText) && mutationText.Contains("**1."))
+                combinedText += "\n\n" + mutationText;
+
+            outcome = (new CallToolResult
+            {
+                Content = [new TextContentBlock { Text = combinedText }]
+            }, anyInjected);
         }
     }
     else if (workflowScope is not null)
@@ -245,10 +261,10 @@ async ValueTask<CallToolResult> HandleExecuteOperationAsync(
     // Dispatch through the normal CLI tool pipeline
     var descriptor = catalogEntry.Descriptor;
 
-    // Check for task-augmented execution
+    // Check for task-augmented execution — pass parsed inner arguments, not the outer execute_operation params
     if (ctx.Params?.Task is { } taskMetadata && descriptor.SupportsTaskExecution)
     {
-        return await ExecuteAsTaskAsync(ctx, operationName, taskMetadata, ct);
+        return await ExecuteAsTaskAsync(ctx, operationName, taskMetadata, ct, overrideArguments: opArguments);
     }
 
     return await ExecuteCliToolAsync(operationName, opArguments, ctx, ct);
@@ -314,19 +330,25 @@ async Task<CallToolResult> ExecuteCliToolAsync(
 }
 
 // Execute a tool call as an MCP task (call-now, fetch-later pattern)
+// overrideArguments: when called from execute_operation, these are the parsed inner tool arguments
+// (not the outer execute_operation params). Null for direct tool calls.
 async ValueTask<CallToolResult> ExecuteAsTaskAsync(
     RequestContext<CallToolRequestParams> ctx,
     string toolName,
     McpTaskMetadata taskMetadata,
-    CancellationToken ct)
+    CancellationToken ct,
+    IReadOnlyDictionary<string, System.Text.Json.JsonElement>? overrideArguments = null)
 {
     // Extract all needed values from ctx/p BEFORE Task.Run — request context objects
     // may not be safe to access after the handler returns.
     var server = ctx.Server;
     var sessionId = server.SessionId;
-    var arguments = ctx.Params?.Arguments is null
-        ? null
-        : new Dictionary<string, System.Text.Json.JsonElement>(ctx.Params.Arguments);
+    // Use override arguments (from execute_operation) if provided, otherwise extract from ctx
+    var arguments = overrideArguments is not null
+        ? new Dictionary<string, System.Text.Json.JsonElement>(overrideArguments)
+        : ctx.Params?.Arguments is null
+            ? null
+            : new Dictionary<string, System.Text.Json.JsonElement>(ctx.Params.Arguments);
     var progressToken = ctx.Params?.ProgressToken;
     var requestId = ctx.JsonRpcRequest.Id;
     var jsonRpcRequest = ctx.JsonRpcRequest;
