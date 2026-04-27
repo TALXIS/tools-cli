@@ -46,7 +46,7 @@ public class McpTests
     public async Task ExecuteOperation_WorkspaceComponentExplain_ReturnsComponentDetails()
     {
         var client = await McpTestClient.InstanceAsync;
-        var args = new Dictionary<string, object?> { { "operation", "workspace_component_type_explain" }, { "args", "--type pp-entity" } };
+        var args = new Dictionary<string, object?> { { "operation", "workspace_component_type_explain" }, { "arguments", "{\"Type\": \"pp-entity\"}" } };
         
         var result = await client.CallToolAsync("execute_operation", args);
         
