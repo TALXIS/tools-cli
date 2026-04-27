@@ -86,7 +86,7 @@ Each guide tool (`guide`, `guide_workspace`, `guide_environment`, etc.) handles 
 - The full or workflow-scoped catalog (tool names, descriptions, annotations)
 - Internal reasoning skills loaded by `GuideReasoningEngine` (domain-specific expertise files from `Skills/Internal/`)
 
-The client's LLM selects the most relevant tools and returns a JSON array of tool names. If sampling is not supported or fails, the guide falls back to keyword matching.
+The client's LLM selects the most relevant tools and returns a JSON array of tool names along with a step-by-step recipe. Sampling is required — clients without sampling support will receive an error.
 
 ### `execute_operation` Bridges Same-Turn Execution
 
