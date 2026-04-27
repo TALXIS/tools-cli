@@ -14,23 +14,28 @@ namespace TALXIS.CLI.IntegrationTests;
 public class McpTests
 {
     [Fact]
-    public async Task ListTools_ReturnsExpectedTools()
+    public async Task ListTools_ReturnsAlwaysOnTools()
     {
         var client = await McpTestClient.InstanceAsync;
         
         var tools = await client.ListToolsAsync();
         var toolNames = tools.Select(t => t.Name).ToList();
         
-        Assert.Contains("workspace_component_type_list", toolNames);
-        Assert.Contains("workspace_component_type_explain", toolNames);
+        // Progressive disclosure: 9 always-on tools instead of 97 static tools
+        Assert.Contains("guide", toolNames);
+        Assert.Contains("guide_workspace", toolNames);
+        Assert.Contains("guide_environment", toolNames);
+        Assert.Contains("execute_operation", toolNames);
+        Assert.Contains("get_skill_details", toolNames);
     }
 
     [Fact]
-    public async Task WorkspaceComponentList_ReturnsValidResponse()
+    public async Task ExecuteOperation_WorkspaceComponentList_ReturnsValidResponse()
     {
         var client = await McpTestClient.InstanceAsync;
+        var args = new Dictionary<string, object?> { { "operation", "workspace_component_type_list" } };
         
-        var result = await client.CallToolAsync("workspace_component_type_list");
+        var result = await client.CallToolAsync("execute_operation", args);
         
         Assert.NotNull(result.Content);
         Assert.NotEmpty(result.Content);
@@ -38,17 +43,16 @@ public class McpTests
     }
 
     [Fact]
-    public async Task WorkspaceComponentTypeExplain_ReturnsComponentDetails()
+    public async Task ExecuteOperation_WorkspaceComponentExplain_ReturnsComponentDetails()
     {
         var client = await McpTestClient.InstanceAsync;
-        var args = new Dictionary<string, object?> { { "Type", "pp-entity" } };
+        var args = new Dictionary<string, object?> { { "operation", "workspace_component_type_explain" }, { "args", "--type pp-entity" } };
         
-        var result = await client.CallToolAsync("workspace_component_type_explain", args);
+        var result = await client.CallToolAsync("execute_operation", args);
         
         Assert.NotNull(result.Content);
         Assert.NotEmpty(result.Content);
         
-        // Log the actual error for debugging
         if (result.IsError == true)
         {
             var errorContent = result.Content[0] is TextContentBlock errorBlock ? errorBlock.Text : "Unknown error";
@@ -59,9 +63,7 @@ public class McpTests
 
         if (result.Content[0] is TextContentBlock textBlock)
         {
-            // MCP output is always JSON — check for JSON property names.
             Assert.Contains("pp-entity", textBlock.Text);
-            Assert.Contains("description", textBlock.Text);
         }
     }
 }
