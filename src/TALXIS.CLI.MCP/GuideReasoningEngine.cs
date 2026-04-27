@@ -18,7 +18,7 @@ public class GuideReasoningEngine
     private static readonly Dictionary<string, string[]> _guideSkillMappings = new()
     {
         ["guide"] = ["local-first-philosophy"],
-        ["guide_workspace"] = ["local-first-philosophy", "schema-workflow"],
+        ["guide_workspace"] = ["local-first-philosophy", "schema-workflow", "component-composition-chains"],
         ["guide_environment"] = ["troubleshooting-patterns", "solution-management"],
         ["guide_deployment"] = ["deployment-sequence", "solution-management"],
         ["guide_data"] = ["data-migration-workflow"],

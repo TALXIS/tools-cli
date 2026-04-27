@@ -58,10 +58,32 @@ After any data operation, verify the results:
 - Relationships (lookups) resolve to correct records
 - Option set values map correctly
 
+## Common Scenarios
+
+### Seeding Reference Data from Excel
+```
+1. data_package_convert { sourceFile: "reference-data.xlsx", targetFormat: "CMT" }
+2. data_package_import { packagePath: "<output from step 1>" }
+3. environment_data_query_sql { query: "SELECT COUNT(*) FROM prefix_referencetable" }
+```
+
+### Cloning Data Between Environments
+```
+1. data_package_export { schemaFile: "migration-schema.xml" }     — on source env profile
+2. Switch to target environment profile
+3. data_package_import { packagePath: "<output from step 1>" }
+4. Verify: environment_data_query_sql { query: "SELECT COUNT(*) FROM prefix_tablename" }
+```
+
 ## Best Practices
 - Always test imports on a non-production environment first
 - Version schema files in source control for repeatable migrations
 - Use `data_package_convert` to let stakeholders review data in Excel before import
 - For recurring migrations, automate the export → convert → import pipeline
+
+## What NOT to Do
+- ❌ Don't use `environment_data_record_create` in a loop for bulk data — use `environment_data_bulk_upsert` or the CMT pipeline
+- ❌ Don't import directly to production without testing on dev/test first
+- ❌ Don't skip post-import verification — silent data issues are hard to catch later
 
 See also: [environment-management](environment-management.md), [troubleshooting](troubleshooting.md)

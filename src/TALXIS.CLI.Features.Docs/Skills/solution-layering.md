@@ -76,4 +76,11 @@ Separate concerns into dedicated solutions:
 - Prefix: max 8 characters (e.g., `contoso`, `udpp`)
 - All components created under this publisher share the prefix
 
+## What NOT to Do
+
+- ❌ Don't deploy unmanaged solutions to production — always use managed for proper lifecycle management
+- ❌ Don't put all components in a single solution — segment by concern for independent deployment cycles
+- ❌ Don't uninstall solutions without running `environment_solution_uninstall_check` — may cascade-delete data
+- ❌ Don't ignore layer conflicts — the topmost layer always wins, and unmanaged active layers override everything
+
 See also: [deployment-workflow](deployment-workflow.md), [troubleshooting](troubleshooting.md)

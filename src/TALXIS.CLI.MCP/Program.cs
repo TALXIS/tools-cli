@@ -176,12 +176,12 @@ async ValueTask<CallToolResult> HandleGuideToolAsync(
 
         if (string.IsNullOrEmpty(query))
         {
-            // Return all environment tools
+            // Return compact listing (no schemas) to avoid token bloat
             var tools = allEnvEntries.Select(McpToolRegistry.BuildToolDefinition).ToList();
             activeToolSet.InjectTools(tools);
             result = new CallToolResult
             {
-                Content = [new TextContentBlock { Text = GuideHandler.BuildGuidanceResponse(allEnvEntries, query) }]
+                Content = [new TextContentBlock { Text = GuideHandler.BuildCompactListingResponse(allEnvEntries, "environment") }]
             };
         }
         else
@@ -236,6 +236,10 @@ async ValueTask<CallToolResult> HandleExecuteOperationAsync(
     var catalogEntry = mcpToolRegistry.Catalog.GetEntry(operationName);
     if (catalogEntry is null)
         throw new McpException($"Unknown operation '{operationName}'. Call a guide tool to discover available operations.");
+
+    // MCP-specific in-process tools must be called directly, not through execute_operation
+    if (IsMcpSpecificTool(operationName))
+        throw new McpException($"'{operationName}' is an in-process tool — call it directly instead of through execute_operation.");
 
     // Parse arguments — accept either a JSON string or a JSON object
     Dictionary<string, JsonElement>? opArguments = null;

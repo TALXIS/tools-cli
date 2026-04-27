@@ -51,6 +51,21 @@ Always run `environment_component_dependency_delete_check` to find components th
 | `environment_optionset_update` | Modify option set values |
 | `environment_optionset_delete` | Remove an option set |
 
+## Common Scenarios
+
+### Inspecting a Table's Columns
+```
+environment_entity_attribute_list { entityLogicalName: "prefix_tablename" }
+```
+Use this to compare what's deployed vs what's in your local workspace.
+
+### Quick-Fix: Adding a Column in Non-Production
+```
+1. environment_entity_attribute_create { entityLogicalName: "prefix_order", logicalName: "prefix_notes", attributeType: "Memo", displayName: "Notes" }
+2. environment_solution_publish
+```
+→ Remember to codify this change locally afterward so it's tracked in source control.
+
 ## Important Reminders
 
 - ⚠️ Environment schema changes are **not tracked in source control** — they exist only in the environment
@@ -58,5 +73,11 @@ Always run `environment_component_dependency_delete_check` to find components th
 - ⚠️ Changes in managed layers can't be undone — only overridden by a new managed import
 - ✅ For development work, use `workspace_component_create` instead (see [component-creation](component-creation.md))
 - ✅ For inspection and understanding what's deployed, these tools are the right choice
+
+## What NOT to Do
+
+- ❌ Don't use these tools for routine development — changes bypass source control
+- ❌ Don't delete tables/columns without running `environment_component_dependency_delete_check` first
+- ❌ Don't forget to `environment_solution_publish` after schema changes — they won't take effect without it
 
 See also: [component-creation](component-creation.md), [solution-layering](solution-layering.md), [troubleshooting](troubleshooting.md)

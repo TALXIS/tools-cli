@@ -60,15 +60,41 @@ Build locally to validate, then follow the [deployment workflow](deployment-work
 2. `workspace_component_parameter_list` for Attribute parameters
 3. `workspace_component_create` with the table reference and column details
 
+**Example:** Adding a "Status" option set column to an existing Order table:
+```
+workspace_component_parameter_list { componentType: "Attribute" }
+workspace_component_create {
+  componentType: "Attribute",
+  SolutionRootPath: "Declarations",
+  EntityLogicalName: "prefix_order",
+  LogicalName: "prefix_orderstatus",
+  DisplayName: "Order Status",
+  AttributeType: "Picklist"
+}
+```
+
 ### Creating a Relationship
 1. Ensure both tables exist in the workspace
 2. `workspace_component_parameter_list` for the Relationship type
 3. `workspace_component_create` with source/target table references
 
+**Example:** Creating a many-to-one relationship (Order → Customer):
+```
+workspace_component_create {
+  componentType: "Relationship",
+  SolutionRootPath: "Declarations",
+  PrimaryEntity: "prefix_order",
+  RelatedEntity: "prefix_customer",
+  RelationshipType: "ManyToOne"
+}
+```
+
 ## What NOT to Do
 
 - ❌ Don't use `environment_entity_create` for development — it bypasses source control
 - ❌ Don't use `environment_entity_attribute_create` to add columns during development
+- ❌ Don't scaffold a Form or View before the Entity and its Attributes exist — XML references will break
+- ❌ Don't scaffold a Relationship if the target table hasn't been created yet
 - ✅ Use environment tools only for inspection, troubleshooting, or emergency fixes
 
 See also: [project-structure](project-structure.md), [schema-management](schema-management.md)

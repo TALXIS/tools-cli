@@ -62,6 +62,22 @@ Profiles can be pinned to a workspace directory, so `txc` automatically uses the
 - **Validate profiles** after creation and after credential rotation
 - Never connect to production for routine development — use dev environments
 
+## Common Scenarios
+
+### Setting Up a New Environment Connection
+```
+1. config_auth_add-service-principal { clientId: "<app-id>", clientSecret: "<secret>", tenantId: "<tenant>" }
+2. config_connection_create { name: "dev-connection", authName: "<from step 1>", environmentUrl: "https://org.crm.dynamics.com" }
+3. config_profile_create { name: "dev", connectionName: "dev-connection" }
+4. config_profile_validate { profileName: "dev" }
+```
+
+### Switching Between Environments
+```
+config_profile_list                          — see available profiles
+config_profile_show { profileName: "test" }  — verify target before switching
+```
+
 ## Troubleshooting Auth
 
 If `config_profile_validate` fails:
@@ -69,5 +85,11 @@ If `config_profile_validate` fails:
 2. Verify the service principal exists in the target environment's Azure AD
 3. Confirm the service principal has a Dataverse security role assigned
 4. Check if credentials (secret/certificate) have expired
+
+## What NOT to Do
+
+- ❌ Don't connect to production for routine development — use dev environments
+- ❌ Don't share credentials between team members — use per-developer service principals
+- ❌ Don't skip profile validation after credential rotation — stale credentials cause confusing errors
 
 See also: [troubleshooting](troubleshooting.md), [deployment-workflow](deployment-workflow.md)

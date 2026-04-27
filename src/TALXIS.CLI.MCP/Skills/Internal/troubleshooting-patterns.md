@@ -1,74 +1,54 @@
-# Troubleshooting Decision Trees
+# Troubleshooting — Tool Selection Logic
 
-## Deployment Failure
-```
-Deployment failed
-  └─→ environment_deployment_show --latest
-       ├─→ Findings show component error
-       │    └─→ Check specific component with environment_component_layer_list
-       ├─→ Findings show missing dependency
-       │    └─→ environment_component_dependency_required → identify what's needed
-       └─→ Findings show timeout/generic error
-            └─→ Retry import with --wait, check environment health
-```
+<!-- Internal reasoning skill: contains ONLY diagnostic routing and escalation paths. -->
+<!-- For detailed troubleshooting steps, see the public troubleshooting skill. -->
 
-## Component Conflict
-```
-Component behaves unexpectedly or can't be modified
-  └─→ environment_component_layer_list (componentId)
-       ├─→ Multiple solutions own this component
-       │    └─→ environment_component_layer_show → understand each layer
-       │         └─→ Determine which solution should own it
-       └─→ Managed layer is blocking changes
-            └─→ Must update the managed solution, not the component directly
-```
+## First-Response Routing
 
-## Can't Delete a Component
+Match the user's symptom to the correct FIRST tool to run:
+
 ```
-Delete fails with dependency error
-  └─→ environment_component_dependency_delete_check
-       ├─→ Other components reference this one
-       │    └─→ Remove references first, then retry delete
-       └─→ Solution dependency exists
-            └─→ Update or remove the depending solution first
+"import failed" / "deployment error"   → environment_deployment_show --latest
+"component won't update" / "conflict"  → environment_component_layer_list
+"can't delete"                         → environment_component_dependency_delete_check
+"missing dependency"                   → environment_component_dependency_required
+"auth error" / "401" / "403"           → config_profile_validate
+"wrong data" / "stale"                 → config_profile_show (verify target env)
+"changes not visible"                  → environment_solution_publish (was publish skipped?)
+```
+→ ALWAYS run the first-response tool BEFORE asking the user for more details
+→ The tool output will clarify the actual problem
+
+## Escalation Paths
+
+### Deployment failure escalation
+```
+environment_deployment_show → findings?
+  ├─ Component error → environment_component_layer_list → environment_component_layer_show
+  ├─ Missing dependency → environment_component_dependency_required → import missing solution
+  ├─ Version conflict → increment version locally → rebuild → retry
+  └─ Generic/timeout → retry once with --wait → if still fails, check env health
 ```
 
-## Missing Dependency
+### Auth failure escalation
 ```
-Import fails with missing dependency
-  └─→ environment_component_dependency_required
-       ├─→ Required component is in another solution
-       │    └─→ Import that solution first
-       └─→ Required component doesn't exist
-            └─→ Create it locally → deploy → then retry original import
+config_profile_validate → result?
+  ├─ Invalid → config_profile_show → config_connection_show → fix credentials
+  └─ Valid but failing → check security roles in Power Platform admin center (outside txc)
 ```
 
-## Authentication Issues
-```
-Commands fail with auth/connection errors
-  └─→ config_profile_validate
-       ├─→ Profile invalid
-       │    └─→ config_profile_show → check URL and connection
-       │         └─→ config_connection_show → verify auth method
-       │              └─→ Re-create or update credentials
-       └─→ Profile valid but wrong environment
-            └─→ config_profile_show → verify environment URL
-                 └─→ Switch to correct profile or create new one
-```
+## Diagnostic Priority Order
+When unsure where to start:
+1. `config_profile_validate` — eliminate auth issues first (cheapest check)
+2. `config_profile_show` — confirm correct environment
+3. `environment_deployment_show --latest` — check last deployment
+4. `environment_component_layer_list` — inspect component ownership
+5. `environment_component_dependency_required` or `_delete_check` — dependency issues
 
-## Wrong Environment Connected
-```
-Data or schema doesn't match expectations
-  └─→ config_profile_show
-       ├─→ URL points to wrong environment
-       │    └─→ Switch profile or create profile for correct environment
-       └─→ URL is correct but data is stale
-            └─→ Check if publish is needed: environment_solution_publish
-```
+→ STOP as soon as you find the root cause — don't run all tools prophylactically
 
-## General Diagnostic Order
-1. **Verify connection**: `config_profile_validate`
-2. **Check deployment status**: `environment_deployment_show --latest`
-3. **Inspect component layers**: `environment_component_layer_list`
-4. **Check dependencies**: `environment_component_dependency_required` or `_delete_check`
-5. **Review solution contents**: `environment_solution_component_list`
+## Anti-Patterns
+- ❌ Asking the user "what error did you get?" before running diagnostic tools → run the tool first
+- ❌ Retrying imports without checking deployment findings → repeats the same error
+- ❌ Jumping to layer inspection before checking basic auth/connectivity
+- ❌ Using environment schema tools to "fix" what should be fixed locally and redeployed

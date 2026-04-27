@@ -70,4 +70,11 @@ If import fails:
 3. `environment_component_dependency_required` — find missing dependencies
 4. Fix locally, rebuild, and retry
 
+## What NOT to Do
+
+- ❌ Don't skip the local build step — XML errors are much faster to catch locally than at import time
+- ❌ Don't deploy unmanaged solutions to production — use managed for proper versioning and clean uninstall
+- ❌ Don't skip `environment_solution_publish` after import — UI changes (forms, views) remain invisible without it
+- ❌ Don't retry a failed import without first checking `environment_deployment_show --latest` — you'll repeat the same error
+
 See also: [troubleshooting](troubleshooting.md), [solution-layering](solution-layering.md)

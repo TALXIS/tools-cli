@@ -1,63 +1,48 @@
-# Schema Creation & Modification Workflow
+# Schema Workflow — Decision Logic
 
-## Step-by-Step: Creating or Modifying Dataverse Schema Locally
+<!-- Internal reasoning skill: contains ONLY workflow sequencing and tool selection. -->
+<!-- For step-by-step instructions and parameters, see the public component-creation skill. -->
 
-### Step 1: Discover Available Component Types
+## Mandatory Sequencing
+
+### New table with columns
 ```
-Tool: workspace_component_type_list
+1. workspace_component_create (Entity)        — table MUST exist before columns
+2. workspace_component_create (Attribute) ×N   — one call per column
+3. workspace_component_create (Form)           — AFTER table + columns exist
+4. workspace_component_create (View)           — AFTER table + columns exist
 ```
-Returns the list of component types that can be scaffolded (Entity, Attribute, Form, View, OptionSet, Relationship, etc.).
+→ NEVER scaffold Form/View before the Entity and Attributes exist — XML references will break
 
-### Step 2: Get Required Parameters
+### Adding to existing table
 ```
-Tool: workspace_component_parameter_list
-Parameters: { componentType: "<type from step 1>" }
+1. workspace_explain                           — confirm table exists, find SolutionRootPath
+2. workspace_component_create (Attribute/Form/View)
+3. Build locally to validate
 ```
-Returns parameter names, types, whether required, and default values.
+→ SKIP step 1 ONLY if you already know the project structure from prior context
 
-### Step 3: Scaffold the Component
+### Creating a relationship
 ```
-Tool: workspace_component_create
-Parameters: {
-  componentType: "<type>",
-  SolutionRootPath: "Declarations",
-  ...other required params
-}
-```
-
-**Important:** Always pass `SolutionRootPath=Declarations` unless the user specifies a different solution project. This is the default convention for schema components.
-
-### Step 4: Customize Generated XML
-After scaffolding, the tool creates XML files in the solution project. Common customizations:
-- Edit display names and descriptions
-- Set additional column properties (required level, searchable, etc.)
-- Configure form layouts
-- Add view columns and filters
-
-### Step 5: Build Locally to Validate
-Build the solution project to catch XML errors, missing references, or schema violations before deploying.
-
-### Step 6: Deploy
-```
-1. environment_solution_pack   → Creates .zip from local files
-2. environment_solution_import → Uploads to target environment (use --wait)
-3. environment_solution_publish → Publishes customizations
-```
-
-## Common Component Creation Patterns
-
-### New Table with Columns
-1. Scaffold Entity → creates table XML
-2. Scaffold Attributes → adds columns to the table
-3. Scaffold Form → creates default form layout
-4. Scaffold View → creates default view
-
-### Adding to Existing Table
-1. Use `workspace_explain` to understand current structure
-2. Scaffold only the new Attribute/Form/View
-3. Build and deploy
-
-### Relationships
-1. Scaffold the relationship component
-2. Verify both tables exist in the solution
+1. Confirm BOTH tables exist (workspace_explain or prior scaffolding)
+2. workspace_component_create (Relationship)
 3. Build to validate referential integrity
+```
+→ NEVER scaffold a relationship if the target table doesn't exist yet — will produce invalid XML
+
+## SolutionRootPath Selection
+→ DEFAULT: `Declarations` (convention for schema components)
+→ OVERRIDE: only if user specifies a different solution project name
+→ IF UNSURE: run `workspace_explain` to discover available solution projects
+
+## When to Use Workspace vs Environment Schema Tools
+→ Creating/modifying schema for development: `workspace_component_create` (local)
+→ Inspecting what's deployed: `environment_entity_list`, `environment_entity_attribute_list` (live)
+→ Emergency fix in non-prod: `environment_entity_attribute_create` (live, acceptable)
+→ Prototyping before codifying: environment tools acceptable, but codify locally afterward
+
+## Anti-Patterns
+- ❌ Scaffolding a Form before its Entity exists → broken XML references
+- ❌ Forgetting to build after scaffolding → XML errors caught late at import
+- ❌ Using environment tools for development → changes not in source control
+- ❌ Scaffolding into wrong solution project → component ownership issues

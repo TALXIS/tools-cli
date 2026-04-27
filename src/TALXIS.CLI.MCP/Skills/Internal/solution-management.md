@@ -1,76 +1,49 @@
-# Solution Management Patterns
+# Solution Management — Decision Logic
 
-## Solution Types
+<!-- Internal reasoning skill: contains ONLY solution-type decisions and segmentation routing. -->
+<!-- For solution concepts, layer details, and inspection tools, see the public solution-layering skill. -->
 
-### Unmanaged Solutions
-- Used during **development**
-- Components can be freely edited
-- Changes are made directly in the active customization layer
-- Not portable — don't move unmanaged solutions between environments
-
-### Managed Solutions
-- Used for **production** deployment
-- Components are locked — can't be edited directly in the target
-- Proper versioning and dependency tracking
-- Can be cleanly uninstalled (if no dependencies)
-
-## Solution Segmentation
-
-Separate concerns into different solution projects:
-
-| Solution | Contents | Example Name |
-|---|---|---|
-| Data Model | Tables, columns, relationships, option sets | `Solutions.DataModel` |
-| Business Logic | Plugins, workflows, business rules | `Solutions.Logic` |
-| User Interface | Forms, views, model-driven apps, sitemaps | `Solutions.UI` |
-| Security | Security roles, field-level security | `Solutions.Security` |
-
-### Benefits of Segmentation
-- Independent deployment cycles
-- Smaller import packages (faster deployments)
-- Clearer ownership and change tracking
-- Reduced merge conflicts in team development
-
-## Component Ownership
-
-### Inspecting What's in a Solution
+## Managed vs Unmanaged Decision
 ```
-Tool: environment_solution_component_list
+Where is the user deploying?
+  ├─ Development environment  → unmanaged import (editable, iterative)
+  ├─ Test/UAT environment     → managed import (locked, production-like)
+  ├─ Production environment   → managed import ONLY (never unmanaged)
+  └─ Unsure                   → ask user, default to managed for safety
 ```
-Lists all components belonging to a specific solution.
 
-### Layer Inspection
+## Component-to-Solution Routing
 ```
-Tool: environment_component_layer_list → environment_component_layer_show
+What is the user creating?
+  ├─ Table, column, relationship, option set  → Solutions.DataModel
+  ├─ Plugin, workflow, business rule          → Solutions.Logic
+  ├─ Form, view, model-driven app, sitemap   → Solutions.UI
+  ├─ Security role, field-level security      → Solutions.Security
+  └─ Unsure which solution                   → workspace_explain to discover existing structure
 ```
-Shows the solution stack for a component — which solutions contribute customizations and in what order they're applied.
+→ NEVER put all components in one solution — always segment by concern
+→ IF the repo already has different naming, follow its conventions (check with `workspace_explain`)
 
-## Publisher Rules
-- **One publisher per organization** — consistency across all solutions
-- **Consistent prefix** — used for all tables, columns, and components
-- **Maximum 8 characters** for the prefix (Dataverse platform limit)
-- Example: publisher `contoso` with prefix `cont` → tables become `cont_tablename`
-
-## Uninstall Safety
-
-Before removing a solution:
+## Uninstall Safety Decision
 ```
-Tool: environment_solution_uninstall_check
+User wants to remove/uninstall a solution:
+  → ALWAYS: environment_solution_uninstall_check BEFORE uninstalling
+  → IF dependencies found: resolve dependencies first
+  → IF data loss warning: confirm with user explicitly
+  → NEVER uninstall in production without checking first
 ```
-This checks for:
-- Components that other solutions depend on
-- Data that would be lost (table deletions)
-- Customizations that would be removed
 
-**Always run this check before uninstalling**, especially for managed solutions in production-adjacent environments.
+## Layer Conflict Resolution
+```
+Component behaves unexpectedly:
+  → environment_component_layer_list (see all layers)
+    ├─ Multiple managed solutions → topmost wins; update that solution
+    ├─ Unmanaged active layer blocking → remove active customization
+    └─ Single layer, still wrong → check if publish was skipped
+```
 
-## Solution Lifecycle
-```
-Create solution project locally
-  → Add/scaffold components
-    → Build and validate
-      → Pack as managed (prod) or unmanaged (dev)
-        → Import to target
-          → Publish customizations
-            → Verify deployment
-```
+## Anti-Patterns
+- ❌ Deploying unmanaged to production → can't track versions, can't cleanly uninstall
+- ❌ All components in one mega-solution → slow deployments, merge conflicts, unclear ownership
+- ❌ Uninstalling without `environment_solution_uninstall_check` → cascade failures or data loss
+- ❌ Moving unmanaged solutions between environments → use managed for transport

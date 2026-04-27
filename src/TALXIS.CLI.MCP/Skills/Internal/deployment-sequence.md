@@ -1,55 +1,54 @@
-# Deployment Sequence
+# Deployment Sequence — Decision Logic
 
-## Correct Deployment Order
+<!-- Internal reasoning skill: contains ONLY sequencing rules and failure recovery. -->
+<!-- For tool descriptions and parameters, see the public deployment-workflow skill. -->
 
-### 1. Validate Local Build
-Ensure the solution project compiles without errors. Catch XML issues, missing references, and schema violations before touching the environment.
-
-### 2. Pack the Solution
+## Mandatory Order (never skip or reorder)
 ```
-Tool: environment_solution_pack
+1. Build locally              — catch errors before touching environment
+2. config_profile_validate    — confirm auth + target env BEFORE packing
+3. environment_solution_pack  — local operation, creates .zip
+4. environment_solution_import (--wait) — blocks until complete
+5. environment_solution_publish — required for UI changes to take effect
+6. environment_deployment_show --latest — verify success
 ```
-Creates a `.zip` solution file from the local project files. This is a local operation that prepares the artifact for import.
 
-### 3. Import to Target Environment
+## Pre-Flight Decision Tree
 ```
-Tool: environment_solution_import
-Recommended: use --wait flag
+Before deploying:
+  ├─→ Is the local build clean?
+  │    ├─ YES → proceed
+  │    └─ NO → fix build errors FIRST, never deploy broken builds
+  ├─→ Is the profile validated?
+  │    ├─ YES → proceed
+  │    └─ NO → config_profile_validate, then config_profile_show to confirm target
+  └─→ Dev or prod target?
+       ├─ DEV → unmanaged import is fine
+       └─ PROD/UAT → managed import ONLY, never unmanaged
 ```
-Uploads and processes the solution in the target Dataverse environment. The `--wait` flag blocks until import completes, giving you immediate feedback on success/failure.
 
-### 4. Publish Customizations
+## Failure Recovery Sequence
 ```
-Tool: environment_solution_publish
+Import failed
+  └─→ environment_deployment_show --latest
+       ├─→ Component error → environment_component_layer_list → resolve conflict
+       ├─→ Missing dependency → environment_component_dependency_required → import dependency first
+       ├─→ Version conflict → increment solution version → retry
+       └─→ Timeout/generic → retry with --wait, check env health
 ```
-Makes imported changes visible to users. Without publishing, form/view changes remain in draft state.
+→ ALWAYS check deployment findings before retrying blindly
+→ NEVER retry more than twice without diagnosing the root cause
 
-### 5. Verify Deployment
-```
-Tool: environment_deployment_show --latest
-```
-Check the latest deployment status and findings. Look for warnings or errors that may need attention.
+## Changeset vs Direct Import
+→ USE changesets (`environment_changeset_status` → make changes → `environment_changeset_apply`) when:
+  - Multiple solutions need to be imported atomically
+  - You want a rollback option (`environment_changeset_discard`)
+→ USE direct import when:
+  - Single solution deployment
+  - CI/CD pipeline (changesets add unnecessary complexity)
 
-### 6. Troubleshoot Failures
-If deployment fails, use these tools in order:
-
-| Symptom | Tool | What to Look For |
-|---|---|---|
-| Import failed | `environment_deployment_show` | Error findings, component failures |
-| Component conflict | `environment_component_layer_list` | Which solution owns the component |
-| Can't overwrite | `environment_component_layer_show` | Active layer details |
-| Missing dependency | `environment_component_dependency_required` | Required components not in target |
-| Can't delete component | `environment_component_dependency_delete_check` | Blocking dependencies |
-
-## Pre-Deployment Checklist
-- [ ] Local build succeeds
-- [ ] Target profile is validated (`config_profile_validate`)
-- [ ] Connected to correct environment (`config_profile_show`)
-- [ ] Unmanaged solution exists in target (for dev) or managed import planned (for prod)
-
-## Changeset Workflow (Optional)
-For staged deployments:
-1. `environment_changeset_status` — check current changeset state
-2. Make changes via import
-3. `environment_changeset_apply` — commit changes
-4. Or `environment_changeset_discard` — rollback if issues found
+## Anti-Patterns
+- ❌ Deploying without building first → XML errors only caught at import (slow feedback)
+- ❌ Skipping `environment_solution_publish` → UI changes invisible to users
+- ❌ Deploying unmanaged to production → can't cleanly uninstall, no version tracking
+- ❌ Retrying failed imports without checking `environment_deployment_show` → repeating the same error

@@ -44,6 +44,19 @@ public class GuideHandler
         {
             // Explicit workflow — return all tools for that workflow
             matchedEntries = _catalog.GetEntriesByWorkflow(workflow);
+
+            if (string.IsNullOrEmpty(query))
+            {
+                // No query with explicit workflow — return compact listing (no schemas) to avoid token bloat
+                var workflowEntries = matchedEntries.ToList();
+                var toolDefs = workflowEntries.Select(McpToolRegistry.BuildToolDefinition).ToList();
+                _activeToolSet.InjectTools(toolDefs);
+                var compactResponse = BuildCompactListingResponse(workflowEntries, workflow);
+                return new CallToolResult
+                {
+                    Content = [new TextContentBlock { Text = compactResponse }]
+                };
+            }
         }
         else
         {
@@ -83,8 +96,15 @@ public class GuideHandler
 
         if (string.IsNullOrEmpty(query))
         {
-            // No query — return all tools for the workflow
-            matchedEntries = _catalog.GetEntriesByWorkflow(workflowScope);
+            // No query — return compact listing (no schemas) to avoid token bloat
+            var allEntries = _catalog.GetEntriesByWorkflow(workflowScope).ToList();
+            var toolDefs = allEntries.Select(McpToolRegistry.BuildToolDefinition).ToList();
+            _activeToolSet.InjectTools(toolDefs);
+            var compactResponse = BuildCompactListingResponse(allEntries, workflowScope);
+            return new CallToolResult
+            {
+                Content = [new TextContentBlock { Text = compactResponse }]
+            };
         }
         else
         {
@@ -256,6 +276,30 @@ Return ONLY a JSON array of tool names, nothing else. Example: [""workspace_comp
             .OrderByDescending(x => x.score)
             .Take(top)
             .Select(x => x.entry);
+    }
+
+    /// <summary>
+    /// Builds a compact listing (name + description only, no schemas) for browsing a full workflow.
+    /// Use this when the user didn't provide a query and is just exploring what's available.
+    /// </summary>
+    internal static string BuildCompactListingResponse(List<ToolCatalogEntry> entries, string? workflow)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"## Available operations{(workflow is not null ? $" — {workflow}" : "")}");
+        sb.AppendLine($"{entries.Count} operations available. Call this guide with a specific query to get full parameter details.\n");
+
+        foreach (var entry in entries)
+        {
+            var flags = new List<string>();
+            if (entry.Descriptor.Annotations?.DestructiveHint == true) flags.Add("⚠️ DESTRUCTIVE");
+            if (entry.Descriptor.Annotations?.ReadOnlyHint == true) flags.Add("📖 read-only");
+
+            sb.AppendLine($"- **{entry.Descriptor.Name}** {string.Join(" ", flags)}: {entry.Descriptor.Description}");
+        }
+
+        sb.AppendLine("\n---");
+        sb.AppendLine("To use a specific operation: call this guide with a query describing your task, or call `execute_operation` directly if you know the operation name and parameters.");
+        return sb.ToString();
     }
 
     /// <summary>

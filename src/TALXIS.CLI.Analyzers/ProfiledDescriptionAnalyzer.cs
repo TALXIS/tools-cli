@@ -6,7 +6,7 @@ namespace TALXIS.CLI.Analyzers;
 
 /// <summary>
 /// TXC011: Commands inheriting <c>ProfiledCliCommand</c> or <c>ProfiledLeafCliCommand</c>
-/// should mention "profile" or "environment" in their <c>[CliCommand(Description)]</c>.
+/// should mention "profile", "environment", "live", or "connected" in their <c>[CliCommand(Description)]</c>.
 /// This ensures AI harnesses know a profile is required before attempting to call the tool.
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
@@ -17,7 +17,7 @@ public sealed class ProfiledDescriptionAnalyzer : DiagnosticAnalyzer
     private static readonly DiagnosticDescriptor Rule = new(
         id: DiagnosticIds.ProfiledDescriptionContext,
         title: "Profiled command description should mention profile or environment",
-        messageFormat: "'{0}' inherits ProfiledCliCommand but its description doesn't mention 'profile' or 'environment'. AI harnesses won't know a profile is required.",
+        messageFormat: "'{0}' inherits ProfiledCliCommand but its description doesn't mention 'profile', 'environment', 'live', or 'connected'. AI harnesses won't know a profile is required.",
         category: "TALXIS.CLI.Design",
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
