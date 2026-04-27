@@ -8,7 +8,7 @@
 How many records?
   ├─ 1 record        → environment_data_record_create or _update
   ├─ 2–100 records   → environment_data_bulk_upsert
-  ├─ 100+ records    → CMT pipeline: data_package_export → data_package_convert → data_package_import
+  ├─ 100+ records    → CMT pipeline: data_package_export → data_package_import
   └─ Full env clone  → CMT pipeline with complete schema file
 ```
 
@@ -16,9 +16,8 @@ How many records?
 ```
 Where does the data come from?
   ├─ User provides values inline    → environment_data_record_create / _update
-  ├─ User has an Excel/CSV file     → data_package_convert (XLSX → CMT) → data_package_import
   ├─ Another Dataverse environment  → data_package_export (source) → data_package_import (target)
-  └─ User wants to review first     → data_package_export → data_package_convert (CMT → XLSX) → review → convert back → import
+  └─ User has structured data ready → data_package_import with prepared CMT package
 ```
 
 ## Query Tool Selection
@@ -33,7 +32,7 @@ User wants to query/verify data:
 → ALWAYS export before importing when migrating between environments
 → ALWAYS test import on non-production before production
 → ALWAYS verify record counts after import (use `environment_data_query_sql`)
-→ If stakeholder review is needed: export → convert to XLSX → review → convert back → import
+→ If stakeholder review is needed: export → review CMT package → import
 
 ## Anti-Patterns
 - ❌ Using `environment_data_record_create` in a loop for 50+ records → use `environment_data_bulk_upsert`
