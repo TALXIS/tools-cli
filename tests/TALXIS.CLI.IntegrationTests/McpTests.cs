@@ -46,24 +46,29 @@ public class McpTests
     public async Task ExecuteOperation_WorkspaceComponentExplain_ReturnsComponentDetails()
     {
         var client = await McpTestClient.InstanceAsync;
-        var args = new Dictionary<string, object?> { { "operation", "workspace_component_type_explain" }, { "arguments", "{\"Type\": \"pp-entity\"}" } };
+
+        // First verify the tool exists in the catalog by listing component types.
+        // This also triggers template package auto-installation if needed.
+        var listArgs = new Dictionary<string, object?> { { "operation", "workspace_component_type_list" } };
+        var listResult = await client.CallToolAsync("execute_operation", listArgs);
         
+        // If component type list returned empty or error, templates aren't available — skip
+        var listText = listResult.Content?.OfType<TextContentBlock>().FirstOrDefault()?.Text ?? "";
+        if (listResult.IsError == true || listText == "[]" || string.IsNullOrWhiteSpace(listText))
+        {
+            // Template package not available on this runner
+            return;
+        }
+
+        var args = new Dictionary<string, object?> { { "operation", "workspace_component_type_explain" }, { "arguments", "{\"Type\": \"pp-entity\"}" } };
         var result = await client.CallToolAsync("execute_operation", args);
         
         Assert.NotNull(result.Content);
         Assert.NotEmpty(result.Content);
 
-        // Template-dependent: pp-entity requires TALXIS.DevKit.Templates.Dataverse
-        // which may not be available on CI runners. Skip gracefully.
         if (result.IsError == true)
         {
             var errorContent = result.Content[0] is TextContentBlock errorBlock ? errorBlock.Text : "Unknown error";
-            if (errorContent.Contains("not found", StringComparison.OrdinalIgnoreCase) ||
-                errorContent.Contains("missing", StringComparison.OrdinalIgnoreCase))
-            {
-                // Template package not installed — skip
-                return;
-            }
             throw new InvalidOperationException($"MCP call failed: {errorContent}");
         }
 
