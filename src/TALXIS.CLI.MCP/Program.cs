@@ -11,13 +11,20 @@ using System.Reflection;
 using TALXIS.CLI.MCP;
 using TALXIS.CLI.Logging;
 
-// Create a single instance of McpToolRegistry
+// Create a single instance of McpToolRegistry (populates internal ToolCatalog at startup)
 var mcpToolRegistry = new McpToolRegistry();
 RootsService? rootsService = null;
 IHostApplicationLifetime? appLifetime = null;
 
 // In-memory store for tool execution logs, exposed as MCP resources
 var toolLogStore = new ToolLogStore();
+
+// Session-scoped active tool set — starts with always-on tools only
+var activeToolSet = new ActiveToolSet();
+var guideHandler = new GuideHandler(mcpToolRegistry.Catalog, activeToolSet);
+
+// Register always-on tools (these are the only tools visible at session start)
+RegisterAlwaysOnTools(activeToolSet, mcpToolRegistry);
 
 // Task store with cancel propagation for long-running operations (experimental MCP feature)
 var taskStore = new CancellableTaskStore(new InMemoryMcpTaskStore(
@@ -44,7 +51,19 @@ builder.Services
             Name = "TALXIS CLI MCP (txc-mcp)",
             Version = version
         };
-        options.ServerInstructions = "This server is a wrapper for the TALXIS CLI. It provides tools for developers to implement functionality in their repository.";
+        options.ServerInstructions = @"TALXIS CLI MCP server for Power Platform / Dataverse development.
+
+USE THE GUIDE TOOLS to discover operations for your task:
+- guide: Cross-domain discovery — describe what you need
+- guide_workspace: LOCAL development — scaffold components, understand workspace. Instant and reversible.
+- guide_environment: LIVE environment — inspect/modify entities, attributes, relationships, layers, publishers. Requires profile. Takes 30s-5min.
+- guide_deployment: Deployment lifecycle — import/export/pack solutions, manage components, publish. Requires profile.
+- guide_data: LIVE data operations — SQL/FetchXML/OData queries, record CRUD, bulk ops, CMT migration. Requires profile.
+- guide_config: CLI setup — auth credentials, connections, profiles, settings. Required before environment operations.
+
+WORKFLOW: Call a guide tool → use execute_operation for immediate execution → discovered tools become direct calls on next turn.
+
+PREFER LOCAL OPERATIONS: Workspace operations are instant and reversible. Environment operations take 30s-5min. Always prefer local workspace operations when developing — use environment operations only for inspection, troubleshooting, or deployment after local validation.";
         options.TaskStore = taskStore;
         options.SendTaskStatusNotifications = true;
         options.Capabilities = new ServerCapabilities
@@ -79,43 +98,180 @@ catch (Exception ex)
     return 1;
 }
 
-// MCP tool listing
+// MCP tool listing — returns only active tools (always-on + dynamically injected)
 ValueTask<ListToolsResult> ListToolsAsync(RequestContext<ListToolsRequestParams> ctx, CancellationToken ct)
-    => ValueTask.FromResult(new ListToolsResult { Tools = mcpToolRegistry.ListTools() });
+    => ValueTask.FromResult(new ListToolsResult { Tools = activeToolSet.ListActiveTools() });
 
-// MCP tool invocation
+// MCP tool invocation — routes to guide handlers, execute_operation bridge, or direct CLI dispatch
 async ValueTask<CallToolResult> CallToolAsync(RequestContext<CallToolRequestParams> ctx, CancellationToken ct)
 {
     var p = ctx.Params;
     var toolName = p?.Name ?? string.Empty;
     if (string.IsNullOrEmpty(toolName))
         throw new McpException("Tool name is required.");
+
+    // --- Route: Guide tools ---
+    if (IsGuideTool(toolName))
+    {
+        return await HandleGuideToolAsync(toolName, p?.Arguments, ctx.Server, ct);
+    }
+
+    // --- Route: execute_operation bridge ---
+    if (toolName == "execute_operation")
+    {
+        return await HandleExecuteOperationAsync(p?.Arguments, ctx, ct);
+    }
+
+    // --- Route: MCP-specific tools (copilot-instructions, get_skill_details) ---
+    if (IsMcpSpecificTool(toolName))
+    {
+        var cmdType = mcpToolRegistry.FindCommandTypeByToolName(toolName);
+        if (cmdType == null)
+            throw new McpException($"Tool '{toolName}' not found.");
+        return await ExecuteMcpSpecificToolWithCapturedOutputAsync(cmdType, p?.Arguments, ct);
+    }
+
+    // --- Route: Active injected tools (direct call) or any known tool ---
+    return await DispatchCliToolAsync(toolName, p, ctx, ct);
+}
+
+// Handles guide and domain-specific guide tool calls
+async ValueTask<CallToolResult> HandleGuideToolAsync(
+    string guideName, IDictionary<string, JsonElement>? arguments, McpServer server, CancellationToken ct)
+{
+    var query = arguments?.TryGetValue("query", out var queryEl) == true ? queryEl.GetString() ?? "" : "";
+    var top = arguments?.TryGetValue("top", out var topEl) == true ? topEl.GetInt32() : 5;
+    var workflow = arguments?.TryGetValue("workflow", out var wfEl) == true ? wfEl.GetString() : null;
+
+    // Map domain guide name to workflow scope
+    var workflowScope = guideName switch
+    {
+        "guide_workspace" => "local-development",
+        "guide_environment" => null, // scoped guides handle both inspection and mutation
+        "guide_deployment" => "deployment",
+        "guide_data" => "data-operations",
+        "guide_config" => "configuration",
+        _ => null // generic guide
+    };
+
+    (CallToolResult result, bool toolsInjected) outcome;
+
+    if (guideName == "guide_environment")
+    {
+        // Environment guide scopes to both inspection and mutation
+        var inspectionEntries = mcpToolRegistry.Catalog.GetEntriesByWorkflow("environment-inspection");
+        var mutationEntries = mcpToolRegistry.Catalog.GetEntriesByWorkflow("environment-mutation");
+        var allEnvEntries = inspectionEntries.Concat(mutationEntries).ToList();
+
+        if (string.IsNullOrEmpty(query))
+        {
+            // Return all environment tools
+            var tools = allEnvEntries.Select(McpToolRegistry.BuildToolDefinition).ToList();
+            bool injected = activeToolSet.InjectTools(tools);
+            outcome = (new CallToolResult
+            {
+                Content = [new TextContentBlock { Text = BuildGuidanceFromEntries(allEnvEntries, query) }]
+            }, injected);
+        }
+        else
+        {
+            outcome = await guideHandler.HandleAsync(query, null, top, server, ct);
+        }
+    }
+    else if (workflowScope is not null)
+    {
+        outcome = await guideHandler.HandleWorkflowGuideAsync(workflowScope, query, top, server, ct);
+    }
+    else
+    {
+        outcome = await guideHandler.HandleAsync(query, workflow, top, server, ct);
+    }
+
+    // Injected tools will be visible when the client re-fetches list_tools on the next turn.
+    // No listChanged notification needed — Copilot CLI re-fetches between turns automatically.
+
+    return outcome.result;
+}
+
+// Bridge: execute_operation dispatches any tool from the internal catalog
+async ValueTask<CallToolResult> HandleExecuteOperationAsync(
+    IDictionary<string, JsonElement>? arguments, RequestContext<CallToolRequestParams> ctx, CancellationToken ct)
+{
+    if (arguments is null || !arguments.TryGetValue("operation", out var opEl))
+        throw new McpException("'operation' parameter is required. Call a guide tool first to discover available operations.");
+
+    var operationName = opEl.GetString() ?? throw new McpException("'operation' must be a non-empty string.");
+
+    // Validate operation exists in internal catalog (not just active set — supports same-turn execution)
+    var catalogEntry = mcpToolRegistry.Catalog.GetEntry(operationName);
+    if (catalogEntry is null)
+        throw new McpException($"Unknown operation '{operationName}'. Call a guide tool to discover available operations.");
+
+    // Parse arguments — accept either a JSON string or a JSON object
+    Dictionary<string, JsonElement>? opArguments = null;
+    if (arguments.TryGetValue("arguments", out var argsEl))
+    {
+        if (argsEl.ValueKind == JsonValueKind.String)
+        {
+            var argsStr = argsEl.GetString();
+            if (!string.IsNullOrEmpty(argsStr))
+            {
+                try { opArguments = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(argsStr); }
+                catch { throw new McpException($"Invalid JSON in 'arguments': {argsStr}"); }
+            }
+        }
+        else if (argsEl.ValueKind == JsonValueKind.Object)
+        {
+            opArguments = new Dictionary<string, JsonElement>();
+            foreach (var prop in argsEl.EnumerateObject())
+                opArguments[prop.Name] = prop.Value;
+        }
+    }
+
+    // Dispatch through the normal CLI tool pipeline
+    var descriptor = catalogEntry.Descriptor;
+
+    // Check for task-augmented execution
+    if (ctx.Params?.Task is { } taskMetadata && descriptor.SupportsTaskExecution)
+    {
+        return await ExecuteAsTaskAsync(ctx, operationName, taskMetadata, ct);
+    }
+
+    return await ExecuteCliToolAsync(operationName, opArguments, ctx, ct);
+}
+
+// Dispatches a CLI tool (active injected tool or fallback to internal catalog)
+async ValueTask<CallToolResult> DispatchCliToolAsync(
+    string toolName, CallToolRequestParams? p, RequestContext<CallToolRequestParams> ctx, CancellationToken ct)
+{
+    // Check if it's an active tool (injected via listChanged) or in the internal catalog
     var cmdType = mcpToolRegistry.FindCommandTypeByToolName(toolName);
     if (cmdType == null)
-        throw new McpException($"Tool '{toolName}' not found.");
-    
-    // Check if client requested task-augmented execution
+        throw new McpException($"Tool '{toolName}' not found. Use a guide tool to discover available operations, then call execute_operation or wait for the tool to appear in your tool list.");
+
     var descriptor = mcpToolRegistry.GetDescriptor(toolName);
     if (p?.Task is { } taskMetadata && descriptor?.SupportsTaskExecution == true)
     {
         return await ExecuteAsTaskAsync(ctx, toolName, taskMetadata, ct);
     }
 
+    IReadOnlyDictionary<string, JsonElement>? cliArguments = p?.Arguments is null
+        ? null
+        : new Dictionary<string, JsonElement>(p.Arguments);
+
+    return await ExecuteCliToolAsync(toolName, cliArguments, ctx, ct);
+}
+
+// Shared CLI tool execution — used by both execute_operation and direct dispatch
+async Task<CallToolResult> ExecuteCliToolAsync(
+    string toolName, IReadOnlyDictionary<string, JsonElement>? cliArguments,
+    RequestContext<CallToolRequestParams> ctx, CancellationToken ct)
+{
     try
     {
-        // Check if this is an MCP-specific tool (not part of the main CLI hierarchy)
-        if (IsMcpSpecificTool(toolName))
-        {
-            return await ExecuteMcpSpecificToolWithCapturedOutputAsync(cmdType, p?.Arguments, ct);
-        }
-
         var cliCommandAdapter = new CliCommandAdapter();
-        IReadOnlyDictionary<string, System.Text.Json.JsonElement>? cliArguments = p?.Arguments is null
-            ? null
-            : new Dictionary<string, System.Text.Json.JsonElement>(p.Arguments);
         var cliArgs = cliCommandAdapter.BuildCliArgs(toolName, cliArguments);
 
-        // Create a per-request log forwarder that streams subprocess logs to the MCP client
         var mcpLoggerProvider = ctx.Server.AsClientLoggerProvider();
         var mcpLogger = mcpLoggerProvider.CreateLogger($"txc.{toolName}");
         var progressToken = ctx.Params?.ProgressToken;
@@ -123,7 +279,6 @@ async ValueTask<CallToolResult> CallToolAsync(RequestContext<CallToolRequestPara
 
         mcpLogger.LogInformation("Starting tool: {ToolName}", toolName);
 
-        // Resolve working directory from client roots (lazy, cached)
         string? workingDirectory = rootsService is not null
             ? await rootsService.GetWorkingDirectoryAsync(ct)
             : null;
@@ -142,7 +297,6 @@ async ValueTask<CallToolResult> CallToolAsync(RequestContext<CallToolRequestPara
     {
         return new CallToolResult { Content = [new TextContentBlock { Text = LogRedactionFilter.Redact(ex.ToString()) }], IsError = true };
     }
-
 }
 
 // Execute a tool call as an MCP task (call-now, fetch-later pattern)
@@ -252,12 +406,171 @@ async ValueTask<CallToolResult> ExecuteAsTaskAsync(
     return new CallToolResult { Task = mcpTask };
 }
 
-// Helper method to check if a tool is MCP-specific
+// Helper: checks if a tool name is a guide tool
+bool IsGuideTool(string toolName)
+{
+    return toolName is "guide" or "guide_workspace" or "guide_environment"
+        or "guide_deployment" or "guide_data" or "guide_config";
+}
+
+// Helper: checks if a tool is an MCP-specific in-process tool (not a CLI subprocess)
 bool IsMcpSpecificTool(string toolName)
 {
-    // For now, we'll hardcode the list of MCP-specific tools
-    // This could be made more dynamic in the future
-    return toolName == "copilot-instructions";
+    return toolName is "copilot-instructions" or "get_skill_details";
+}
+
+// Helper: builds guidance text from catalog entries (used by environment guide)
+string BuildGuidanceFromEntries(List<ToolCatalogEntry> entries, string? query)
+{
+    var sb = new System.Text.StringBuilder();
+    sb.AppendLine($"Found {entries.Count} operation(s):");
+    sb.AppendLine();
+
+    for (int i = 0; i < entries.Count; i++)
+    {
+        var entry = entries[i];
+        var flags = new List<string>();
+        if (entry.Descriptor.Annotations?.DestructiveHint == true) flags.Add("⚠️ DESTRUCTIVE");
+        if (entry.Descriptor.Annotations?.ReadOnlyHint == true) flags.Add("📖 read-only");
+
+        sb.AppendLine($"**{i + 1}. {entry.Descriptor.Name}** {string.Join(" ", flags)}");
+        sb.AppendLine(entry.Descriptor.Description);
+        sb.AppendLine($"Workflow: {entry.Workflow}");
+        sb.AppendLine($"Parameters: {entry.InputSchema.GetRawText()}");
+        sb.AppendLine();
+    }
+
+    sb.AppendLine("---");
+    sb.AppendLine("To use immediately: call `execute_operation` with the operation name and arguments above.");
+    return sb.ToString();
+}
+
+// Registers the always-on tools in the ActiveToolSet
+void RegisterAlwaysOnTools(ActiveToolSet toolSet, McpToolRegistry registry)
+{
+    // Generic guide — cross-domain discovery
+    toolSet.AddAlwaysOn(new Tool
+    {
+        Name = "guide",
+        Description = @"Discovers tools for your task. Describe what you want to do and this tool will find the right operations.
+
+USE THIS WHEN:
+- You need to find which tool to use for a task
+- You're unsure whether to use local workspace or live environment tools
+
+WORKFLOWS: local-development, environment-inspection, environment-mutation, data-operations, deployment, configuration, changeset-management
+
+After calling guide, you can IMMEDIATELY use execute_operation with the returned tool name and arguments. On your next turn, the tools will also be available as direct calls.",
+        InputSchema = BuildGuideInputSchema()
+    });
+
+    // Domain guides — each advertises a specific capability area
+    toolSet.AddAlwaysOn(new Tool
+    {
+        Name = "guide_workspace",
+        Description = @"Helps you build Power Platform apps LOCALLY. Scaffold Dataverse components (tables, forms, views, plugins), understand workspace structure, convert data models, pack solutions. LOCAL operations are instant and reversible — always prefer this over environment operations when developing.",
+        InputSchema = BuildGuideInputSchema()
+    });
+
+    toolSet.AddAlwaysOn(new Tool
+    {
+        Name = "guide_environment",
+        Description = @"Inspects and modifies a LIVE Dataverse environment. List/describe/create/update/delete entities, attributes, relationships, option sets. Inspect solution layers, component dependencies. Manage publishers. Requires an active profile. Environment operations take 30s-5min — use workspace operations for development, this for inspection and troubleshooting.",
+        InputSchema = BuildGuideInputSchema()
+    });
+
+    toolSet.AddAlwaysOn(new Tool
+    {
+        Name = "guide_deployment",
+        Description = @"Manages the deployment lifecycle. Import/export/pack solutions, manage solution components, publish customizations, check uninstall safety, import packages. Handles the full flow: local build → pack → import → publish → verify. Requires an active profile.",
+        InputSchema = BuildGuideInputSchema()
+    });
+
+    toolSet.AddAlwaysOn(new Tool
+    {
+        Name = "guide_data",
+        Description = @"Queries and manages LIVE Dataverse data. Execute SQL, FetchXML, or OData queries. CRUD operations on records. Bulk create/update/upsert. File upload/download. Associate/disassociate records. Export/import CMT data packages for migration. Requires an active profile.",
+        InputSchema = BuildGuideInputSchema()
+    });
+
+    toolSet.AddAlwaysOn(new Tool
+    {
+        Name = "guide_config",
+        Description = @"Sets up and manages CLI configuration. Create auth credentials (service principals), connections, and profiles. Pin profiles to workspaces. Manage CLI settings. Validate profile connectivity. Required before any environment operation.",
+        InputSchema = BuildGuideInputSchema()
+    });
+
+    // execute_operation bridge — for same-turn execution
+    toolSet.AddAlwaysOn(new Tool
+    {
+        Name = "execute_operation",
+        Description = @"Execute any operation discovered via a guide tool. Use this for IMMEDIATE execution in the same turn.
+
+IMPORTANT: Call 'guide' first to discover available operations and their parameters.
+If a tool is marked DESTRUCTIVE, ask the user for confirmation before executing.",
+        InputSchema = BuildExecuteOperationInputSchema(),
+        Annotations = new ToolAnnotations { DestructiveHint = true }
+    });
+
+    // copilot-instructions — existing MCP-specific tool (registered via catalog too, but needs always-on)
+    var copilotEntry = registry.Catalog.GetEntry("copilot-instructions");
+    if (copilotEntry is not null)
+    {
+        toolSet.AddAlwaysOn(McpToolRegistry.BuildToolDefinition(copilotEntry));
+    }
+}
+
+// Builds the JSON Schema for guide tool input parameters
+JsonElement BuildGuideInputSchema()
+{
+    var schema = new Dictionary<string, object?>
+    {
+        ["type"] = "object",
+        ["properties"] = new Dictionary<string, object?>
+        {
+            ["query"] = new Dictionary<string, object?>
+            {
+                ["type"] = "string",
+                ["description"] = "Natural language description of what you want to do"
+            },
+            ["top"] = new Dictionary<string, object?>
+            {
+                ["type"] = "number",
+                ["description"] = "Number of results to return (default 5)"
+            },
+            ["workflow"] = new Dictionary<string, object?>
+            {
+                ["type"] = "string",
+                ["description"] = "Explicit workflow filter: local-development, environment-inspection, environment-mutation, data-operations, deployment, configuration, changeset-management"
+            }
+        },
+        ["required"] = new List<string> { "query" }
+    };
+    return JsonSerializer.Deserialize<JsonElement>(JsonSerializer.Serialize(schema));
+}
+
+// Builds the JSON Schema for execute_operation input parameters
+JsonElement BuildExecuteOperationInputSchema()
+{
+    var schema = new Dictionary<string, object?>
+    {
+        ["type"] = "object",
+        ["properties"] = new Dictionary<string, object?>
+        {
+            ["operation"] = new Dictionary<string, object?>
+            {
+                ["type"] = "string",
+                ["description"] = "Tool name returned by guide (e.g. 'environment_solution_import')"
+            },
+            ["arguments"] = new Dictionary<string, object?>
+            {
+                ["type"] = "string",
+                ["description"] = "JSON string of arguments matching the tool's schema"
+            }
+        },
+        ["required"] = new List<string> { "operation" }
+    };
+    return JsonSerializer.Deserialize<JsonElement>(JsonSerializer.Serialize(schema));
 }
 
 // Helper method to execute MCP-specific tools directly
