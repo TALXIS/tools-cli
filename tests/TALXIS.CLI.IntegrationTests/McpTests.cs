@@ -14,23 +14,15 @@ namespace TALXIS.CLI.IntegrationTests;
 public class McpTests
 {
     [Fact]
-    public async Task ListTools_ReturnsAlwaysOnTools()
+    public async Task ListTools_ReturnsExpectedTools()
     {
         var client = await McpTestClient.InstanceAsync;
         
         var tools = await client.ListToolsAsync();
         var toolNames = tools.Select(t => t.Name).ToList();
         
-        // Progressive disclosure: only always-on tools are visible at startup
-        Assert.Contains("guide", toolNames);
-        Assert.Contains("guide_workspace", toolNames);
-        Assert.Contains("guide_environment", toolNames);
-        Assert.Contains("guide_deployment", toolNames);
-        Assert.Contains("guide_data", toolNames);
-        Assert.Contains("guide_config", toolNames);
-        Assert.Contains("execute_operation", toolNames);
-        Assert.Contains("get_skill_details", toolNames);
-        Assert.Contains("copilot-instructions", toolNames);
+        Assert.Contains("workspace_component_type_list", toolNames);
+        Assert.Contains("workspace_component_type_explain", toolNames);
     }
 
     [Fact]

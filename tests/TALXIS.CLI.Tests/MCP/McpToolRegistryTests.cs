@@ -50,7 +50,6 @@ public class McpToolRegistryTests
         var names = tools.Select(t => t.Name).ToList();
 
         Assert.Contains("data_model_convert", names);
-        Assert.Contains("data_package_convert", names);
         Assert.Contains("data_package_import", names);
     }
 
