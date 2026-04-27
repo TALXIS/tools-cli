@@ -133,54 +133,38 @@ public class GuideHandler
     }
 
     /// <summary>
-    /// Discovers tools matching the query. Uses sampling (if client supports it)
-    /// for high-quality LLM-based tool selection with recipe generation, with keyword matching as fallback.
+    /// Discovers tools matching the query using MCP sampling.
+    /// The client's LLM selects the most relevant tools and produces a step-by-step recipe.
+    /// Sampling is required — clients without sampling support will receive an error.
     /// </summary>
     /// <param name="guideName">The guide tool name, used to load relevant internal skills.</param>
-    /// <returns>A tuple of matched tools and optional recipe text (only from sampling).</returns>
+    /// <returns>A tuple of matched tools and optional recipe text from the sampling response.</returns>
     private async Task<(IEnumerable<ToolCatalogEntry> tools, string? recipe)> DiscoverToolsAsync(
         string query, int top, McpServer server, CancellationToken ct, string guideName = "guide")
     {
-        try
-        {
-            var skillsContext = _reasoningEngine?.GetSkillsContext(guideName) ?? "";
-            var (samplingResult, recipe) = await SampleToolSelectionAsync(query, _catalog.GetCatalogPrompt(), skillsContext, top, server, ct);
-            if (samplingResult is not null && samplingResult.Count > 0)
-                return (samplingResult, recipe);
-        }
-        catch
-        {
-            // Sampling not supported or failed — fall through to keyword matching
-        }
+        var skillsContext = _reasoningEngine?.GetSkillsContext(guideName) ?? "";
+        var (samplingResult, recipe) = await SampleToolSelectionAsync(query, _catalog.GetCatalogPrompt(), skillsContext, top, server, ct);
 
-        // Keyword fallback produces no recipe
-        return (KeywordMatch(query, _catalog.GetAllEntries(), top), null);
+        if (samplingResult is null || samplingResult.Count == 0)
+            throw new InvalidOperationException("Sampling returned no results. Ensure the MCP client supports sampling.");
+
+        return (samplingResult, recipe);
     }
 
     /// <summary>
-    /// Discovers tools using a workflow-scoped catalog.
+    /// Discovers tools using a workflow-scoped catalog via MCP sampling.
     /// </summary>
-    /// <returns>A tuple of matched tools and optional recipe text (only from sampling).</returns>
     private async Task<(IEnumerable<ToolCatalogEntry> tools, string? recipe)> DiscoverToolsWithScopedCatalogAsync(
         string query, int top, string workflow, McpServer server, CancellationToken ct, string guideName = "guide")
     {
-        var scopedEntries = _catalog.GetEntriesByWorkflow(workflow).ToList();
+        var skillsContext = _reasoningEngine?.GetSkillsContext(guideName) ?? "";
+        var catalogPrompt = _catalog.GetWorkflowCatalogPrompt(workflow);
+        var (samplingResult, recipe) = await SampleToolSelectionAsync(query, catalogPrompt, skillsContext, top, server, ct);
 
-        try
-        {
-            var skillsContext = _reasoningEngine?.GetSkillsContext(guideName) ?? "";
-            var catalogPrompt = _catalog.GetWorkflowCatalogPrompt(workflow);
-            var (samplingResult, recipe) = await SampleToolSelectionAsync(query, catalogPrompt, skillsContext, top, server, ct);
-            if (samplingResult is not null && samplingResult.Count > 0)
-                return (samplingResult, recipe);
-        }
-        catch
-        {
-            // Sampling not supported or failed
-        }
+        if (samplingResult is null || samplingResult.Count == 0)
+            throw new InvalidOperationException("Sampling returned no results. Ensure the MCP client supports sampling.");
 
-        // Keyword fallback produces no recipe
-        return (KeywordMatch(query, scopedEntries, top), null);
+        return (samplingResult, recipe);
     }
 
     /// <summary>
@@ -270,52 +254,10 @@ RECIPE RULES:
             }
         }
 
-        // Fallback: look for tool names that exist in our catalog (no recipe in this path)
-        if (tools is null || tools.Count == 0)
-        {
-            var results = new List<ToolCatalogEntry>();
-            var words = responseText.Split([',', '\n', '\r', '"', ' ', '[', ']'], StringSplitOptions.RemoveEmptyEntries);
-            foreach (var word in words)
-            {
-                var trimmed = word.Trim();
-                var entry = _catalog.GetEntry(trimmed);
-                if (entry is not null && !results.Contains(entry))
-                    results.Add(entry);
-            }
-
-            tools = results.Count > 0 ? results : null;
-        }
-
         return (tools, recipe);
     }
 
-    /// <summary>
-    /// Simple keyword matching fallback. Tokenizes the query and scores tools by keyword overlap.
-    /// </summary>
-    private static IEnumerable<ToolCatalogEntry> KeywordMatch(
-        string query, IEnumerable<ToolCatalogEntry> candidates, int top)
-    {
-        var queryWords = query.ToLowerInvariant()
-            .Split(new[] { ' ', ',', '.', '?', '!', '-', '_' }, StringSplitOptions.RemoveEmptyEntries)
-            .Where(w => w.Length > 2) // skip tiny words
-            .ToHashSet();
 
-        if (queryWords.Count == 0)
-            return candidates.Take(top);
-
-        return candidates
-            .Select(entry =>
-            {
-                var text = $"{entry.Descriptor.Name} {entry.Descriptor.Description} {entry.Workflow}"
-                    .ToLowerInvariant();
-                var score = queryWords.Count(w => text.Contains(w));
-                return (entry, score);
-            })
-            .Where(x => x.score > 0)
-            .OrderByDescending(x => x.score)
-            .Take(top)
-            .Select(x => x.entry);
-    }
 
     /// <summary>
     /// Builds a compact listing (name + description only, no schemas) for browsing a full workflow.
