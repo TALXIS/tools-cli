@@ -10,4 +10,9 @@
     <PackageReference Include="DotMake.CommandLine" Version="2.6.7" />
   </ItemGroup>
 
+  <!-- Public skills — developer-facing knowledge base exposed via MCP get_skill_details and txc docs -->
+  <ItemGroup>
+    <EmbeddedResource Include="Skills/**" />
+  </ItemGroup>
+
 </Project>

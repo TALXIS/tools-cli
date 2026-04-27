@@ -29,6 +29,7 @@ public class McpTests
         Assert.Contains("guide_data", toolNames);
         Assert.Contains("guide_config", toolNames);
         Assert.Contains("execute_operation", toolNames);
+        Assert.Contains("get_skill_details", toolNames);
         Assert.Contains("copilot-instructions", toolNames);
     }
 

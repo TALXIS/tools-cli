@@ -1,0 +1,10 @@
+[
+  {"id": "project-structure", "title": "Workspace & Project Organization", "summary": "How to organize a Power Platform monorepo with solution projects, plugin projects, and packages.", "tags": ["workspace", "local-development"]},
+  {"id": "component-creation", "title": "Creating Dataverse Components", "summary": "Step-by-step guide for scaffolding tables, forms, views, and other components locally.", "tags": ["workspace", "local-development", "scaffolding"]},
+  {"id": "solution-layering", "title": "Solution Layering & Segmentation", "summary": "How to organize solutions, manage component ownership, and inspect solution layers.", "tags": ["deployment", "environment"]},
+  {"id": "deployment-workflow", "title": "Deployment Workflow", "summary": "The full deployment pipeline: build → pack → import → publish → verify.", "tags": ["deployment"]},
+  {"id": "data-migration", "title": "Data Migration & Seed Data", "summary": "Export, transform, and import data using CMT packages and bulk operations.", "tags": ["data-operations"]},
+  {"id": "troubleshooting", "title": "Troubleshooting Common Issues", "summary": "Decision trees for deployment failures, component conflicts, auth issues, and dependency problems.", "tags": ["troubleshooting", "environment"]},
+  {"id": "environment-management", "title": "Environment Setup & Profiles", "summary": "Configure auth, connections, and profiles to connect to Dataverse environments.", "tags": ["configuration"]},
+  {"id": "schema-management", "title": "Schema CRUD on Live Environments", "summary": "Create, update, and delete entities, attributes, relationships, and option sets on live environments.", "tags": ["environment", "schema"]}
+]

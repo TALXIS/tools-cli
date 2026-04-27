@@ -19,12 +19,20 @@ IHostApplicationLifetime? appLifetime = null;
 // In-memory store for tool execution logs, exposed as MCP resources
 var toolLogStore = new ToolLogStore();
 
+// Load internal reasoning skills for guide sampling prompts (proprietary, not exposed)
+var reasoningEngine = new GuideReasoningEngine();
+reasoningEngine.LoadSkills();
+
+// Load public skills for get_skill_details tool
+var publicSkillLoader = new PublicSkillLoader();
+publicSkillLoader.LoadIndex();
+
 // Session-scoped active tool set — starts with always-on tools only
 var activeToolSet = new ActiveToolSet();
-var guideHandler = new GuideHandler(mcpToolRegistry.Catalog, activeToolSet);
+var guideHandler = new GuideHandler(mcpToolRegistry.Catalog, activeToolSet, reasoningEngine);
 
 // Register always-on tools (these are the only tools visible at session start)
-RegisterAlwaysOnTools(activeToolSet, mcpToolRegistry);
+RegisterAlwaysOnTools(activeToolSet, mcpToolRegistry, publicSkillLoader);
 
 // Task store with cancel propagation for long-running operations (experimental MCP feature)
 var taskStore = new CancellableTaskStore(new InMemoryMcpTaskStore(
@@ -122,7 +130,13 @@ async ValueTask<CallToolResult> CallToolAsync(RequestContext<CallToolRequestPara
         return await HandleExecuteOperationAsync(p?.Arguments, ctx, ct);
     }
 
-    // --- Route: MCP-specific tools (copilot-instructions, get_skill_details) ---
+    // --- Route: get_skill_details ---
+    if (toolName == "get_skill_details")
+    {
+        return HandleGetSkillDetails(p?.Arguments);
+    }
+
+    // --- Route: MCP-specific tools (copilot-instructions) ---
     if (IsMcpSpecificTool(toolName))
     {
         var cmdType = mcpToolRegistry.FindCommandTypeByToolName(toolName);
@@ -180,7 +194,7 @@ async ValueTask<CallToolResult> HandleGuideToolAsync(
     }
     else if (workflowScope is not null)
     {
-        outcome = await guideHandler.HandleWorkflowGuideAsync(workflowScope, query, top, server, ct);
+        outcome = await guideHandler.HandleWorkflowGuideAsync(workflowScope, query, top, server, ct, guideName);
     }
     else
     {
@@ -416,7 +430,33 @@ bool IsGuideTool(string toolName)
 // Helper: checks if a tool is an MCP-specific in-process tool (not a CLI subprocess)
 bool IsMcpSpecificTool(string toolName)
 {
-    return toolName is "copilot-instructions" or "get_skill_details";
+    return toolName is "copilot-instructions";
+}
+
+// Handler: get_skill_details — returns public skill content from embedded resources
+CallToolResult HandleGetSkillDetails(IDictionary<string, JsonElement>? arguments)
+{
+    if (arguments is null || !arguments.TryGetValue("skill_id", out var skillIdEl))
+        return new CallToolResult
+        {
+            Content = [new TextContentBlock { Text = $"'skill_id' parameter is required.\n\n{publicSkillLoader.GetSkillsIndexPrompt()}" }],
+            IsError = true
+        };
+
+    var skillId = skillIdEl.GetString() ?? "";
+    var content = publicSkillLoader.GetSkillContent(skillId);
+
+    if (content is null)
+        return new CallToolResult
+        {
+            Content = [new TextContentBlock { Text = $"Skill '{skillId}' not found.\n\n{publicSkillLoader.GetSkillsIndexPrompt()}" }],
+            IsError = true
+        };
+
+    return new CallToolResult
+    {
+        Content = [new TextContentBlock { Text = content }]
+    };
 }
 
 // Helper: builds guidance text from catalog entries (used by environment guide)
@@ -446,7 +486,7 @@ string BuildGuidanceFromEntries(List<ToolCatalogEntry> entries, string? query)
 }
 
 // Registers the always-on tools in the ActiveToolSet
-void RegisterAlwaysOnTools(ActiveToolSet toolSet, McpToolRegistry registry)
+void RegisterAlwaysOnTools(ActiveToolSet toolSet, McpToolRegistry registry, PublicSkillLoader skillLoader)
 {
     // Generic guide — cross-domain discovery
     toolSet.AddAlwaysOn(new Tool
@@ -512,6 +552,21 @@ If a tool is marked DESTRUCTIVE, ask the user for confirmation before executing.
         Annotations = new ToolAnnotations { DestructiveHint = true }
     });
 
+    // get_skill_details — public knowledge base
+    var skillsDescription = @"Fetches detailed Power Platform development guidance.
+
+" + skillLoader.GetSkillsIndexPrompt() + @"
+
+For team-specific naming conventions and coding standards, use native Agent Skills (SKILL.md files) in your repository.";
+
+    toolSet.AddAlwaysOn(new Tool
+    {
+        Name = "get_skill_details",
+        Description = skillsDescription,
+        InputSchema = BuildGetSkillDetailsInputSchema(),
+        Annotations = new ToolAnnotations { ReadOnlyHint = true }
+    });
+
     // copilot-instructions — existing MCP-specific tool (registered via catalog too, but needs always-on)
     var copilotEntry = registry.Catalog.GetEntry("copilot-instructions");
     if (copilotEntry is not null)
@@ -569,6 +624,25 @@ JsonElement BuildExecuteOperationInputSchema()
             }
         },
         ["required"] = new List<string> { "operation" }
+    };
+    return JsonSerializer.Deserialize<JsonElement>(JsonSerializer.Serialize(schema));
+}
+
+// Builds the JSON Schema for get_skill_details input parameters
+JsonElement BuildGetSkillDetailsInputSchema()
+{
+    var schema = new Dictionary<string, object?>
+    {
+        ["type"] = "object",
+        ["properties"] = new Dictionary<string, object?>
+        {
+            ["skill_id"] = new Dictionary<string, object?>
+            {
+                ["type"] = "string",
+                ["description"] = "ID of the skill to fetch (e.g. 'component-creation', 'deployment-workflow')"
+            }
+        },
+        ["required"] = new List<string> { "skill_id" }
     };
     return JsonSerializer.Deserialize<JsonElement>(JsonSerializer.Serialize(schema));
 }

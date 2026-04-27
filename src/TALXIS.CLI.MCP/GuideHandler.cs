@@ -16,11 +16,13 @@ public class GuideHandler
 {
     private readonly ToolCatalog _catalog;
     private readonly ActiveToolSet _activeToolSet;
+    private readonly GuideReasoningEngine? _reasoningEngine;
 
-    public GuideHandler(ToolCatalog catalog, ActiveToolSet activeToolSet)
+    public GuideHandler(ToolCatalog catalog, ActiveToolSet activeToolSet, GuideReasoningEngine? reasoningEngine = null)
     {
         _catalog = catalog;
         _activeToolSet = activeToolSet;
+        _reasoningEngine = reasoningEngine;
     }
 
     /// <summary>
@@ -46,7 +48,7 @@ public class GuideHandler
         else
         {
             // Try sampling first, fall back to keyword matching
-            matchedEntries = await DiscoverToolsAsync(query, top, server, ct);
+            matchedEntries = await DiscoverToolsAsync(query, top, server, ct, "guide");
         }
 
         var entries = matchedEntries.ToList();
@@ -75,7 +77,7 @@ public class GuideHandler
     /// Handles a domain-specific guide call. Scopes to a specific workflow's catalog.
     /// </summary>
     public async Task<(CallToolResult Result, bool ToolsInjected)> HandleWorkflowGuideAsync(
-        string workflowScope, string query, int top, McpServer server, CancellationToken ct)
+        string workflowScope, string query, int top, McpServer server, CancellationToken ct, string guideName = "guide")
     {
         IEnumerable<ToolCatalogEntry> matchedEntries;
 
@@ -88,7 +90,7 @@ public class GuideHandler
         {
             // Use sampling with scoped catalog
             matchedEntries = await DiscoverToolsWithScopedCatalogAsync(
-                query, top, workflowScope, server, ct);
+                query, top, workflowScope, server, ct, guideName);
         }
 
         var entries = matchedEntries.ToList();
@@ -108,12 +110,14 @@ public class GuideHandler
     /// Discovers tools matching the query. Uses sampling (if client supports it)
     /// for high-quality LLM-based tool selection, with keyword matching as fallback.
     /// </summary>
+    /// <param name="guideName">The guide tool name, used to load relevant internal skills.</param>
     private async Task<IEnumerable<ToolCatalogEntry>> DiscoverToolsAsync(
-        string query, int top, McpServer server, CancellationToken ct)
+        string query, int top, McpServer server, CancellationToken ct, string guideName = "guide")
     {
         try
         {
-            var samplingResult = await SampleToolSelectionAsync(query, _catalog.GetCatalogPrompt(), top, server, ct);
+            var skillsContext = _reasoningEngine?.GetSkillsContext(guideName) ?? "";
+            var samplingResult = await SampleToolSelectionAsync(query, _catalog.GetCatalogPrompt(), skillsContext, top, server, ct);
             if (samplingResult is not null && samplingResult.Count > 0)
                 return samplingResult;
         }
@@ -129,14 +133,15 @@ public class GuideHandler
     /// Discovers tools using a workflow-scoped catalog.
     /// </summary>
     private async Task<IEnumerable<ToolCatalogEntry>> DiscoverToolsWithScopedCatalogAsync(
-        string query, int top, string workflow, McpServer server, CancellationToken ct)
+        string query, int top, string workflow, McpServer server, CancellationToken ct, string guideName = "guide")
     {
         var scopedEntries = _catalog.GetEntriesByWorkflow(workflow).ToList();
 
         try
         {
+            var skillsContext = _reasoningEngine?.GetSkillsContext(guideName) ?? "";
             var catalogPrompt = _catalog.GetWorkflowCatalogPrompt(workflow);
-            var samplingResult = await SampleToolSelectionAsync(query, catalogPrompt, top, server, ct);
+            var samplingResult = await SampleToolSelectionAsync(query, catalogPrompt, skillsContext, top, server, ct);
             if (samplingResult is not null && samplingResult.Count > 0)
                 return samplingResult;
         }
@@ -151,9 +156,10 @@ public class GuideHandler
     /// <summary>
     /// Sends a sampling/createMessage request to the client's LLM for tool selection.
     /// The client's own LLM understands the user's intent and selects the most relevant tools.
+    /// Internal skills are injected into the system prompt for proprietary reasoning context.
     /// </summary>
     private async Task<List<ToolCatalogEntry>?> SampleToolSelectionAsync(
-        string query, string catalogPrompt, int top, McpServer server, CancellationToken ct)
+        string query, string catalogPrompt, string internalSkillsContext, int top, McpServer server, CancellationToken ct)
     {
         var systemPrompt = $@"You are a tool selection assistant. Given the user's task description and a catalog of available operations, select the {top} most relevant tools.
 
@@ -161,7 +167,7 @@ IMPORTANT: Prefer LOCAL workspace operations over LIVE environment operations wh
 
 Return ONLY a JSON array of tool names, nothing else. Example: [""workspace_component_create"", ""workspace_component_type_list""]
 
-{catalogPrompt}";
+{catalogPrompt}{internalSkillsContext}";
 
         var samplingParams = new CreateMessageRequestParams
         {
