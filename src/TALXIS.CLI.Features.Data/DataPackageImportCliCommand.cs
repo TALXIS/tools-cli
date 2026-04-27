@@ -9,6 +9,8 @@ using TALXIS.CLI.Logging;
 namespace TALXIS.CLI.Features.Data;
 
 [CliIdempotent]
+[CliLongRunning]
+[CliWorkflow("data-operations")]
 [CliCommand(
     Name = "import",
     Description = "Imports a CMT data package into a LIVE Dataverse environment. Requires an active profile. For Dataverse solution .zip files, use 'environment solution import' instead."

@@ -1,8 +1,10 @@
 #pragma warning disable MCPEXP001
 
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using ModelContextProtocol.Protocol;
+using TALXIS.CLI.Core;
 
 namespace TALXIS.CLI.MCP;
 
@@ -25,7 +27,7 @@ public class ToolCatalog
             Descriptor = descriptor,
             InputSchema = inputSchema,
             Category = DeriveCategory(descriptor.Name),
-            Workflow = DeriveWorkflow(descriptor.Name, descriptor.Annotations)
+            Workflow = DeriveWorkflow(descriptor.Name, descriptor.Annotations, descriptor.CliCommandClass)
         };
         _entries[descriptor.Name] = entry;
         _cachedCatalogPrompt = null; // invalidate cache
@@ -149,8 +151,16 @@ public class ToolCatalog
     /// Derives a workflow tag from the tool name and annotations.
     /// Maps the tool into one of the standard developer workflows.
     /// </summary>
-    private static string DeriveWorkflow(string toolName, ToolAnnotations? annotations)
+    private static string DeriveWorkflow(string toolName, ToolAnnotations? annotations, Type? commandClass = null)
     {
+        // Explicit attribute takes precedence over name-based heuristic
+        if (commandClass is not null)
+        {
+            var workflowAttr = commandClass.GetCustomAttribute<CliWorkflowAttribute>();
+            if (workflowAttr is not null)
+                return workflowAttr.Workflow;
+        }
+
         // Workspace tools are always local development
         if (toolName.StartsWith("workspace_", StringComparison.OrdinalIgnoreCase))
             return "local-development";

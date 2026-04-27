@@ -10,24 +10,30 @@ public class McpToolRegistryTests
 {
     private readonly McpToolRegistry _registry = new();
 
+    /// <summary>
+    /// Helper to build Tool definitions from the catalog (replaces removed ListTools()).
+    /// </summary>
+    private List<Tool> GetAllTools() =>
+        _registry.Catalog.GetAllEntries().Select(McpToolRegistry.BuildToolDefinition).ToList();
+
     [Fact]
     public void ListTools_ReturnsNonEmptyList()
     {
-        var tools = _registry.ListTools();
+        var tools = GetAllTools();
         Assert.NotEmpty(tools);
     }
 
     [Fact]
     public void ListTools_ContainsCopilotInstructions()
     {
-        var tools = _registry.ListTools();
+        var tools = GetAllTools();
         Assert.Contains(tools, t => t.Name == "copilot-instructions");
     }
 
     [Fact]
     public void ListTools_ContainsWorkspaceTools()
     {
-        var tools = _registry.ListTools();
+        var tools = GetAllTools();
         var names = tools.Select(t => t.Name).ToList();
 
         Assert.Contains("workspace_component_type_list", names);
@@ -40,7 +46,7 @@ public class McpToolRegistryTests
     [Fact]
     public void ListTools_ContainsDataTools()
     {
-        var tools = _registry.ListTools();
+        var tools = GetAllTools();
         var names = tools.Select(t => t.Name).ToList();
 
         Assert.Contains("data_model_convert", names);
@@ -51,7 +57,7 @@ public class McpToolRegistryTests
     [Fact]
     public void ListTools_AllHaveDescription()
     {
-        var tools = _registry.ListTools();
+        var tools = GetAllTools();
         foreach (var tool in tools)
         {
             Assert.False(string.IsNullOrWhiteSpace(tool.Description), $"Tool '{tool.Name}' has no description");
@@ -61,7 +67,7 @@ public class McpToolRegistryTests
     [Fact]
     public void ListTools_AllHaveInputSchema()
     {
-        var tools = _registry.ListTools();
+        var tools = GetAllTools();
         foreach (var tool in tools)
         {
             Assert.NotEqual(default, tool.InputSchema);
@@ -93,7 +99,7 @@ public class McpToolRegistryTests
     [Fact]
     public void ListTools_NoDuplicateNames()
     {
-        var tools = _registry.ListTools();
+        var tools = GetAllTools();
         var names = tools.Select(t => t.Name).ToList();
         Assert.Equal(names.Count, names.Distinct().Count());
     }
@@ -101,7 +107,7 @@ public class McpToolRegistryTests
     [Fact]
     public void ListTools_LongRunningToolsAdvertiseTaskExecution()
     {
-        var tools = _registry.ListTools();
+        var tools = GetAllTools();
 
         var deployTool = tools.First(t => t.Name == "environment_package_import");
         Assert.NotNull(deployTool.Execution);
@@ -115,7 +121,7 @@ public class McpToolRegistryTests
     [Fact]
     public void ListTools_QuickToolsDoNotAdvertiseTaskExecution()
     {
-        var tools = _registry.ListTools();
+        var tools = GetAllTools();
 
         // workspace tools are quick operations, should not have task support
         var explainTool = tools.First(t => t.Name == "workspace_explain");

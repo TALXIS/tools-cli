@@ -78,7 +78,7 @@ PREFER LOCAL OPERATIONS: Workspace operations are instant and reversible. Enviro
         {
             Tools = new ToolsCapability
             {
-                ListChanged = true
+                ListChanged = false
             },
             Logging = new LoggingCapability {},
             Resources = new ResourcesCapability {}
@@ -184,27 +184,32 @@ async ValueTask<CallToolResult> HandleGuideToolAsync(
             bool injected = activeToolSet.InjectTools(tools);
             outcome = (new CallToolResult
             {
-                Content = [new TextContentBlock { Text = BuildGuidanceFromEntries(allEnvEntries, query) }]
+                Content = [new TextContentBlock { Text = GuideHandler.BuildGuidanceResponse(allEnvEntries, query) }]
             }, injected);
         }
         else
         {
-            // Scoped discovery across both environment workflows
-            var inspectionResult = await guideHandler.HandleWorkflowGuideAsync(
+            // Scoped discovery across both environment workflows (run in parallel)
+            var inspectionTask = guideHandler.HandleWorkflowGuideAsync(
                 "environment-inspection", query, top, server, ct, guideName);
-            var mutationResult = await guideHandler.HandleWorkflowGuideAsync(
+            var mutationTask = guideHandler.HandleWorkflowGuideAsync(
                 "environment-mutation", query, top, server, ct, guideName);
+            await Task.WhenAll(inspectionTask, mutationTask);
 
-            // Merge: combine both results, prefer whichever injected tools
+            var inspectionResult = inspectionTask.Result;
+            var mutationResult = mutationTask.Result;
             bool anyInjected = inspectionResult.ToolsInjected || mutationResult.ToolsInjected;
-            var combinedText = inspectionResult.Result.Content.OfType<TextContentBlock>().FirstOrDefault()?.Text ?? "";
-            var mutationText = mutationResult.Result.Content.OfType<TextContentBlock>().FirstOrDefault()?.Text ?? "";
-            if (!string.IsNullOrEmpty(mutationText) && mutationText.Contains("**1."))
-                combinedText += "\n\n" + mutationText;
+
+            // Merge text from both results
+            var parts = new List<string>();
+            var inspText = inspectionResult.Result.Content.OfType<TextContentBlock>().FirstOrDefault()?.Text;
+            var mutText = mutationResult.Result.Content.OfType<TextContentBlock>().FirstOrDefault()?.Text;
+            if (!string.IsNullOrEmpty(inspText)) parts.Add(inspText);
+            if (!string.IsNullOrEmpty(mutText)) parts.Add(mutText);
 
             outcome = (new CallToolResult
             {
-                Content = [new TextContentBlock { Text = combinedText }]
+                Content = [new TextContentBlock { Text = string.Join("\n\n", parts) }]
             }, anyInjected);
         }
     }
@@ -479,32 +484,6 @@ CallToolResult HandleGetSkillDetails(IDictionary<string, JsonElement>? arguments
     {
         Content = [new TextContentBlock { Text = content }]
     };
-}
-
-// Helper: builds guidance text from catalog entries (used by environment guide)
-string BuildGuidanceFromEntries(List<ToolCatalogEntry> entries, string? query)
-{
-    var sb = new System.Text.StringBuilder();
-    sb.AppendLine($"Found {entries.Count} operation(s):");
-    sb.AppendLine();
-
-    for (int i = 0; i < entries.Count; i++)
-    {
-        var entry = entries[i];
-        var flags = new List<string>();
-        if (entry.Descriptor.Annotations?.DestructiveHint == true) flags.Add("⚠️ DESTRUCTIVE");
-        if (entry.Descriptor.Annotations?.ReadOnlyHint == true) flags.Add("📖 read-only");
-
-        sb.AppendLine($"**{i + 1}. {entry.Descriptor.Name}** {string.Join(" ", flags)}");
-        sb.AppendLine(entry.Descriptor.Description);
-        sb.AppendLine($"Workflow: {entry.Workflow}");
-        sb.AppendLine($"Parameters: {entry.InputSchema.GetRawText()}");
-        sb.AppendLine();
-    }
-
-    sb.AppendLine("---");
-    sb.AppendLine("To use immediately: call `execute_operation` with the operation name and arguments above.");
-    return sb.ToString();
 }
 
 // Registers the always-on tools in the ActiveToolSet

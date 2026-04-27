@@ -261,7 +261,7 @@ Return ONLY a JSON array of tool names, nothing else. Example: [""workspace_comp
     /// <summary>
     /// Builds a structured guidance response from matched catalog entries.
     /// </summary>
-    private static string BuildGuidanceResponse(List<ToolCatalogEntry> entries, string? query)
+    public static string BuildGuidanceResponse(List<ToolCatalogEntry> entries, string? query)
     {
         var sb = new StringBuilder();
 

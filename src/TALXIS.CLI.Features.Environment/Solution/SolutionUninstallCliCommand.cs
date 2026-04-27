@@ -8,6 +8,7 @@ using TALXIS.CLI.Core.Abstractions;
 
 namespace TALXIS.CLI.Features.Environment.Solution;
 
+[CliLongRunning]
 [CliCommand(
     Name = "uninstall",
     Description = "Uninstall a managed solution and remove all its components from the environment."

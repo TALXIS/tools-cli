@@ -76,14 +76,6 @@ public class PublicSkillLoader
     }
 
     /// <summary>
-    /// Gets the skill index (all skill metadata without full content).
-    /// </summary>
-    public IReadOnlyList<PublicSkillIndexEntry> GetIndex()
-    {
-        return _index ?? [];
-    }
-
-    /// <summary>
     /// Builds a compact skills index string for inclusion in ServerInstructions.
     /// </summary>
     public string GetSkillsIndexPrompt()
