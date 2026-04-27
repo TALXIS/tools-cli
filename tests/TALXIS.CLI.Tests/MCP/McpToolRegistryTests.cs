@@ -137,4 +137,36 @@ public class McpToolRegistryTests
         Assert.NotNull(explainDescriptor);
         Assert.False(explainDescriptor.SupportsTaskExecution);
     }
+
+    [Fact]
+    public void Catalog_IsPopulatedAtStartup()
+    {
+        Assert.True(_registry.Catalog.Count > 0);
+    }
+
+    [Fact]
+    public void Catalog_EntriesHavePreBuiltSchemas()
+    {
+        foreach (var entry in _registry.Catalog.GetAllEntries())
+        {
+            Assert.NotEqual(default, entry.InputSchema);
+        }
+    }
+
+    [Fact]
+    public void Catalog_EntriesHaveWorkflowTags()
+    {
+        foreach (var entry in _registry.Catalog.GetAllEntries())
+        {
+            Assert.False(string.IsNullOrEmpty(entry.Workflow), $"Tool '{entry.Descriptor.Name}' has no workflow tag");
+        }
+    }
+
+    [Fact]
+    public void Catalog_GetCatalogPrompt_ContainsToolNames()
+    {
+        var prompt = _registry.Catalog.GetCatalogPrompt();
+        Assert.Contains("workspace_explain", prompt);
+        Assert.Contains("copilot-instructions", prompt);
+    }
 }

@@ -71,3 +71,32 @@ src/
 4. Reuse `Core/Identity/` for MSAL client construction (shared `MsalClientFactory`, `EntraCloudMap`, `MsalTokenCacheBinder`).
 5. Register DI services from a new `Add<Provider>Provider()` extension method.
 6. Call the new extension from the composition root in `TxcServicesBootstrap`.
+
+## MCP Server — Progressive Disclosure
+
+The `txc-mcp` MCP server uses progressive disclosure to avoid overwhelming clients with 128+ tool definitions. Instead of exposing the full catalog on `tools/list`, the server surfaces a small always-on set and dynamically injects tools as they are discovered.
+
+### `tools/list` Returns Only Always-On Tools
+
+When the client calls `tools/list`, the server returns only the tools registered in `ActiveToolSet` as always-on. At startup this is 9 tools: 6 domain-scoped guides, `execute_operation`, `get_skill_details`, and `copilot-instructions`. The full internal catalog (all 128+ CLI commands) is held in `ToolCatalog` but never directly exposed via `tools/list`.
+
+### Guides Use Sampling to Select Tools
+
+Each guide tool (`guide`, `guide_workspace`, `guide_environment`, etc.) handles tool discovery by sending a `sampling/createMessage` request to the client's LLM. The sampling prompt includes:
+- The full or workflow-scoped catalog (tool names, descriptions, annotations)
+- Internal reasoning skills loaded by `GuideReasoningEngine` (domain-specific expertise files from `Skills/Internal/`)
+
+The client's LLM selects the most relevant tools and returns a JSON array of tool names. If sampling is not supported or fails, the guide falls back to keyword matching.
+
+### `execute_operation` Bridges Same-Turn Execution
+
+After a guide returns its results, the client can immediately call `execute_operation` with the tool name and arguments — without waiting for a `listChanged` round-trip. `execute_operation` looks up the tool in the `ToolCatalog`, resolves its command type, and dispatches execution through the standard `CliSubprocessRunner` pipeline.
+
+### `ActiveToolSet` Manages Injected Tools
+
+When a guide discovers tools, it injects them into `ActiveToolSet` via `InjectTools()` and triggers a `listChanged` notification. On the next turn, the client sees the injected tools in `tools/list` and can call them directly. `ActiveToolSet` uses LRU eviction (default cap: 40 injected tools) to keep the active set bounded. Always-on tools are never evicted.
+
+### Two-Tier Skills Architecture
+
+- **Internal skills** — Proprietary `.md` files embedded in the MCP assembly (`Skills/Internal/`). Loaded by `GuideReasoningEngine` at startup and injected into sampling prompts. Never exposed to clients. Encode Power Platform expertise, decision trees, and local-first development patterns.
+- **Public skills** — Developer-facing documentation loaded from `TALXIS.CLI.Features.Docs` by `PublicSkillLoader`. Exposed via the `get_skill_details` MCP tool. Contain how-to guides, best practices, and reference material.

@@ -227,4 +227,40 @@ See `docs/mcp-http-auth-notes.md` (design notes, no code in v1).
 
 ---
 
+## Progressive Disclosure Architecture
+
+### The Problem
+
+MCP clients like GitHub Copilot have practical limits on the number of tools they can handle effectively. With 128+ CLI commands registered as MCP tools, the full catalog causes context bloat — the client's LLM spends tokens parsing tool schemas instead of reasoning about the user's task.
+
+### The Solution
+
+`txc-mcp` uses **progressive disclosure** to expose only a small set of always-on tools at startup, then dynamically injects additional tools as needed:
+
+**Always-on tools (9 total):**
+- **6 guide tools** — `guide`, `guide_workspace`, `guide_environment`, `guide_deployment`, `guide_data`, `guide_config` — domain-scoped tool discovery via LLM sampling
+- **`execute_operation`** — bridges same-turn execution for tools discovered by a guide
+- **`get_skill_details`** — retrieves public developer-facing skills (documentation, best practices)
+- **`copilot-instructions`** — manages `.github/copilot-instructions.md` for AI assistants
+
+### The Workflow
+
+1. **Guide call** — The client calls a guide tool (e.g., `guide_workspace`) with a natural language query describing the task.
+2. **Sampling** — The guide sends a `sampling/createMessage` request to the client's LLM with the full internal catalog, asking it to select the most relevant tools. Internal reasoning skills are injected for domain-specific expertise.
+3. **Same-turn execution** — The guide returns structured results with tool names and schemas. The client can immediately call `execute_operation` with the selected tool name and arguments — no round-trip needed.
+4. **Direct calls (next turn)** — Matched tools are injected into the `ActiveToolSet` and a `listChanged` notification is sent. On the next turn, the client can call the injected tools directly by name.
+
+### Skills Architecture
+
+`txc-mcp` has a two-tier skills system:
+
+- **Internal skills** (proprietary) — Embedded `.md` files in `Skills/Internal/` containing Power Platform development expertise, decision trees, and workflow patterns. These are loaded by `GuideReasoningEngine` and injected into sampling prompts. They are **never exposed to clients** — they guide the server's own reasoning.
+- **Public skills** (developer-facing) — Loaded from `TALXIS.CLI.Features.Docs` embedded resources. Accessible via the `get_skill_details` MCP tool and the `txc docs` CLI command. These contain documentation, best practices, and how-to guides for developers.
+
+### Local-First Development Philosophy
+
+Guide tools and internal skills encode a **local-first** philosophy: prefer local workspace operations (scaffolding, validation, schema inspection) over live environment operations (API calls to Dataverse). Environment operations take 30 seconds to 5 minutes and should only be used for inspection, troubleshooting, or deployment after local validation is complete.
+
+---
+
 For more details, see the main [TALXIS CLI README](../../README.md).
