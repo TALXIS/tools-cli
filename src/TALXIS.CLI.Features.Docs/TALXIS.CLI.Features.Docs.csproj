@@ -10,6 +10,11 @@
     <PackageReference Include="DotMake.CommandLine" Version="2.6.7" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\TALXIS.CLI.Core\TALXIS.CLI.Core.csproj" />
+    <ProjectReference Include="..\TALXIS.CLI.Logging\TALXIS.CLI.Logging.csproj" />
+  </ItemGroup>
+
   <!-- Public skills — developer-facing knowledge base exposed via MCP get_skill_details and txc docs -->
   <ItemGroup>
     <EmbeddedResource Include="Skills/**" />
