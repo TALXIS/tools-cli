@@ -8,8 +8,9 @@ using ModelContextProtocol.Server;
 namespace TALXIS.CLI.MCP;
 
 /// <summary>
-/// Handles guide tool calls. Uses sampling (when available) or keyword matching
-/// to discover relevant tools from the catalog and return structured guidance.
+/// Handles guide tool calls. Uses MCP sampling to discover relevant tools from the catalog
+/// and return structured guidance with step-by-step recipes.
+/// Sampling is required — clients without sampling support will receive an error.
 /// Also injects discovered tools into the ActiveToolSet for direct calling on subsequent turns.
 /// </summary>
 public class GuideHandler
@@ -61,7 +62,7 @@ public class GuideHandler
         }
         else
         {
-            // Try sampling first, fall back to keyword matching
+            // Use sampling to discover relevant tools (sampling is required)
             var (tools, recipe) = await DiscoverToolsAsync(query, top, server, ct, "guide");
             matchedEntries = tools;
             recipeText = recipe;
@@ -185,7 +186,7 @@ FORMAT YOUR RESPONSE AS:
 3. Then a numbered recipe with concrete steps
 
 RECIPE RULES:
-- Each step should specify the exact execute_operation call with operation name
+- Each step should specify the exact execute_operation call with operation name (only for CLI-backed tools; MCP in-process tools like 'copilot-instructions' should be called directly)
 - Include realistic parameter values based on the user's query
 - Add validation checkpoints (e.g., ""Build to validate: dotnet build"")
 - Prefer LOCAL workspace operations over environment operations
@@ -217,8 +218,8 @@ RECIPE RULES:
 
     /// <summary>
     /// Parses tool names and recipe text from a sampling response.
-    /// Expects a JSON array on the first line (for tool injection) followed by optional recipe text.
-    /// Resilient to noise (system prompt leakage per copilot-cli#2467, preamble text).
+    /// Scans each line for a valid JSON string array (tool names), then extracts recipe text from lines after.
+    /// Resilient to preamble text and noise (system prompt leakage per copilot-cli#2467).
     /// </summary>
     /// <returns>A tuple of matched tools and optional recipe text.</returns>
     private (List<ToolCatalogEntry>? tools, string? recipe) ParseToolNamesAndRecipeFromSamplingResponse(string responseText)
@@ -226,28 +227,48 @@ RECIPE RULES:
         List<ToolCatalogEntry>? tools = null;
         string? recipe = null;
 
-        // Try to find a JSON array in the response
-        var startBracket = responseText.IndexOf('[');
-        var endBracket = responseText.IndexOf(']', startBracket >= 0 ? startBracket : 0);
+        var lines = responseText.Split('\n');
+        int jsonLineIndex = -1;
 
-        if (startBracket >= 0 && endBracket > startBracket)
+        // Scan lines to find the first one containing a valid JSON string array
+        for (int i = 0; i < lines.Length; i++)
         {
-            var jsonPart = responseText[startBracket..(endBracket + 1)];
-            try
+            var line = lines[i].Trim();
+            var startBracket = line.IndexOf('[');
+            if (startBracket < 0) continue;
+
+            // Try progressively from each '[' in the line to find a valid JSON array
+            while (startBracket >= 0 && startBracket < line.Length)
             {
-                var names = JsonSerializer.Deserialize<List<string>>(jsonPart);
-                if (names is not null)
+                var endBracket = line.IndexOf(']', startBracket);
+                if (endBracket < 0) break;
+
+                var candidate = line[startBracket..(endBracket + 1)];
+                try
                 {
-                    tools = _catalog.GetToolDetails(names).ToList();
+                    var names = JsonSerializer.Deserialize<List<string>>(candidate);
+                    if (names is not null && names.Count > 0)
+                    {
+                        tools = _catalog.GetToolDetails(names).ToList();
+                        jsonLineIndex = i;
+                        break;
+                    }
                 }
-            }
-            catch
-            {
-                // JSON parse failed — try line-by-line extraction below
+                catch (JsonException)
+                {
+                    // Not valid JSON — try next '[' on this line
+                }
+
+                startBracket = line.IndexOf('[', startBracket + 1);
             }
 
-            // Extract recipe text: everything after the JSON array, trimmed of leading blank lines
-            var afterJson = responseText[(endBracket + 1)..].TrimStart('\r', '\n');
+            if (jsonLineIndex >= 0) break;
+        }
+
+        // Extract recipe text: everything after the JSON array line, trimmed of leading blank lines
+        if (jsonLineIndex >= 0 && jsonLineIndex + 1 < lines.Length)
+        {
+            var afterJson = string.Join('\n', lines[(jsonLineIndex + 1)..]).TrimStart('\r', '\n');
             if (!string.IsNullOrWhiteSpace(afterJson))
             {
                 recipe = afterJson;
@@ -289,7 +310,7 @@ RECIPE RULES:
     /// </summary>
     /// <param name="entries">Matched catalog entries with full schemas.</param>
     /// <param name="query">The original user query.</param>
-    /// <param name="recipeText">Optional recipe text produced by sampling. Null for keyword-matched results.</param>
+    /// <param name="recipeText">Optional recipe text produced by sampling.</param>
     public static string BuildGuidanceResponse(List<ToolCatalogEntry> entries, string? query, string? recipeText = null)
     {
         var sb = new StringBuilder();

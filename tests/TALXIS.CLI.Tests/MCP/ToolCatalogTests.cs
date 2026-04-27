@@ -31,7 +31,8 @@ public class ToolCatalogTests
     private static JsonElement CreateTestSchema()
     {
         var json = """{"type":"object","properties":{"Param":{"type":"string"}}}""";
-        return JsonDocument.Parse(json).RootElement.Clone();
+        using var doc = JsonDocument.Parse(json);
+        return doc.RootElement.Clone();
     }
 
     /// <summary>

@@ -151,7 +151,9 @@ async ValueTask<CallToolResult> HandleGuideToolAsync(
     string guideName, IDictionary<string, JsonElement>? arguments, McpServer server, CancellationToken ct)
 {
     var query = arguments?.TryGetValue("query", out var queryEl) == true ? queryEl.GetString() ?? "" : "";
-    var top = arguments?.TryGetValue("top", out var topEl) == true ? (int)(topEl.GetDouble()) : 5;
+    var top = arguments?.TryGetValue("top", out var topEl) == true
+        ? Math.Clamp((int)(topEl.GetDouble()), 1, 20)
+        : 5;
     var workflow = arguments?.TryGetValue("workflow", out var wfEl) == true ? wfEl.GetString() : null;
 
     // Map domain guide name to workflow scope
