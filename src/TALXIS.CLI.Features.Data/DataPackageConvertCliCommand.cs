@@ -6,6 +6,7 @@ using TALXIS.CLI.Logging;
 namespace TALXIS.CLI.Features.Data;
 
 [CliReadOnly]
+[CliWorkflow("local-development")]
 [CliCommand(
     Name = "convert",
     Description = "Converts tables from an XLSX file to CMT data package XML. Local file transformation — no environment connection needed. Output can be imported via 'data package import'."
