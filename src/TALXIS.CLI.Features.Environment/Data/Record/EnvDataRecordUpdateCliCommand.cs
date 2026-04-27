@@ -14,7 +14,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Record;
 [CliIdempotent]
 [CliCommand(
     Name = "update",
-    Description = "Update a single record by ID from JSON attributes."
+    Description = "Updates a single Dataverse record by GUID in the LIVE connected environment. Requires an active profile."
 )]
 #pragma warning disable TXC003
 public class EnvDataRecordUpdateCliCommand : StagedCliCommand

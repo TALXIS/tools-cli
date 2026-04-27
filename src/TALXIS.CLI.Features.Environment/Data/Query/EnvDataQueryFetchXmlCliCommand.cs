@@ -19,7 +19,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Query;
 [CliReadOnly]
 [CliCommand(
     Name = "fetchxml",
-    Description = "Execute a FetchXML query against the Dataverse environment."
+    Description = "Executes a FetchXML query against the LIVE Dataverse environment. Requires an active profile. Use for complex queries with linked entities."
 )]
 public class EnvDataQueryFetchXmlCliCommand : ProfiledCliCommand
 {

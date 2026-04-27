@@ -14,7 +14,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Record;
 [CliDestructive("Removes the association between two records.")]
 [CliCommand(
     Name = "disassociate",
-    Description = "Remove the link between two records in a many-to-many (N:N) relationship."
+    Description = "Removes the link between two records in a many-to-many (N:N) relationship in the LIVE environment. Requires an active profile."
 )]
 #pragma warning disable TXC003
 public class EnvDataRecordDisassociateCliCommand : StagedCliCommand, IDestructiveCommand

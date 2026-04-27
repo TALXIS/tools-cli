@@ -13,7 +13,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Record;
 [CliIdempotent]
 [CliCommand(
     Name = "associate",
-    Description = "Link two records together through a many-to-many (N:N) relationship. You need to know the relationship schema name."
+    Description = "Links two records together through a many-to-many (N:N) relationship in the LIVE environment. Requires an active profile. You need to know the relationship schema name."
 )]
 #pragma warning disable TXC003
 public class EnvDataRecordAssociateCliCommand : StagedCliCommand

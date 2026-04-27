@@ -6,11 +6,19 @@ namespace TALXIS.CLI.MCP;
 
 /// <summary>
 /// Registry for mapping CLI commands to MCP tool definitions and providing lookup functionality.
+/// Populates a <see cref="ToolCatalog"/> with pre-built schemas at startup.
 /// </summary>
 public class McpToolRegistry
 {
     private readonly McpToolDescriptorProvider _descriptorProvider = new();
     private readonly CliCommandLookupService _commandLookup = new();
+    private readonly CliCommandAdapter _schemaBuilder = new();
+
+    /// <summary>
+    /// The full internal tool catalog with pre-built schemas and workflow metadata.
+    /// Used by guide tools for sampling and by execute_operation for dispatch.
+    /// </summary>
+    public ToolCatalog Catalog { get; } = new();
 
     /// <summary>
     /// CLI command types that represent long-running operations and support task-augmented execution.
@@ -33,7 +41,8 @@ public class McpToolRegistry
     }
 
     /// <summary>
-    /// Registers all CLI commands as MCP tools using the metadata provider.
+    /// Registers all CLI commands as MCP tools using the metadata provider,
+    /// and populates the <see cref="Catalog"/> with pre-built schemas.
     /// </summary>
     private void RegisterAllTools()
     {
@@ -42,6 +51,10 @@ public class McpToolRegistry
         {
             descriptor.SupportsTaskExecution = _longRunningCommandTypes.Contains(descriptor.CliCommandClass);
             _descriptorProvider.AddDescriptor(descriptor);
+
+            // Pre-build and cache the schema in the catalog
+            var schema = _schemaBuilder.BuildInputSchema(descriptor.CliCommandClass);
+            Catalog.Register(descriptor, schema);
         }
 
         // Register MCP-specific tools that are not part of the main CLI command tree
@@ -54,44 +67,74 @@ public class McpToolRegistry
     /// </summary>
     private void RegisterMcpSpecificTools()
     {
-        _descriptorProvider.AddDescriptor(new McpToolDescriptor
+        var descriptor = new McpToolDescriptor
         {
             Name = "copilot-instructions",
             Description = "Creates or updates .github/copilot-instructions.md file with TALXIS CLI instructions in the target project",
             CliCommandClass = typeof(CopilotInstructionsCliCommand),
             SupportsTaskExecution = false
-        });
+        };
+        _descriptorProvider.AddDescriptor(descriptor);
+
+        var schema = _schemaBuilder.BuildInputSchema(descriptor.CliCommandClass);
+        Catalog.Register(descriptor, schema);
     }
 
     /// <summary>
-    /// Lists all registered MCP tools with their metadata and input schemas.
+    /// Lists all registered MCP tools with their metadata and pre-cached input schemas.
     /// </summary>
     /// <returns>A list of <see cref="Tool"/> definitions.</returns>
     public List<Tool> ListTools()
     {
         var toolDefinitions = new List<Tool>();
-        foreach (var descriptor in _descriptorProvider.GetAllDescriptors())
+        foreach (var entry in Catalog.GetAllEntries())
         {
             var tool = new Tool
             {
-                Name = descriptor.Name,
-                Description = descriptor.Description,
-                InputSchema = new CliCommandAdapter().BuildInputSchema(descriptor.CliCommandClass)
+                Name = entry.Descriptor.Name,
+                Description = entry.Descriptor.Description,
+                InputSchema = entry.InputSchema
             };
 
-            if (descriptor.SupportsTaskExecution)
+            if (entry.Descriptor.SupportsTaskExecution)
             {
                 tool.Execution = new ToolExecution { TaskSupport = new ToolTaskSupport() };
             }
 
-            if (descriptor.Annotations is not null)
+            if (entry.Descriptor.Annotations is not null)
             {
-                tool.Annotations = descriptor.Annotations;
+                tool.Annotations = entry.Descriptor.Annotations;
             }
 
             toolDefinitions.Add(tool);
         }
         return toolDefinitions;
+    }
+
+    /// <summary>
+    /// Builds a <see cref="Tool"/> definition for a specific catalog entry.
+    /// Used by ActiveToolSet when injecting tools.
+    /// </summary>
+    public static Tool BuildToolDefinition(ToolCatalogEntry entry)
+    {
+        var tool = new Tool
+        {
+            Name = entry.Descriptor.Name,
+            Description = entry.Descriptor.Description,
+            InputSchema = entry.InputSchema
+        };
+
+        if (entry.Descriptor.SupportsTaskExecution)
+        {
+            tool.Execution = new ToolExecution { TaskSupport = new ToolTaskSupport() };
+        }
+
+        if (entry.Descriptor.Annotations is not null)
+        {
+            tool.Annotations = entry.Descriptor.Annotations;
+        }
+
+        return tool;
     }
 
     /// <summary>

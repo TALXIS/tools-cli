@@ -14,7 +14,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Record;
 [CliReadOnly]
 [CliCommand(
     Name = "get",
-    Description = "Retrieve a single record by ID."
+    Description = "Retrieves a single Dataverse record by GUID from the LIVE connected environment. Requires an active profile. Use 'environment entity describe' to discover column names."
 )]
 public class EnvDataRecordGetCliCommand : ProfiledCliCommand
 {

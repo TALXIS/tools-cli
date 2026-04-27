@@ -14,7 +14,7 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 [CliReadOnly]
 [CliCommand(
     Name = "list",
-    Description = "List entities in the target environment."
+    Description = "Lists Dataverse tables (entities) in the LIVE connected environment. Requires an active profile. Use --search to filter by name. For LOCAL workspace component types, use 'workspace component type list' instead."
 )]
 public class EntityListCliCommand : ProfiledCliCommand
 {

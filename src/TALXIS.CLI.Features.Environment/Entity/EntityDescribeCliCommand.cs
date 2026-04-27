@@ -14,7 +14,7 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 [CliReadOnly]
 [CliCommand(
     Name = "describe",
-    Description = "Describe columns/attributes of an entity."
+    Description = "Describes all columns/attributes of a Dataverse table in the LIVE connected environment — names, types, requirements, and relationships. Requires an active profile. Use before constructing data queries or record operations."
 )]
 public class EntityDescribeCliCommand : ProfiledCliCommand
 {

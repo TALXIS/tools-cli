@@ -8,7 +8,7 @@ namespace TALXIS.CLI.Features.Workspace;
 
 [CliIdempotent]
 [CliCommand(
-    Description = "Scaffolds a component from a template and passes parameters",
+    Description = "Scaffolds a new Dataverse component (table, form, view, etc.) into the LOCAL workspace from a built-in template. Does NOT deploy to any environment. Call 'workspace component type list' first for valid types, then 'workspace component parameter list' for required params.",
     Name = "create")]
 public class ComponentCreateCliCommand : TxcLeafCommand, ICliGetCompletions
 {

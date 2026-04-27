@@ -11,7 +11,7 @@ namespace TALXIS.CLI.Features.Data;
 [CliIdempotent]
 [CliCommand(
     Name = "import",
-    Description = "Import a CMT data package into a Dataverse environment"
+    Description = "Imports a CMT data package into a LIVE Dataverse environment. Requires an active profile. For Dataverse solution .zip files, use 'environment solution import' instead."
 )]
 public class DataPackageImportCliCommand : ProfiledCliCommand
 {

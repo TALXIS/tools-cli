@@ -13,7 +13,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Record;
 [CliIdempotent]
 [CliCommand(
     Name = "upload-file",
-    Description = "Upload a file to a file/image column on a record."
+    Description = "Uploads a file to a file/image column on a Dataverse record in the LIVE environment. Requires an active profile."
 )]
 #pragma warning disable TXC003
 public class EnvDataRecordUploadFileCliCommand : StagedCliCommand

@@ -8,7 +8,7 @@ namespace TALXIS.CLI.Features.Workspace;
 
 [CliReadOnly]
 [CliCommand(
-    Description = "Lists available solution components",
+    Description = "Lists component types available for LOCAL scaffolding via 'workspace component create'. Reads from built-in templates, not from a live environment.",
     Name = "list"
 )]
 public class ComponentTypeListCliCommand : TxcLeafCommand

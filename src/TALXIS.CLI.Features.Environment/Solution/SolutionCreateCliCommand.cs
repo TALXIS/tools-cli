@@ -11,7 +11,7 @@ namespace TALXIS.CLI.Features.Environment.Solution;
 [CliIdempotent]
 [CliCommand(
     Name = "create",
-    Description = "Create a new unmanaged solution in the target environment."
+    Description = "Creates a new unmanaged solution on the LIVE environment. Requires an active profile."
 )]
 public class SolutionCreateCliCommand : ProfiledCliCommand
 {

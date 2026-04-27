@@ -14,7 +14,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Bulk;
 [CliIdempotent]
 [CliCommand(
     Name = "update",
-    Description = "Update multiple records in a single UpdateMultiple request."
+    Description = "Updates multiple Dataverse records in a single batch request on the LIVE connected environment. Requires an active profile."
 )]
 public class EnvDataBulkUpdateCliCommand : ProfiledCliCommand
 {

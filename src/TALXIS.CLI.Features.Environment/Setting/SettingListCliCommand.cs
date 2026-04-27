@@ -15,7 +15,7 @@ namespace TALXIS.CLI.Features.Environment.Setting;
 [CliReadOnly]
 [CliCommand(
     Name = "list",
-    Description = "List environment settings."
+    Description = "Lists Dataverse environment-level settings (audit, feature flags, etc.) from the LIVE connected environment. Requires an active profile. For LOCAL CLI preferences, use 'config setting list' instead."
 )]
 public class SettingListCliCommand : ProfiledCliCommand
 {

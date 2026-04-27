@@ -10,7 +10,7 @@ namespace TALXIS.CLI.Features.Environment.Solution;
 [CliReadOnly]
 [CliCommand(
     Name = "export",
-    Description = "Export a solution from the environment as a ZIP or unpacked folder."
+    Description = "Export a solution from the LIVE environment as a ZIP or unpacked folder. Requires an active profile."
 )]
 public class SolutionExportCliCommand : ProfiledCliCommand
 {
