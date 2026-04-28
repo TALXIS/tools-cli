@@ -197,13 +197,42 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
                         string actualOutputDirectory = result.OutputBaseDirectory ?? outputPath;
                         // Ensure the path is absolute for post-action processors
                         actualOutputDirectory = Path.GetFullPath(actualOutputDirectory);
-                        var (postActionResult, failedActions) = dispatcher.RunPostActions(postActions, ScriptPermission.Yes, result, actualOutputDirectory);
+
+                        PostActionResult postActionResult;
+                        List<IPostAction> failedActions;
+                        try
+                        {
+                            (postActionResult, failedActions) = dispatcher.RunPostActions(postActions, ScriptPermission.Yes, result, actualOutputDirectory);
+                        }
+                        catch (Exception ex)
+                        {
+                            // Defense-in-depth: if RunPostActions throws unexpectedly, surface the error
+                            // instead of letting the exception propagate with no context.
+                            var errorMessage = $"Post-action execution threw an unexpected exception: {ex.Message}";
+                            _logger.LogError(ex, "Post-action execution threw an unexpected exception.");
+
+                            var failedActionErrors = new Dictionary<Guid, string>(dispatcher.FailedActionErrors)
+                            {
+                                [Guid.Empty] = errorMessage
+                            };
+
+                            return Task.FromResult(new TemplateScaffoldResult
+                            {
+                                Success = false,
+                                FailedActions = new List<IPostAction>(),
+                                FailedActionErrors = failedActionErrors
+                            });
+                        }
                         
                         if ((postActionResult & PostActionResult.Failure) != 0)
                         {
-                            // Some post-actions failed but we still return success for template creation
-                            _logger.LogWarning("Some post-actions failed. Template was created successfully but setup may be incomplete");
-                            return Task.FromResult(new TemplateScaffoldResult { Success = true, FailedActions = failedActions });
+                            // Some post-actions failed but template files were created successfully
+                            var failedDescriptions = failedActions
+                                .Select(a => !string.IsNullOrWhiteSpace(a.Description) ? a.Description : a.ActionId.ToString())
+                                .ToList();
+                            _logger.LogWarning("Template files were created but {Count} post-action(s) failed: {Actions}",
+                                failedActions.Count, string.Join("; ", failedDescriptions));
+                            return Task.FromResult(new TemplateScaffoldResult { Success = true, FailedActions = failedActions, FailedActionErrors = dispatcher.FailedActionErrors });
                         }
                     }
                     

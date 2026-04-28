@@ -17,6 +17,12 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
 
         public Guid ActionId => ActionProcessorId;
 
+        /// <summary>
+        /// Contains the error detail from the last failed script execution.
+        /// Reset on each call to ProcessInternal/Process.
+        /// </summary>
+        public string? LastError { get; private set; }
+
         public bool Process(IEngineEnvironmentSettings environment, IPostAction action)
         {
             // Fall back to using System.Environment.CurrentDirectory if no explicit output path is provided
@@ -50,6 +56,7 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
                 workingDir = Path.GetFullPath(wd);
             }
 
+            LastError = null;
             try
             {
                 _logger.LogInformation("[RunScript] Executing: {Executable} {Args} in {WorkDir}", executable, scriptArgs, workingDir);
@@ -62,11 +69,35 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
                 
                 LogProcessOutput(stdOut, stdErr, exitCode);
                 
-                return ValidateProcessResult(exitCode, stdErr);
+                var success = ValidateProcessResult(exitCode, stdErr);
+                if (!success)
+                {
+                    // Strip ANSI codes from the error detail so MCP clients see clean text
+                    var cleanStdErr = !string.IsNullOrWhiteSpace(stdErr)
+                        ? System.Text.RegularExpressions.Regex.Replace(stdErr.Trim(), @"\x1B\[[0-9;]*m", "")
+                        : null;
+
+                    // Keep the error summary aligned with the actual validation failure reason.
+                    // A zero exit code can still fail validation when stderr contains critical errors.
+                    if (exitCode != 0)
+                    {
+                        LastError = cleanStdErr != null
+                            ? $"exit code {exitCode}: {cleanStdErr}"
+                            : $"exit code {exitCode}";
+                    }
+                    else
+                    {
+                        LastError = cleanStdErr != null
+                            ? $"critical errors detected in stderr: {cleanStdErr}"
+                            : "critical errors detected in stderr";
+                    }
+                }
+                return success;
             }
             catch (Exception ex)
             {
-                _logger.LogError("[RunScript] Failed to run script - {Message}", ex.Message);
+                LastError = ex.Message;
+                _logger.LogError("[RunScript] Failed to run '{Executable} {Args}' in {WorkDir}: {Message}", executable, scriptArgs, workingDir, ex.Message);
                 return false;
             }
         }
@@ -135,7 +166,7 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
             
             if (!string.IsNullOrWhiteSpace(stdErr))
             {
-                _logger.LogError("[RunScript][stderr]:\n{Output}", stdErr);
+                _logger.LogWarning("[RunScript][stderr]:\n{Output}", stdErr);
             }
             
             _logger.LogInformation("[RunScript] Process exited with code: {ExitCode}", exitCode);
@@ -148,14 +179,15 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
         {
             if (exitCode != 0)
             {
-                _logger.LogError("[RunScript] Script failed with exit code {ExitCode}", exitCode);
+                var detail = !string.IsNullOrWhiteSpace(stdErr) ? $"\n{stdErr.Trim()}" : "";
+                _logger.LogError("[RunScript] Script failed with exit code {ExitCode}{Detail}", exitCode, detail);
                 return false;
             }
 
             // Check for PowerShell errors that may not set exit code
             if (HasCriticalErrors(stdErr))
             {
-                _logger.LogError("[RunScript] Script completed with exit code 0 but had critical errors");
+                _logger.LogError("[RunScript] Script completed with exit code 0 but stderr contains errors:\n{StdErr}", stdErr.Trim());
                 return false;
             }
 
@@ -170,13 +202,17 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
             if (string.IsNullOrWhiteSpace(stdErr))
                 return false;
 
+            // Strip ANSI escape codes — PowerShell writes colored error output to stderr
+            // which can break keyword matching (e.g., "\x1B[31;1mMove-Item:\x1B[0m" instead of "Move-Item:")
+            var cleanStdErr = System.Text.RegularExpressions.Regex.Replace(stdErr, @"\x1B\[[0-9;]*m", "");
+
             string[] criticalErrors = {
                 "Exception", "Error:", "cannot be loaded because running scripts is disabled",
                 "cannot find path", "does not exist", "CommandNotFoundException",
                 "Access is denied", "UnauthorizedAccessException", "DirectoryNotFoundException", "IOException"
             };
 
-            return criticalErrors.Any(error => stdErr.Contains(error, StringComparison.OrdinalIgnoreCase));
+            return criticalErrors.Any(error => cleanStdErr.Contains(error, StringComparison.OrdinalIgnoreCase));
         }
     }
 }

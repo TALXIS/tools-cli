@@ -44,24 +44,35 @@ public class ComponentCreateCliCommand : TxcLeafCommand, ICliGetCompletions
             parameters[key] = value;
         }
         using var scaffolder = new TemplateInvoker();
-        var (success, failedActions) = await scaffolder.ScaffoldAsync(Type, OutputPath, parameters);
-        if (success)
+        var (success, failedActions, failedActionErrors) = await scaffolder.ScaffoldAsync(Type, OutputPath, parameters);
+        if (success && failedActions.Count == 0)
         {
             OutputFormatter.WriteResult("succeeded", $"Component scaffolded to {OutputPath} using template {Type}");
             return ExitSuccess;
         }
         else
         {
-            Logger.LogError("Component scaffolded, but one or more post-actions failed. See errors above.");
+            var failureDetails = new List<string>();
             if (failedActions.Count > 0)
             {
-                Logger.LogError("Summary of failed post-actions:");
+                Logger.LogError("Template files were created but {Count} post-action(s) failed:", failedActions.Count);
                 foreach (var failed in failedActions)
                 {
-                    Logger.LogError("- {FailedAction}", failed.Description ?? failed.ActionId.ToString());
+                    var label = !string.IsNullOrWhiteSpace(failed.Description) ? failed.Description : failed.ActionId.ToString();
+                    var scriptInfo = failed.Args?.TryGetValue("args", out var args) == true ? $" ({args})" : "";
+                    var errorDetail = failedActionErrors.TryGetValue(failed.ActionId, out var detail) ? $" — {detail}" : "";
+                    Logger.LogError("  • {FailedAction}{ScriptInfo}{ErrorDetail}", label, scriptInfo, errorDetail);
+                    failureDetails.Add($"{label}{scriptInfo}{errorDetail}");
                 }
             }
-            OutputFormatter.WriteResult("failed", "Component scaffolded, but one or more post-actions failed.");
+            else
+            {
+                Logger.LogError("Component scaffolding failed. See errors above.");
+            }
+            var message = failureDetails.Count > 0
+                ? $"Template files were created but post-action(s) failed: {string.Join("; ", failureDetails)}"
+                : "Component scaffolding failed";
+            OutputFormatter.WriteResult("failed", message);
             return ExitError;
         }
     }
