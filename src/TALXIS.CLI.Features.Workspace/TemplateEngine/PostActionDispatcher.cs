@@ -26,19 +26,29 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
             };
         }
 
+        /// <summary>
+        /// Per-action error details from the last RunPostActions call, keyed by the action's ActionId.
+        /// </summary>
+        public Dictionary<Guid, string> FailedActionErrors { get; } = new();
+
         public (PostActionResult, List<IPostAction>) RunPostActions(
             IReadOnlyList<IPostAction> actions, 
             ScriptPermission scriptPermission,
             ITemplateCreationResult? templateCreationResult = null,
             string? outputBasePath = null)
         {
+            FailedActionErrors.Clear();
             var result = PostActionResult.Success;
             var failedActions = new List<IPostAction>();
             foreach (var action in actions)
             {
+                var actionLabel = !string.IsNullOrWhiteSpace(action.Description)
+                    ? action.Description
+                    : action.ActionId.ToString();
+
                 if (!_processors.TryGetValue(action.ActionId, out var processor))
                 {
-                    _logger.LogError("Post-action {ActionId} not supported. Please run manually:", action.ActionId);
+                    _logger.LogError("Post-action '{ActionLabel}' is not supported. Please run manually:", actionLabel);
                     ShowManualInstructions(action);
                     result |= PostActionResult.Failure;
                     failedActions.Add(action);
@@ -47,7 +57,7 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
 
                 if (processor is RunScriptPostActionProcessor && !_allowScripts(scriptPermission, action))
                 {
-                    _logger.LogInformation("Skipping script post-action {Description} due to script policy", action.Description);
+                    _logger.LogInformation("Skipping script post-action '{ActionLabel}' due to script policy", actionLabel);
                     continue;
                 }
 
@@ -56,14 +66,16 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
                 if (processor is AddProjectsToSlnPostActionProcessor addProjectProcessor && templateCreationResult?.CreationResult != null)
                 {
                     var basePath = outputBasePath ?? Directory.GetCurrentDirectory();
-                    // We already checked for null above, so we can safely access the property
                     ok = addProjectProcessor.ProcessInternal(_environment, action, null!, templateCreationResult!.CreationResult, basePath);
                 }
                 else if (processor is RunScriptPostActionProcessor runScriptProcessor)
                 {
                     var basePath = outputBasePath ?? Directory.GetCurrentDirectory();
-                    // Use ProcessInternal with explicit outputBasePath for consistent working directory handling
                     ok = runScriptProcessor.ProcessInternal(_environment, action, null!, templateCreationResult?.CreationResult, basePath);
+                    if (!ok && runScriptProcessor.LastError != null)
+                    {
+                        FailedActionErrors[action.ActionId] = runScriptProcessor.LastError;
+                    }
                 }
                 else
                 {
@@ -74,8 +86,13 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
                 {
                     result |= PostActionResult.Failure;
                     failedActions.Add(action);
+                    var errorDetail = FailedActionErrors.TryGetValue(action.ActionId, out var detail) ? $": {detail}" : "";
+                    _logger.LogError("Post-action '{ActionLabel}' failed{ErrorDetail}", actionLabel, errorDetail);
                     if (!action.ContinueOnError)
-                        throw new InvalidOperationException($"Post-action {action.ActionId} failed");
+                    {
+                        _logger.LogError("Stopping post-action execution (continueOnError is false)");
+                        break;
+                    }
                 }
             }
             return (result, failedActions);

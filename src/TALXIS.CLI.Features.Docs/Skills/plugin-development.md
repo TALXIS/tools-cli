@@ -14,9 +14,9 @@ Plugins are server-side .NET classes that execute custom business logic in respo
 
 Plugin registration is a 3-step chain. **Order matters** — each step depends on the previous one.
 
-1. **Create Plugin Project** → `workspace_component_create` with `componentType: "PluginProject"`
-2. **Register Assembly** → `workspace_component_create` with `componentType: "PluginAssembly"`
-3. **Register Steps** → `workspace_component_create` with `componentType: "PluginStep"`
+1. **Create Plugin Project** → `workspace_component_create` with `componentType: "pp-plugin"`
+2. **Register Assembly** → `workspace_component_create` with `componentType: "pp-plugin-assembly"`
+3. **Register Steps** → `workspace_component_create` with `componentType: "pp-plugin-assembly-step"`
 
 Call `workspace_component_parameter_list` for required parameters at each step.
 

@@ -8,9 +8,9 @@ Business Process Flows (BPFs) guide users through stages and steps on a record f
 
 BPF creation follows a strict 3-step chain. **Order matters.**
 
-1. **Create BPF Entity** → `workspace_component_create` with `componentType: "BPF"`
-2. **Add Stages** → `workspace_component_create` with `componentType: "BPFStage"`
-3. **Add Steps to Stages** → `workspace_component_create` with `componentType: "BPFStageStep"`
+1. **Create BPF Entity** → `workspace_component_create` with `componentType: "pp-bpf"`
+2. **Add Stages** → `workspace_component_create` with `componentType: "pp-bpf-stage"`
+3. **Add Steps to Stages** → `workspace_component_create` with `componentType: "pp-bpf-stage-step"`
 
 Call `workspace_component_parameter_list` for required parameters at each step.
 

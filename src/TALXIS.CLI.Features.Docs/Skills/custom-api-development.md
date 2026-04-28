@@ -15,7 +15,7 @@ Choose Custom API when multiple clients or flows need to invoke the same operati
 ## Registration Workflow
 
 1. **Create the backing plugin** first (see [plugin-development](plugin-development.md))
-2. **Scaffold Custom API** → `workspace_component_create` with `componentType: "CustomAPI"`
+2. **Scaffold Custom API** → `workspace_component_create` with `componentType: "pp-api-endpoint"`
 3. **Add request parameters** → scaffold each input parameter
 4. **Add response properties** → scaffold each output property
 

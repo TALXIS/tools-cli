@@ -73,7 +73,7 @@ Separate concerns into dedicated solutions:
 
 ### Publisher Rules
 - One publisher per organization for consistency
-- Prefix: max 8 characters (e.g., `contoso`, `udpp`)
+- Prefix: max 5 characters, lowercase alphanumeric only (e.g., `udpp`)
 - All components created under this publisher share the prefix
 
 ## What NOT to Do

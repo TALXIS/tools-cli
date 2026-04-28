@@ -17,6 +17,12 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
 
         public Guid ActionId => ActionProcessorId;
 
+        /// <summary>
+        /// Contains the error detail from the last failed script execution.
+        /// Reset on each call to ProcessInternal/Process.
+        /// </summary>
+        public string? LastError { get; private set; }
+
         public bool Process(IEngineEnvironmentSettings environment, IPostAction action)
         {
             // Fall back to using System.Environment.CurrentDirectory if no explicit output path is provided
@@ -50,6 +56,7 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
                 workingDir = Path.GetFullPath(wd);
             }
 
+            LastError = null;
             try
             {
                 _logger.LogInformation("[RunScript] Executing: {Executable} {Args} in {WorkDir}", executable, scriptArgs, workingDir);
@@ -62,11 +69,19 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
                 
                 LogProcessOutput(stdOut, stdErr, exitCode);
                 
-                return ValidateProcessResult(exitCode, stdErr);
+                var success = ValidateProcessResult(exitCode, stdErr);
+                if (!success)
+                {
+                    LastError = !string.IsNullOrWhiteSpace(stdErr) 
+                        ? $"exit code {exitCode}: {stdErr.Trim()}" 
+                        : $"exit code {exitCode}";
+                }
+                return success;
             }
             catch (Exception ex)
             {
-                _logger.LogError("[RunScript] Failed to run script - {Message}", ex.Message);
+                LastError = ex.Message;
+                _logger.LogError("[RunScript] Failed to run '{Executable} {Args}' in {WorkDir}: {Message}", executable, scriptArgs, workingDir, ex.Message);
                 return false;
             }
         }
@@ -135,7 +150,7 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
             
             if (!string.IsNullOrWhiteSpace(stdErr))
             {
-                _logger.LogError("[RunScript][stderr]:\n{Output}", stdErr);
+                _logger.LogWarning("[RunScript][stderr]:\n{Output}", stdErr);
             }
             
             _logger.LogInformation("[RunScript] Process exited with code: {ExitCode}", exitCode);
@@ -148,14 +163,15 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
         {
             if (exitCode != 0)
             {
-                _logger.LogError("[RunScript] Script failed with exit code {ExitCode}", exitCode);
+                var detail = !string.IsNullOrWhiteSpace(stdErr) ? $"\n{stdErr.Trim()}" : "";
+                _logger.LogError("[RunScript] Script failed with exit code {ExitCode}{Detail}", exitCode, detail);
                 return false;
             }
 
             // Check for PowerShell errors that may not set exit code
             if (HasCriticalErrors(stdErr))
             {
-                _logger.LogError("[RunScript] Script completed with exit code 0 but had critical errors");
+                _logger.LogError("[RunScript] Script completed with exit code 0 but stderr contains errors:\n{StdErr}", stdErr.Trim());
                 return false;
             }
 

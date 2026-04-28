@@ -55,7 +55,7 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
         /// <summary>
         /// Scaffolds a template to the specified output path with the given parameters.
         /// </summary>
-        public async Task<(bool Success, List<IPostAction> FailedActions)> ScaffoldAsync(
+        public async Task<(bool Success, List<IPostAction> FailedActions, Dictionary<Guid, string> FailedActionErrors)> ScaffoldAsync(
             string shortName, 
             string outputPath, 
             IDictionary<string, string> parameters, 
@@ -63,7 +63,7 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
             CancellationToken cancellationToken = default)
         {
             var result = await _templateCreationService.ScaffoldAsync(shortName, outputPath, parameters, version, cancellationToken);
-            return (result.Success, result.FailedActions);
+            return (result.Success, result.FailedActions, result.FailedActionErrors);
         }
 
         public void Dispose()

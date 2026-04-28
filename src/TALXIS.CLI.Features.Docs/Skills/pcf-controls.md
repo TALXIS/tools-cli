@@ -23,7 +23,7 @@ Power Apps Component Framework (PCF) controls are custom TypeScript UI component
 
 ## Scaffolding and Build
 
-1. Scaffold with `workspace_component_create` using `componentType: "PCFControl"`
+1. Scaffold with `workspace_component_create` using `componentType: "pp-pcf"`
 2. Call `workspace_component_parameter_list` for required parameters
 3. Local dev: `npm run build` and `npm start watch` for test harness
 4. Solution packaging includes the control bundle automatically during `pack`

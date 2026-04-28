@@ -9,6 +9,10 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
     {
         public bool Success { get; set; }
         public List<IPostAction> FailedActions { get; set; } = new();
+        /// <summary>
+        /// Per-action error details (script stderr, exit codes, exception messages), keyed by ActionId.
+        /// </summary>
+        public Dictionary<Guid, string> FailedActionErrors { get; set; } = new();
     }
 
 

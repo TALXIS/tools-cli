@@ -55,14 +55,14 @@ Each `.cdsproj` maps to one Dataverse solution. The `Declarations` folder within
 
 - **Entity logical names**: lowercase with publisher prefix (e.g., `prefix_warehouseitem`)
 - **Display names**: Proper case (e.g., `Warehouse Item`)
-- **Publisher prefix**: Max 8 characters, unique per organization
+- **Publisher prefix**: Max 5 characters, lowercase alphanumeric only
 - **Branch naming**: `{userPrefix}/{feature-description}` (trunk-based development)
 
 ## Getting Started
 
 1. Run `workspace_explain` to understand what's already in the repo
 2. Identify which solution project your changes belong to
-3. Use `workspace_component_create` with `SolutionRootPath=Declarations` to scaffold
+3. Use `workspace_component_create` to scaffold
 4. Build locally to validate before deploying
 
 See also: [component-creation](component-creation.md), [deployment-workflow](deployment-workflow.md)
