@@ -1,10 +1,10 @@
 <Project>
   <PropertyGroup>
     <!-- Shared versioning and general metadata for all projects -->
-    <Version>1.9.0</Version>
-    <AssemblyVersion>1.9.0</AssemblyVersion>
-    <FileVersion>1.9.0</FileVersion>
-    <PackageVersion>1.9.0</PackageVersion>
+    <Version>1.10.0</Version>
+    <AssemblyVersion>1.10.0</AssemblyVersion>
+    <FileVersion>1.10.0</FileVersion>
+    <PackageVersion>1.10.0</PackageVersion>
     <Company>TALXIS</Company>
     <RepositoryUrl>https://github.com/TALXIS/tools-cli</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
@@ -36,5 +36,6 @@
       ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>
+
 
 
