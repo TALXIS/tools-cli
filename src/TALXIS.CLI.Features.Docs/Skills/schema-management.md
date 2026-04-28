@@ -32,4 +32,17 @@ Use `guide_environment` to discover environment schema tools and their parameter
 - ❌ Don't delete tables/columns without running `environment_component_dependency_delete_check` first
 - ❌ Don't forget to `environment_solution_publish` after schema changes
 
+## Metadata Propagation
+
+When creating multiple entities with relationships via environment tools, follow a phased approach:
+
+1. Create **all tables** first (no lookups)
+2. Wait 15-30 seconds for metadata to propagate
+3. Create **all lookup columns** and relationships
+4. Wait again before creating forms/views that reference the lookups
+
+**Column Naming Warning:** Never suffix custom column names with `Id` (e.g., `new_accountId`). Dataverse auto-generates navigation properties with that suffix for lookups, causing collisions and 400 errors.
+
+**Lock Contention:** If you get "another operation is running against this entity" errors, wait and retry. Multiple concurrent schema changes on the same entity cause lock conflicts.
+
 See also: [component-creation](component-creation.md), [solution-layering](solution-layering.md), [troubleshooting](troubleshooting.md)

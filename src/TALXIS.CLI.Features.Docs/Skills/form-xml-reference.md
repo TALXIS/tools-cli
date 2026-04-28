@@ -54,4 +54,35 @@ All form fragment templates require `FormId`, `FormType`, and `EntitySchemaName`
 - **`pp-form-dialog-tabfooter`** — Add a footer area to a dialog tab
 - **`pp-form-event-handler`** — Register a JavaScript event (onload, onsave, onchange, onclick)
 
+## Control ClassId Reference
+
+Each form control type maps to a ClassId GUID:
+
+| ControlType | ClassId |
+|---|---|
+| Text | `{4273EDBD-AC1D-40d3-9FB2-095C621B552D}` |
+| MultilineText | `{E0DECE4B-6FC8-4a8f-A065-082708572369}` |
+| WholeNumber | `{C3EFE0C3-0EC6-42be-8349-CBD9079DFD8E}` |
+| Decimal/Float | `{C3EFE0C3-0EC6-42be-8349-CBD9079DFD8E}` |
+| Currency | `{533B9E00-756B-4312-95A0-DC888637AC78}` |
+| DateTime | `{5B773807-9FB2-42db-97C3-7A91EFF8ADFF}` |
+| Lookup | `{270BD3DB-D9AF-4782-9025-509E298DEC0A}` |
+| OptionSet | `{3EF39988-22BB-4F0B-BBBE-64B5A3748AEE}` |
+| Boolean | `{67FAC785-CD58-4f9f-ABB3-4B7DDC6ED5ED}` |
+| SubGrid | `{E7A81278-8635-4d9e-8D4D-59480B391C5B}` |
+| Button | `{00AD73DA-BD4D-49C6-88A8-2F4F4CAD4A20}` |
+
+### Form Type Codes
+- `2` = Main form
+- `7` = Quick Create form
+- `6` = Quick View form
+- `11` = Card form
+
+### View querytype Values
+- `0` = Public (standard)
+- `1` = Advanced Find
+- `2` = Associated
+- `4` = Quick Find
+- `64` = Saved Query (lookup view)
+
 See also: [component-creation](component-creation.md), [schema-management](schema-management.md)

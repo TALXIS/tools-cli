@@ -70,4 +70,15 @@ After any data operation, verify the results:
 - ❌ Don't import directly to production without testing on dev/test first
 - ❌ Don't skip post-import verification — silent data issues are hard to catch later
 
+## Bulk Import Best Practices
+
+**Adaptive Chunk Sizing:** Start with 1000 records per batch. Double on success (cap at 4000), halve on 413/500/timeout errors. This auto-tunes to the environment's capacity.
+
+**FK-Ordered Import:** When importing multiple related tables, import in dependency order:
+1. Tables with no foreign keys first (reference data)
+2. Then tables that depend on them (transactional data)
+3. Use `data record bulk upsert` for idempotent re-runs
+
+**Lookup Resolution:** Before importing records with lookups, query the target table to build a name→GUID map. Use this to populate lookup fields in the import data.
+
 See also: [environment-management](environment-management.md), [troubleshooting](troubleshooting.md)
