@@ -156,8 +156,13 @@ txc env pkg uninstall TALXIS.Controls.FileExplorer.Package --yes
 # Import from a folder or .cdsproj project — auto-packs via SolutionPackager
 txc env sln import ./src/MySolution/
 
-# Export, edit locally, re-import
-txc env sln export MySolution --output ./export/
+# Publish customizations after import (makes forms, views, sitemaps visible)
+txc env sln publish
+
+# Export, unpack, edit locally, pack, re-import
+txc env sln export MySolution --output ./export/MySolution.zip --zip
+txc env sln unpack ./export/MySolution.zip --output ./src/MySolution/
+txc env sln pack ./src/MySolution/ --output ./out/MySolution.zip
 
 # Inspect solution metadata and component breakdown
 txc env sln show MySolution
