@@ -19,6 +19,9 @@ IHostApplicationLifetime? appLifetime = null;
 // In-memory store for tool execution logs, exposed as MCP resources
 var toolLogStore = new ToolLogStore();
 
+// Per-output-path lock for workspace_component_create to prevent concurrent writes to the same project
+var workspaceOutputLocks = new System.Collections.Concurrent.ConcurrentDictionary<string, SemaphoreSlim>(StringComparer.OrdinalIgnoreCase);
+
 // Load internal reasoning skills for guide sampling prompts (proprietary, not exposed)
 var reasoningEngine = new GuideReasoningEngine();
 reasoningEngine.LoadSkills();
@@ -303,6 +306,20 @@ async Task<CallToolResult> ExecuteCliToolAsync(
     string toolName, IReadOnlyDictionary<string, JsonElement>? cliArguments,
     RequestContext<CallToolRequestParams> ctx, CancellationToken ct)
 {
+    // Workspace component create calls must be serialized to prevent concurrent post-action
+    // scripts from racing on shared files. Even different output paths share the .sln file
+    // and may share Solution.xml, so we serialize ALL scaffolding on the workspace root.
+    SemaphoreSlim? outputLock = null;
+    if (toolName == "workspace_component_create")
+    {
+        string? workspaceRoot = rootsService is not null
+            ? await rootsService.GetWorkingDirectoryAsync(ct)
+            : null;
+        var lockKey = workspaceRoot ?? Environment.CurrentDirectory;
+        outputLock = workspaceOutputLocks.GetOrAdd(lockKey, _ => new SemaphoreSlim(1, 1));
+        await outputLock.WaitAsync(ct);
+    }
+
     try
     {
         var cliCommandAdapter = new CliCommandAdapter();
@@ -332,6 +349,10 @@ async Task<CallToolResult> ExecuteCliToolAsync(
     catch (Exception ex)
     {
         return new CallToolResult { Content = [new TextContentBlock { Text = LogRedactionFilter.Redact(ex.ToString()) }], IsError = true };
+    }
+    finally
+    {
+        outputLock?.Release();
     }
 }
 

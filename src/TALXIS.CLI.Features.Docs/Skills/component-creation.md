@@ -10,7 +10,13 @@ Scaffolding creates **local files** in your workspace — it does NOT create com
 2. **`workspace_component_type_list`** — discover available component types
 3. **`workspace_component_parameter_list`** — get required parameters for a component type
 4. **`workspace_component_create`** — scaffold the component locally
-5. **Build locally** to validate, then follow the [deployment workflow](deployment-workflow.md)
+5. **Build locally** to validate: `dotnet build`
+6. **Run schema validation** to catch XML errors early:
+   ```
+   dotnet msbuild -t:InitializeSolutionPackagerWorkingDirectory;ValidateSolutionComponentSchema
+   ```
+   This validates all solution XML files against XSD schemas. Run it from each solution project directory.
+7. Follow the [deployment workflow](deployment-workflow.md)
 
 ## Composition Ordering
 
