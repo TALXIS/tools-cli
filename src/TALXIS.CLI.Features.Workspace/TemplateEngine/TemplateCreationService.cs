@@ -207,9 +207,21 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
                         catch (Exception ex)
                         {
                             // Defense-in-depth: if RunPostActions throws unexpectedly, surface the error
-                            // instead of letting the exception propagate with no context
-                            _logger.LogError("Post-action execution threw an unexpected exception: {Message}", ex.Message);
-                            return Task.FromResult(new TemplateScaffoldResult { Success = false, FailedActions = new List<IPostAction>() });
+                            // instead of letting the exception propagate with no context.
+                            var errorMessage = $"Post-action execution threw an unexpected exception: {ex.Message}";
+                            _logger.LogError(ex, "Post-action execution threw an unexpected exception.");
+
+                            var failedActionErrors = new Dictionary<Guid, string>(dispatcher.FailedActionErrors)
+                            {
+                                [Guid.Empty] = errorMessage
+                            };
+
+                            return Task.FromResult(new TemplateScaffoldResult
+                            {
+                                Success = false,
+                                FailedActions = new List<IPostAction>(),
+                                FailedActionErrors = failedActionErrors
+                            });
                         }
                         
                         if ((postActionResult & PostActionResult.Failure) != 0)

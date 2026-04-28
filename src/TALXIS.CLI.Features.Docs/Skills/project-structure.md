@@ -55,7 +55,7 @@ Each `.cdsproj` maps to one Dataverse solution. The `Declarations` folder within
 
 - **Entity logical names**: lowercase with publisher prefix (e.g., `prefix_warehouseitem`)
 - **Display names**: Proper case (e.g., `Warehouse Item`)
-- **Publisher prefix**: Max 5 characters, lowercase alphanumeric only
+- **Publisher prefix**: Recommended convention is lowercase alphanumeric and 5 characters or fewer for consistency
 - **Branch naming**: `{userPrefix}/{feature-description}` (trunk-based development)
 
 ## Getting Started

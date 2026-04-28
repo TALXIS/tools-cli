@@ -73,7 +73,7 @@ Separate concerns into dedicated solutions:
 
 ### Publisher Rules
 - One publisher per organization for consistency
-- Prefix: max 5 characters, lowercase alphanumeric only (e.g., `udpp`)
+- Prefix: recommended repo convention is max 5 characters, lowercase alphanumeric only (e.g., `udpp`); `txc environment publisher create --prefix` accepts 2–8 lowercase alphanumeric characters
 - All components created under this publisher share the prefix
 
 ## What NOT to Do

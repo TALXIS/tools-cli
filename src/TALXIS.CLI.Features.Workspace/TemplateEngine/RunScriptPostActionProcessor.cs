@@ -73,12 +73,24 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
                 if (!success)
                 {
                     // Strip ANSI codes from the error detail so MCP clients see clean text
-                    var cleanStdErr = !string.IsNullOrWhiteSpace(stdErr) 
-                        ? System.Text.RegularExpressions.Regex.Replace(stdErr.Trim(), @"\x1B\[[0-9;]*m", "") 
+                    var cleanStdErr = !string.IsNullOrWhiteSpace(stdErr)
+                        ? System.Text.RegularExpressions.Regex.Replace(stdErr.Trim(), @"\x1B\[[0-9;]*m", "")
                         : null;
-                    LastError = cleanStdErr != null 
-                        ? $"exit code {exitCode}: {cleanStdErr}" 
-                        : $"exit code {exitCode}";
+
+                    // Keep the error summary aligned with the actual validation failure reason.
+                    // A zero exit code can still fail validation when stderr contains critical errors.
+                    if (exitCode != 0)
+                    {
+                        LastError = cleanStdErr != null
+                            ? $"exit code {exitCode}: {cleanStdErr}"
+                            : $"exit code {exitCode}";
+                    }
+                    else
+                    {
+                        LastError = cleanStdErr != null
+                            ? $"critical errors detected in stderr: {cleanStdErr}"
+                            : "critical errors detected in stderr";
+                    }
                 }
                 return success;
             }

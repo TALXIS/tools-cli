@@ -315,7 +315,7 @@ async Task<CallToolResult> ExecuteCliToolAsync(
         string? workspaceRoot = rootsService is not null
             ? await rootsService.GetWorkingDirectoryAsync(ct)
             : null;
-        var lockKey = workspaceRoot ?? Environment.CurrentDirectory;
+        var lockKey = Path.TrimEndingDirectorySeparator(Path.GetFullPath(workspaceRoot ?? Environment.CurrentDirectory));
         outputLock = workspaceOutputLocks.GetOrAdd(lockKey, _ => new SemaphoreSlim(1, 1));
         await outputLock.WaitAsync(ct);
     }
