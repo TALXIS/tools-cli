@@ -14,11 +14,18 @@ Plugins are server-side .NET classes that execute custom business logic in respo
 
 Plugin registration is a 3-step chain. **Order matters** — each step depends on the previous one.
 
-1. **Create Plugin Project** → `workspace_component_create` with `componentType: "pp-plugin"`
-2. **Register Assembly** → `workspace_component_create` with `componentType: "pp-plugin-assembly"`
-3. **Register Steps** → `workspace_component_create` with `componentType: "pp-plugin-assembly-step"`
+1. **Create Plugin Project** → `workspace_component_create` with `Type: pp-plugin`
+2. **Write plugin classes** extending `PluginBase` (one `.cs` file per plugin)
+3. **Build the plugin project** → `dotnet build src/Plugins.{Domain}` — this MUST succeed before step 4
+4. **Register Assembly** → `workspace_component_create` with `Type: pp-plugin-assembly`
+   - Requires the plugin to be built first (reads compiled DLL for metadata)
+   - Requires `dotnet-script` global tool installed (`dotnet tool install --global dotnet-script`)
+5. **Register Steps** → `workspace_component_create` with `Type: pp-plugin-assembly-step`
+6. **Link projects** → `dotnet add reference ../Plugins.{Domain}` from the Logic solution
 
 Call `workspace_component_parameter_list` for required parameters at each step.
+
+**Prerequisites:** `dotnet-script` must be installed (`dotnet tool install --global dotnet-script`). The plugin assembly and step templates use C# scripts (`.csx`) for code generation.
 
 ## Execution Stage Decision Tree
 
