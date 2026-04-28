@@ -36,11 +36,19 @@ Scaffold components in dependency order:
 - **`ReferencedEntityName`** (in pp-entity-attribute for Lookup types): The target entity **with** publisher prefix. Example: `udpp_warehouseitem`.
 - **`Behavior`** (in pp-entity): Use `New` when creating the entity definition for the first time. Use `Existing` to add a reference to an entity owned by another solution (e.g., adding forms/views in a UI solution for an entity defined in the DataModel solution).
 
+## Prerequisites
+
+Some templates (pp-plugin-assembly, pp-plugin-assembly-step, pp-security-role-privilege) use C# scripts that require the `dotnet-script` global tool:
+```
+dotnet tool install --global dotnet-script
+```
+
 ## What NOT to Do
 
 - ❌ Don't use `environment_entity_create` for development — it bypasses source control
 - ❌ Don't scaffold a Form or View before the Entity and its Attributes exist — XML references will break
 - ❌ Don't scaffold a Relationship if the target table hasn't been created yet
+- ❌ Don't run `pp-plugin-assembly` before building the plugin project (`dotnet build`) — it reads the compiled DLL
 - ✅ Use environment tools only for inspection, troubleshooting, or emergency fixes
 
 See also: [project-structure](project-structure.md), [schema-management](schema-management.md)

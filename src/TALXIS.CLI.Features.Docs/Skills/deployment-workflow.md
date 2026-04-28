@@ -26,7 +26,7 @@ Creates a `.zip` solution file from your local project. This is still a local op
 ```
 Tool: environment_solution_import
 ```
-Uploads the solution package to the target Dataverse environment. **Recommended:** use the `--wait` flag to block until import completes and get immediate feedback.
+Uploads the solution package to the target Dataverse environment. By default returns immediately with an `asyncOperationId`. **Do NOT use `--wait`** — solution imports take minutes and will time out the MCP request. Instead, monitor progress with `environment_deployment_show --solution-name <name>` until status is `Completed` or `Failed`.
 
 ### 5. Publish
 ```

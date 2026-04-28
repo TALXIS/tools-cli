@@ -80,4 +80,18 @@ If data or schema doesn't match expectations:
 | Wrong data showing | `config_profile_show` |
 | Changes not visible | `environment_solution_publish` |
 
+## Common Dataverse Error Codes
+
+| Hex Code | Meaning | Recovery |
+|---|---|---|
+| `0x80040216` | Entity relationship already exists | Skip or use force-overwrite on import |
+| `0x80048d19` | Duplicate alternate key value | Check key columns for unique constraint violations |
+| `0x80040237` | Record does not exist | Verify the GUID; record may have been deleted |
+| `0x8004431a` | Privilege denied | Check security role assignments for the user |
+| `0x80060891` | Async operation failed | Check async operation status for details |
+| `0x80040220` | Attribute already exists | Skip or import with overwrite flag |
+
+### Metadata Lock Contention
+If schema operations fail with "another operation is running against this entity," the entity metadata is locked by a concurrent operation. Wait 10-30 seconds and retry. Avoid parallel schema changes on the same entity.
+
 See also: [deployment-workflow](deployment-workflow.md), [solution-layering](solution-layering.md)
