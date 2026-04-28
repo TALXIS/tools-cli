@@ -65,6 +65,8 @@ jobs:
         run: dotnet restore TALXIS.CLI.sln
       - name: Build
         run: dotnet build TALXIS.CLI.sln --configuration Release --no-restore
+      - name: Install template package for integration tests
+        run: dotnet new install TALXIS.DevKit.Templates.Dataverse
       - name: Run tests (including integration tests)
         run: dotnet test TALXIS.CLI.sln --configuration Release --no-build --logger "trx;LogFileName=test_results.trx"
 
