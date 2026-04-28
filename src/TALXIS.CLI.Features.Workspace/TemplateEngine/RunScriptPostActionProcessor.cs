@@ -72,8 +72,12 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
                 var success = ValidateProcessResult(exitCode, stdErr);
                 if (!success)
                 {
-                    LastError = !string.IsNullOrWhiteSpace(stdErr) 
-                        ? $"exit code {exitCode}: {stdErr.Trim()}" 
+                    // Strip ANSI codes from the error detail so MCP clients see clean text
+                    var cleanStdErr = !string.IsNullOrWhiteSpace(stdErr) 
+                        ? System.Text.RegularExpressions.Regex.Replace(stdErr.Trim(), @"\x1B\[[0-9;]*m", "") 
+                        : null;
+                    LastError = cleanStdErr != null 
+                        ? $"exit code {exitCode}: {cleanStdErr}" 
                         : $"exit code {exitCode}";
                 }
                 return success;
@@ -186,13 +190,17 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
             if (string.IsNullOrWhiteSpace(stdErr))
                 return false;
 
+            // Strip ANSI escape codes — PowerShell writes colored error output to stderr
+            // which can break keyword matching (e.g., "\x1B[31;1mMove-Item:\x1B[0m" instead of "Move-Item:")
+            var cleanStdErr = System.Text.RegularExpressions.Regex.Replace(stdErr, @"\x1B\[[0-9;]*m", "");
+
             string[] criticalErrors = {
                 "Exception", "Error:", "cannot be loaded because running scripts is disabled",
                 "cannot find path", "does not exist", "CommandNotFoundException",
                 "Access is denied", "UnauthorizedAccessException", "DirectoryNotFoundException", "IOException"
             };
 
-            return criticalErrors.Any(error => stdErr.Contains(error, StringComparison.OrdinalIgnoreCase));
+            return criticalErrors.Any(error => cleanStdErr.Contains(error, StringComparison.OrdinalIgnoreCase));
         }
     }
 }
