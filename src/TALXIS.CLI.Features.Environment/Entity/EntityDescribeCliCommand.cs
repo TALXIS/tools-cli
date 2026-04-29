@@ -52,6 +52,10 @@ public class EntityDescribeCliCommand : ProfiledCliCommand
         int pkWidth = 2;
         int nameWidth = 4;
         int maxLenWidth = 10;
+        bool hasOptionSets = rows.Any(r => r.OptionSetName is not null);
+        int optSetWidth = hasOptionSets
+            ? Math.Clamp(rows.Where(r => r.OptionSetName is not null).Max(r => r.OptionSetName!.Length), 9, 30)
+            : 0;
 
         string header =
             $"{"Logical Name".PadRight(logicalWidth)} | " +
@@ -61,6 +65,8 @@ public class EntityDescribeCliCommand : ProfiledCliCommand
             $"{"PK".PadRight(pkWidth)} | " +
             $"{"Name".PadRight(nameWidth)} | " +
             $"{"Max Length".PadRight(maxLenWidth)}";
+        if (hasOptionSets)
+            header += $" | {"OptionSet".PadRight(optSetWidth)}";
         OutputWriter.WriteLine(header);
         OutputWriter.WriteLine(new string('-', header.Length));
 
@@ -74,14 +80,17 @@ public class EntityDescribeCliCommand : ProfiledCliCommand
             string name = r.IsPrimaryName ? "*" : "";
             string maxLen = r.MaxLength.HasValue ? r.MaxLength.Value.ToString() : "";
 
-            OutputWriter.WriteLine(
+            string line =
                 $"{logical.PadRight(logicalWidth)} | " +
                 $"{type.PadRight(typeWidth)} | " +
                 $"{display.PadRight(displayWidth)} | " +
                 $"{custom.PadRight(customWidth)} | " +
                 $"{pk.PadRight(pkWidth)} | " +
                 $"{name.PadRight(nameWidth)} | " +
-                $"{maxLen.PadRight(maxLenWidth)}");
+                $"{maxLen.PadRight(maxLenWidth)}";
+            if (hasOptionSets)
+                line += $" | {Truncate(r.OptionSetName ?? "", optSetWidth).PadRight(optSetWidth)}";
+            OutputWriter.WriteLine(line);
         }
     }
 #pragma warning restore TXC003

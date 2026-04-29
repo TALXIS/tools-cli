@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Messages;
+using Microsoft.Xrm.Sdk.Metadata;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Platform.Dataverse.Runtime;
 
@@ -22,8 +23,9 @@ internal sealed class DataverseBulkService : IDataverseBulkService
     {
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
 
+        var metadata = await RetrieveAttributeMetadataAsync(conn, entityLogicalName, ct).ConfigureAwait(false);
         var entities = new EntityCollection(
-            records.Select(r => EntityJsonConverter.JsonToEntity(entityLogicalName, r)).ToList())
+            records.Select(r => EntityJsonConverter.JsonToEntity(entityLogicalName, r, metadata)).ToList())
         {
             EntityName = entityLogicalName
         };
@@ -46,13 +48,14 @@ internal sealed class DataverseBulkService : IDataverseBulkService
     {
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
 
+        var metadata = await RetrieveAttributeMetadataAsync(conn, entityLogicalName, ct).ConfigureAwait(false);
         // Each record must contain the entity primary ID field so the SDK
         // knows which record to update.  The ID is resolved inside
         // EntityJsonConverter.JsonToEntity via the standard attribute mapping;
         // the caller is responsible for including the primary key field
         // (e.g. "accountid") in the JSON payload.
         var entities = new EntityCollection(
-            records.Select(r => EntityJsonConverter.JsonToEntity(entityLogicalName, r)).ToList())
+            records.Select(r => EntityJsonConverter.JsonToEntity(entityLogicalName, r, metadata)).ToList())
         {
             EntityName = entityLogicalName
         };
@@ -76,8 +79,9 @@ internal sealed class DataverseBulkService : IDataverseBulkService
     {
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
 
+        var metadata = await RetrieveAttributeMetadataAsync(conn, entityLogicalName, ct).ConfigureAwait(false);
         var entities = new EntityCollection(
-            records.Select(r => EntityJsonConverter.JsonToEntity(entityLogicalName, r)).ToList())
+            records.Select(r => EntityJsonConverter.JsonToEntity(entityLogicalName, r, metadata)).ToList())
         {
             EntityName = entityLogicalName
         };
@@ -108,5 +112,18 @@ internal sealed class DataverseBulkService : IDataverseBulkService
             SucceededCount: created + updated,
             FailedCount: records.Count - (created + updated),
             CreatedIds: createdIds);
+    }
+
+    private static async Task<EntityMetadata> RetrieveAttributeMetadataAsync(
+        DataverseConnection conn, string entityLogicalName, CancellationToken ct)
+    {
+        var request = new RetrieveEntityRequest
+        {
+            LogicalName = entityLogicalName,
+            EntityFilters = EntityFilters.Attributes,
+            RetrieveAsIfPublished = true
+        };
+        var response = (RetrieveEntityResponse)await conn.Client.ExecuteAsync(request, ct).ConfigureAwait(false);
+        return response.EntityMetadata;
     }
 }

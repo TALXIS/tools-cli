@@ -1,16 +1,15 @@
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
-using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Logging;
 
-namespace TALXIS.CLI.Features.Environment.Entity;
+namespace TALXIS.CLI.Features.Environment.OptionSet;
 
 /// <summary>
 /// Lists all global option sets in the environment.
-/// Usage: <c>txc environment entity optionset global list [--format json]</c>
+/// Usage: <c>txc environment optionset list [--format json]</c>
 /// </summary>
 [CliReadOnly]
 [CliCommand(
@@ -18,9 +17,9 @@ namespace TALXIS.CLI.Features.Environment.Entity;
     Description = "List all global option sets in the environment."
 )]
 #pragma warning disable TXC003
-public class EntityOptionSetListGlobalCliCommand : ProfiledCliCommand
+public class OptionSetListCliCommand : ProfiledCliCommand
 {
-    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EntityOptionSetListGlobalCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(OptionSetListCliCommand));
 
     protected override async Task<int> ExecuteAsync()
     {
@@ -42,8 +41,8 @@ public class EntityOptionSetListGlobalCliCommand : ProfiledCliCommand
         int nameWidth = Math.Clamp(rows.Max(r => r.Name.Length), 4, 60);
         int displayWidth = Math.Clamp(rows.Max(r => (r.DisplayName ?? "").Length), 12, 48);
         int typeWidth = Math.Clamp(rows.Max(r => r.OptionSetType.Length), 4, 16);
-        int countWidth = 7; // "Options"
-        int customWidth = 6; // "Custom"
+        int countWidth = 7;
+        int customWidth = 6;
 
         string header =
             $"{"Name".PadRight(nameWidth)} | " +
@@ -71,7 +70,6 @@ public class EntityOptionSetListGlobalCliCommand : ProfiledCliCommand
         }
     }
 
-    /// <summary>Truncate a string to fit the column width, appending a dot if trimmed.</summary>
     private static string Truncate(string value, int maxWidth) =>
         value.Length > maxWidth ? value[..(maxWidth - 1)] + "." : value;
 }

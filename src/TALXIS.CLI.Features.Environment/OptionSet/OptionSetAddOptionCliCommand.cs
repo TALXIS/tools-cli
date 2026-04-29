@@ -6,57 +6,55 @@ using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Logging;
 
-namespace TALXIS.CLI.Features.Environment.Entity;
+namespace TALXIS.CLI.Features.Environment.OptionSet;
 
 /// <summary>
-/// Adds an option value to a local or global option set.
-/// Usage: <c>txc environment entity optionset option add --label &lt;text&gt; (--global-optionset &lt;name&gt; | --entity &lt;name&gt; --attribute &lt;name&gt;) [--value &lt;int&gt;]</c>
+/// Adds an option value to a global or local option set.
+/// Global: <c>txc environment optionset add-option --name &lt;schema-name&gt; --label &lt;text&gt;</c>
+/// Local:  <c>txc environment optionset add-option --entity &lt;name&gt; --attribute &lt;name&gt; --label &lt;text&gt;</c>
 /// </summary>
 [CliIdempotent]
 [CliCommand(
     Name = "add",
-    Description = "Add an option value to a local or global option set."
+    Description = "Add an option value to a global or local option set."
 )]
 #pragma warning disable TXC003
-public class EntityOptionSetAddOptionCliCommand : StagedCliCommand
+public class OptionSetAddOptionCliCommand : StagedCliCommand
 {
-    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EntityOptionSetAddOptionCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(OptionSetAddOptionCliCommand));
 
-    [CliOption(Name = "--entity", Description = "The logical name of the entity (for local option sets).", Required = false)]
+    [CliOption(Name = "--name", Description = "Schema name of the global option set.", Required = false)]
+    public string? Name { get; set; }
+
+    [CliOption(Name = "--entity", Description = "Entity logical name (for local option sets).", Required = false)]
     public string? Entity { get; set; }
 
-    [CliOption(Name = "--attribute", Description = "The logical name of the attribute (for local option sets).", Required = false)]
+    [CliOption(Name = "--attribute", Description = "Attribute logical name (for local option sets).", Required = false)]
     public string? Attribute { get; set; }
 
-    [CliOption(Name = "--global-optionset", Description = "The name of the global option set (mutually exclusive with --entity/--attribute).", Required = false)]
-    public string? GlobalOptionset { get; set; }
-
-    [CliOption(Name = "--label", Description = "The label for the new option.", Required = true)]
+    [CliOption(Name = "--label", Description = "Label for the new option.", Required = true)]
     public string Label { get; set; } = null!;
 
-    [CliOption(Name = "--value", Description = "The integer value for the new option (auto-generated if not provided).", Required = false)]
+    [CliOption(Name = "--value", Description = "Integer value for the new option (auto-generated if omitted).", Required = false)]
     public int? Value { get; set; }
 
     protected override async Task<int> ExecuteAsync()
     {
         ValidateExecutionMode();
 
-        // Validate mutually exclusive options.
-        bool hasGlobal = !string.IsNullOrWhiteSpace(GlobalOptionset);
+        bool hasGlobal = !string.IsNullOrWhiteSpace(Name);
         bool hasLocal = !string.IsNullOrWhiteSpace(Entity) || !string.IsNullOrWhiteSpace(Attribute);
 
         if (hasGlobal && hasLocal)
         {
-            Logger.LogError("Specify either --global-optionset or --entity/--attribute, not both.");
+            Logger.LogError("Specify either --name (global) or --entity + --attribute (local), not both.");
             return ExitError;
         }
-
         if (!hasGlobal && !hasLocal)
         {
-            Logger.LogError("Specify --global-optionset for a global option set, or --entity and --attribute for a local one.");
+            Logger.LogError("Specify --name for a global option set, or --entity and --attribute for a local one.");
             return ExitError;
         }
-
         if (hasLocal && (string.IsNullOrWhiteSpace(Entity) || string.IsNullOrWhiteSpace(Attribute)))
         {
             Logger.LogError("Both --entity and --attribute are required for local option sets.");
@@ -65,20 +63,20 @@ public class EntityOptionSetAddOptionCliCommand : StagedCliCommand
 
         if (Stage)
         {
-            string stageTarget = hasGlobal ? GlobalOptionset! : $"{Entity}.{Attribute}";
+            string stageTarget = hasGlobal ? Name! : $"{Entity}.{Attribute}";
             var store = TxcServices.Get<IChangesetStore>();
             store.Add(new StagedOperation
             {
                 Category = "schema",
                 OperationType = "CREATE",
-                TargetType = "optionset",
+                TargetType = "optionset-option",
                 TargetDescription = stageTarget,
                 Details = $"add option: \"{Label}\"" + (Value.HasValue ? $" ({Value})" : ""),
                 Parameters = new Dictionary<string, object?>
                 {
                     ["entity"] = Entity,
                     ["attribute"] = Attribute,
-                    ["globalOptionset"] = GlobalOptionset,
+                    ["name"] = Name,
                     ["label"] = Label,
                     ["value"] = Value
                 }
@@ -89,10 +87,10 @@ public class EntityOptionSetAddOptionCliCommand : StagedCliCommand
 
         var service = TxcServices.Get<IDataverseOptionSetService>();
         await service.InsertOptionAsync(
-            Profile, Entity, Attribute, GlobalOptionset, Label, Value, CancellationToken.None
+            Profile, Entity, Attribute, Name, Label, Value, CancellationToken.None
         ).ConfigureAwait(false);
 
-        string target = hasGlobal ? $"global option set '{GlobalOptionset}'" : $"attribute '{Attribute}' on entity '{Entity}'";
+        string target = hasGlobal ? $"global option set '{Name}'" : $"attribute '{Attribute}' on entity '{Entity}'";
         OutputWriter.WriteLine($"Option '{Label}' added to {target}.");
         return ExitSuccess;
     }

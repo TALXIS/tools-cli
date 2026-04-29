@@ -24,7 +24,9 @@ public sealed record EntityAttributeRecord(
     bool IsPrimaryId,
     bool IsPrimaryName,
     int? MaxLength,
-    string? Description);
+    string? Description,
+    string? OptionSetName = null,
+    string? OptionValues = null);
 
 /// <summary>
 /// Relationship summary for an entity, returned by

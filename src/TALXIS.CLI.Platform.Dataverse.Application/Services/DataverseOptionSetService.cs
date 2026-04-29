@@ -53,7 +53,7 @@ internal sealed class DataverseOptionSetService : IDataverseOptionSetService
         string? profileName,
         string? entityName,
         string? attributeName,
-        string? globalOptionSetName,
+        string? optionSetName,
         string label,
         int? value,
         CancellationToken ct)
@@ -68,10 +68,9 @@ internal sealed class DataverseOptionSetService : IDataverseOptionSetService
         if (value.HasValue)
             request.Value = value.Value;
 
-        if (!string.IsNullOrWhiteSpace(globalOptionSetName))
+        if (!string.IsNullOrWhiteSpace(optionSetName))
         {
-            // Global option set — set OptionSetName only.
-            request.OptionSetName = globalOptionSetName;
+            request.OptionSetName = optionSetName;
         }
         else
         {
@@ -88,7 +87,7 @@ internal sealed class DataverseOptionSetService : IDataverseOptionSetService
         string? profileName,
         string? entityName,
         string? attributeName,
-        string? globalOptionSetName,
+        string? optionSetName,
         int value,
         CancellationToken ct)
     {
@@ -99,9 +98,9 @@ internal sealed class DataverseOptionSetService : IDataverseOptionSetService
             Value = value
         };
 
-        if (!string.IsNullOrWhiteSpace(globalOptionSetName))
+        if (!string.IsNullOrWhiteSpace(optionSetName))
         {
-            request.OptionSetName = globalOptionSetName;
+            request.OptionSetName = optionSetName;
         }
         else
         {
@@ -122,6 +121,42 @@ internal sealed class DataverseOptionSetService : IDataverseOptionSetService
 
         var request = new DeleteOptionSetRequest { Name = optionSetName };
         await conn.Client.ExecuteAsync(request, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<GlobalOptionSetDetailRecord> DescribeGlobalOptionSetAsync(
+        string? profileName,
+        string optionSetName,
+        int? languageCode,
+        CancellationToken ct)
+    {
+        using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+
+        conn.Client.ForceServerMetadataCacheConsistency = true;
+
+        var request = new RetrieveOptionSetRequest { Name = optionSetName };
+        var response = (RetrieveOptionSetResponse)
+            await conn.Client.ExecuteAsync(request, ct).ConfigureAwait(false);
+
+        var os = response.OptionSetMetadata;
+        var options = os is OptionSetMetadata osm
+            ? osm.Options
+                .Where(o => o.Value.HasValue)
+                .OrderBy(o => o.Value!.Value)
+                .Select(o => new OptionValueRecord(
+                    Value: o.Value!.Value,
+                    Label: LabelHelper.GetLabel(o.Label, languageCode),
+                    Description: LabelHelper.GetLabel(o.Description, languageCode)))
+                .ToList()
+            : new List<OptionValueRecord>();
+
+        return new GlobalOptionSetDetailRecord(
+            Name: os.Name,
+            DisplayName: LabelHelper.GetLabel(os.DisplayName, languageCode),
+            Description: LabelHelper.GetLabel(os.Description, languageCode),
+            OptionSetType: os.OptionSetType?.ToString() ?? "Unknown",
+            IsCustomOptionSet: os.IsCustomOptionSet == true,
+            Options: options);
     }
 
     /// <inheritdoc />
