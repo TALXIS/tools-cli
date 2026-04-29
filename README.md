@@ -1,4 +1,4 @@
-# TALXIS CLI (`txc`)
+# TALXIS DevKit CLI (`txc`)
 
 > [!WARNING]
 > This project is currently in a development phase and not ready for production use.
