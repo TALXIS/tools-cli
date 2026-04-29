@@ -254,21 +254,65 @@ Changeset staging batches entity creation via the `CreateEntities` SDK action an
 
 ## Local Development & Debugging
 
-**Clone the repository and restore dependencies:**
+**Clone and build:**
 ```sh
-git clone <repo-url>
+git clone https://github.com/TALXIS/tools-cli.git
 cd tools-cli
-dotnet restore
-```
-
-**Build the solution:**
-```sh
 dotnet build
 ```
 
 **Run the CLI directly:**
 ```sh
 dotnet run --project src/TALXIS.CLI -- workspace explain
+```
+
+**Run the MCP server locally:**
+```sh
+dotnet run --project src/TALXIS.CLI.MCP
+```
+
+### Working with all three repos locally
+
+The CLI, templates, and build SDK are separate packages. To test changes across all three:
+
+```sh
+# 1. Clone all repos side by side
+git clone https://github.com/TALXIS/tools-cli.git
+git clone https://github.com/TALXIS/tools-devkit-templates.git
+git clone https://github.com/TALXIS/tools-devkit-build.git
+```
+
+**Local templates** — pack and add as a local NuGet source so the CLI's template engine finds them:
+```sh
+cd tools-devkit-templates
+dotnet pack --configuration Debug
+```
+
+**Local build SDK** — same approach:
+```sh
+cd tools-devkit-build
+dotnet pack --configuration Debug
+```
+
+**Configure a local NuGet source** — add a `nuget.config` at the workspace root (or use `dotnet nuget add source`):
+```xml
+<configuration>
+  <packageSources>
+    <add key="LocalTemplates" value="/path/to/tools-devkit-templates/src/Dataverse/bin/Debug/" />
+    <add key="LocalBuildSdk" value="/path/to/tools-devkit-build/src/Dataverse/Tasks/bin/Debug/" />
+  </packageSources>
+</configuration>
+```
+
+**Local CLI** — run directly from source:
+```sh
+cd tools-cli
+dotnet run --project src/TALXIS.CLI -- <command>
+```
+
+**Cleanup** — remove local sources and clear cache to revert to published packages:
+```sh
+dotnet nuget locals all --clear
 ```
 
 ---
@@ -278,11 +322,13 @@ dotnet run --project src/TALXIS.CLI -- workspace explain
 Releases are published through [GitHub Releases](https://github.com/TALXIS/tools-cli/releases):
 
 1. Go to **Releases** → **Draft a new release**
-2. Create a tag in the format `vX.Y.Z` (e.g. `v1.7.0`)
+2. Create a tag in the format `vX.Y.Z` (e.g. `v1.12.0`)
 3. Write the changelog in the release body
 4. Click **Publish release**
 
-The publish workflow then runs tests, builds NuGet packages with the tag version, pushes them to [nuget.org](https://www.nuget.org/packages/TALXIS.CLI), and commits the version bump back to `Directory.Build.props`.
+The publish workflow runs tests, builds NuGet packages with the tag version, and pushes them to [nuget.org](https://www.nuget.org/packages/TALXIS.CLI). Release notes from all GitHub releases are embedded in the NuGet package.
+
+The same process applies to [tools-devkit-templates](https://github.com/TALXIS/tools-devkit-templates) and [tools-devkit-build](https://github.com/TALXIS/tools-devkit-build).
 
 ---
 
