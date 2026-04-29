@@ -1,5 +1,7 @@
 using System.Text.Json;
 using Microsoft.Xrm.Sdk;
+using Microsoft.Xrm.Sdk.Messages;
+using Microsoft.Xrm.Sdk.Metadata;
 using Microsoft.Xrm.Sdk.Query;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Platform.Dataverse.Runtime;
@@ -40,7 +42,8 @@ internal sealed class DataverseRecordService : IDataverseRecordService
     {
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
 
-        var entity = EntityJsonConverter.JsonToEntity(entityLogicalName, attributes);
+        var metadata = await RetrieveAttributeMetadataAsync(conn, entityLogicalName, ct).ConfigureAwait(false);
+        var entity = EntityJsonConverter.JsonToEntity(entityLogicalName, attributes, metadata);
 
         return await conn.Client.CreateAsync(entity, ct).ConfigureAwait(false);
     }
@@ -54,7 +57,8 @@ internal sealed class DataverseRecordService : IDataverseRecordService
     {
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
 
-        var entity = EntityJsonConverter.JsonToEntity(entityLogicalName, attributes, recordId);
+        var metadata = await RetrieveAttributeMetadataAsync(conn, entityLogicalName, ct).ConfigureAwait(false);
+        var entity = EntityJsonConverter.JsonToEntity(entityLogicalName, attributes, metadata, recordId);
 
         await conn.Client.UpdateAsync(entity, ct).ConfigureAwait(false);
     }
@@ -68,5 +72,18 @@ internal sealed class DataverseRecordService : IDataverseRecordService
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
 
         await conn.Client.DeleteAsync(entityLogicalName, recordId, ct).ConfigureAwait(false);
+    }
+
+    private static async Task<EntityMetadata> RetrieveAttributeMetadataAsync(
+        DataverseConnection conn, string entityLogicalName, CancellationToken ct)
+    {
+        var request = new RetrieveEntityRequest
+        {
+            LogicalName = entityLogicalName,
+            EntityFilters = EntityFilters.Attributes,
+            RetrieveAsIfPublished = true
+        };
+        var response = (RetrieveEntityResponse)await conn.Client.ExecuteAsync(request, ct).ConfigureAwait(false);
+        return response.EntityMetadata;
     }
 }

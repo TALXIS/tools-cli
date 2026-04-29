@@ -177,16 +177,19 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
             };
 
             process.Start();
+            // Read streams before WaitForExit to avoid deadlock when pipe buffer fills.
+            var stdout = process.StandardOutput.ReadToEnd();
+            var stderr = process.StandardError.ReadToEnd();
             process.WaitForExit();
 
             if (process.ExitCode == 0)
             {
+                if (!string.IsNullOrEmpty(stdout))
+                    _logger.LogInformation("dotnet sln add: {Output}", stdout.Trim());
                 _logger.LogInformation("Successfully added {Count} project(s) to solution", projectFilesList.Count);
                 return true;
             }
 
-            var stdout = process.StandardOutput.ReadToEnd();
-            var stderr = process.StandardError.ReadToEnd();
             _logger.LogError("dotnet sln add failed (exit code {ExitCode})", process.ExitCode);
             if (!string.IsNullOrEmpty(stdout)) _logger.LogError("stdout: {Output}", stdout);
             if (!string.IsNullOrEmpty(stderr)) _logger.LogError("stderr: {Output}", stderr);

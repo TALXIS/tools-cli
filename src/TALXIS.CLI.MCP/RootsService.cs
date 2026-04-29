@@ -62,7 +62,10 @@ internal sealed class RootsService
         }
 
         if (result.Roots is not { Count: > 0 })
+        {
+            _logger?.LogWarning("MCP client returned no workspace roots. Relative paths will resolve against the server process directory ({Cwd}). Use absolute paths to avoid unexpected resolution.", Environment.CurrentDirectory);
             return null;
+        }
 
         return ConvertFileUriToPath(result.Roots[0].Uri);
     }

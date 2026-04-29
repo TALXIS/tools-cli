@@ -1133,37 +1133,8 @@ internal sealed class ChangesetApplier : IChangesetApplier
 
         // CSV string: "Label1:100000000,Label2:100000001" or "Label1,Label2" (auto-valued)
         if (raw is string csv && !string.IsNullOrWhiteSpace(csv))
-            return ParseOptionsCsv(csv);
+            return OptionMetadataInput.ParseCsv(csv);
 
         return Array.Empty<OptionMetadataInput>();
-    }
-
-    /// <summary>
-    /// Parses a CSV options string into <see cref="OptionMetadataInput"/> items.
-    /// Matches the format used by <c>EntityOptionSetCreateGlobalCliCommand.ParseOptions</c>.
-    /// </summary>
-    private static OptionMetadataInput[] ParseOptionsCsv(string csv)
-    {
-        var entries = csv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (entries.Length == 0)
-            return Array.Empty<OptionMetadataInput>();
-
-        var results = new OptionMetadataInput[entries.Length];
-        int autoValue = DefaultOptionValueStart;
-
-        for (int i = 0; i < entries.Length; i++)
-        {
-            var parts = entries[i].Split(':', 2);
-            if (parts.Length == 2 && int.TryParse(parts[1].Trim(), out int v))
-            {
-                results[i] = new OptionMetadataInput(parts[0].Trim(), v);
-            }
-            else
-            {
-                results[i] = new OptionMetadataInput(parts[0].Trim(), autoValue++);
-            }
-        }
-
-        return results;
     }
 }

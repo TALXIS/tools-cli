@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.Xrm.Sdk;
+using Microsoft.Xrm.Sdk.Metadata;
 
 namespace TALXIS.CLI.Platform.Dataverse.Data;
 
@@ -16,9 +17,37 @@ internal static class EntityJsonConverter
     /// <param name="json">A JSON object whose properties map to entity attributes.</param>
     /// <param name="id">Optional explicit record ID; when set, <see cref="Entity.Id"/> is assigned.</param>
     public static Entity JsonToEntity(string entityLogicalName, JsonElement json, Guid? id = null)
+        => JsonToEntity(entityLogicalName, json, metadata: null, id: id);
+
+    /// <summary>
+    /// Builds a Dataverse <see cref="Entity"/> from a flat JSON object, using entity metadata
+    /// to correctly wrap special types (OptionSetValue, Money, EntityReference).
+    /// </summary>
+    /// <param name="entityLogicalName">Logical name of the target entity (e.g. <c>account</c>).</param>
+    /// <param name="json">A JSON object whose properties map to entity attributes.</param>
+    /// <param name="metadata">
+    /// Optional entity metadata (with <see cref="EntityFilters.Attributes"/>).
+    /// When provided, numeric values are automatically wrapped as <see cref="OptionSetValue"/>
+    /// or <see cref="Money"/> based on the attribute type. Not cached — callers should fetch
+    /// fresh metadata per operation since the CLI itself can mutate schema.
+    /// </param>
+    /// <param name="id">Optional explicit record ID; when set, <see cref="Entity.Id"/> is assigned.</param>
+    public static Entity JsonToEntity(string entityLogicalName, JsonElement json, EntityMetadata? metadata, Guid? id = null)
     {
         if (json.ValueKind != JsonValueKind.Object)
             throw new ArgumentException("Expected a JSON object representing a single record.", nameof(json));
+
+        // Build a lookup from attribute logical name to metadata for type-aware conversion.
+        Dictionary<string, AttributeMetadata>? attrLookup = null;
+        if (metadata?.Attributes is { Length: > 0 })
+        {
+            attrLookup = new Dictionary<string, AttributeMetadata>(StringComparer.OrdinalIgnoreCase);
+            foreach (var attr in metadata.Attributes)
+            {
+                if (attr.LogicalName is not null)
+                    attrLookup[attr.LogicalName] = attr;
+            }
+        }
 
         var entity = new Entity(entityLogicalName);
 
@@ -27,7 +56,9 @@ internal static class EntityJsonConverter
 
         foreach (var prop in json.EnumerateObject())
         {
-            var value = ConvertJsonValue(prop.Value);
+            AttributeMetadata? attrMeta = null;
+            attrLookup?.TryGetValue(prop.Name, out attrMeta);
+            var value = ConvertJsonValue(prop.Value, attrMeta);
             if (value is null)
                 continue;
 
@@ -89,15 +120,35 @@ internal static class EntityJsonConverter
         return JsonDocument.Parse(stream.ToArray()).RootElement.Clone();
     }
 
-    private static object? ConvertJsonValue(JsonElement element)
+    private static object? ConvertJsonValue(JsonElement element, AttributeMetadata? attrMeta = null)
     {
         switch (element.ValueKind)
         {
             case JsonValueKind.String:
+                // When metadata indicates a lookup and the value is a bare GUID string,
+                // wrap it as an EntityReference (single-target lookups only).
+                if (attrMeta is LookupAttributeMetadata lookup
+                    && lookup.Targets is { Length: 1 }
+                    && Guid.TryParse(element.GetString(), out var lookupGuid))
+                {
+                    return new EntityReference(lookup.Targets[0], lookupGuid);
+                }
                 return element.GetString();
 
             case JsonValueKind.Number:
-                // Try integer types first, then floating-point.
+                // Use attribute metadata to wrap special Dataverse types.
+                if (attrMeta is PicklistAttributeMetadata or StatusAttributeMetadata or StateAttributeMetadata)
+                {
+                    if (element.TryGetInt32(out var optVal))
+                        return new OptionSetValue(optVal);
+                }
+                if (attrMeta is MoneyAttributeMetadata)
+                {
+                    if (element.TryGetDecimal(out var moneyVal))
+                        return new Money(moneyVal);
+                }
+
+                // Default: try integer types first, then floating-point.
                 if (element.TryGetInt32(out var i32)) return i32;
                 if (element.TryGetInt64(out var i64)) return i64;
                 if (element.TryGetDecimal(out var dec)) return dec;
@@ -127,7 +178,17 @@ internal static class EntityJsonConverter
                 return null;
 
             case JsonValueKind.Array:
-                // Arrays are not directly supported as attribute values.
+                // Multi-select picklists: JSON array of integers → OptionSetValueCollection
+                if (attrMeta is MultiSelectPicklistAttributeMetadata)
+                {
+                    var collection = new OptionSetValueCollection();
+                    foreach (var item in element.EnumerateArray())
+                    {
+                        if (item.TryGetInt32(out var val))
+                            collection.Add(new OptionSetValue(val));
+                    }
+                    return collection.Count > 0 ? collection : null;
+                }
                 return null;
 
             default:
@@ -178,10 +239,17 @@ internal static class EntityJsonConverter
             case Money money:
                 writer.WriteNumber(key, money.Value);
                 break;
+            case OptionSetValueCollection osvc:
+                writer.WriteStartArray(key);
+                foreach (var item in osvc)
+                    writer.WriteNumberValue(item.Value);
+                writer.WriteEndArray();
+                break;
             default:
                 // Fall back to ToString() for types we don't explicitly handle.
                 writer.WriteString(key, value.ToString());
                 break;
         }
     }
+
 }

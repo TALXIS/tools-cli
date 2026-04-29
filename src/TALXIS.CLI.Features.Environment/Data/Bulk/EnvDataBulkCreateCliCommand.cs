@@ -14,7 +14,7 @@ namespace TALXIS.CLI.Features.Environment.Data.Bulk;
 [CliIdempotent]
 [CliCommand(
     Name = "create",
-    Description = "Creates multiple Dataverse records in a single batch request on the LIVE connected environment. Requires an active profile. Accepts JSON array via --data or --file."
+    Description = "Creates multiple Dataverse records in a single batch request on the LIVE connected environment. Requires an active profile. Accepts JSON array via --data or --file. Column types are auto-detected: option sets accept plain integers (e.g. 375970000), money fields accept decimals, lookups accept {Id,LogicalName} objects or a bare GUID string (single-target lookups)."
 )]
 public class EnvDataBulkCreateCliCommand : ProfiledCliCommand
 {

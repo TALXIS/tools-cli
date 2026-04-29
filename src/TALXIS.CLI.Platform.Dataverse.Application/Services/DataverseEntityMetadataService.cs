@@ -87,16 +87,44 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
 
         return attributes
             .OrderBy(a => a.LogicalName, StringComparer.OrdinalIgnoreCase)
-            .Select(a => new EntityAttributeRecord(
-                LogicalName: a.LogicalName,
-                SchemaName: a.SchemaName,
-                DisplayName: a.DisplayName?.UserLocalizedLabel?.Label,
-                AttributeTypeName: a.AttributeTypeName?.Value ?? a.AttributeType?.ToString() ?? "Unknown",
-                IsCustomAttribute: a.IsCustomAttribute == true,
-                IsPrimaryId: a.LogicalName == entityMeta.PrimaryIdAttribute,
-                IsPrimaryName: a.LogicalName == entityMeta.PrimaryNameAttribute,
-                MaxLength: a is StringAttributeMetadata strAttr ? strAttr.MaxLength : null,
-                Description: a.Description?.UserLocalizedLabel?.Label))
+            .Select(a =>
+            {
+                string? optionSetName = null;
+                string? optionValues = null;
+                if (a is PicklistAttributeMetadata p && p.OptionSet != null)
+                {
+                    optionSetName = p.OptionSet.Name;
+                    optionValues = FormatOptionValues(p.OptionSet.Options);
+                }
+                else if (a is StatusAttributeMetadata st && st.OptionSet != null)
+                {
+                    optionSetName = st.OptionSet.Name;
+                    optionValues = FormatOptionValues(st.OptionSet.Options);
+                }
+                else if (a is StateAttributeMetadata sa && sa.OptionSet != null)
+                {
+                    optionSetName = sa.OptionSet.Name;
+                    optionValues = FormatOptionValues(sa.OptionSet.Options);
+                }
+                else if (a is MultiSelectPicklistAttributeMetadata ms && ms.OptionSet != null)
+                {
+                    optionSetName = ms.OptionSet.Name;
+                    optionValues = FormatOptionValues(ms.OptionSet.Options);
+                }
+
+                return new EntityAttributeRecord(
+                    LogicalName: a.LogicalName,
+                    SchemaName: a.SchemaName,
+                    DisplayName: a.DisplayName?.UserLocalizedLabel?.Label,
+                    AttributeTypeName: a.AttributeTypeName?.Value ?? a.AttributeType?.ToString() ?? "Unknown",
+                    IsCustomAttribute: a.IsCustomAttribute == true,
+                    IsPrimaryId: a.LogicalName == entityMeta.PrimaryIdAttribute,
+                    IsPrimaryName: a.LogicalName == entityMeta.PrimaryNameAttribute,
+                    MaxLength: a is StringAttributeMetadata strAttr ? strAttr.MaxLength : null,
+                    Description: a.Description?.UserLocalizedLabel?.Label,
+                    OptionSetName: optionSetName,
+                    OptionValues: optionValues);
+            })
             .ToList();
     }
 
@@ -823,6 +851,16 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
     }
 
     // ===== Private helpers =====
+
+    /// <summary>Formats option set options as "value:label, value:label" for compact display.</summary>
+    private static string? FormatOptionValues(OptionMetadataCollection? options)
+    {
+        if (options is null or { Count: 0 })
+            return null;
+        return string.Join(", ", options
+            .Where(o => o.Value.HasValue)
+            .Select(o => $"{o.Value!.Value}:{o.Label?.UserLocalizedLabel?.Label ?? "?"}"));
+    }
 
     /// <summary>Case-insensitive contains check that handles null values safely.</summary>
     private static bool Contains(string? value, string search) =>
