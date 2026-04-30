@@ -9,22 +9,39 @@
 >
 > If you wish to use this project for your team, please contact us at hello@networg.com for a personalized onboarding experience and customization to meet your specific needs.
 
-> [!TIP]
-> **MCP Server Support:**  
-> You can also use this CLI as a Model Context Protocol (MCP) server by installing the related .NET tool `txc-mcp`.  
-> This enables integration with tools and workflows that support the MCP standard.  
-> For setup and usage instructions, see [`TALXIS.CLI.MCP`](src/TALXIS.CLI.MCP/README.md).
-
 ---
 
-TALXIS CLI (`txc`) is a modular, extensible .NET global tool for Power Platform and Dataverse development. It's built around a **code-first** philosophy: scaffold and manage components locally in your repo — fast, offline and coding agent-friendly — then synchronize to a live environment.
+TALXIS DevKit CLI (`txc`) is a code-first toolkit for Power Platform and Dataverse development. Scaffold components locally, validate with builds, and synchronize to a live environment.
 
-This makes `txc` ideal for **coding agents** and CI/CD pipelines where hitting a live environment on every operation is too slow and too fragile. Work locally, build, sync.
+## Getting Started
+
+### Prerequisites
+
+- [**.NET 10 SDK**](https://dotnet.microsoft.com/download/dotnet/10.0) or later (`dotnet --version` should show `10.0.x`+)
+- **VS Code** with [GitHub Copilot](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot) (for MCP)
+
+### MCP Server (recommended)
+
+The easiest way to use TALXIS DevKit is through the **MCP server** with GitHub Copilot or another AI assistant. No manual CLI commands needed — the AI discovers and calls tools for you.
+
+**→ [MCP Server setup instructions](src/TALXIS.CLI.MCP/README.md)**
+
+### CLI (advanced)
+
+For scripting, CI/CD pipelines, or when you prefer manual control:
+
+```sh
+# Run without installing (dnx ships with .NET 10 SDK)
+dnx TALXIS.CLI -- workspace explain
+
+# Or install as a global tool
+dotnet tool install --global TALXIS.CLI
+txc workspace explain
+```
 
 ---
 
 ## Table of Contents
-- [Installation](#installation)
 - [Identity, Connections & Profiles](#identity-connections--profiles)
 - [Example Usage](#example-usage)
 - [Local Development & Debugging](#local-development--debugging)
@@ -33,26 +50,6 @@ This makes `txc` ideal for **coding agents** and CI/CD pipelines where hitting a
 
 **Detailed guides:**
 [Schema Management](docs/schema-management.md) · [Changeset Staging](docs/changeset-staging.md) · [Architecture](docs/architecture.md) · [Profiles & Auth](docs/profiles-and-authentication.md) · [Output Contract](docs/output-contract.md)
-
----
-
-## Installation
-
-**Install the CLI as a .NET global tool:**
-```sh
-dotnet tool install --global TALXIS.CLI
-```
-
-**Update to the latest version:**
-```sh
-dotnet tool update --global TALXIS.CLI
-
-dotnet new update
-```
-> [!TIP]
-> Running `dotnet new update` ensures that template packages used by the CLI are updated to their latest versions.
-
-After installation, use the CLI via the `txc` command in any terminal.
 
 ---
 
