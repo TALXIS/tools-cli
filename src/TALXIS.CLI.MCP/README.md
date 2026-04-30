@@ -1,60 +1,63 @@
-# TALXIS CLI MCP (`txc-mcp`)
+# TALXIS CLI MCP Server
 
-This project provides a Model Context Protocol (MCP) server for the TALXIS CLI, enabling dynamic discovery and invocation of CLI tools via the MCP stdio transport. The MCP server is distributed as a global .NET tool and can be easily integrated with GitHub Copilot and other MCP-compatible tools.
+A [Model Context Protocol](https://modelcontextprotocol.io/) server for Power Platform and Dataverse development. Works with GitHub Copilot, Claude Code, VS Code, and any MCP-compatible client.
+
+## Prerequisites
+
+- [**.NET 10 SDK**](https://dotnet.microsoft.com/download/dotnet/10.0) or later
+
+## Setup
+
+### VS Code / GitHub Copilot
+
+Add to `.vscode/mcp.json` in your project:
+
+```json
+{
+    "servers": {
+        "TALXIS CLI": {
+            "type": "stdio",
+            "command": "dnx",
+            "args": ["TALXIS.CLI.MCP", "--yes"]
+        }
+    }
+}
+```
+
+### Claude Code
+
+```sh
+claude mcp add --transport stdio txc -- dnx TALXIS.CLI.MCP --yes
+```
+
+### GitHub Copilot CLI
+
+Add to `~/.copilot/mcp-config.json`:
+
+```json
+{
+  "mcpServers": {
+    "TXC": {
+      "type": "stdio",
+      "command": "dnx",
+      "args": ["TALXIS.CLI.MCP", "--yes"]
+    }
+  }
+}
+```
+
+No install needed — [`dnx`](https://learn.microsoft.com/dotnet/core/tools/dotnet-tool-exec) downloads and runs the server on demand.
+
+[![NuGet](https://img.shields.io/nuget/v/TALXIS.CLI.MCP)](https://www.nuget.org/packages/TALXIS.CLI.MCP)
 
 ## Features
 
 - **Tool Discovery & Execution** — Dynamically discovers and exposes all TALXIS CLI commands as MCP tools with typed input schemas
 - **Task-Augmented Execution** — Long-running tools (deploy, import) support the MCP tasks protocol for async "call-now, fetch-later" execution with cancellation support
 - **Structured Logging** — Streams real-time log output from CLI subprocesses to MCP clients via `notifications/message`
-- **Progress Notifications** — Emits `notifications/progress` during long-running tool calls when the client provides a `progressToken`, with rate-limiting to avoid flooding
+- **Progress Notifications** — Emits `notifications/progress` during long-running tool calls when the client provides a `progressToken`
 - **Workspace Roots** — Requests the client's workspace roots via `roots/list` and uses the primary root as the subprocess working directory
-- **Log Redaction** — Automatically redacts passwords, tokens, and filesystem paths from log output before forwarding to clients
-- **Copilot Instructions** — Manages `.github/copilot-instructions.md` files to guide AI assistants working with TALXIS repositories
-
-## Installation
-
-**Install the MCP server as a global .NET tool (this will add the `txc-mcp` alias):**
-
-```sh
-dotnet tool install --global TALXIS.CLI.MCP
-```
-
-**Update to the latest version:**
-
-```sh
-dotnet tool update --global TALXIS.CLI.MCP
-```
-
-See the package on NuGet: [TALXIS.CLI.MCP](https://www.nuget.org/packages/TALXIS.CLI.MCP)
-
-## Usage with VS Code and GitHub Copilot
-
-### Quick Installation via Deep Link
-
-Click the link below to automatically add the TALXIS CLI MCP server to your VS Code configuration:
-
-[📦 Install TALXIS CLI MCP Server](vscode:mcp/install?%7B%22name%22%3A%22TALXIS%20CLI%22%2C%22command%22%3A%22txc-mcp%22%7D)
-
-This will add the server to your user configuration, making it available across all workspaces.
-
-### Manual Configuration
-
-Alternatively, you can manually create a `.vscode/mcp.json` file in your project with the following content:
-
-```json
-{
-    "inputs": [],
-    "servers": {
-        "TALXIS CLI Public": {
-            "type": "stdio",
-            "command": "txc-mcp"
-        }
-    }
-}
-```
-
-This will allow GitHub Copilot and other tools to discover and invoke TALXIS CLI commands via MCP.
+- **Log Redaction** — Automatically redacts passwords, tokens, and filesystem paths from log output
 
 ## Developing and Debugging Locally
 
