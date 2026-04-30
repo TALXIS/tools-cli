@@ -8,7 +8,23 @@ A [Model Context Protocol](https://modelcontextprotocol.io/) server for Power Pl
 
 ## Setup
 
-### VS Code / GitHub Copilot
+### GitHub Copilot CLI
+
+Add to `~/.copilot/mcp-config.json`:
+
+```json
+{
+  "mcpServers": {
+    "TXC": {
+      "type": "stdio",
+      "command": "dnx",
+      "args": ["TALXIS.CLI.MCP", "--yes"]
+    }
+  }
+}
+```
+
+### VS Code / GitHub Copilot Chat
 
 Add to `.vscode/mcp.json` in your project:
 
@@ -30,21 +46,6 @@ Add to `.vscode/mcp.json` in your project:
 claude mcp add --transport stdio txc -- dnx TALXIS.CLI.MCP --yes
 ```
 
-### GitHub Copilot CLI
-
-Add to `~/.copilot/mcp-config.json`:
-
-```json
-{
-  "mcpServers": {
-    "TXC": {
-      "type": "stdio",
-      "command": "dnx",
-      "args": ["TALXIS.CLI.MCP", "--yes"]
-    }
-  }
-}
-```
 
 No install needed — [`dnx`](https://learn.microsoft.com/dotnet/core/tools/dotnet-tool-exec) downloads and runs the server on demand.
 
