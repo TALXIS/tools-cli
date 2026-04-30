@@ -18,7 +18,7 @@ TALXIS DevKit CLI (`txc`) is a code-first toolkit for Power Platform and Dataver
 ### Prerequisites
 
 - [**.NET 10 SDK**](https://dotnet.microsoft.com/download/dotnet/10.0) or later (`dotnet --version` should show `10.0.x`+)
-- **VS Code** with [GitHub Copilot](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot) (for MCP)
+- [**GitHub Copilot CLI**](https://github.com/features/copilot/cli) (or an alternative AI harness like Claude Code) for MCP
 
 ### MCP Server (recommended)
 
