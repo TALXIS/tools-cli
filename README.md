@@ -19,7 +19,6 @@ TALXIS DevKit CLI (`txc`) is a code-first toolkit for Power Platform and Dataver
 
 - [**.NET 10 SDK**](https://dotnet.microsoft.com/download/dotnet/10.0) or later (`dotnet --version` should show `10.0.x`+)
 - [**PowerShell**](https://learn.microsoft.com/powershell/scripting/install/installing-powershell) (`pwsh`) — required by template post-action scripts
-- [**dotnet-script**](https://github.com/dotnet-script/dotnet-script) — required by plugin and security role templates (`dotnet tool install --global dotnet-script`)
 - [**GitHub Copilot CLI**](https://github.com/features/copilot/cli) (or an alternative AI harness like Claude Code) for MCP
 
 ### MCP Server (recommended)

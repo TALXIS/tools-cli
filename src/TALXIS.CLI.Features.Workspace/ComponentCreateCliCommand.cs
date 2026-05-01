@@ -29,6 +29,12 @@ public class ComponentCreateCliCommand : TxcLeafCommand, ICliGetCompletions
 
     protected override async Task<int> ExecuteAsync()
     {
+        var prereqProblems = TALXIS.CLI.Core.Shared.PrerequisiteChecker.CheckScaffoldingPrerequisites();
+        foreach (var problem in prereqProblems)
+            Logger.LogError("{Problem}", problem);
+        if (prereqProblems.Count > 0)
+            return ExitError;
+
         var parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         // Parse template-specific parameters
