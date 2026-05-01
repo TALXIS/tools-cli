@@ -9,7 +9,8 @@ namespace TALXIS.CLI.Features.Workspace;
     {
         typeof(ComponentCliCommand),
         typeof(ProjectCliCommand),
-        typeof(WorkspaceExplainCliCommand)
+        typeof(WorkspaceExplainCliCommand),
+        typeof(WorkspaceValidateCliCommand)
     },
     ShortFormAutoGenerate = CliNameAutoGenerate.None)]
 public class WorkspaceCliCommand
