@@ -299,8 +299,8 @@ RECIPE RULES:
         foreach (var entry in entries)
         {
             var flags = new List<string>();
-            if (entry.Descriptor.Annotations?.DestructiveHint == true) flags.Add("⚠️ DESTRUCTIVE");
-            if (entry.Descriptor.Annotations?.ReadOnlyHint == true) flags.Add("📖 read-only");
+            if (entry.Descriptor.Annotations?.DestructiveHint == true) flags.Add("DESTRUCTIVE");
+            if (entry.Descriptor.Annotations?.ReadOnlyHint == true) flags.Add("read-only");
 
             sb.AppendLine($"- **{entry.Descriptor.Name}** {string.Join(" ", flags)}: {entry.Descriptor.Description}");
         }
@@ -338,8 +338,8 @@ RECIPE RULES:
         {
             var entry = entries[i];
             var flags = new List<string>();
-            if (entry.Descriptor.Annotations?.DestructiveHint == true) flags.Add("⚠️ DESTRUCTIVE");
-            if (entry.Descriptor.Annotations?.ReadOnlyHint == true) flags.Add("📖 read-only");
+            if (entry.Descriptor.Annotations?.DestructiveHint == true) flags.Add("DESTRUCTIVE");
+            if (entry.Descriptor.Annotations?.ReadOnlyHint == true) flags.Add("read-only");
 
             sb.AppendLine($"**{i + 1}. {entry.Descriptor.Name}** {string.Join(" ", flags)}");
             sb.AppendLine(entry.Descriptor.Description);
