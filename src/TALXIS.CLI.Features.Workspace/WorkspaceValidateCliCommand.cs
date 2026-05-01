@@ -1,33 +1,68 @@
-#pragma warning disable TXC001 // Reserved stub — will inherit TxcLeafCommand when implemented
-#pragma warning disable TXC004 // Reserved stub — safety annotation deferred until implemented
-// Reserved skeleton — intentionally NOT wired into any parent's `Children` array.
-//
-// This class exists to pin the design: `txc workspace validate` is the planned
-// slot for object-model-driven validation of the local workspace (schema,
-// references, metadata consistency) — the next step beyond template-engine
-// scaffolding.
-//
-// Because it is unreachable from `WorkspaceCliCommand.Children`, DotMake will
-// not surface it to the CLI and the MCP adapter will not surface it as a tool.
-// Activating this command is a two-edit change:
-//   1. Add `typeof(WorkspaceValidateCliCommand)` to the parent's `Children` array.
-//   2. Replace the `NotImplementedException` body with a real implementation.
-//
-// Please read `CONTRIBUTING.md` before changing the shape of this class.
-
 using DotMake.CommandLine;
+using Microsoft.Extensions.Logging;
+using TALXIS.CLI.Core;
+using TALXIS.CLI.Logging;
+using TALXIS.Platform.Metadata.Validation;
 
 namespace TALXIS.CLI.Features.Workspace;
 
+[CliReadOnly]
 [CliCommand(
-    Description = "Reserved — not yet implemented.",
-    Name = "validate")]
-public sealed class WorkspaceValidateCliCommand
+    Name = "validate",
+    Description = "Validates solution workspace files against XSD schemas and checks for structural issues.")]
+public sealed class WorkspaceValidateCliCommand : TxcLeafCommand
 {
-    public Task<int> RunAsync()
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(WorkspaceValidateCliCommand));
+
+    [CliArgument(Description = "Path to the solution project directory to validate.")]
+    public string Path { get; set; } = ".";
+
+    protected override async Task<int> ExecuteAsync()
     {
-        throw new NotImplementedException(
-            "`workspace validate` is reserved for a future object-model-driven "
-            + "validation workflow and is not yet implemented. See CONTRIBUTING.md.");
+        var fullPath = System.IO.Path.GetFullPath(Path);
+        if (!Directory.Exists(fullPath))
+        {
+            Logger.LogError("Directory not found: {Path}", fullPath);
+            return ExitError;
+        }
+
+        var schemaValidator = new SchemaValidator();
+        var guidValidator = new GuidValidator();
+        var allResults = new List<ValidationResult>();
+
+        foreach (var xmlFile in Directory.EnumerateFiles(fullPath, "*.xml", SearchOption.AllDirectories))
+        {
+            var results = schemaValidator.ValidateFile(xmlFile);
+            allResults.AddRange(results);
+        }
+
+        var guidResults = guidValidator.ValidateDirectory(fullPath);
+        allResults.AddRange(guidResults);
+
+        int errors = 0;
+        int warnings = 0;
+        foreach (var result in allResults)
+        {
+            if (result.Severity == ValidationSeverity.Error)
+            {
+                Logger.LogError("[{File}] {Message}", result.FilePath ?? "unknown", result.Message);
+                errors++;
+            }
+            else
+            {
+                Logger.LogWarning("[{File}] {Message}", result.FilePath ?? "unknown", result.Message);
+                warnings++;
+            }
+        }
+
+        if (errors == 0 && warnings == 0)
+        {
+            OutputFormatter.WriteResult("succeeded", $"Validation passed — no issues found in {fullPath}");
+            return ExitSuccess;
+        }
+
+        OutputFormatter.WriteResult(errors > 0 ? "failed" : "succeeded",
+            $"Validation complete: {errors} error(s), {warnings} warning(s)");
+        return errors > 0 ? ExitError : ExitSuccess;
     }
 }
