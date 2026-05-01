@@ -54,6 +54,15 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
             // Prepare template name
             var name = GetTemplateName(parameters, outputPath);
 
+            // Snapshot the output directory BEFORE template creation so we can
+            // roll back both template-created files and post-action modifications.
+            using var transaction = new PostActionTransaction();
+            if (Directory.Exists(outputPath))
+            {
+                foreach (var file in Directory.EnumerateFiles(outputPath, "*", SearchOption.AllDirectories))
+                    transaction.TrackFile(file);
+            }
+
             // Create template
             var result = await _templateCreator.InstantiateAsync(
                 templateInfo: template,
@@ -66,8 +75,16 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
                 dryRun: false,
                 cancellationToken: cancellationToken).ConfigureAwait(false);
 
+            // Track files created by the template engine (didn't exist before → delete on rollback)
+            var actualOutputDir = result.OutputBaseDirectory ?? outputPath;
+            if (Directory.Exists(actualOutputDir))
+            {
+                foreach (var file in Directory.EnumerateFiles(actualOutputDir, "*", SearchOption.AllDirectories))
+                    transaction.TrackFile(file);
+            }
+
             // Handle result
-            return await HandleCreationResultAsync(result, outputPath);
+            return await HandleCreationResultAsync(result, outputPath, transaction);
         }
 
         private static void ValidateInputs(string shortName, string outputPath)
@@ -172,7 +189,7 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
             return name;
         }
 
-        private Task<TemplateScaffoldResult> HandleCreationResultAsync(ITemplateCreationResult result, string outputPath)
+        private Task<TemplateScaffoldResult> HandleCreationResultAsync(ITemplateCreationResult result, string outputPath, PostActionTransaction transaction)
         {
             switch (result.Status)
             {
@@ -202,12 +219,11 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
                         List<IPostAction> failedActions;
                         try
                         {
-                            (postActionResult, failedActions) = dispatcher.RunPostActions(postActions, ScriptPermission.Yes, result, actualOutputDirectory);
+                            (postActionResult, failedActions) = dispatcher.RunPostActions(postActions, ScriptPermission.Yes, result, actualOutputDirectory, transaction);
                         }
                         catch (Exception ex)
                         {
-                            // Defense-in-depth: if RunPostActions throws unexpectedly, surface the error
-                            // instead of letting the exception propagate with no context.
+                            transaction.Rollback();
                             var errorMessage = $"Post-action execution threw an unexpected exception: {ex.Message}";
                             _logger.LogError(ex, "Post-action execution threw an unexpected exception.");
 
@@ -226,16 +242,16 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
                         
                         if ((postActionResult & PostActionResult.Failure) != 0)
                         {
-                            // Some post-actions failed but template files were created successfully
                             var failedDescriptions = failedActions
                                 .Select(a => !string.IsNullOrWhiteSpace(a.Description) ? a.Description : a.ActionId.ToString())
                                 .ToList();
-                            _logger.LogWarning("Template files were created but {Count} post-action(s) failed: {Actions}",
-                                failedActions.Count, string.Join("; ", failedDescriptions));
-                            return Task.FromResult(new TemplateScaffoldResult { Success = true, FailedActions = failedActions, FailedActionErrors = dispatcher.FailedActionErrors });
+                            _logger.LogWarning("Post-action(s) failed: {Actions}. Rolling back all changes.", string.Join("; ", failedDescriptions));
+                            transaction.Rollback();
+                            return Task.FromResult(new TemplateScaffoldResult { Success = false, FailedActions = failedActions, FailedActionErrors = dispatcher.FailedActionErrors });
                         }
                     }
                     
+                    transaction.Commit();
                     return Task.FromResult(new TemplateScaffoldResult { Success = true, FailedActions = new List<IPostAction>() });
 
                 default:

@@ -150,7 +150,11 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
             process.Start();
             string stdOut = process.StandardOutput.ReadToEnd();
             string stdErr = process.StandardError.ReadToEnd();
-            process.WaitForExit();
+            if (!process.WaitForExit(60_000))
+            {
+                process.Kill();
+                throw new TimeoutException("Script timed out after 60 seconds");
+            }
             return (stdOut, stdErr, process.ExitCode);
         }
 

@@ -55,7 +55,7 @@ public class ComponentCreateCliCommand : TxcLeafCommand, ICliGetCompletions
             var failureDetails = new List<string>();
             if (failedActions.Count > 0)
             {
-                Logger.LogError("Template files were created but {Count} post-action(s) failed:", failedActions.Count);
+                Logger.LogError("{Count} post-action(s) failed — all changes rolled back:", failedActions.Count);
                 foreach (var failed in failedActions)
                 {
                     var label = !string.IsNullOrWhiteSpace(failed.Description) ? failed.Description : failed.ActionId.ToString();
@@ -70,7 +70,7 @@ public class ComponentCreateCliCommand : TxcLeafCommand, ICliGetCompletions
                 Logger.LogError("Component scaffolding failed. See errors above.");
             }
             var message = failureDetails.Count > 0
-                ? $"Template files were created but post-action(s) failed: {string.Join("; ", failureDetails)}"
+                ? $"Post-action(s) failed, all changes rolled back: {string.Join("; ", failureDetails)}"
                 : "Component scaffolding failed";
             OutputFormatter.WriteResult("failed", message);
             return ExitError;

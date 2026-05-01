@@ -35,11 +35,13 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
             IReadOnlyList<IPostAction> actions, 
             ScriptPermission scriptPermission,
             ITemplateCreationResult? templateCreationResult = null,
-            string? outputBasePath = null)
+            string? outputBasePath = null,
+            PostActionTransaction? transaction = null)
         {
             FailedActionErrors.Clear();
             var result = PostActionResult.Success;
             var failedActions = new List<IPostAction>();
+
             foreach (var action in actions)
             {
                 var actionLabel = !string.IsNullOrWhiteSpace(action.Description)
@@ -68,6 +70,11 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
                     var basePath = outputBasePath ?? Directory.GetCurrentDirectory();
                     ok = addProjectProcessor.ProcessInternal(_environment, action, null!, templateCreationResult!.CreationResult, basePath);
                 }
+                else if (processor is AddReferencePostActionProcessor addReferenceProcessor)
+                {
+                    var basePath = outputBasePath ?? Directory.GetCurrentDirectory();
+                    ok = addReferenceProcessor.ProcessInternal(_environment, action, basePath);
+                }
                 else if (processor is RunScriptPostActionProcessor runScriptProcessor)
                 {
                     var basePath = outputBasePath ?? Directory.GetCurrentDirectory();
@@ -91,10 +98,16 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
                     if (!action.ContinueOnError)
                     {
                         _logger.LogError("Stopping post-action execution (continueOnError is false)");
+                        transaction?.Rollback();
                         break;
                     }
                 }
             }
+            if (!failedActions.Any())
+            {
+                transaction?.Commit();
+            }
+
             return (result, failedActions);
         }
 
