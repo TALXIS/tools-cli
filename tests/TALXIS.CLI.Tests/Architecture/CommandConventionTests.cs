@@ -63,7 +63,6 @@ public class CommandConventionTests
         // Long-running server process — cannot follow request/response pattern
         "TransformServerStartCliCommand",
         // Reserved stubs that throw NotImplementedException
-        "WorkspaceValidateCliCommand",
         "WorkspaceLanguageServerCliCommand",
         "MetamodelListCliCommand",
         "MetamodelDescribeCliCommand",
