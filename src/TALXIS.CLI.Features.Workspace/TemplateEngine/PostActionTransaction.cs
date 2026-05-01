@@ -65,12 +65,14 @@ public sealed class PostActionTransaction : IDisposable
                 {
                     if (File.Exists(path))
                     {
+                        _logger.LogInformation("Removing: {Path}", path);
                         File.Delete(path);
                         deleted++;
                     }
                 }
                 else
                 {
+                    _logger.LogInformation("Restoring: {Path}", path);
                     File.WriteAllBytes(path, originalContent);
                     restored++;
                 }

@@ -63,6 +63,21 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
                     transaction.TrackFile(file);
             }
 
+            // Snapshot the nearest .sln/.slnx file — post-actions like AddProjectsToSln
+            // modify this file which lives above the output directory.
+            var slnDir = new DirectoryInfo(outputPath).Parent;
+            while (slnDir is { Exists: true })
+            {
+                var slnFile = slnDir.GetFiles("*.sln").FirstOrDefault()
+                           ?? slnDir.GetFiles("*.slnx").FirstOrDefault();
+                if (slnFile != null)
+                {
+                    transaction.TrackFile(slnFile.FullName);
+                    break;
+                }
+                slnDir = slnDir.Parent;
+            }
+
             // Create template
             var result = await _templateCreator.InstantiateAsync(
                 templateInfo: template,

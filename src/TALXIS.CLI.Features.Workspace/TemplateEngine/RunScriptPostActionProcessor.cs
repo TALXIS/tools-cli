@@ -147,15 +147,23 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
         /// </summary>
         private (string stdOut, string stdErr, int exitCode) ExecuteProcess(System.Diagnostics.Process process)
         {
+            // Use async event handlers to drain stdout and stderr in parallel,
+            // avoiding deadlock when pipe buffers fill.
+            var stdOutBuilder = new System.Text.StringBuilder();
+            var stdErrBuilder = new System.Text.StringBuilder();
+            process.OutputDataReceived += (_, e) => { if (e.Data != null) stdOutBuilder.AppendLine(e.Data); };
+            process.ErrorDataReceived += (_, e) => { if (e.Data != null) stdErrBuilder.AppendLine(e.Data); };
+
             process.Start();
-            string stdOut = process.StandardOutput.ReadToEnd();
-            string stdErr = process.StandardError.ReadToEnd();
-            if (!process.WaitForExit(60_000))
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+
+            if (!process.WaitForExit(120_000))
             {
                 process.Kill();
-                throw new TimeoutException("Script timed out after 60 seconds");
+                throw new TimeoutException("Script timed out after 120 seconds");
             }
-            return (stdOut, stdErr, process.ExitCode);
+            return (stdOutBuilder.ToString(), stdErrBuilder.ToString(), process.ExitCode);
         }
 
         /// <summary>
