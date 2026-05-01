@@ -208,6 +208,12 @@ RECIPE RULES:
             ],
             SystemPrompt = systemPrompt,
             MaxTokens = 1500,
+            ModelPreferences = new ModelPreferences
+            {
+                SpeedPriority = 0.8f,
+                CostPriority = 0.6f,
+                IntelligencePriority = 0.4f
+            },
         };
 
         var result = await server.SampleAsync(samplingParams, ct);
