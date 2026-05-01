@@ -19,13 +19,12 @@ Plugin registration is a 3-step chain. **Order matters** — each step depends o
 3. **Build the plugin project** → `dotnet build src/Plugins.{Domain}` — this MUST succeed before step 4
 4. **Register Assembly** → `workspace_component_create` with `Type: pp-plugin-assembly`
    - Requires the plugin to be built first (reads compiled DLL for metadata)
-   - Requires `dotnet-script` global tool installed (`dotnet tool install --global dotnet-script`)
 5. **Register Steps** → `workspace_component_create` with `Type: pp-plugin-assembly-step`
 6. **Link projects** → `dotnet add reference ../Plugins.{Domain}` from the Logic solution
 
 Call `workspace_component_parameter_list` for required parameters at each step.
 
-**Prerequisites:** `dotnet-script` must be installed (`dotnet tool install --global dotnet-script`). The plugin assembly and step templates use C# scripts (`.csx`) for code generation.
+**Prerequisites:** The plugin assembly and step templates use C# file-based apps (`.cs`) for code generation — runs natively with .NET 10 SDK.
 
 ## Execution Stage Decision Tree
 

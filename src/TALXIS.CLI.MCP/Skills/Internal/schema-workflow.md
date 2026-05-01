@@ -14,13 +14,22 @@
 ```
 → NEVER scaffold Form/View before the Entity and Attributes exist — XML references will break
 
-### Adding to existing table
+### Adding to existing table (same solution)
 ```
 1. workspace_explain                           — confirm table exists, find SolutionRootPath
 2. workspace_component_create (Attribute/Form/View)
 3. Build locally to validate
 ```
 → SKIP step 1 ONLY if you already know the project structure from prior context
+
+### Adding views/forms for an entity from another solution
+```
+1. workspace_component_create (Entity, Behavior=Existing)  — creates entity folder reference, no full metadata
+2. workspace_component_create (Form/View)                  — scaffolds into the referenced entity folder
+3. Build locally to validate
+```
+→ Use this when e.g. Solutions.UI needs forms/views for an entity defined in Solutions.DataModel
+→ Behavior=Existing creates the entity folder structure without duplicating the entity definition
 
 ### Creating a relationship
 ```

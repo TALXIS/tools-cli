@@ -38,10 +38,7 @@ Scaffold components in dependency order:
 
 ## Prerequisites
 
-Some templates (pp-plugin-assembly, pp-plugin-assembly-step, pp-security-role-privilege) use C# scripts that require the `dotnet-script` global tool:
-```
-dotnet tool install --global dotnet-script
-```
+Some templates use C# file-based apps (`.cs`) for code generation. These run natively with .NET 10 SDK — no additional tools required.
 
 ## What NOT to Do
 
