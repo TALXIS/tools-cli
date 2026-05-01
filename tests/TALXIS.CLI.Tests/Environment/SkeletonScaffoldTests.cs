@@ -26,7 +26,6 @@ public class SkeletonScaffoldTests
         new[]
         {
             new object[] { typeof(DeploymentPatchCliCommand) },
-            new object[] { typeof(WorkspaceValidateCliCommand) },
             new object[] { typeof(WorkspaceLanguageServerCliCommand) },
             new object[] { typeof(MetamodelCliCommand) },
             new object[] { typeof(MetamodelDescribeCliCommand) },
