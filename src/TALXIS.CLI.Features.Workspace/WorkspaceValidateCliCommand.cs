@@ -9,13 +9,16 @@ namespace TALXIS.CLI.Features.Workspace;
 [CliReadOnly]
 [CliCommand(
     Name = "validate",
-    Description = "Validates solution workspace files against XSD schemas and checks for structural issues.")]
+    Description = "Validates solution workspace files against XSD schemas, checks for structural issues, and loads the metadata model.")]
 public sealed class WorkspaceValidateCliCommand : TxcLeafCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(WorkspaceValidateCliCommand));
 
     [CliArgument(Description = "Path to the solution project directory to validate.")]
     public string Path { get; set; } = ".";
+
+    [CliOption(Name = "--file", Description = "Validate a single file (relative path within the workspace).")]
+    public string? File { get; set; }
 
     protected override async Task<int> ExecuteAsync()
     {
@@ -26,38 +29,58 @@ public sealed class WorkspaceValidateCliCommand : TxcLeafCommand
             return ExitError;
         }
 
-        var schemaValidator = new SchemaValidator();
-        var guidValidator = new GuidValidator();
-        var allResults = new List<ValidationResult>();
+        IReadOnlyList<ValidationResult> results;
 
-        foreach (var xmlFile in Directory.EnumerateFiles(fullPath, "*.xml", SearchOption.AllDirectories))
+        if (File != null)
         {
-            var results = schemaValidator.ValidateFile(xmlFile);
-            allResults.AddRange(results);
+            // Single file validation
+            var filePath = System.IO.Path.Combine(fullPath, File);
+            if (!System.IO.File.Exists(filePath))
+            {
+                Logger.LogError("File not found: {File}", filePath);
+                return ExitError;
+            }
+            var schemaValidator = new SchemaValidator();
+            results = schemaValidator.ValidateFile(filePath);
         }
+        else
+        {
+            // Full workspace validation
+            var validator = new WorkspaceValidator();
+            var report = validator.ValidateDirectory(fullPath);
+            results = report.Results;
 
-        var guidResults = guidValidator.ValidateDirectory(fullPath);
-        allResults.AddRange(guidResults);
+            // Show component summary if model loaded
+            if (report.LoadedComponents != null)
+            {
+                Logger.LogInformation("Components: {Summary}", report.LoadedComponents.ToString());
+            }
+        }
 
         int errors = 0;
         int warnings = 0;
-        foreach (var result in allResults)
+        foreach (var result in results)
         {
+            var file = result.FilePath != null
+                ? System.IO.Path.GetRelativePath(fullPath, result.FilePath)
+                : "unknown";
+            var location = result.Line.HasValue ? $"({result.Line},{result.Column ?? 0})" : "";
+
             if (result.Severity == ValidationSeverity.Error)
             {
-                Logger.LogError("[{File}] {Message}", result.FilePath ?? "unknown", result.Message);
+                Logger.LogError("{File}{Location}: {Message}", file, location, result.Message);
                 errors++;
             }
             else
             {
-                Logger.LogWarning("[{File}] {Message}", result.FilePath ?? "unknown", result.Message);
+                Logger.LogWarning("{File}{Location}: {Message}", file, location, result.Message);
                 warnings++;
             }
         }
 
         if (errors == 0 && warnings == 0)
         {
-            OutputFormatter.WriteResult("succeeded", $"Validation passed — no issues found in {fullPath}");
+            OutputFormatter.WriteResult("succeeded", $"Validation passed");
             return ExitSuccess;
         }
 
