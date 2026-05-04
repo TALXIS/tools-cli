@@ -103,7 +103,9 @@ internal static class CliSubprocessRunner
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             CreateNoWindow = true,
-            WorkingDirectory = workingDirectory ?? System.Environment.CurrentDirectory
+            WorkingDirectory = (!string.IsNullOrWhiteSpace(workingDirectory) && Directory.Exists(workingDirectory))
+                ? workingDirectory
+                : System.Environment.CurrentDirectory
         };
 
         // Enable structured JSON logging for MCP consumption

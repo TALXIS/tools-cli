@@ -14,5 +14,6 @@
   {"id": "pcf-controls", "title": "PCF Control Development", "summary": "PCF project structure, ControlManifest, lifecycle methods, dataset vs field controls, and build workflow.", "tags": ["workspace", "local-development", "pcf"]},
   {"id": "build-errors", "title": "Build Error Recovery", "summary": "Diagnose and fix TALXISXSD001, TALXISGUID001, and other build validation errors.", "tags": ["troubleshooting", "build", "validation"]},
   {"id": "data-querying", "title": "Data Querying", "summary": "Query Dataverse data using SQL, OData, and FetchXML — choosing the right language, OData patterns, aggregation, and pagination.", "tags": ["data-operations", "environment"]},
-  {"id": "security-roles", "title": "Security Role Scaffolding", "summary": "Scaffold security roles, add privileges, and assign roles to model-driven apps.", "tags": ["workspace", "local-development", "security"]}
+  {"id": "security-roles", "title": "Security Role Scaffolding", "summary": "Scaffold security roles, add privileges, and assign roles to model-driven apps.", "tags": ["workspace", "local-development", "security"]},
+  {"id": "localization", "title": "Localization & Multi-Language Support", "summary": "Add a language to a Power Platform project: register LCID, extract source strings to JSON, translate with the LLM, import back into XML alongside the existing language.", "tags": ["workspace", "local-development", "localization"]}
 ]

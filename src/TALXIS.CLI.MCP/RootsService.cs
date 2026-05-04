@@ -81,6 +81,17 @@ internal sealed class RootsService
         if (!string.Equals(parsed.Scheme, "file", StringComparison.OrdinalIgnoreCase))
             return null;
 
-        return parsed.LocalPath;
+        var path = parsed.LocalPath;
+
+        if (OperatingSystem.IsWindows()
+            && path.Length >= 3
+            && path[0] == '/'
+            && char.IsLetter(path[1])
+            && path[2] == ':')
+        {
+            path = path.Substring(1).Replace('/', '\\');
+        }
+
+        return path;
     }
 }

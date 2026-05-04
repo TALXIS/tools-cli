@@ -246,9 +246,12 @@ async ValueTask<CallToolResult> HandleExecuteOperationAsync(
     if (IsMcpSpecificTool(operationName))
         throw new McpException($"'{operationName}' is an in-process tool — call it directly instead of through execute_operation.");
 
-    // Parse arguments — accept either a JSON string or a JSON object
+    // Parse arguments — accept either a JSON string or a JSON object.
+    // Tolerate the common `args` alias because LLMs frequently emit that form
+    // despite the schema specifying `arguments`.
     Dictionary<string, JsonElement>? opArguments = null;
-    if (arguments.TryGetValue("arguments", out var argsEl))
+    if (arguments.TryGetValue("arguments", out var argsEl)
+        || arguments.TryGetValue("args", out argsEl))
     {
         if (argsEl.ValueKind == JsonValueKind.String)
         {
@@ -642,7 +645,7 @@ JsonElement BuildExecuteOperationInputSchema()
             },
             ["arguments"] = new Dictionary<string, object?>
             {
-                ["description"] = "Arguments matching the tool's schema. Pass as a JSON object or a JSON-encoded string."
+                ["description"] = "Arguments matching the tool's schema. Pass as a JSON object or a JSON-encoded string. The parameter name is `arguments` (not `args`)."
             }
         },
         ["required"] = new List<string> { "operation" }
