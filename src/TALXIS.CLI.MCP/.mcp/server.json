@@ -1,21 +1,24 @@
 {
-  "$schema": "https://modelcontextprotocol.io/schemas/draft/2025-07-09/server.json",
-  "description": "TALXIS CLI MCP Server",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.talxis/tools-cli",
-  "packages": [
-    {
-      "registry_name": "nuget",
-      "name": "TALXIS.CLI.MCP",
-      "version": "1.0.0.0",
-      "package_arguments": [],
-      "environment_variables": []
-    }
-  ],
+  "title": "TALXIS DevKit CLI",
+  "description": "Developer automation and Power Platform scripting. Scaffold components, validate workspaces, manage Dataverse environments.",
+  "version": "1.14.2",
+  "websiteUrl": "https://github.com/TALXIS/tools-cli",
   "repository": {
-    "url": "https://github.com/talxis/tools-cli",
+    "url": "https://github.com/TALXIS/tools-cli",
     "source": "github"
   },
-  "version_detail": {
-    "version": "1.0.0.0"
-  }
+  "packages": [
+    {
+      "registryType": "nuget",
+      "identifier": "TALXIS.CLI.MCP",
+      "version": "1.14.2",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [],
+      "packageArguments": []
+    }
+  ]
 }
