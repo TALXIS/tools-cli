@@ -20,9 +20,12 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
             _allowScripts = allowScripts;
             _processors = new Dictionary<Guid, IPostActionProcessor>
             {
-                { new Guid("3A7C4B45-1F5D-4A30-959A-51B88E82B5D2"), new RunScriptPostActionProcessor() },
-                { new Guid("B17581D1-C5C9-4489-8F0A-004BE667B814"), new AddReferencePostActionProcessor() },
-                { new Guid("D396686C-DE0E-4DE6-906D-291CD29FC5DE"), new AddProjectsToSlnPostActionProcessor() }
+                { RunScriptPostActionProcessor.ActionProcessorId, new RunScriptPostActionProcessor() },
+                { AddReferencePostActionProcessor.ActionProcessorId, new AddReferencePostActionProcessor() },
+                { AddProjectsToSlnPostActionProcessor.ActionProcessorId, new AddProjectsToSlnPostActionProcessor() },
+                { AddRootComponentToSolutionXmlProcessor.ActionProcessorId, new AddRootComponentToSolutionXmlProcessor() },
+                { SortXmlElementsProcessor.ActionProcessorId, new SortXmlElementsProcessor() },
+                { ReplaceOptionValuePrefixProcessor.ActionProcessorId, new ReplaceOptionValuePrefixProcessor() }
             };
         }
 
@@ -84,6 +87,39 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
                         FailedActionErrors[action.ActionId] = runScriptProcessor.LastError;
                     }
                 }
+                else if (processor is AddRootComponentToSolutionXmlProcessor addRootComponentProcessor)
+                {
+                    var basePath = outputBasePath ?? Directory.GetCurrentDirectory();
+                    if (transaction != null)
+                    {
+                        // Track the Solution.xml file for rollback before modification
+                        var solutionXmlPath = FindSolutionXml(basePath);
+                        if (solutionXmlPath != null)
+                        {
+                            transaction.TrackFile(solutionXmlPath);
+                        }
+                    }
+                    ok = addRootComponentProcessor.ProcessInternal(_environment, action, null!, templateCreationResult?.CreationResult, basePath);
+                }
+                else if (processor is SortXmlElementsProcessor sortXmlProcessor)
+                {
+                    var basePath = outputBasePath ?? Directory.GetCurrentDirectory();
+                    ok = sortXmlProcessor.ProcessInternal(_environment, action, null!, templateCreationResult?.CreationResult, basePath);
+                }
+                else if (processor is ReplaceOptionValuePrefixProcessor replaceOptionValuePrefixProcessor)
+                {
+                    var basePath = outputBasePath ?? Directory.GetCurrentDirectory();
+                    if (transaction != null)
+                    {
+                        // Track the Solution.xml file for rollback before modification
+                        var solutionXmlPath = FindSolutionXml(basePath);
+                        if (solutionXmlPath != null)
+                        {
+                            transaction.TrackFile(solutionXmlPath);
+                        }
+                    }
+                    ok = replaceOptionValuePrefixProcessor.ProcessInternal(_environment, action, null!, templateCreationResult?.CreationResult, basePath);
+                }
                 else
                 {
                     ok = processor.Process(_environment, action);
@@ -114,6 +150,24 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
         private void ShowManualInstructions(IPostAction action)
         {
             _logger.LogInformation("{Instructions}", action.ManualInstructions ?? "No manual instructions provided.");
+        }
+
+        /// <summary>
+        /// Locates Solution.xml by walking up from the given path, looking for Other/Solution.xml.
+        /// </summary>
+        private static string? FindSolutionXml(string startPath)
+        {
+            var dir = new DirectoryInfo(startPath);
+            while (dir != null)
+            {
+                var candidate = Path.Combine(dir.FullName, "Other", "Solution.xml");
+                if (File.Exists(candidate))
+                {
+                    return candidate;
+                }
+                dir = dir.Parent;
+            }
+            return null;
         }
     }
 

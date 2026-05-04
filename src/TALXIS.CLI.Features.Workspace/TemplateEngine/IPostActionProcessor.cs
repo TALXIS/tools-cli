@@ -11,7 +11,7 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
         /// <summary>
         /// Gets the unique identifier for this post action processor.
         /// </summary>
-        Guid ActionId { get; }
+        static virtual Guid ActionProcessorId => Guid.Empty;
 
         /// <summary>
         /// Processes the post action.

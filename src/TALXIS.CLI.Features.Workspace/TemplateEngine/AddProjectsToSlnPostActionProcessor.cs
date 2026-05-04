@@ -12,7 +12,7 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
     public class AddProjectsToSlnPostActionProcessor : IPostActionProcessor
     {
         private static readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(AddProjectsToSlnPostActionProcessor));
-        public Guid ActionId => new Guid("D396686C-DE0E-4DE6-906D-291CD29FC5DE");
+        public static Guid ActionProcessorId => new Guid("D396686C-DE0E-4DE6-906D-291CD29FC5DE");
 
         public bool Process(IEngineEnvironmentSettings environment, IPostAction action)
         {

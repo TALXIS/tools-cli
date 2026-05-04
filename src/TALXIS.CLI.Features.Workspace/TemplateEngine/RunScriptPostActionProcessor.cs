@@ -13,9 +13,7 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
     public class RunScriptPostActionProcessor : IPostActionProcessor
     {
         private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(RunScriptPostActionProcessor));
-        internal static readonly Guid ActionProcessorId = new Guid("3A7C4B45-1F5D-4A30-959A-51B88E82B5D2");
-
-        public Guid ActionId => ActionProcessorId;
+        public static Guid ActionProcessorId => new Guid("3A7C4B45-1F5D-4A30-959A-51B88E82B5D2");
 
         /// <summary>
         /// Contains the error detail from the last failed script execution.
