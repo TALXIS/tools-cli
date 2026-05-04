@@ -1,8 +1,11 @@
+using System.Text.Json;
+using TALXIS.CLI.Core;
+
 namespace TALXIS.CLI.MCP;
 
 /// <summary>
-/// In-memory store for tool execution logs, exposed as MCP resources.
-/// Logs are keyed by a unique run ID and evicted FIFO when the store exceeds capacity.
+/// In-memory store for failed tool diagnostics, exposed as MCP resources.
+/// Entries are keyed by a unique run ID and evicted FIFO when the store exceeds capacity.
 /// </summary>
 internal sealed class ToolLogStore
 {
@@ -11,7 +14,7 @@ internal sealed class ToolLogStore
     private readonly Queue<string> _order = [];
     private readonly int _maxEntries;
 
-    /// <summary>URI scheme prefix for tool log resources.</summary>
+    /// <summary>URI scheme prefix for failure-detail resources.</summary>
     internal const string UriScheme = "txc://logs/";
 
     public ToolLogStore(int maxEntries = 50)
@@ -21,13 +24,19 @@ internal sealed class ToolLogStore
     }
 
     /// <summary>
-    /// Stores a tool execution log and returns the resource URI.
+    /// Stores failed tool diagnostics and returns the resource URI.
     /// </summary>
-    public string Store(string toolName, string fullLog, string errorSummary, bool isError)
+    public string StoreFailure(string toolName, int exitCode, string? primaryText, string? errorSummary, string? fullLog)
     {
         var runId = Guid.NewGuid().ToString("N")[..12];
         var uri = $"{UriScheme}{toolName}/{runId}";
-        var entry = new LogEntry(toolName, fullLog, errorSummary, isError, DateTimeOffset.UtcNow);
+        var entry = new LogEntry(
+            ToolName: toolName,
+            ExitCode: exitCode,
+            PrimaryText: Normalize(primaryText),
+            ErrorSummary: Normalize(errorSummary),
+            FullLog: Normalize(fullLog),
+            Timestamp: DateTimeOffset.UtcNow);
 
         lock (_sync)
         {
@@ -66,10 +75,69 @@ internal sealed class ToolLogStore
         }
     }
 
+    private static string? Normalize(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
     internal sealed record LogEntry(
         string ToolName,
-        string FullLog,
-        string ErrorSummary,
-        bool IsError,
-        DateTimeOffset Timestamp);
+        int ExitCode,
+        string? PrimaryText,
+        string? ErrorSummary,
+        string? FullLog,
+        DateTimeOffset Timestamp)
+    {
+        public string Summary => FirstNonEmpty(
+            PrimaryText,
+            ErrorSummary,
+            $"Tool '{ToolName}' failed with exit code {ExitCode}.")!;
+
+        public string ToJson()
+        {
+            var document = new FailureDetailsDocument
+            {
+                Kind = "tool-failure-details",
+                ToolName = ToolName,
+                ExitCode = ExitCode,
+                Summary = Summary,
+                PrimaryText = PrimaryText,
+                ErrorSummary = ErrorSummary,
+                FullLog = FullLog,
+                Timestamp = Timestamp
+            };
+
+            return JsonSerializer.Serialize(document, TxcOutputJsonOptions.Default);
+        }
+
+        private static string? FirstNonEmpty(params string?[] values)
+        {
+            foreach (var value in values)
+            {
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    return value;
+                }
+            }
+
+            return null;
+        }
+    }
+
+    private sealed class FailureDetailsDocument
+    {
+        public string Kind { get; set; } = "tool-failure-details";
+
+        public string ToolName { get; set; } = string.Empty;
+
+        public int ExitCode { get; set; }
+
+        public string Summary { get; set; } = string.Empty;
+
+        public string? PrimaryText { get; set; }
+
+        public string? ErrorSummary { get; set; }
+
+        public string? FullLog { get; set; }
+
+        public DateTimeOffset Timestamp { get; set; }
+    }
 }

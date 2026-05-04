@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using ModelContextProtocol.Protocol;
 using Xunit;
@@ -76,5 +77,34 @@ public class McpTests
         {
             Assert.Contains("pp-entity", textBlock.Text);
         }
+    }
+
+    [Fact]
+    public async Task ExecuteOperation_FailedTool_ExposesReadableFailureResource()
+    {
+        var client = await McpTestClient.InstanceAsync;
+        var args = new Dictionary<string, object?>
+        {
+            { "operation", "workspace_validate" },
+            { "arguments", new Dictionary<string, object?> { { "Path", "definitely-not-a-real-workspace-path" } } }
+        };
+
+        var result = await client.CallToolAsync("execute_operation", args);
+
+        Assert.True(result.IsError);
+        Assert.NotNull(result.Content);
+        Assert.True(result.Content.Count >= 2);
+
+        var resourceLink = Assert.IsType<ResourceLinkBlock>(result.Content[1]);
+        Assert.Equal("application/json", resourceLink.MimeType);
+
+        var readResult = await client.ReadResourceAsync(resourceLink.Uri);
+        var resource = Assert.IsType<TextResourceContents>(Assert.Single(readResult.Contents));
+        Assert.Equal("application/json", resource.MimeType);
+
+        using var document = JsonDocument.Parse(resource.Text);
+        Assert.Equal("workspace_validate", document.RootElement.GetProperty("toolName").GetString());
+        Assert.True(document.RootElement.TryGetProperty("summary", out var summary));
+        Assert.False(string.IsNullOrWhiteSpace(summary.GetString()));
     }
 }

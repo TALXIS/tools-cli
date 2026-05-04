@@ -208,6 +208,15 @@ internal sealed class CliSubprocessResult
         Output = output;
     }
 
+    /// <summary>Creates a result with explicit stdout/stderr-derived diagnostic fields.</summary>
+    internal CliSubprocessResult(int exitCode, string output, string lastErrors, string fullLog)
+    {
+        ExitCode = exitCode;
+        Output = output;
+        LastErrors = lastErrors;
+        FullLog = fullLog;
+    }
+
     /// <summary>Creates a result from a streaming output handler (uses stdout content as output).</summary>
     public CliSubprocessResult(int exitCode, ISubprocessOutputHandler handler)
     {
