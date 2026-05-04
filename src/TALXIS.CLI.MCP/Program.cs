@@ -16,7 +16,7 @@ var mcpToolRegistry = new McpToolRegistry();
 RootsService? rootsService = null;
 IHostApplicationLifetime? appLifetime = null;
 
-// In-memory store for tool execution logs, exposed as MCP resources
+// In-memory store for structured failure details, exposed as MCP resources
 var toolLogStore = new ToolLogStore();
 var toolResultFactory = new McpToolResultFactory(toolLogStore);
 
@@ -757,13 +757,13 @@ async Task<CallToolResult> ExecuteMcpSpecificToolWithCapturedOutputAsync(Type co
     }
 }
 
-// MCP resource listing — exposes stored tool execution logs
+// MCP resource listing — exposes stored failure-detail resources
 ValueTask<ListResourcesResult> ListResourcesAsync(RequestContext<ListResourcesRequestParams> ctx, CancellationToken ct)
 {
     return ValueTask.FromResult(new ListResourcesResult { Resources = toolResultFactory.BuildResources() });
 }
 
-// MCP resource read — returns the full execution log for a given URI
+// MCP resource read — returns structured failure details for a given URI
 ValueTask<ReadResourceResult> ReadResourceAsync(RequestContext<ReadResourceRequestParams> ctx, CancellationToken ct)
 {
     var uri = ctx.Params?.Uri ?? throw new McpException("Resource URI is required.");
