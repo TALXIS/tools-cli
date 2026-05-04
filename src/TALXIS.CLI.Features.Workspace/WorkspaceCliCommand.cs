@@ -1,4 +1,5 @@
 using DotMake.CommandLine;
+using TALXIS.CLI.Features.Workspace.Localization;
 
 namespace TALXIS.CLI.Features.Workspace;
 
@@ -10,7 +11,8 @@ namespace TALXIS.CLI.Features.Workspace;
         typeof(ComponentCliCommand),
         typeof(ProjectCliCommand),
         typeof(WorkspaceExplainCliCommand),
-        typeof(WorkspaceValidateCliCommand)
+        typeof(WorkspaceValidateCliCommand),
+        typeof(LocalizationCliCommand)
     },
     ShortFormAutoGenerate = CliNameAutoGenerate.None)]
 public class WorkspaceCliCommand
