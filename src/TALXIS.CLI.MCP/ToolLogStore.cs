@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using TALXIS.CLI.Core;
 
 namespace TALXIS.CLI.MCP;
@@ -86,27 +87,17 @@ internal sealed class ToolLogStore
         string? FullLog,
         DateTimeOffset Timestamp)
     {
+        public string Kind => "tool-failure-details";
+
         public string Summary => FirstNonEmpty(
             PrimaryText,
             ErrorSummary,
             $"Tool '{ToolName}' failed with exit code {ExitCode}.")!;
 
-        public string ToJson()
-        {
-            var document = new FailureDetailsDocument
-            {
-                Kind = "tool-failure-details",
-                ToolName = ToolName,
-                ExitCode = ExitCode,
-                Summary = Summary,
-                PrimaryText = PrimaryText,
-                ErrorSummary = ErrorSummary,
-                FullLog = FullLog,
-                Timestamp = Timestamp
-            };
+        [JsonIgnore]
+        public bool HasFullLog => !string.IsNullOrWhiteSpace(FullLog);
 
-            return JsonSerializer.Serialize(document, TxcOutputJsonOptions.Default);
-        }
+        public string ToJson() => JsonSerializer.Serialize(this, TxcOutputJsonOptions.Default);
 
         private static string? FirstNonEmpty(params string?[] values)
         {
@@ -120,24 +111,5 @@ internal sealed class ToolLogStore
 
             return null;
         }
-    }
-
-    private sealed class FailureDetailsDocument
-    {
-        public string Kind { get; set; } = "tool-failure-details";
-
-        public string ToolName { get; set; } = string.Empty;
-
-        public int ExitCode { get; set; }
-
-        public string Summary { get; set; } = string.Empty;
-
-        public string? PrimaryText { get; set; }
-
-        public string? ErrorSummary { get; set; }
-
-        public string? FullLog { get; set; }
-
-        public DateTimeOffset Timestamp { get; set; }
     }
 }

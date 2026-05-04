@@ -40,7 +40,7 @@ public class ToolLogStoreTests
     public void ListAll_ReturnsAllEntries()
     {
         var store = new ToolLogStore();
-        store.StoreFailure("tool_a", 0, "summary a", "", "log a");
+        store.StoreFailure("tool_a", 1, "summary a", "", "log a");
         store.StoreFailure("tool_b", 1, "summary b", "err", "log b");
 
         var all = store.ListAll();
