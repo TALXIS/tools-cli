@@ -17,7 +17,7 @@ public sealed class WorkspaceValidateCliCommand : TxcLeafCommand
     [CliArgument(Description = "Path to the solution project directory to validate.")]
     public string Path { get; set; } = ".";
 
-    [CliOption(Name = "--file", Description = "Validate a single file (relative path within the workspace).")]
+    [CliOption(Name = "--file", Required = false, Description = "Validate a single file (relative path within the workspace).")]
     public string? File { get; set; }
 
     protected override async Task<int> ExecuteAsync()
