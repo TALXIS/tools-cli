@@ -91,9 +91,10 @@ my-migration/
 
 ## Reading order
 
-1. `01-assessment.md` — what the codebase + CMT have today.
-2. `02` … `06` — milestone designs (each independently reviewable).
-3. `07-cli-command-surface.md` — final UX summary across milestones.
+1. `08-handoff.md` — **start here if you are a developer picking this up.** Original goals, decisions already made, repo conventions, source-file pointers, glossary.
+2. `01-assessment.md` — what the codebase + CMT have today.
+3. `02` … `06` — milestone designs (each independently reviewable).
+4. `07-cli-command-surface.md` — final UX summary across milestones.
 
 ## Tracking
 
