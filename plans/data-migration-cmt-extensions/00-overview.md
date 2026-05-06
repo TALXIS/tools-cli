@@ -66,19 +66,18 @@ See `09-research-findings.md` for detailed analysis of both scenarios and CMT in
 | Milestone | Theme | File |
 |---|---|---|
 | M0 | ClosedXML feature spike | (spike, no plan file) |
-| M1 | CMT schema generation from metadata / solution | `02-schema-generation.md` |
-| M2a | Staging Excel template generation (unified entity sheets) | `03-xlsx-staging-excel.md` |
-| M2b | Reference data loading into staging Excel | `03-xlsx-staging-excel.md` |
-| M2c | Excel library integration (ClosedXML) | `03-xlsx-staging-excel.md` |
-| M3 | Sidecar XML formats and package manifest | `04-sidecar-formats.md` |
-| M4 | Staging Excel → CMT package conversion | `05-xlsx-to-cmt-conversion.md` |
-| M4b | CMT package → staging Excel (reverse conversion) | `05-xlsx-to-cmt-conversion.md` |
-| M5 | Import runtime + post-import operations | `06-import-runtime.md` |
-| M5b | Imperative extensibility hooks (deferred) | `06-import-runtime.md` |
-| M6 | Post-import state validation | `06b-validate-state.md` |
-| M7 | Final CLI command surface | `07-cli-command-surface.md` |
+| M1 | CMT schema generation from metadata / solution | `02-m1-schema-generation.md` |
+| M2a | Staging Excel template generation (unified entity sheets) | `03-m2-staging-excel.md` |
+| M2b | Reference data loading into staging Excel | `03-m2-staging-excel.md` |
+| M2c | Excel library integration (ClosedXML) | `03-m2-staging-excel.md` |
+| M3 | Sidecar XML formats and package manifest | `04-m3-sidecar-formats.md` |
+| M4 | Staging Excel → CMT package conversion | `05-m4-xlsx-to-cmt-conversion.md` |
+| M4b | CMT package → staging Excel (reverse conversion) | `06-m4b-cmt-to-xlsx-conversion.md` |
+| M5 | Import runtime + post-import operations | `07-m5-import-runtime.md` |
+| M5b | Imperative extensibility hooks (deferred) | `07-m5-import-runtime.md` |
+| M6 | Post-import state validation | `08-m6-validate-state.md` |
 
-Plus: `01-assessment.md` (context), `08-handoff.md` (developer onboarding), `09-research-findings.md` (NEW).
+Plus: `01-assessment.md` (context), `10-handoff.md` (developer onboarding), `09-research-findings.md` (research).
 
 ### Explicitly out of scope (future)
 
@@ -128,10 +127,10 @@ my-migration/
 
 ## Reading order
 
-1. `08-handoff.md` — **start here if you are a developer picking this up.** Original goals, decisions already made, repo conventions, source-file pointers, glossary.
+1. `10-handoff.md` — **start here if you are a developer picking this up.** Original goals, decisions already made, repo conventions, source-file pointers, glossary.
 2. `09-research-findings.md` — CMT internals research, real scenario analysis (SVS + CETIN-GF).
 3. `01-assessment.md` — what the codebase + CMT have today.
-4. `02` … `07` — milestone designs (each independently reviewable).
+4. `02` … `08` — milestone designs (each independently reviewable, one milestone per file).
 
 ## Tracking
 

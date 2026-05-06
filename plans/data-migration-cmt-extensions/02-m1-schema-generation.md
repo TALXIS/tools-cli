@@ -1,4 +1,4 @@
-# M1 — Schema Generation
+# Milestone 1 — Schema Generation
 
 > Goal: Generate a Microsoft-compatible `data_schema.xml` programmatically — from a list of tables, from a Dataverse environment, or (later) from a local solution project.
 
@@ -8,7 +8,7 @@ Today users must hand-author `data_schema.xml` or capture it from the WPF Config
 
 The decompiled `SchemaGenerator.cs` is WPF-coupled and not reusable. We re-implement schema generation against the public Dataverse SDK using the existing `IDataverseEntityMetadataService`.
 
-## Output contract
+## Output Contract
 
 The generated file MUST be byte-comparable, on the meaningful-content level, to a CMT GUI export — i.e. the WPF tool, `pac data`, and txc itself must all be able to consume it without modification.
 
@@ -21,42 +21,7 @@ Required structure (already documented in `docs/configuration-migration.md`):
 - `<relationships>` (one per relationship export choice).
 - Optional `<filter>` with FetchXML.
 
-## Field selection strategy
-
-Three modes, chosen via CLI flag, all metadata-driven:
-
-| Mode | Includes | Excludes | Use case |
-|---|---|---|---|
-| `minimal` | Primary key, primary name, custom fields, mandatory non-system fields | Audit fields, owner fields (handled via sidecar M4), state/status (sidecar), system fields | "Move only what the customer authored." |
-| `standard` (default) | minimal + lookups + option-set columns | Audit, ownership, state, system | Most migrations. |
-| `full` | All `IsValidForCreate=true && IsValidForUpdate=true` attributes | Truly read-only / system-managed (`createdon`, `modifiedon`, `versionnumber`, `*_base`, calculated/rollup) | Power users. |
-
-In all modes:
-
-- `IsCustomAttribute=true` → `customfield="true"`.
-- `IsPrimaryId` → emit as `<field … primaryKey="true">`.
-- Lookups → emit `lookupType="<targetEntity>"`. If multiple targets (Customer, Owner, regarding) → emit comma-separated, matching CMT GUI behavior.
-- Calculated / Rollup / Formula → exclude (CMT cannot import).
-- Multi-select picklist (`Virtual` of type `MultiSelectPicklist`) → include with `type="picklist"`.
-
-## Entity import ordering
-
-Topological sort over many-to-one relationships among the *selected* entities:
-
-- Build a directed graph: edge `child -> parent` when `child.lookupAttr` references parent.
-- Self-references (reflexive) → break with a warning; record needs a 2-pass create-then-update which CMT handles.
-- Output the topologically-sorted list as `<entityImportOrder>`.
-
-Tied components (e.g. cycle remnants) → emit deterministically by alphabetical logical name and log a warning.
-
-## Relationships included
-
-For each selected entity, include:
-
-- All many-to-one relationships **whose parent entity is also selected**. Drop edges to non-selected entities (lookup will simply remain empty in target) with a `WARN`.
-- Many-to-many relationships when **both** sides are selected — opt-in via `--include-m2m` flag (default off; M2M significantly increases payload).
-
-## Inputs
+## CLI Command
 
 ```
 txc data package generate-schema
@@ -71,27 +36,70 @@ txc data package generate-schema
   --profile <name>                  # connect to source env for metadata
 ```
 
-## Implementation outline
+## Field Selection Strategy
 
-New project: nothing new — fits in `TALXIS.CLI.Features.Data` and a new internal namespace `TALXIS.CLI.Features.Data.SchemaGeneration`.
+Three modes, chosen via CLI flag, all metadata-driven:
 
-New types:
+| Mode | Includes | Excludes | Use case |
+|---|---|---|---|
+| `minimal` | Primary key, primary name, custom fields, mandatory non-system fields | Audit fields, owner fields (handled via sidecar M3), state/status (sidecar), system fields | "Move only what the customer authored." |
+| `standard` (default) | minimal + lookups + option-set columns | Audit, ownership, state, system | Most migrations. |
+| `full` | All `IsValidForCreate=true && IsValidForUpdate=true` attributes | Truly read-only / system-managed (`createdon`, `modifiedon`, `versionnumber`, `*_base`, calculated/rollup) | Power users. |
+
+In all modes:
+
+- `IsCustomAttribute=true` → `customfield="true"`.
+- `IsPrimaryId` → emit as `<field … primaryKey="true">`.
+- Lookups → emit `lookupType="<targetEntity>"`. If multiple targets (Customer, Owner, regarding) → emit comma-separated, matching CMT GUI behavior.
+- Calculated / Rollup / Formula → exclude (CMT cannot import).
+- Multi-select picklist (`Virtual` of type `MultiSelectPicklist`) → include with `type="picklist"`.
+
+## Entity Import Ordering
+
+Topological sort over many-to-one relationships among the *selected* entities:
+
+- Build a directed graph: edge `child -> parent` when `child.lookupAttr` references parent.
+- Self-references (reflexive) → break with a warning; record needs a 2-pass create-then-update which CMT handles.
+- Output the topologically-sorted list as `<entityImportOrder>`.
+- Tied components (e.g. cycle remnants) → emit deterministically by alphabetical logical name and log a warning.
+
+CMT requires entities to be listed in a specific order in `data_schema.xml` because it processes them sequentially and uses a 2-pass approach for foreign key resolution:
+
+1. **Pass 1** — Import records with all non-FK fields; FK fields are deferred.
+2. **Pass 2** — Update records with FK values (now that target records exist).
+
+## Relationships Included
+
+For each selected entity, include:
+
+- All many-to-one relationships **whose parent entity is also selected**. Drop edges to non-selected entities (lookup will simply remain empty in target) with a `WARN`.
+- Many-to-many relationships when **both** sides are selected — opt-in via `--include-m2m` flag (default off; M2M significantly increases payload).
+
+## Implementation
+
+New namespace: `TALXIS.CLI.Features.Data/SchemaGeneration/`
+
+### Types
 
 ```
 SchemaGeneration/
 ├── ISchemaGenerator.cs                  # contract
 ├── SchemaGenerator.cs                   # orchestrates: metadata fetch -> filter -> sort -> serialize
 ├── EntitySelection.cs                   # parsed CLI input
-├── FieldSelectionMode.cs                # enum
+├── FieldSelectionMode.cs                # enum: Minimal, Standard, Full
 ├── FieldFilter.cs                       # rule set per mode
 ├── EntityOrderResolver.cs               # topological sort
 └── SchemaXmlWriter.cs                   # XElement-based emitter
 ```
 
-New CLI command: `DataPackageGenerateSchemaCliCommand` under `TALXIS.CLI.Features.Data`.
-- Inherits `ProfiledCliCommand`.
-- `[CliReadOnly]` (only reads metadata; writes a local file).
-- `[CliWorkflow("local-development")]`.
+### CLI Command Registration
+
+New command class: `DataPackageGenerateSchemaCliCommand`
+
+- Inherits from `ProfiledCliCommand` (requires an active profile for environment connectivity).
+- Marked with `[CliReadOnly]` attribute (only reads metadata; writes a local file).
+- Marked with `[CliWorkflow("local-development")]`.
+- Registered under `txc data package generate-schema`.
 
 Wire `ISchemaGenerator` into DI in `DataverseApplicationServiceCollectionExtensions` next to `IDataverseEntityMetadataService`.
 
@@ -101,7 +109,7 @@ Wire `ISchemaGenerator` into DI in `DataverseApplicationServiceCollectionExtensi
 - Reject if `--fields full` is paired with audit-heavy entities (warn + opt-in flag).
 - Re-running with the same flags against the same env must produce a byte-identical file (deterministic ordering throughout; UTF-8 no-BOM; LF line endings; no timestamps).
 
-## M1.b — From solution (deferred within milestone)
+## M1.b — From Solution (deferred within milestone)
 
 Read `.cdsproj` / declarations folder (already supported by `DataModelConverterService`) and pre-fill `--tables` from solution components. This is additive: if both `--from-solution` and `--tables` are given, `--tables` overrides.
 
@@ -109,13 +117,19 @@ Read `.cdsproj` / declarations folder (already supported by `DataModelConverterS
 
 Add to `tests/TALXIS.CLI.Features.Data.Tests` (create if absent):
 
-- Round-trip: generate against a test metadata fixture → serialize → re-parse → assert structural equality.
-- Topological sort: synthetic graph with cycles, with multiple roots.
-- Field filtering: each mode produces the expected set against a known entity metadata fixture.
-- Determinism: two consecutive runs produce identical bytes.
+| Test                          | Description                                                           |
+|-------------------------------|-----------------------------------------------------------------------|
+| Round-trip                    | Generate against a test metadata fixture → serialize → re-parse → assert structural equality |
+| Topological sort              | Synthetic graph with cycles, with multiple roots → assert correct ordering |
+| Cycle handling                | Cyclic dependencies → assert no infinite loop, valid output           |
+| Field filtering (minimal)     | Assert only PK + primary name + mandatory non-system fields included  |
+| Field filtering (standard)    | Assert custom + common system + lookups + optionsets, no audit/system |
+| Field filtering (full)        | Assert all `IsValidForCreate && IsValidForUpdate` fields present      |
+| Determinism                   | Two consecutive runs produce identical bytes                          |
 
-## Done when
+## Done When
 
-- `txc data package generate-schema --tables account,contact -o ./schema.xml` produces a file accepted by `txc data package export --schema ./schema.xml`.
-- File round-trips through the Microsoft CMT GUI without warnings (manual smoke test).
-- Documentation updated in `docs/configuration-migration.md`.
+- `txc data package generate-schema --tables account,contact -o ./schema.xml` produces a file accepted by `txc data package export --schema ./schema.xml`
+- File round-trips through the Microsoft CMT GUI without warnings (manual smoke test)
+- Documentation updated in `docs/configuration-migration.md`
+- All tests pass
