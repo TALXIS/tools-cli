@@ -133,3 +133,89 @@ Add to `tests/TALXIS.CLI.Features.Data.Tests` (create if absent):
 - File round-trips through the Microsoft CMT GUI without warnings (manual smoke test)
 - Documentation updated in `docs/configuration-migration.md`
 - All tests pass
+
+---
+
+## Reference: CMT's Decompiled Schema Generator
+
+> Source: `/Users/tomasprokop/Desktop/Repos/jan.hajek-PPToolsChangeTracking/decompiled` — `SchemaGenerator.cs` (~62KB) and `Handler.cs`
+
+### CMT's Field Type Mapping (`Handler.GetAttributeType`)
+
+| `AttributeTypeCode` | CMT schema `type` |
+|---|---|
+| `BigInt` | `bigint` |
+| `Integer` | `number` |
+| `Boolean` | `bool` |
+| `DateTime` | `datetime` |
+| `Decimal` | `decimal` |
+| `Double` | `float` |
+| `Money` | `money` |
+| `Picklist` | `optionsetvalue` |
+| `State` | `state` |
+| `Status` | `status` |
+| `Memo`, `String`, `EntityName` | `string` |
+| `Uniqueidentifier` | `guid` |
+| `Owner` | `owner` |
+| `Customer`, `Lookup` | `entityreference` |
+| `PartyList` | `partylist` |
+| `Virtual` + `ImageAttributeMetadata` | `imagedata` |
+| `Virtual` + `FileAttributeMetadata` | `filedata` |
+| `Virtual` + `MultiSelectPicklistAttributeMetadata` | `optionsetvaluecollection` |
+
+### CMT's Attribute Filtering Logic (`Handler.ExtractField`)
+
+CMT does NOT check `IsValidForCreate`/`IsValidForUpdate` for filtering. Its decision tree:
+1. `IsPrimaryId` → ALWAYS include, mark `primaryKey=true`
+2. NOT custom AND NOT customizable AND NOT an exception → EXCLUDE
+3. NOT `IsValidForRead` → EXCLUDE
+4. Has `AttributeOf` (computed/calculated) and not Image/MultiSelect → EXCLUDE
+5. `Virtual` type and not Image/File/MultiSelect → EXCLUDE
+6. Hard-excluded: `owneridname`, `owneridtype`, `owneridyominame`, `syncattributemappingprofile`
+
+**Exceptions forced-included** (`IsExceptionToRule`):
+- `annotation.documentbody`
+- `systemuser.issyncwithdirectory`, `islicensed`, `userlicensetype`
+- `processid`, `stageid`, `entityimageid`, `resourcetype`
+- Various `postfollow`, `team`, `product`, `dynamicproperty*` fields
+
+### CMT's Lookup Type Format
+
+Pipe-delimited for polymorphic lookups: `"account|contact"` for Customer type. Empty `lookupType=""` is stripped from output XML via string replace.
+
+### CMT's Entity Ordering
+
+Simple DFS topological sort on lookup dependencies. Cycles handled by visited-set (stops recursing, no error). Account (etc=1) and Contact (etc=2) are force-moved to front after sorting.
+
+### CMT's `updateCompare` Attribute
+
+Set from a **static hardcoded list** (`DefaultCompares`), not computed from metadata. Only applies to: `email`, `activitymimeattachment`, `quote`, `duplicaterulecondition`, `dynamicproperty*`, `product`.
+
+### CMT's `disableplugins` Attribute
+
+NOT set by schema generator — defaults to `false`. Set manually by user through UI.
+
+### CMT's `entityImportOrder` Element
+
+The WPF tool does NOT generate `<entityImportOrder>` — the entity array order itself encodes the import sequence. At import time, the importer reads the entity list order and processes sequentially.
+
+---
+
+## Reference: `TALXIS.Platform.Metadata` Reuse
+
+> Source: `/Users/tomasprokop/Desktop/Repos/platform-metadata`
+
+The `TALXIS.Platform.Metadata` package provides an in-memory model for Dataverse metadata that we should reuse:
+
+| Need | Asset | How to use |
+|---|---|---|
+| Entity metadata model | `EntityMetadata` + 17 `AttributeMetadata` subtypes | Map to CMT field entries |
+| Attribute type enum | `AttributeType` (24 values) | Map to CMT `type` strings using table above |
+| Lookup targets | `LookupAttributeMetadata.Targets` | Emit `lookupType` attribute |
+| Relationship graph | `OneToManyRelationshipMetadata`, `ManyToManyRelationshipMetadata` | Build dependency graph for topological sort |
+| Option set values | `OptionSetMetadata` + `OptionMetadata` | Populate optionset reference sheets |
+| Load from solution workspace | `XmlWorkspaceReader.Load()` → `Workspace` | Implements M1.b (from-solution mode) |
+
+For the environment-driven mode (primary M1), we continue using `IDataverseEntityMetadataService` to fetch live metadata, then map it through the same CMT schema writer.
+
+For the solution-driven mode (M1.b), `XmlWorkspaceReader.Load(solutionPath)` gives us a `Workspace` with all entities/attributes/relationships — no Dataverse connection needed.
