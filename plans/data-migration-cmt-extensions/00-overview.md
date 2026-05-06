@@ -77,7 +77,11 @@ See `09-research-findings.md` for detailed analysis of both scenarios and CMT in
 | M5b | Imperative extensibility hooks (deferred) | `07-m5-import-runtime.md` |
 | M6 | Post-import state validation | `08-m6-validate-state.md` |
 
-Plus: `01-assessment.md` (context), `10-handoff.md` (developer onboarding), `09-research-findings.md` (research).
+Plus:
+- `01-assessment.md` — existing codebase state
+- `09-research-findings.md` — CMT internals, KingswaySoft features, real scenario analysis
+- `10-handoff.md` — developer onboarding
+- `11-architecture-options.md` — option placement, CMT boundary, inheritance chain, docs structure
 
 ### Explicitly out of scope (future)
 
