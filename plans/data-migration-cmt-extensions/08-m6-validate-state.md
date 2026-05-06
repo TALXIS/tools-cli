@@ -75,6 +75,18 @@ The report provides:
 - **Per-record field mismatches**: exact field, expected value, actual value, and mismatch type.
 - **Summary**: aggregate pass/fail counts for quick assessment.
 
+This command validates the package against target Dataverse state. It is not a complete migration QA framework: source-to-staging reconciliation, sampling approvals, tolerance rules, business sign-off reports, and coverage analysis remain upstream/future concerns. The report shape should leave room to add those later without changing the core package-state checks.
+
+## Future Validation Extensions
+
+Future milestones should add:
+
+- Source → staging → target reconciliation using source lineage metadata.
+- Sampling/sign-off reports for business users.
+- Tolerance rules for fields where exact equality is not appropriate.
+- Coverage analysis that identifies source rows not represented in the package and target records not covered by the migration.
+- Binary/file integrity checks for annotations and file columns.
+
 ## Implementation
 
 ### Data Retrieval
@@ -118,6 +130,7 @@ Reuses services from M5:
 | Report JSON format                | Assert report JSON matches expected schema                        |
 | `--on-mismatch fail`              | Mismatches present → non-zero exit code                           |
 | Empty package                     | No records → valid report with zero counts                        |
+| Future-compatible report          | Unknown future sections can be ignored by older readers           |
 
 ## Done When
 

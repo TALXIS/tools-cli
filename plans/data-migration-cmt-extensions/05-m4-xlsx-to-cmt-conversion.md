@@ -115,6 +115,7 @@ Write `txc-package.xml` listing all generated sidecars and the execution order i
 Output a summary of:
 
 - Records processed per entity
+- Row diff classification: added, modified, deleted, unchanged, and invalid
 - Warnings (type coercion issues, missing optional fields)
 - Errors (if `--on-error fail`, these would have aborted earlier)
 - Checksum mismatches (see below)
@@ -141,6 +142,20 @@ Row checksums (column B in the Excel) are **recomputed** during conversion and c
 - **Mismatch**: Row was modified outside of normal editing flow. A warning is emitted (or error if `--on-error fail`).
 
 This enables delta detection: if checksums match, the row hasn't changed since the template was generated or last converted.
+
+### Diff Semantics
+
+For workbooks produced by `generate-xlsx` with preloaded data or by `export-xlsx`, the `_meta` sheet stores a visible row catalog containing `(entity, id, checksum)` from the source package/workbook generation time. During conversion:
+
+| Classification | Rule | Effect |
+|---|---|---|
+| `unchanged` | Row id exists in the catalog and checksum matches | Included or skipped according to command mode; reported as unchanged |
+| `modified` | Row id exists in the catalog and checksum differs | Included in `data.xml`; warning/error depends on checksum policy |
+| `added` | Row id is absent from the catalog | Treated as a new record; deterministic GUID synthesis may fill the id |
+| `deleted` | Catalog row id is missing from the entity sheet | Reported in the diff report; Phase 1 does not delete target records automatically |
+| `invalid` | Row fails type/reference/schema validation | Excluded only if warning mode allows continuing; otherwise conversion fails |
+
+Checksum mismatch alone means "row changed", not "conflict with target". Target-side conflict detection belongs to pre-import validation / future load-journal work.
 
 ## Replaces Existing Command
 

@@ -52,6 +52,7 @@ The workbook uses a **unified entity sheet** model — there are no separate "lo
 | M:N junction sheets| `M2M: <RelationshipName>`         | Two composite dropdown columns for many-to-many    |
 | Custom API sheets  | `API: <DisplayName>`              | Per-API parameter columns, schema from env metadata|
 | BPF sheet          | `BPF Advancement`                 | Entity, Record, Process, Stage columns             |
+| Instructions sheet | `_instructions`                   | Visible workbook usage notes, edit rules, and conversion expectations |
 | `_meta` sheet      | `_meta`                           | Schema fingerprint, txc version, field map         |
 
 #### Sheet Naming Rules
@@ -64,6 +65,19 @@ The workbook uses a **unified entity sheet** model — there are no separate "lo
 #### No Hidden Sheets
 
 All sheets are visible. Full transparency — no hidden or veryHidden sheets. This is a deliberate departure from native Dataverse export (which uses veryHidden metadata sheets).
+
+Technical helper columns can still be hidden or locked when they exist only to support formulas/dropdowns (for example the final composite `"Name [GUID]"` column). This is not hidden business metadata: the column purpose, formula, and named range are documented in `_instructions` and `_meta`.
+
+#### `_instructions` Sheet
+
+The generated workbook includes a visible `_instructions` sheet near the front of the workbook. It explains:
+
+- Which rows/columns users should edit.
+- What composite dropdown values mean (`"Label [value]"`, `"Name [GUID]"`).
+- How row checksums are used for diff/tamper detection.
+- What `include_in_cmt` means for migrated vs reference-only sheets.
+- How deleted rows, added rows, and modified rows are interpreted by `convert`.
+- Where to find detailed metadata in `_meta`.
 
 ### Per-Entity `include_in_cmt` Flag
 

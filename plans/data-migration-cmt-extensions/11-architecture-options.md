@@ -10,7 +10,8 @@ Options cascade with specificity — more specific wins over less specific:
 CLI flag (runtime override)
   └─▶ Package manifest (txc-package.xml — package-wide defaults)
         └─▶ Per-entity (within manifest or sidecar — entity-specific override)
-              └─▶ Per-record (within sidecar — record-specific override)
+              └─▶ Per-step (data_postimport.xml — operation-specific override)
+                    └─▶ Per-record (within sidecar — record-specific data)
 ```
 
 **Example**: `suppressPowerAutomateFlows` can be set:
@@ -67,6 +68,8 @@ When processing entity `X`:
 
 Per-record options (callerid, owner, state) come from sidecars and don't participate in this cascade — they are always per-record.
 
+Per-step options exist only for Phase B post-import operations. They are important for bypass headers: business-action steps often need plugins/flows to run even when earlier load-correction steps bypassed them.
+
 ---
 
 ## CMT Internal Capabilities — What We Do NOT Reimplement
@@ -101,7 +104,7 @@ txc adds **modern bypass headers** as an alternative/complement:
 - `MSCRM.BypassBusinessLogicExecution` — granular (async/sync)
 - `MSCRM.SuppressCallbackRegistrationExpanderJob` — Power Automate bypass
 
-These headers apply to Phase B (sidecar operations). Phase A (CMT engine) continues using its native step deactivation approach.
+These headers apply to Phase B (sidecar operations) only when enabled by package/entity/step options. Phase A (CMT engine) continues using its native step deactivation approach.
 
 ---
 
@@ -128,6 +131,8 @@ These are features that CMT does not provide. txc implements them in Phase B (po
 | **Row checksums** | Staging Excel column B | Per-record |
 | **Source duplicate detection** | Convert step | Per-entity |
 | **Retry with Retry-After** | PostImportRunner | Runtime |
+| **Pre-import target validation** | `validate` / import preflight | Command |
+| **Optional lineage metadata** | Manifest metadata + reports | Package |
 
 ---
 
@@ -147,6 +152,11 @@ docs/
     ├── bypass-headers.md               # Plugin, Power Automate, dupe detection bypass
     ├── import-runtime.md               # Phase A + Phase B + retry + error handling
     ├── idempotency-and-keys.md         # Deterministic GUIDs, alternate keys
+    ├── pre-import-validation.md        # Target schema/security/readiness checks
+    ├── source-lineage.md               # Optional lineage metadata and report fields
+    ├── migration-waves.md              # Future wave orchestration design
+    ├── rollback-and-load-journal.md    # Future recovery/journal design
+    ├── coverage-analysis.md            # Future source/target coverage checks
     ├── bpf-advancement.md              # BPF stage moves, traversedpath
     ├── state-validation.md             # validate-state command
     └── migration-walkthrough.md        # End-to-end 9-step example

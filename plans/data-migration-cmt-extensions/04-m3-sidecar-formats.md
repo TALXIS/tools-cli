@@ -38,6 +38,10 @@
     <continueOnError>false</continueOnError>
     <dryRun>false</dryRun>
   </options>
+  <metadata>
+    <migrationBatch>svs-wave-01</migrationBatch>
+    <sourceSystem>legacy-svs</sourceSystem>
+  </metadata>
 </txcPackage>
 ```
 
@@ -61,6 +65,7 @@ The manifest is the **only** entry point that the post-processor reads. If a pac
 
 - Each `<entity>` declares one or more named alternate keys.
 - A key is a list of CMT-recognizable fields (matching `<field>` elements in the schema).
+- If the same natural keys can repeat across companies, partitions, or source systems, include those partition fields in the key declaration (for example `source_system`, `company_code`, or `migration_partition`). Deterministic GUIDs are only safe when the full tuple is globally unique for the target table.
 - Resolution rule used by other sidecars: `<recordRef entity="account" key="byNumber" value="ACC-001" />`.
 - Multi-field keys → `value` becomes `field1=v1;field2=v2`.
 - These do NOT need to map to physical Dataverse alternate keys; txc resolves by FetchXML query.
@@ -235,11 +240,15 @@ A future `txc data package validate <path>` command will check:
 - `<entity>`/`<field>` names appear in `data_schema.xml` (where applicable).
 - Option-set values exist in target metadata (warning when not connected; hard error when `--profile` is supplied).
 - `processName`/`stage` references in `data_bpf.xml` exist in target env (only when `--profile` given).
+- Target schema compatibility before import: required fields, field types, valid-for-create/update/read where relevant, lookup targets, option/status values, BPF processes/stages, Custom API/action names, and workflow names.
+- Target security readiness before import where it can be checked cheaply: owner/caller users exist and are enabled, teams exist, and the import principal has privileges needed for bypass headers and impersonation.
 - Manifest `cmt/data` and `cmt/schema` paths exist.
 - `data_postimport.xml` must reference only sidecar kinds listed in `txc-package.xml`.
 - No duplicate record IDs within a single sidecar entity block.
 - Owner/caller names in `data_owners.xml` and `data_callerid.xml` must be non-empty strings.
 - State/status codes in `data_state.xml` must be valid integers.
+
+Optional source lineage metadata is allowed at package level (`<metadata>`) and can also be carried as normal data fields when the target model has fields such as `source_system`, `source_key`, or `migration_batch`. Phase 1 records and reports this metadata but does not provide a central lineage database.
 
 ## Source-Control Ergonomics
 

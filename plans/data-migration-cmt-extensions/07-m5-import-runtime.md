@@ -23,7 +23,7 @@ Phase B is skipped automatically when no `txc-package.xml` is present (back-comp
 
 ## Request Headers (from manifest `<options>`)
 
-The PostImportRunner reads manifest options and applies these Dataverse request headers to all Phase B operations:
+The PostImportRunner resolves request headers from CLI flags, manifest defaults, entity options, and step overrides. Headers are **not blindly applied to every Phase B operation**: post-import business logic often needs plugins/flows enabled, so each step defaults to normal Dataverse behavior unless the package or step explicitly opts into bypass.
 
 | Manifest option | HTTP header | Purpose |
 |---|---|---|
@@ -36,6 +36,17 @@ The PostImportRunner reads manifest options and applies these Dataverse request 
 | `<coalesceNonEmptyValues>true</coalesceNonEmptyValues>` | *(logic in PostImportRunner)* | Only include non-empty fields in update requests; empty = don't touch |
 
 Per-record `MSCRMCallerID` is applied from `data_callerid.xml` sidecar.
+
+Step-level overrides can narrow or disable package defaults:
+
+```xml
+<postimport>
+  <step kind="owners" suppressPowerAutomateFlows="true" />
+  <step kind="actions" bypassBusinessLogic="none" suppressPowerAutomateFlows="false" />
+</postimport>
+```
+
+Guideline: use bypass aggressively for pure load/correction steps only when the migration owns the resulting side effects. Keep bypass off for Custom API, workflow, or BPF steps whose purpose is to run target business logic.
 
 ## Retry / Throttling
 
@@ -150,6 +161,8 @@ The `Transform` server already exposes `/ComputePrimaryKey` (MD5 over `(entity, 
 
 Result: subsequent CMT imports match by GUID (which CMT *does* support), and re-runs converge.
 
+The alternate-key tuple must include the full uniqueness scope. In multi-company or multi-source migrations, fields such as `source_system`, `company_code`, `migration_partition`, or another partition discriminator should be declared as key fields. Do not rely on a local legacy id alone if that id can repeat across partitions.
+
 #### Mechanism B — Runtime Alternate-Key Resolution (new)
 
 For sidecars and for `data.xml` records whose ids cannot be synthesized (e.g. lookups into existing-in-target records), txc resolves via FetchXML at apply time:
@@ -182,6 +195,8 @@ Wire `IRecordKeyService` into DI; replace the inline MD5 in `ComputePrimaryKeyCo
 - Mechanism A on a record without all alt-key fields filled → hard error during `convert` (clear list of missing fields).
 - Mechanism B with 0 hits → hard error during apply, with the offending key/value/entity in the message.
 - Mechanism B with >1 hit → hard error; key declaration is wrong, not the data.
+- Brownfield collision: if deterministic GUID synthesis would create a new id but the same alternate key already exists in target under a different GUID, Phase 1 fails by default before import. The operator must choose a strategy explicitly: use the existing target GUID in Excel, fix the key tuple, or defer to a future key-map/merge workflow.
+- Existing target record with same deterministic GUID but conflicting non-key data is not a key-resolution error. It is handled as an update by CMT and should be surfaced by pre-import validation / post-import validation depending on command flow.
 
 ### Edge Cases
 
@@ -189,6 +204,10 @@ Wire `IRecordKeyService` into DI; replace the inline MD5 in `ComputePrimaryKeyCo
 - **Composite keys**: `data_keys.xml` allows multi-field keys. Hash inputs are sorted alphabetically by field logical name to keep hashing canonical.
 - **Lookups across entities**: A lookup column whose value is `keyref:byNumber=ACC-001` is rewritten to the synthesized GUID for the target entity at convert time (when Mechanism A is enabled for the target entity), or left as a `keyref:` token resolved at apply time (Mechanism B).
 - **Files / annotations**: Annotations and file columns inherit the parent record id and need no special handling.
+
+### Future Key Map / Load Journal
+
+Phase 1 does not introduce a persistent key-map database or rollback journal. That is intentional: the first implementation keeps the CMT package source-controllable and idempotent. A later milestone should add a load journal for brownfield merge decisions, rollback planning, and mapping source keys to target GUIDs when deterministic IDs are not safe.
 
 ### Key Resolution CLI Surface
 

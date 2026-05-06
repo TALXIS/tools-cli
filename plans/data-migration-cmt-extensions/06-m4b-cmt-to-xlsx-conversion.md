@@ -68,8 +68,9 @@ The converter:
 2. Parses `data.xml` to extract all records.
 3. Passes the schema to `StagingExcelGenerator` to create the workbook structure.
 4. Fills entity sheets with resolved record data.
-5. If a profile is available, uses `ReferenceDataLoader` to populate reference data and resolve lookup display names.
-6. Writes the workbook to the output path.
+5. Writes the source row catalog `(entity, id, checksum)` into `_meta` so the forward `convert` command can classify unchanged, modified, added, and deleted rows.
+6. If a profile is available, uses `ReferenceDataLoader` to populate reference data and resolve lookup display names.
+7. Writes the workbook to the output path.
 
 ## Tests
 
@@ -81,6 +82,7 @@ The converter:
 | Lookup without profile            | GUID in data.xml → "[GUID]" in Excel (no display name)               |
 | Bool reverse                      | true/false → "Yes"/"No"                                              |
 | DateTime reverse                  | ISO 8601 → Excel date cell                                           |
+| Row catalog                       | `_meta` contains entity/id/checksum entries for diff classification  |
 | All entities marked migrated      | Assert all sheets have include_in_cmt = true                         |
 | Styling preserved                 | Assert generated workbook has correct styling, validation, and layout |
 | Determinism                       | Same package → identical workbook on repeated runs                   |

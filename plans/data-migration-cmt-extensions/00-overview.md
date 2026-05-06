@@ -91,6 +91,12 @@ Plus:
 - Replacing CMT's import engine.
 - UI / web tooling.
 - Mapping engine in txc (future: extraction, enrichment, mapping stay in Python for Phase 1).
+- Mapping tests, transformation functions, data maps, and business-context capture; those remain upstream AgenticETL/Python concerns in Phase 1.
+- Migration waves, wave status, and cross-wave integrity checks.
+- Load journal and rollback automation. Phase 1 aims for idempotent forward re-runs, not automatic undo.
+- Source lineage catalog, coverage analysis, and structured Q&A workflow. Phase 1 may carry optional lineage fields, but it does not become the governance workspace.
+- Delta/change tracking execution model. Row checksums support later delta detection but do not define a full delta sync.
+- Generic connector capability abstraction; this plan is Dataverse/CMT-specific.
 - MSBuild SDK project type for data migration (future: `tools-devkit-build`).
 - Connector implementations loaded by txc (future: new repo).
 

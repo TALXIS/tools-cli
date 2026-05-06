@@ -42,6 +42,7 @@ These were settled through clarifying questions with the requester. Capture cont
 - **XLSX round-trip.** Schema → template → fill → convert back to `data.xml`. Reverse direction (data.xml → XLSX) added as M4b.
 - **CMT engine is a black box.** It runs in a subprocess via `LegacyAssemblyHostSubprocess`. We do not patch it. All extensions sit alongside it (Phase B post-processor).
 - **No new DSL.** Sidecars are XML in the same style as CMT files.
+- **Post-import bypass defaults are conservative.** Bypass headers are available, but Phase B steps should default to normal Dataverse business logic unless the package, entity, or step explicitly opts in.
 
 ## 3. Important Pointers in *This* Repo (`TALXIS/tools-cli`)
 
@@ -208,6 +209,10 @@ These are intentionally left for the implementation PRs. They do not change arch
 - BPF version pinning — default to latest, allow `versionnumber` pin attribute? (Probably yes.)
 - A `--force-actions` flag for M5 even when probes say no-op? (Probably yes.)
 - Whether to keep the `--no-schema` shim on `convert` after one release. (Removal target TBD.)
+- Brownfield merge/key-map workflow when a natural key already exists in target under a different GUID. Phase 1 should fail by default and require an explicit operator decision.
+- Load journal / rollback strategy. Idempotency supports safe re-runs, but it does not undo an import with structurally wrong keys.
+- Migration waves and cross-wave integrity checks.
+- Whether optional source-lineage metadata should stay as manifest/report-only metadata or become a first-class sidecar later.
 
 ## 13. Things Explicitly Out of Scope
 
@@ -216,3 +221,4 @@ These are intentionally left for the implementation PRs. They do not change arch
 - Hosting Package Deployer.
 - Any web/UI surface.
 - Auto-creating stub records on Mechanism B miss (future, behind a flag).
+- Mapping engine, mapping tests, data map, business Q&A workflow, coverage analysis, migration waves, rollback automation, and generic connectors.
