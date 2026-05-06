@@ -1,7 +1,7 @@
 # Data Migration & CMT Extensions — Overview
 
 > Branch: `feat/data-migration-cmt-extensions`
-> Status: Planning
+> Status: Planning (revised)
 > Owner: Data tooling
 
 ## Problem statement
@@ -20,22 +20,43 @@ CMT's engine is, however, **insufficient** for real-world Dataverse migrations f
 - ❌ No XLSX support of any kind.
 - ✅ Owner Assign and `statecode`/`statuscode` ARE supported (good; we will reuse).
 - ✅ Plugin bypass during import is supported (`disableplugins`).
+- ✅ **2-pass import** handles cyclic FKs (create without FK → update FK in reprocess pass).
+- ✅ **Annotations supported natively** (base64 `documentbody` inline in data.xml).
 
 Real migrations from legacy systems need:
 
-1. **Excel-driven authoring** — business users fill XLSX templates that round-trip with `data.xml`.
+1. **Excel-driven authoring** — a staging Excel with data validation, FK dropdowns, and optionset dropdowns that serves as both a review artifact for business users and a machine-readable input for CMT conversion.
 2. **State-machine operations** post-import — Custom APIs, BPF stages, workflows, owners, statecodes.
 3. **Idempotent re-runs** with relationship resolution by alternate keys (not just GUID).
+
+### Phase 1 Scope
+
+txc owns **D + E + F** of the migration pipeline:
+- **D**: Generate staging Excel from Dataverse metadata (schema-driven, with reference data)
+- **E**: Convert filled staging Excel → CMT package + sidecars
+- **F**: Import CMT package + run post-import operations
+
+Upstream (extraction, enrichment, mapping) stays in Python for Phase 1. The **staging Excel is the contract** between the upstream tool and txc.
+
+### Real scenarios informing design
+
+- **SVS migration** (761 projects from MongoDB → Dataverse): custom API calls, BPF advancement, task history as annotations, deterministic GUIDs, 4 enrichment sources
+- **CETIN-GF migration** (355 projects from 25+ Synapse DW tables → 6 Dataverse entities): cyclic FKs, 3 BPF types, 15+ lookup tables, SQL-based mappings, MSCRMCallerID impersonation, termin auto-creation + date patching
+
+See `09-research-findings.md` for detailed analysis of both scenarios and CMT internals.
 
 ## Design principles
 
 - **CMT artifacts stay canonical.** `data.xml` and `data_schema.xml` remain the source-of-truth, untouched and tool-compatible (Microsoft GUI / `pac data` continue to work).
-- **Sidecar files** carry txc-specific concerns (post-import ops, owners, BPF, alternate keys) alongside the CMT XMLs.
+- **Staging Excel is the human interface.** Business users review/correct data in Excel. All entities (migrated and reference-only) use the same sheet format. FK dropdowns, optionset dropdowns, and cell-level validation provide guardrails.
+- **Unified entity sheets.** No separate "lookup" sheets — every entity gets the same kind of sheet. A per-entity `include_in_cmt` flag controls whether records go into `data.xml`.
+- **Sidecar files** carry txc-specific concerns (post-import ops, owners, BPF, alternate keys, custom APIs) alongside the CMT XMLs.
 - **Two execution layers**:
   - *Legacy CMT engine* (existing `CmtImportRunner`) handles record CRUD, file columns, dedup-by-GUID/primaryname, owner Assign, statecode.
   - *txc post-processor* (new) reads sidecars and applies non-CMT operations using existing `IDataverseRecordService`, `IChangesetApplier`, plus new services (Execute / SetState / Assign / BPF).
 - **No new DSL.** Sidecars are plain XML mirroring CMT's style. A single package manifest (`txc-package.xml`) declares which sidecars apply, in what order.
-- **Reproducible.** Re-importing the same package converges to the same state (idempotency).
+- **Declarative first, imperative escape hatch.** 90% of post-import operations expressed as declarative sidecars. Code-based `PackageExtension` hooks for the remaining 10%.
+- **Reproducible.** Re-importing the same package converges to the same state (idempotency via deterministic GUIDs + sidecar probes).
 - **Source-control friendly.** All artifacts are diff-able, mergeable text files versioned alongside the solution.
 
 ## Scope summary
@@ -44,14 +65,18 @@ Real migrations from legacy systems need:
 
 | Milestone | Theme | File |
 |---|---|---|
+| M0 | ClosedXML feature spike | (spike, no plan file) |
 | M1 | CMT schema generation from metadata / solution | `02-schema-generation.md` |
-| M2 | XLSX round-trip (template generation + improved convert) | `03-xlsx-roundtrip.md` |
+| M2a | Staging Excel template generation (unified entity sheets) | `03-xlsx-staging-excel.md` |
+| M2b | Reference data loading into staging Excel | `03-xlsx-staging-excel.md` |
+| M2c | Excel library integration (ClosedXML) | `03-xlsx-staging-excel.md` |
 | M3 | Sidecar XML formats and package manifest | `04-sidecar-formats.md` |
-| M4 | State-machine runtime (post-import operations) | `05-state-machine-runtime.md` |
-| M5 | Idempotency and alternate-key resolution | `06-idempotency-and-keys.md` |
-| X-cut | Final CLI command surface | `07-cli-command-surface.md` |
+| M4 | Staging Excel → CMT package conversion | `05-xlsx-to-cmt-conversion.md` |
+| M5 | Import runtime + post-import operations | `06-import-runtime.md` |
+| M5b | Imperative extensibility hooks (deferred) | `06-import-runtime.md` |
+| M6 | Final CLI command surface | `07-cli-command-surface.md` |
 
-Plus an assessment note for context: `01-assessment.md`.
+Plus: `01-assessment.md` (context), `08-handoff.md` (developer onboarding), `09-research-findings.md` (NEW).
 
 ### Explicitly out of scope (future)
 
@@ -60,16 +85,24 @@ Plus an assessment note for context: `01-assessment.md`.
 - Full Package Deployer hosting / wrapping.
 - Replacing CMT's import engine.
 - UI / web tooling.
+- Mapping engine in txc (future: extraction, enrichment, mapping stay in Python for Phase 1).
+- MSBuild SDK project type for data migration (future: `tools-devkit-build`).
+- Connector implementations loaded by txc (future: new repo).
 
 ## High-level command surface (target state)
 
 ```
 txc data package generate-schema   --tables ... [--from-solution ...] -o data_schema.xml
 txc data package generate-xlsx     --schema data_schema.xml -o template.xlsx
-txc data package convert           --input template.xlsx -o data.xml      # existing, hardened
-txc data package validate          <package-path>                          # new
+                                   [--include-apis <api1,api2>]
+                                   [--include-bpf]
+                                   [--profile <name>]
+txc data package load-xlsx-refs    --workbook template.xlsx --profile <name>
+                                   [--entities <comma-list>]
+txc data package convert           --input template.xlsx --schema ... -o <dir>
+txc data package validate          <package-path>                          # deferred
 txc data package export            --schema data_schema.xml -o ...         # existing
-txc data package import            <package-path>                          # existing, extended to run sidecars
+txc data package import            <package-path>                          # existing, extended
 ```
 
 A package on disk looks like:
@@ -78,23 +111,24 @@ A package on disk looks like:
 my-migration/
 ├── data.xml                  # CMT data (canonical, MS-compatible)
 ├── data_schema.xml           # CMT schema (canonical, MS-compatible)
-├── content_types.xml         # CMT (existing)
+├── [Content_Types].xml       # CMT (existing)
 ├── files/                    # CMT file columns (existing)
 ├── txc-package.xml           # NEW: manifest binding sidecars to package
 ├── data_keys.xml             # NEW: alternate-key declarations (M5)
-├── data_owners.xml           # NEW: owner assignments (M4)
-├── data_state.xml            # NEW: statecode/statuscode overrides (M4)
-├── data_bpf.xml              # NEW: BPF stage moves (M4)
-├── data_actions.xml          # NEW: Custom API / workflow / action calls (M4)
-└── data_postimport.xml       # NEW: ordered references to the above (M4)
+├── data_owners.xml           # NEW: owner assignments (M5)
+├── data_state.xml            # NEW: statecode/statuscode overrides (M5)
+├── data_bpf.xml              # NEW: BPF stage moves (M5)
+├── data_actions.xml          # NEW: Custom API / workflow / action calls (M5)
+├── data_callerid.xml         # NEW: per-record MSCRMCallerID impersonation (M5)
+└── data_postimport.xml       # NEW: ordered references to the above (M5)
 ```
 
 ## Reading order
 
 1. `08-handoff.md` — **start here if you are a developer picking this up.** Original goals, decisions already made, repo conventions, source-file pointers, glossary.
-2. `01-assessment.md` — what the codebase + CMT have today.
-3. `02` … `06` — milestone designs (each independently reviewable).
-4. `07-cli-command-surface.md` — final UX summary across milestones.
+2. `09-research-findings.md` — CMT internals research, real scenario analysis (SVS + CETIN-GF).
+3. `01-assessment.md` — what the codebase + CMT have today.
+4. `02` … `07` — milestone designs (each independently reviewable).
 
 ## Tracking
 
