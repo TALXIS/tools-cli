@@ -54,7 +54,10 @@ The conversion follows a strict sequential pipeline:
 - Verify all required columns present per entity.
 - Check data types match expected schema types.
 - Flag empty required fields.
+- **Detect source duplicates**: check for duplicate primary keys (column A) and duplicate alternate keys (if `data_keys.xml` provided) within each entity sheet. Options when found: `error` (default), `first-wins`, `last-wins`, `warn`.
+- **Per-field lookup fallback**: each lookup column can have its own failure strategy specified in schema or metadata: `error` (fail row), `nullify` (set to null), `default:<guid>` (fallback value). Global `--on-error` applies to non-lookup validation failures.
 - Collect validation issues (warnings or errors based on `--on-error`).
+- **Structured error report**: emit per-row error details including original row data, row number, field name, and error message. Not just counts — the actual failing data for debugging.
 
 ### 3. Resolve Optionset Composites
 

@@ -43,16 +43,18 @@ Three modes, chosen via CLI flag, all metadata-driven:
 | Mode | Includes | Excludes | Use case |
 |---|---|---|---|
 | `minimal` | Primary key, primary name, custom fields, mandatory non-system fields | Audit fields, owner fields (handled via sidecar M3), state/status (sidecar), system fields | "Move only what the customer authored." |
-| `standard` (default) | minimal + lookups + option-set columns | Audit, ownership, state, system | Most migrations. |
-| `full` | All `IsValidForCreate=true && IsValidForUpdate=true` attributes | Truly read-only / system-managed (`createdon`, `modifiedon`, `versionnumber`, `*_base`, calculated/rollup) | Power users. |
+| `standard` (default) | minimal + lookups + option-set columns + `overriddencreatedon` | Audit, ownership, state, system | Most migrations. |
+| `full` | All `IsValidForCreate=true && IsValidForUpdate=true` attributes + `overriddencreatedon` + `createdby` + `modifiedby` | Truly read-only / system-managed (`createdon`, `modifiedon`, `versionnumber`, `*_base`, calculated/rollup) | Power users — full historical audit preservation. |
 
 In all modes:
 
 - `IsCustomAttribute=true` → `customfield="true"`.
 - `IsPrimaryId` → emit as `<field … primaryKey="true">`.
-- Lookups → emit `lookupType="<targetEntity>"`. If multiple targets (Customer, Owner, regarding) → emit comma-separated, matching CMT GUI behavior.
+- Lookups → emit `lookupType="<targetEntity>"`. If multiple targets (Customer, Owner, regarding) → emit pipe-separated (`"account|contact"`), matching CMT GUI behavior.
 - Calculated / Rollup / Formula → exclude (CMT cannot import).
-- Multi-select picklist (`Virtual` of type `MultiSelectPicklist`) → include with `type="picklist"`.
+- Multi-select picklist (`Virtual` of type `MultiSelectPicklist`) → include with `type="optionsetvaluecollection"`.
+- `overriddencreatedon` → always included in `standard` and `full` modes (both SVS and CETIN-GF use it for historical dates).
+- `createdby` / `modifiedby` → included in `full` mode only (requires CallerID impersonation, batch size=1 for modifiedby).
 
 ## Entity Import Ordering
 

@@ -26,7 +26,15 @@
     <postimport path="data_postimport.xml" />
   </sidecars>
   <options>
-    <plugins bypass="true" />            <!-- mirrors disableplugins; default off -->
+    <plugins bypass="true" />                          <!-- mirrors disableplugins; default off -->
+    <bypassBusinessLogic>CustomAsync</bypassBusinessLogic> <!-- CustomAsync | CustomSync | Both | none (default) -->
+    <bypassPluginStepIds>                              <!-- bypass specific plugin step GUIDs (optional) -->
+      <step id="a1b2c3d4-..." />
+    </bypassPluginStepIds>
+    <suppressPowerAutomateFlows>true</suppressPowerAutomateFlows>  <!-- SuppressCallbackRegistrationExpanderJob -->
+    <suppressDuplicateDetection>true</suppressDuplicateDetection>  <!-- SuppressDuplicateDetection -->
+    <autoDisassociate>false</autoDisassociate>          <!-- AutoDisassociate header for lookup reassignment -->
+    <coalesceNonEmptyValues>false</coalesceNonEmptyValues> <!-- Only update non-empty fields; empty = don't touch -->
     <continueOnError>false</continueOnError>
     <dryRun>false</dryRun>
   </options>

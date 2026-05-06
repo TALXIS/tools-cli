@@ -21,6 +21,35 @@ import command
 
 Phase B is skipped automatically when no `txc-package.xml` is present (back-compat).
 
+## Request Headers (from manifest `<options>`)
+
+The PostImportRunner reads manifest options and applies these Dataverse request headers to all Phase B operations:
+
+| Manifest option | HTTP header | Purpose |
+|---|---|---|
+| `<plugins bypass="true">` | `BypassCustomPluginExecution: true` | Skip all custom plugins |
+| `<bypassBusinessLogic>CustomAsync</bypassBusinessLogic>` | `MSCRM.BypassBusinessLogicExecution: CustomAsync` | Skip only async plugins (or `CustomSync` for sync-only) |
+| `<bypassPluginStepIds><step id="..."/></bypassPluginStepIds>` | `MSCRM.BypassBusinessLogicExecutionStepIds: guid1,guid2` | Bypass specific plugin steps |
+| `<suppressPowerAutomateFlows>true</suppressPowerAutomateFlows>` | `MSCRM.SuppressCallbackRegistrationExpanderJob: true` | **Bypass Power Automate flows** — critical for migration perf |
+| `<suppressDuplicateDetection>true</suppressDuplicateDetection>` | `MSCRM.SuppressDuplicateDetection: true` | Skip duplicate detection rules |
+| `<autoDisassociate>true</autoDisassociate>` | `AutoDisassociate: true` | Auto-remove old N:1 associations when updating lookups |
+| `<coalesceNonEmptyValues>true</coalesceNonEmptyValues>` | *(logic in PostImportRunner)* | Only include non-empty fields in update requests; empty = don't touch |
+
+Per-record `MSCRMCallerID` is applied from `data_callerid.xml` sidecar.
+
+## Retry / Throttling
+
+The PostImportRunner retries on transient Dataverse errors:
+
+| Error | Retry strategy |
+|---|---|
+| HTTP 429 (Too Many Requests) | Wait `Retry-After` header value, fallback 90s |
+| HTTP 503 (Service Unavailable) | Wait 90s |
+| Dataverse throttling codes (`-2147015903`, `-2147015902`, `-2147015898`) | Wait 90s |
+| SQL timeout (`-2147204784` with `-2146232060`) | Wait 30s |
+
+Max retries: 3 per batch. Exponential backoff if no `Retry-After` header. Investigate whether the existing Dataverse service client (`ServiceClient`) already handles this — if so, just verify and document; if not, add retry wrapper.
+
 ## New Dataverse Services (DI-registered)
 
 | Interface | Purpose | Underlying request(s) |
