@@ -72,9 +72,11 @@ See `09-research-findings.md` for detailed analysis of both scenarios and CMT in
 | M2c | Excel library integration (ClosedXML) | `03-xlsx-staging-excel.md` |
 | M3 | Sidecar XML formats and package manifest | `04-sidecar-formats.md` |
 | M4 | Staging Excel → CMT package conversion | `05-xlsx-to-cmt-conversion.md` |
+| M4b | CMT package → staging Excel (reverse conversion) | `05-xlsx-to-cmt-conversion.md` |
 | M5 | Import runtime + post-import operations | `06-import-runtime.md` |
 | M5b | Imperative extensibility hooks (deferred) | `06-import-runtime.md` |
-| M6 | Final CLI command surface | `07-cli-command-surface.md` |
+| M6 | Post-import state validation | `06b-validate-state.md` |
+| M7 | Final CLI command surface | `07-cli-command-surface.md` |
 
 Plus: `01-assessment.md` (context), `08-handoff.md` (developer onboarding), `09-research-findings.md` (NEW).
 
@@ -100,7 +102,8 @@ txc data package generate-xlsx     --schema data_schema.xml -o template.xlsx
 txc data package load-xlsx-refs    --workbook template.xlsx --profile <name>
                                    [--entities <comma-list>]
 txc data package convert           --input template.xlsx --schema ... -o <dir>
-txc data package validate          <package-path>                          # deferred
+txc data package export-xlsx       --package <dir> -o review.xlsx          # NEW: reverse
+txc data package validate-state    --package <dir> --profile <name>        # NEW: post-import validation
 txc data package export            --schema data_schema.xml -o ...         # existing
 txc data package import            <package-path>                          # existing, extended
 ```
