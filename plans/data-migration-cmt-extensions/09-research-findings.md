@@ -128,3 +128,108 @@ Resolution strategy for `data_bpf.xml`:
 2. Stage display name → `processstage.processstageid` (via `processstages?$filter=processid/workflowid eq {id}`)
 3. Auto-compute `traversedpath` from first stage to target stage
 4. Create or update BPF instance with `activestageid@odata.bind` and `traversedpath`
+
+---
+
+## KingswaySoft Feature Analysis (from decompiled 2025 assembly)
+
+> Source: `/Users/tomasprokop/Desktop/Experiments/KWSDecompilation/`
+> The user considers SSIS + KingswaySoft to be the most productive tool for Dataverse migrations. This analysis extracts features that should inspire our CMT extensions.
+
+### Lookup Resolution (most important KingswaySoft feature)
+
+KingswaySoft has per-lookup-field, per-target-entity configuration:
+
+| Setting | Purpose | Relevance to our plan |
+|---|---|---|
+| `TargetTextField` | Match by a text field (e.g., `name`, `fullname`) | Our composite `"Name [GUID]"` approach handles this |
+| `AlternateKey` | Use a Dataverse alternate key for matching | Maps to our M5 Mechanism B |
+| `SecondaryLookupInputColumn` + `SecondaryLookupTargetField` | Two-field composite lookup | **NEW** — consider for ambiguous lookups |
+| `ExcludeInactive` | Skip inactive records when resolving | **Consider** — add `statecode eq 0` filter to lookup queries |
+| `SmartNameMatch` | Fuzzy matching for names | **Future** — useful but complex |
+| `DefaultValue` | Fallback GUID if lookup fails | Our plan has `--on-error skip-row` but not per-field fallback |
+| `Nullify` | Set lookup to null if not found | **Consider** — useful for optional lookups |
+| `LookupCacheStrategy` | `FullCache` (preload all) vs `PartialCache` (on-demand) | Our reference-only entity sheets = FullCache; large tables need PartialCache |
+
+**Record Matching Criteria for Upsert:**
+- `PrimaryKey` — match by GUID (CMT default)
+- `AlternateKey` — match by Dataverse alternate key (our M5)
+- `SystemDuplicateDetection` — reuse Dataverse's own dupe detection rules (interesting but complex)
+- `ManuallySpecify` — pick matching fields (our `data_keys.xml`)
+
+### Bypass Headers (critical for performance)
+
+| Header | Purpose | In our plan? |
+|---|---|---|
+| `MSCRM.BypassCustomPluginExecution` | Skip custom plugins | ✅ Yes (`disableplugins` in schema) |
+| `MSCRM.BypassBusinessLogicExecution` | Granular: `CustomAsync` (1) or `CustomSync` (2) | ⚠️ **NEW** — more granular than all-or-nothing |
+| `MSCRM.BypassBusinessLogicExecutionStepIds` | Bypass specific plugin step GUIDs | ⚠️ **NEW** — surgical bypass |
+| `MSCRM.SuppressCallbackRegistrationExpanderJob` | **Bypass Power Automate flows** | ❌ **Missing from plan** — critical for perf |
+| `MSCRM.SuppressDuplicateDetection` | Skip duplicate detection rules | ✅ Yes |
+| `MSCRMCallerID` | Per-record impersonation | ✅ Yes (`data_callerid.xml`) |
+| `AutoDisassociate: true` | Auto-remove old N:1 associations on update | ⚠️ **NEW** — useful for reassigning lookups |
+
+### Option Set Non-Match Strategies
+
+| Strategy | What it does | In our plan? |
+|---|---|---|
+| `CreateOption` | Auto-create missing option set values | ❌ Not planned (risky but powerful) |
+| `ReplaceAs` | Map to a specific fallback value | ❌ Not planned — consider as `--on-error` option |
+| `SetAsEmpty` | Null it out | Partial (empty cells omitted from XML) |
+| `LeaveItAsIs` | Pass through raw | ❌ |
+| `RaiseAnError` | Fail the row | ✅ Default in our plan |
+
+### Batch Operations — Three Tiers
+
+| Tier | API | KingswaySoft default | Our plan |
+|---|---|---|---|
+| **Homogeneous** | `CreateMultiple` / `UpdateMultiple` / `UpsertMultiple` | Preferred (checkbox) | ✅ `IDataverseBulkService` has these |
+| **Heterogeneous** | OData `$batch` with changesets | Fallback | ✅ `IChangesetApplier` |
+| **Legacy** | `ExecuteMultiple` | Old approach | Available but not preferred |
+
+KingswaySoft defaults: `BatchSizeForWriting=10`, `ConcurrentWritingThreadsInTotal=20` (= 200 effective concurrent ops).
+
+### Error Handling — Row Redirection Pattern
+
+KingswaySoft uses SSIS's error output pattern: failing rows are redirected to an error output stream with the error message attached. The original row data is preserved.
+
+**Relevance**: Our `convert` command has `--on-error fail|skip-row|warn`. We should also emit a structured error report with the original row data + error per row, not just a count.
+
+### Retry / Throttling
+
+| Scenario | KingswaySoft retry | Our plan |
+|---|---|---|
+| HTTP 429 (Too Many Requests) | Wait `Retry-After` header, fallback 90s | Should implement |
+| HTTP 503 (Service Unavailable) | Wait 90s | Should implement |
+| SOAP throttling | Wait 150s | Should implement |
+| SQL timeout (`-2147204784`) | Retry | Should implement |
+| Specific Dataverse throttling codes | `-2147015903`, `-2147015902`, `-2147015898` | **Reference data** for our retry logic |
+
+### Per-Record Impersonation (`impersonateas` field)
+
+KingswaySoft supports a virtual `impersonateas` input column — each row can specify which user to impersonate via `MSCRMCallerID` header. This is more flexible than connection-level impersonation.
+
+**Relevance**: Our `data_callerid.xml` sidecar achieves this. Consider also supporting `createdby`/`modifiedby` override (KingswaySoft can set these with batch size=1).
+
+### Other Notable Features
+
+| Feature | KingswaySoft | Impact on our plan |
+|---|---|---|
+| `CoalesceNonEmptyValues` | Only update non-empty fields (preserve existing data) | **Consider** for M5 — useful for partial updates |
+| `overriddencreatedon` | Explicitly set historical creation dates | ✅ Our schema generator should include this field |
+| Change Tracking / `$deltatoken` | Incremental extraction | **Future** — not Phase 1 |
+| Source duplicate optimization | `WriteFirstOnly` / `WriteAllWithNoDuplicateCreation` | **Consider** — handle dupes in staging Excel |
+| `statecode` required with `statuscode` | Can't set statuscode without statecode | ✅ Enforce in validation |
+| Activity party handling | Dedicated struct with per-entity resolution | **Future** — complex but needed for activity migration |
+
+### Features to Add to Plan
+
+Based on this analysis, these features should be considered for plan updates:
+
+1. **`MSCRM.SuppressCallbackRegistrationExpanderJob` header** — Power Automate bypass. Add to manifest options alongside `disableplugins`.
+2. **Granular plugin bypass** — `BypassBusinessLogicExecution` (async-only vs sync) in manifest.
+3. **`ExcludeInactive` for lookups** — filter reference data loading to active records only.
+4. **Structured error report with original row data** — not just counts but the actual failing rows.
+5. **Retry with Retry-After** for 429/503 — add to import runtime.
+6. **`overriddencreatedon` as explicit schema field** — always include when mode=full.
+7. **Per-field lookup fallback** (nullify vs error) — richer than current all-or-nothing `--on-error`.
