@@ -1,4 +1,5 @@
 using TALXIS.CLI.Core.Contracts.Dataverse;
+using TALXIS.CLI.Platform.Dataverse.Application.Sdk;
 using TALXIS.CLI.Platform.Dataverse.Runtime;
 using TALXIS.Platform.Metadata.Packaging;
 
