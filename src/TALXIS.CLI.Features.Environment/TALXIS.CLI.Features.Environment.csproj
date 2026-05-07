@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <PackageReference Include="DotMake.CommandLine" Version="2.6.7" />
+    <PackageReference Include="TALXIS.Platform.Metadata.Packaging" Version="1.0.0" />
   </ItemGroup>
 
   <ItemGroup>
