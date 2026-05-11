@@ -114,7 +114,7 @@ public class ComponentBrowseCliCommand : ProfiledCliCommand
         // Resolve component type
         var def = ComponentDefinitionRegistry.GetByName(Type);
         ComponentType? typeCode = def?.TypeCode;
-        if (typeCode is null && int.TryParse(Type, out var rawCode))
+        if (typeCode is null && int.TryParse(Type, out var rawCode) && rawCode > 0)
             typeCode = (ComponentType)rawCode;
         if (typeCode is null)
         {
@@ -126,7 +126,6 @@ public class ComponentBrowseCliCommand : ProfiledCliCommand
         var configResolver = TxcServices.Get<IConfigurationResolver>();
         var ctx = await configResolver.ResolveAsync(Profile, CancellationToken.None).ConfigureAwait(false);
         var connection = ctx.Connection;
-        var orgUrl = connection.EnvironmentUrl;
 
         if (connection.EnvironmentId is null)
         {
@@ -134,6 +133,21 @@ public class ComponentBrowseCliCommand : ProfiledCliCommand
             return ExitValidationError;
         }
         var environmentId = connection.EnvironmentId.Value;
+
+        // Validate EnvironmentUrl for types that require it (UCI, reports, SCF record forms)
+        var needsOrgUrl = typeCode.Value is ComponentType.AppModule or ComponentType.Report
+            || (typeCode.Value is not ComponentType.CanvasApp and not ComponentType.Workflow);
+        string? orgUrl = null;
+        if (!string.IsNullOrWhiteSpace(connection.EnvironmentUrl)
+            && Uri.TryCreate(connection.EnvironmentUrl, UriKind.Absolute, out var orgUri))
+        {
+            orgUrl = orgUri.Host;
+        }
+        else if (needsOrgUrl)
+        {
+            Logger.LogError("Environment URL is not set or invalid on the connection. Run 'txc config connection check' to populate it.");
+            return ExitValidationError;
+        }
 
         // Dispatch by component type
         Uri? url = typeCode.Value switch

@@ -45,7 +45,7 @@ public class ComponentTypeExplainCliCommand : TxcLeafCommand
             serializedName = def.SerializedName,
             directory = def.Directory,
             filePattern = def.FilePattern,
-            identity = def.Identity.ToString(),
+            identity = def.Identity,
             supportsMerge = def.SupportsMerge,
             isMergeable = def.IsMergeable,
             isFileBacked = def.IsFileBacked,

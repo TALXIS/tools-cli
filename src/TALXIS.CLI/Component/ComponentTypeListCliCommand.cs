@@ -40,8 +40,8 @@ public class ComponentTypeListCliCommand : TxcLeafCommand
         {
             typeCode = (int)d.TypeCode,
             name = d.Name,
-            aliases = d.Aliases != null ? string.Join(", ", d.Aliases) : "",
-            identity = d.Identity.ToString(),
+            aliases = d.Aliases ?? (IReadOnlyList<string>)Array.Empty<string>(),
+            identity = d.Identity,
             directory = d.Directory
         }).ToList();
 
@@ -53,7 +53,6 @@ public class ComponentTypeListCliCommand : TxcLeafCommand
 #pragma warning disable TXC003
     private static void PrintTypeTable<T>(IReadOnlyList<T> items) where T : notnull
     {
-        // Use dynamic to access anonymous type properties
         var rows = items.Cast<dynamic>().ToList();
         if (rows.Count == 0)
         {
@@ -61,9 +60,16 @@ public class ComponentTypeListCliCommand : TxcLeafCommand
             return;
         }
 
+        // Format aliases as comma-separated for text display
+        static string FormatAliases(dynamic aliases)
+        {
+            var list = (IReadOnlyList<string>)aliases;
+            return list.Count > 0 ? string.Join(", ", list) : "";
+        }
+
         int codeWidth = 6;
         int nameWidth = Math.Clamp(rows.Max(r => ((string)r.name).Length), 10, 35);
-        int aliasWidth = Math.Clamp(rows.Max(r => ((string)r.aliases).Length), 7, 30);
+        int aliasWidth = Math.Clamp(rows.Max(r => FormatAliases(r.aliases).Length), 7, 30);
         int identityWidth = 10;
 
         string header = $"{"Code".PadRight(codeWidth)} | {"Name".PadRight(nameWidth)} | {"Aliases".PadRight(aliasWidth)} | {"Identity".PadRight(identityWidth)} | Directory";
@@ -74,8 +80,8 @@ public class ComponentTypeListCliCommand : TxcLeafCommand
             OutputWriter.WriteLine(
                 $"{((int)r.typeCode).ToString().PadRight(codeWidth)} | " +
                 $"{((string)r.name).PadRight(nameWidth)} | " +
-                $"{((string)r.aliases).PadRight(aliasWidth)} | " +
-                $"{((string)r.identity).PadRight(identityWidth)} | " +
+                $"{FormatAliases(r.aliases).PadRight(aliasWidth)} | " +
+                $"{r.identity.ToString().PadRight(identityWidth)} | " +
                 $"{(string)r.directory}");
         }
         OutputWriter.WriteLine($"\n{rows.Count} component type(s).");

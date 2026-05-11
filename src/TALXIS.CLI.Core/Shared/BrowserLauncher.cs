@@ -21,7 +21,7 @@ public static class BrowserLauncher
         var detector = TxcServices.Get<IHeadlessDetector>();
         if (detector.IsHeadless)
         {
-            logger.LogInformation("Headless mode ({Reason}) — browser not opened.", detector.Reason);
+            logger.LogWarning("Headless mode ({Reason}) — browser not opened.", detector.Reason);
             return;
         }
 
