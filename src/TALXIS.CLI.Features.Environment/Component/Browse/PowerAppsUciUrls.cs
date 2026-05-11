@@ -1,11 +1,11 @@
 namespace TALXIS.CLI.Features.Environment.Component.Browse;
 
 /// <summary>
-/// URL builders for the Dynamics 365 UCI runtime (<c>{org}.crm{N}.dynamics.com/main.aspx</c>).
+/// URL builders for the Power Apps UCI runtime (<c>{org}.crm{N}.dynamics.com/main.aspx</c>).
 /// Covers model-driven app shell, all UCI page types (entityrecord, entitylist, dashboard,
 /// webresource, control, custom, inlinedialog, genux, search), SCF record forms, and reports.
 /// </summary>
-public static class DynamicsUciUrls
+public static class PowerAppsUciUrls
 {
     /// <summary>Open a model-driven app by its unique name.</summary>
     public static Uri AppByName(string orgUrl, string uniqueName)

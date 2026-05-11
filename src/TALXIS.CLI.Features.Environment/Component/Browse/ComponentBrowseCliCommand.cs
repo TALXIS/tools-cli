@@ -161,9 +161,9 @@ public class ComponentBrowseCliCommand : ProfiledCliCommand
         if (string.IsNullOrWhiteSpace(PageType))
         {
             if (!string.IsNullOrWhiteSpace(Name))
-                return DynamicsUciUrls.AppByName(orgUrl, Name);
+                return PowerAppsUciUrls.AppByName(orgUrl, Name);
             if (!string.IsNullOrWhiteSpace(Id) && Guid.TryParse(Id, out var appId))
-                return DynamicsUciUrls.AppById(orgUrl, appId);
+                return PowerAppsUciUrls.AppById(orgUrl, appId);
             Logger.LogError("Provide --name <uniqueName> or --id <guid> for the app module.");
             return null;
         }
@@ -189,7 +189,7 @@ public class ComponentBrowseCliCommand : ProfiledCliCommand
         if (!string.IsNullOrWhiteSpace(Id) && Guid.TryParse(Id, out var parsed))
             appId2 = parsed;
 
-        return DynamicsUciUrls.DeepLink(orgUrl, Name, appId2, PageType, queryParams);
+        return PowerAppsUciUrls.DeepLink(orgUrl, Name, appId2, PageType, queryParams);
     }
 
     /// <summary>Build URL for Power Automate flow — editor, details, runs, or specific run.</summary>
@@ -249,7 +249,7 @@ public class ComponentBrowseCliCommand : ProfiledCliCommand
             Logger.LogError("--id <guid> is required for reports.");
             return null;
         }
-        return DynamicsUciUrls.Report(orgUrl, reportId, ReportAction ?? "run");
+        return PowerAppsUciUrls.Report(orgUrl, reportId, ReportAction ?? "run");
     }
 
     /// <summary>Build URL for maker portal editor (existing component types).</summary>
@@ -319,7 +319,7 @@ public class ComponentBrowseCliCommand : ProfiledCliCommand
             ComponentType.Dataflow => MakerPortalUrls.DataflowEditor(envId, componentId),
             ComponentType.Role => MakerPortalUrls.SecurityRoleEditor(envId, componentId, solutionId),
             // SCF / unknown — fallback to UCI record form
-            _ when orgUrl != null && entity != null => DynamicsUciUrls.RecordForm(orgUrl, entity, componentId),
+            _ when orgUrl != null && entity != null => PowerAppsUciUrls.RecordForm(orgUrl, entity, componentId),
             _ => null
         };
     }
