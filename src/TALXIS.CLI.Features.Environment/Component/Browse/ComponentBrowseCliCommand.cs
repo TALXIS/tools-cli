@@ -38,57 +38,87 @@ public class ComponentBrowseCliCommand : ProfiledCliCommand
     [CliOption(Name = "--solution", Description = "Solution unique name for solution-scoped URLs. Resolved to GUID.", Required = false)]
     public string? Solution { get; set; }
 
+    // ── App deep-link options (model-driven apps) ──
+
+    [CliOption(Name = "--pagetype", Description = "UCI page type for deep-linking within an app: entityrecord, entitylist, dashboard, webresource, control, custom, inlinedialog, genux, search.", Required = false)]
+    public string? PageType { get; set; }
+
+    [CliOption(Name = "--record", Description = "Record GUID to open in an entity form (pagetype=entityrecord).", Required = false)]
+    public string? Record { get; set; }
+
+    [CliOption(Name = "--formid", Description = "Specific form GUID to use for entity record.", Required = false)]
+    public string? FormId { get; set; }
+
+    [CliOption(Name = "--viewid", Description = "View GUID for entity list (pagetype=entitylist).", Required = false)]
+    public string? ViewId { get; set; }
+
+    [CliOption(Name = "--dashboard", Description = "Dashboard GUID (pagetype=dashboard).", Required = false)]
+    public string? Dashboard { get; set; }
+
+    [CliOption(Name = "--custom-page", Description = "Custom page logical name (pagetype=custom).", Required = false)]
+    public string? CustomPage { get; set; }
+
+    [CliOption(Name = "--control", Description = "Full-page PCF control fully-qualified name (pagetype=control).", Required = false)]
+    public string? Control { get; set; }
+
+    [CliOption(Name = "--webresource", Description = "Web resource logical name (pagetype=webresource).", Required = false)]
+    public string? WebResource { get; set; }
+
+    [CliOption(Name = "--genux", Description = "Generative/Copilot AI page ID (pagetype=genux).", Required = false)]
+    public string? Genux { get; set; }
+
+    [CliOption(Name = "--dialog-name", Description = "Inline dialog name (pagetype=inlinedialog).", Required = false)]
+    public string? DialogName { get; set; }
+
+    [CliOption(Name = "--dialog-options", Description = "Inline dialog options JSON (pagetype=inlinedialog).", Required = false)]
+    public string? DialogOptions { get; set; }
+
+    [CliOption(Name = "--data", Description = "Data parameter for control, genux, or webresource page types.", Required = false)]
+    public string? Data { get; set; }
+
+    [CliOption(Name = "--extraqs", Description = "Pre-populate form fields as key=value pairs (URL-encoded automatically).", Required = false)]
+    public string? ExtraQs { get; set; }
+
+    [CliOption(Name = "--navbar", Description = "Navigation bar mode: on, off, entity.", Required = false)]
+    public string? Navbar { get; set; }
+
+    [CliOption(Name = "--cmdbar", Description = "Show command bar: true or false.", Required = false)]
+    public string? Cmdbar { get; set; }
+
+    // ── Canvas app options ──
+
+    [CliOption(Name = "--screen", Description = "Canvas app screen name to navigate to on launch.", Required = false)]
+    public string? Screen { get; set; }
+
+    [CliOption(Name = "--param", Description = "Canvas app custom parameter (key=value). Can be specified multiple times.", Required = false)]
+    public List<string> Param { get; set; } = new();
+
+    [CliOption(Name = "--hidenavbar", Description = "Canvas app: hide the Power Apps navigation bar.", Required = false)]
+    public bool HideNavbar { get; set; }
+
+    // ── Report options ──
+
+    [CliOption(Name = "--report-action", Description = "Report viewer action: run (default) or filter.", Required = false)]
+    public string? ReportAction { get; set; }
+
     protected override async Task<int> ExecuteAsync()
     {
-        // Validate --id / --name mutual exclusion
-        if (string.IsNullOrWhiteSpace(Id) && string.IsNullOrWhiteSpace(Name))
-        {
-            Logger.LogError("Provide --id <guid> or --name <friendly-name>.");
-            return ExitValidationError;
-        }
-        if (!string.IsNullOrWhiteSpace(Id) && !string.IsNullOrWhiteSpace(Name))
-        {
-            Logger.LogError("--id and --name are mutually exclusive. Provide one, not both.");
-            return ExitValidationError;
-        }
-
         // Resolve component type
         var def = ComponentDefinitionRegistry.GetByName(Type);
         ComponentType? typeCode = def?.TypeCode;
-
-        // Allow raw integer codes even without a registered definition
         if (typeCode is null && int.TryParse(Type, out var rawCode))
             typeCode = (ComponentType)rawCode;
-
         if (typeCode is null)
         {
             Logger.LogError("Unknown component type '{Type}'. Run 'txc component type list' to see available types.", Type);
             return ExitValidationError;
         }
 
-        // Resolve the component GUID
-        Guid componentId;
-        if (!string.IsNullOrWhiteSpace(Id))
-        {
-            if (!Guid.TryParse(Id, out componentId))
-            {
-                Logger.LogError("Invalid GUID: '{Id}'.", Id);
-                return ExitValidationError;
-            }
-        }
-        else
-        {
-            // --name resolution depends on type
-            var resolved = await ResolveNameToGuidAsync(typeCode.Value, Name!).ConfigureAwait(false);
-            if (resolved is null)
-                return ExitValidationError;
-            componentId = resolved.Value;
-        }
-
-        // Resolve environment ID from profile connection
-        var resolver = TxcServices.Get<IConfigurationResolver>();
-        var context = await resolver.ResolveAsync(Profile, CancellationToken.None).ConfigureAwait(false);
-        var connection = context.Connection;
+        // Resolve profile + connection
+        var configResolver = TxcServices.Get<IConfigurationResolver>();
+        var ctx = await configResolver.ResolveAsync(Profile, CancellationToken.None).ConfigureAwait(false);
+        var connection = ctx.Connection;
+        var orgUrl = connection.EnvironmentUrl;
 
         if (connection.EnvironmentId is null)
         {
@@ -97,7 +127,130 @@ public class ComponentBrowseCliCommand : ProfiledCliCommand
         }
         var environmentId = connection.EnvironmentId.Value;
 
-        // Resolve --solution if provided
+        // Dispatch by component type
+        Uri? url = typeCode.Value switch
+        {
+            ComponentType.AppModule => BuildAppModuleUrl(orgUrl!),
+            ComponentType.CanvasApp => BuildCanvasAppUrl(environmentId, connection.TenantId),
+            ComponentType.Report => BuildReportUrl(orgUrl!),
+            _ => await BuildMakerEditorUrlAsync(typeCode.Value, environmentId, orgUrl).ConfigureAwait(false)
+        };
+
+        if (url is null)
+            return ExitValidationError; // error already logged
+
+        OutputFormatter.WriteData(new { url = url.AbsoluteUri, type = def?.Name ?? typeCode.Value.ToString() },
+            _ => OutputWriter.WriteLine(url.AbsoluteUri));
+
+        BrowserLauncher.Open(url, Logger);
+        return ExitSuccess;
+    }
+
+    /// <summary>Build URL for model-driven app (shell or deep-link via pagetype).</summary>
+    private Uri? BuildAppModuleUrl(string orgUrl)
+    {
+        // App shell (no pagetype specified)
+        if (string.IsNullOrWhiteSpace(PageType))
+        {
+            if (!string.IsNullOrWhiteSpace(Name))
+                return MakerPortalUrlBuilder.AppModuleByName(orgUrl, Name);
+            if (!string.IsNullOrWhiteSpace(Id) && Guid.TryParse(Id, out var appId))
+                return MakerPortalUrlBuilder.AppModuleById(orgUrl, appId);
+            Logger.LogError("Provide --name <uniqueName> or --id <guid> for the app module.");
+            return null;
+        }
+
+        // Deep-link — build pagetype + query params
+        var queryParams = new Dictionary<string, string>();
+
+        // Add type-specific parameters based on pagetype
+        if (!string.IsNullOrWhiteSpace(Entity)) queryParams["etn"] = Entity;
+        if (!string.IsNullOrWhiteSpace(Record)) queryParams["id"] = Record;
+        if (!string.IsNullOrWhiteSpace(FormId)) queryParams["formid"] = FormId;
+        if (!string.IsNullOrWhiteSpace(ViewId)) { queryParams["viewid"] = ViewId; queryParams["viewtype"] = "1039"; }
+        if (!string.IsNullOrWhiteSpace(Dashboard)) queryParams["id"] = Dashboard;
+        if (!string.IsNullOrWhiteSpace(CustomPage)) queryParams["name"] = CustomPage;
+        if (!string.IsNullOrWhiteSpace(Control)) queryParams["controlName"] = Control;
+        if (!string.IsNullOrWhiteSpace(WebResource)) queryParams["webresourceName"] = WebResource;
+        if (!string.IsNullOrWhiteSpace(Genux)) queryParams["id"] = Genux;
+        if (!string.IsNullOrWhiteSpace(DialogName)) queryParams["name"] = DialogName;
+        if (!string.IsNullOrWhiteSpace(DialogOptions)) queryParams["dialogOptions"] = DialogOptions;
+        if (!string.IsNullOrWhiteSpace(Data)) queryParams["data"] = Data;
+        if (!string.IsNullOrWhiteSpace(ExtraQs)) queryParams["extraqs"] = ExtraQs;
+        if (!string.IsNullOrWhiteSpace(Navbar)) queryParams["navbar"] = Navbar;
+        if (!string.IsNullOrWhiteSpace(Cmdbar)) queryParams["cmdbar"] = Cmdbar;
+
+        Guid? appId2 = null;
+        if (!string.IsNullOrWhiteSpace(Id) && Guid.TryParse(Id, out var parsed))
+            appId2 = parsed;
+
+        return MakerPortalUrlBuilder.AppModuleDeepLink(orgUrl, Name, appId2, PageType, queryParams);
+    }
+
+    /// <summary>Build URL for canvas app player.</summary>
+    private Uri? BuildCanvasAppUrl(Guid environmentId, string? tenantId)
+    {
+        if (string.IsNullOrWhiteSpace(Id) || !Guid.TryParse(Id, out var appId))
+        {
+            Logger.LogError("--id <guid> is required for canvas apps.");
+            return null;
+        }
+
+        var customParams = new Dictionary<string, string>();
+        foreach (var p in Param)
+        {
+            var idx = p.IndexOf('=');
+            if (idx > 0 && idx < p.Length - 1)
+                customParams[p[..idx]] = p[(idx + 1)..];
+        }
+
+        return MakerPortalUrlBuilder.CanvasApp(environmentId, appId, tenantId, Screen,
+            customParams.Count > 0 ? customParams : null, HideNavbar);
+    }
+
+    /// <summary>Build URL for report viewer.</summary>
+    private Uri? BuildReportUrl(string orgUrl)
+    {
+        if (string.IsNullOrWhiteSpace(Id) || !Guid.TryParse(Id, out var reportId))
+        {
+            Logger.LogError("--id <guid> is required for reports.");
+            return null;
+        }
+        return MakerPortalUrlBuilder.Report(orgUrl, reportId, ReportAction ?? "run");
+    }
+
+    /// <summary>Build URL for maker portal editor (existing component types).</summary>
+    private async Task<Uri?> BuildMakerEditorUrlAsync(ComponentType typeCode, Guid environmentId, string? orgUrl)
+    {
+        // Validate --id / --name
+        if (string.IsNullOrWhiteSpace(Id) && string.IsNullOrWhiteSpace(Name))
+        {
+            Logger.LogError("Provide --id <guid> or --name <friendly-name>.");
+            return null;
+        }
+        if (!string.IsNullOrWhiteSpace(Id) && !string.IsNullOrWhiteSpace(Name))
+        {
+            Logger.LogError("--id and --name are mutually exclusive.");
+            return null;
+        }
+
+        Guid componentId;
+        if (!string.IsNullOrWhiteSpace(Id))
+        {
+            if (!Guid.TryParse(Id, out componentId))
+            {
+                Logger.LogError("Invalid GUID: '{Id}'.", Id);
+                return null;
+            }
+        }
+        else
+        {
+            var resolved = await ResolveNameToGuidAsync(typeCode, Name!).ConfigureAwait(false);
+            if (resolved is null) return null;
+            componentId = resolved.Value;
+        }
+
+        // Resolve --solution
         Guid? solutionId = null;
         if (!string.IsNullOrWhiteSpace(Solution))
         {
@@ -106,35 +259,17 @@ public class ComponentBrowseCliCommand : ProfiledCliCommand
             solutionId = sln.Id;
         }
 
-        // Validate type-specific requirements
         if (typeCode is ComponentType.SystemForm or ComponentType.Form or ComponentType.SavedQuery
             && string.IsNullOrWhiteSpace(Entity))
         {
             Logger.LogError("--entity is required for form/view types.");
-            return ExitValidationError;
+            return null;
         }
 
-        // Build URL
-        var orgUrl = connection.EnvironmentUrl?.Replace("https://", "").TrimEnd('/');
-        var url = MakerPortalUrlBuilder.Build(environmentId, orgUrl, typeCode.Value, componentId, Entity, solutionId);
-
+        var url = MakerPortalUrlBuilder.Build(environmentId, orgUrl, typeCode, componentId, Entity, solutionId);
         if (url is null)
-        {
-            Logger.LogError(
-                "Cannot build URL for type '{Type}' (code {Code}). For SCF types, provide --entity (backing entity logical name).",
-                Type, (int)typeCode.Value);
-            return ExitValidationError;
-        }
-
-        // Output URL and open browser
-        OutputFormatter.WriteData(new { url = url.AbsoluteUri, type = def?.Name ?? typeCode.Value.ToString(), componentId },
-            _ =>
-            {
-                OutputWriter.WriteLine(url.AbsoluteUri);
-            });
-
-        BrowserLauncher.Open(url, Logger);
-        return ExitSuccess;
+            Logger.LogError("Cannot build URL for type '{Type}' (code {Code}). For SCF types, provide --entity.", Type, (int)typeCode);
+        return url;
     }
 
     private async Task<Guid?> ResolveNameToGuidAsync(ComponentType typeCode, string name)
@@ -148,8 +283,12 @@ public class ComponentBrowseCliCommand : ProfiledCliCommand
 
             case ComponentType.Entity:
                 var metadataResolver = TxcServices.Get<IMetadataIdResolver>();
-                var entityId = await metadataResolver.ResolveEntityIdAsync(Profile, name, CancellationToken.None).ConfigureAwait(false);
-                return entityId;
+                return await metadataResolver.ResolveEntityIdAsync(Profile, name, CancellationToken.None).ConfigureAwait(false);
+
+            case ComponentType.AppModule:
+                // AppModule name resolution handled in BuildAppModuleUrl
+                Logger.LogError("AppModule name resolution is handled via --name directly.");
+                return null;
 
             default:
                 Logger.LogError("--name is not supported for type '{Type}'. Use --id <guid> instead.", Type);

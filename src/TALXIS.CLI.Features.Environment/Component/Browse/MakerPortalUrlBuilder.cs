@@ -56,9 +56,75 @@ public static class MakerPortalUrlBuilder
     public static Uri ScfRecord(string orgUrl, string entityLogicalName, Guid recordId)
         => new($"https://{orgUrl.TrimEnd('/')}/main.aspx?forceUCI=1&newWindow=true&pagetype=entityrecord&etn={entityLogicalName}&id={recordId}");
 
+    // ── Model-driven app runtime URLs ──
+
+    /// <summary>Open a model-driven app by its unique name.</summary>
+    public static Uri AppModuleByName(string orgUrl, string uniqueName)
+        => new($"https://{NormalizeOrg(orgUrl)}/main.aspx?appname={Uri.EscapeDataString(uniqueName)}");
+
+    /// <summary>Open a model-driven app by its AppModuleId GUID.</summary>
+    public static Uri AppModuleById(string orgUrl, Guid appModuleId)
+        => new($"https://{NormalizeOrg(orgUrl)}/main.aspx?appid={appModuleId}");
+
     /// <summary>
-    /// Builds the appropriate URL for a component type code.
+    /// Generic deep-link into a model-driven app via <c>main.aspx</c>.
+    /// Builds the URL from app identity + pagetype + arbitrary query parameters.
+    /// Supports all UCI page types: entityrecord, entitylist, dashboard, webresource,
+    /// control, custom, inlinedialog, genux, search, apps.
+    /// </summary>
+    public static Uri AppModuleDeepLink(string orgUrl, string? appName, Guid? appId, string pageType, IDictionary<string, string> queryParams)
+    {
+        var qs = new List<string>();
+        if (!string.IsNullOrWhiteSpace(appName))
+            qs.Add($"appname={Uri.EscapeDataString(appName)}");
+        else if (appId.HasValue)
+            qs.Add($"appid={appId.Value}");
+
+        qs.Add($"pagetype={Uri.EscapeDataString(pageType)}");
+
+        foreach (var (key, value) in queryParams)
+            qs.Add($"{Uri.EscapeDataString(key)}={Uri.EscapeDataString(value)}");
+
+        return new Uri($"https://{NormalizeOrg(orgUrl)}/main.aspx?{string.Join("&", qs)}");
+    }
+
+    // ── Canvas app runtime URL ──
+
+    /// <summary>
+    /// Open a canvas app in the Power Apps player.
+    /// Supports screen navigation, custom parameters, and hidden navbar.
+    /// </summary>
+    public static Uri CanvasApp(Guid environmentId, Guid appId, string? tenantId,
+        string? screenName = null, IDictionary<string, string>? customParams = null, bool hideNavbar = false)
+    {
+        var qs = new List<string>();
+        if (!string.IsNullOrWhiteSpace(tenantId))
+            qs.Add($"tenantId={Uri.EscapeDataString(tenantId)}");
+        if (!string.IsNullOrWhiteSpace(screenName))
+            qs.Add($"screenName={Uri.EscapeDataString(screenName)}");
+        if (hideNavbar)
+            qs.Add("hidenavbar=true");
+        if (customParams != null)
+            foreach (var (key, value) in customParams)
+                qs.Add($"{Uri.EscapeDataString(key)}={Uri.EscapeDataString(value)}");
+
+        var query = qs.Count > 0 ? "?" + string.Join("&", qs) : "";
+        return new Uri($"https://apps.powerapps.com/play/e/{environmentId}/a/{appId}{query}");
+    }
+
+    // ── Report URL ──
+
+    /// <summary>Open a report in the Dynamics report viewer.</summary>
+    public static Uri Report(string orgUrl, Guid reportId, string action = "run")
+        => new($"https://{NormalizeOrg(orgUrl)}/crmreports/viewer/viewer.aspx?action={Uri.EscapeDataString(action)}&id=%7b{reportId}%7d");
+
+    // ── Existing Build() for maker portal editor URLs ──
+
+    /// <summary>
+    /// Builds the appropriate maker portal editor URL for a component type code.
     /// Returns null if the type requires additional context that wasn't provided.
+    /// For app runtime URLs, use <see cref="AppModuleByName"/>, <see cref="AppModuleDeepLink"/>,
+    /// <see cref="CanvasApp"/>, or <see cref="Report"/> directly.
     /// </summary>
     public static Uri? Build(
         Guid environmentId,
@@ -84,4 +150,7 @@ public static class MakerPortalUrlBuilder
             _ => null
         };
     }
+
+    private static string NormalizeOrg(string orgUrl)
+        => orgUrl.Replace("https://", "").Replace("http://", "").TrimEnd('/');
 }
