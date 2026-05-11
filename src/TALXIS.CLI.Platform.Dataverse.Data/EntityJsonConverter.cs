@@ -125,6 +125,27 @@ internal static class EntityJsonConverter
         switch (element.ValueKind)
         {
             case JsonValueKind.String:
+                if (attrMeta is DateTimeAttributeMetadata)
+                {
+                    var str = element.GetString();
+                    if (str is not null && DateTime.TryParse(str, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out var dt))
+                        return dt;
+                }
+                if (attrMeta is MultiSelectPicklistAttributeMetadata)
+                {
+                    var str = element.GetString();
+                    if (str is not null)
+                    {
+                        var collection = new OptionSetValueCollection();
+                        foreach (var part in str.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                        {
+                            if (int.TryParse(part, out var val))
+                                collection.Add(new OptionSetValue(val));
+                        }
+                        if (collection.Count > 0)
+                            return collection;
+                    }
+                }
                 // When metadata indicates a lookup and the value is a bare GUID string,
                 // wrap it as an EntityReference (single-target lookups only).
                 if (attrMeta is LookupAttributeMetadata lookup
@@ -146,6 +167,15 @@ internal static class EntityJsonConverter
                 {
                     if (element.TryGetDecimal(out var moneyVal))
                         return new Money(moneyVal);
+                }
+                if (attrMeta is DoubleAttributeMetadata)
+                {
+                    return element.GetDouble();
+                }
+                if (attrMeta is MultiSelectPicklistAttributeMetadata)
+                {
+                    if (element.TryGetInt32(out var singleVal))
+                        return new OptionSetValueCollection { new OptionSetValue(singleVal) };
                 }
 
                 // Default: try integer types first, then floating-point.
