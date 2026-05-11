@@ -1,5 +1,6 @@
 using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Contracts.Dataverse;
+using TALXIS.Platform.Metadata;
 
 namespace TALXIS.CLI.Features.Environment.Component.Dependency;
 
@@ -8,8 +9,6 @@ namespace TALXIS.CLI.Features.Environment.Component.Dependency;
 /// </summary>
 internal static class DependencyOutputHelper
 {
-    private static readonly ComponentTypeResolver Resolver = new();
-
     // OutputWriter usage is intentional — called from text-renderer callbacks.
 #pragma warning disable TXC003
     public static void PrintDependencyTable(
@@ -33,8 +32,8 @@ internal static class DependencyOutputHelper
 
         foreach (var d in rows)
         {
-            var depType = Resolver.ResolveName(d.DependentComponentType);
-            var reqType = Resolver.ResolveName(d.RequiredComponentType);
+            var depType = ComponentDefinitionRegistry.GetByType((ComponentType)d.DependentComponentType)?.Name ?? d.DependentComponentType.ToString();
+            var reqType = ComponentDefinitionRegistry.GetByType((ComponentType)d.RequiredComponentType)?.Name ?? d.RequiredComponentType.ToString();
             var depKind = d.DependencyType switch
             {
                 1 => "Internal",

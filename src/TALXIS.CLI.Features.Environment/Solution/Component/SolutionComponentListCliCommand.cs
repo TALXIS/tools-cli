@@ -4,6 +4,7 @@ using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Logging;
+using TALXIS.Platform.Metadata;
 
 namespace TALXIS.CLI.Features.Environment.Solution.Component;
 
@@ -33,14 +34,16 @@ public class SolutionComponentListCliCommand : ProfiledCliCommand
         int? typeFilter = null;
         if (!string.IsNullOrWhiteSpace(Type))
         {
-            var resolver = new ComponentTypeResolver();
-            if (!resolver.TryResolveCode(Type, out var code))
+            var def = ComponentDefinitionRegistry.GetByName(Type);
+            if (def is null && int.TryParse(Type, out var parsedCode))
+                def = ComponentDefinitionRegistry.GetByType((ComponentType)parsedCode);
+            if (def is null)
             {
-                var known = string.Join(", ", resolver.GetKnownNames().Take(15));
-            Logger.LogError("Unknown component type '{Type}'. Available types: {Known}. Or use an integer code.", Type, known);
+                var known = string.Join(", ", ComponentDefinitionRegistry.GetAll().Select(d => d.Name).Take(15));
+                Logger.LogError("Unknown component type '{Type}'. Available types: {Known}. Or use an integer code.", Type, known);
                 return ExitValidationError;
             }
-            typeFilter = code;
+            typeFilter = (int)def.TypeCode;
         }
 
         var service = TxcServices.Get<ISolutionComponentQueryService>();

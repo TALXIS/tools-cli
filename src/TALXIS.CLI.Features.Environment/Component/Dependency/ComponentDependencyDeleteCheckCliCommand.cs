@@ -4,6 +4,7 @@ using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Logging;
+using TALXIS.Platform.Metadata;
 
 namespace TALXIS.CLI.Features.Environment.Component.Dependency;
 
@@ -41,13 +42,16 @@ public class ComponentDependencyDeleteCheckCliCommand : ProfiledCliCommand
             return ExitValidationError;
         }
 
-        var resolver = new ComponentTypeResolver();
-        if (!resolver.TryResolveCode(typeName, out var typeCode))
+        var def = ComponentDefinitionRegistry.GetByName(typeName);
+        if (def is null && int.TryParse(typeName, out var parsedCode))
+            def = ComponentDefinitionRegistry.GetByType((ComponentType)parsedCode);
+        if (def is null)
         {
-            var known = string.Join(", ", resolver.GetKnownNames().Take(15));
+            var known = string.Join(", ", ComponentDefinitionRegistry.GetAll().Select(d => d.Name).Take(15));
             Logger.LogError("Unknown component type '{Type}'. Available types: {Known}.", typeName, known);
             return ExitValidationError;
         }
+        var typeCode = (int)def.TypeCode;
 
         var service = TxcServices.Get<ISolutionDependencyService>();
         var deps = await service.CheckDeleteAsync(Profile, id, typeCode, CancellationToken.None).ConfigureAwait(false);
