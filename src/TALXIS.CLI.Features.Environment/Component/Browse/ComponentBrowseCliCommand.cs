@@ -96,6 +96,14 @@ public class ComponentBrowseCliCommand : ProfiledCliCommand
     [CliOption(Name = "--hidenavbar", Description = "Canvas app: hide the Power Apps navigation bar.", Required = false)]
     public bool HideNavbar { get; set; }
 
+    // ── Power Automate options ──
+
+    [CliOption(Name = "--flow-view", Description = "Flow page to open: editor (default), details, or runs.", Required = false)]
+    public string? FlowView { get; set; }
+
+    [CliOption(Name = "--run", Description = "Specific flow run ID to open.", Required = false)]
+    public string? Run { get; set; }
+
     // ── Report options ──
 
     [CliOption(Name = "--report-action", Description = "Report viewer action: run (default) or filter.", Required = false)]
@@ -133,6 +141,7 @@ public class ComponentBrowseCliCommand : ProfiledCliCommand
             ComponentType.AppModule => BuildAppModuleUrl(orgUrl!),
             ComponentType.CanvasApp => BuildCanvasAppUrl(environmentId, connection.TenantId),
             ComponentType.Report => BuildReportUrl(orgUrl!),
+            ComponentType.Workflow => await BuildFlowUrlAsync(environmentId).ConfigureAwait(false),
             _ => await BuildMakerEditorUrlAsync(typeCode.Value, environmentId, orgUrl).ConfigureAwait(false)
         };
 
@@ -149,21 +158,17 @@ public class ComponentBrowseCliCommand : ProfiledCliCommand
     /// <summary>Build URL for model-driven app (shell or deep-link via pagetype).</summary>
     private Uri? BuildAppModuleUrl(string orgUrl)
     {
-        // App shell (no pagetype specified)
         if (string.IsNullOrWhiteSpace(PageType))
         {
             if (!string.IsNullOrWhiteSpace(Name))
-                return MakerPortalUrlBuilder.AppModuleByName(orgUrl, Name);
+                return DynamicsUciUrls.AppByName(orgUrl, Name);
             if (!string.IsNullOrWhiteSpace(Id) && Guid.TryParse(Id, out var appId))
-                return MakerPortalUrlBuilder.AppModuleById(orgUrl, appId);
+                return DynamicsUciUrls.AppById(orgUrl, appId);
             Logger.LogError("Provide --name <uniqueName> or --id <guid> for the app module.");
             return null;
         }
 
-        // Deep-link — build pagetype + query params
         var queryParams = new Dictionary<string, string>();
-
-        // Add type-specific parameters based on pagetype
         if (!string.IsNullOrWhiteSpace(Entity)) queryParams["etn"] = Entity;
         if (!string.IsNullOrWhiteSpace(Record)) queryParams["id"] = Record;
         if (!string.IsNullOrWhiteSpace(FormId)) queryParams["formid"] = FormId;
@@ -184,7 +189,35 @@ public class ComponentBrowseCliCommand : ProfiledCliCommand
         if (!string.IsNullOrWhiteSpace(Id) && Guid.TryParse(Id, out var parsed))
             appId2 = parsed;
 
-        return MakerPortalUrlBuilder.AppModuleDeepLink(orgUrl, Name, appId2, PageType, queryParams);
+        return DynamicsUciUrls.DeepLink(orgUrl, Name, appId2, PageType, queryParams);
+    }
+
+    /// <summary>Build URL for Power Automate flow — editor, details, runs, or specific run.</summary>
+    private async Task<Uri?> BuildFlowUrlAsync(Guid environmentId)
+    {
+        if (string.IsNullOrWhiteSpace(Id) || !Guid.TryParse(Id, out var flowId))
+        {
+            Logger.LogError("--id <guid> is required for flows.");
+            return null;
+        }
+
+        Guid? solutionId = null;
+        if (!string.IsNullOrWhiteSpace(Solution))
+        {
+            var slnService = TxcServices.Get<ISolutionDetailService>();
+            var (sln, _) = await slnService.ShowAsync(Profile, Solution, CancellationToken.None).ConfigureAwait(false);
+            solutionId = sln.Id;
+        }
+
+        if (!string.IsNullOrWhiteSpace(Run))
+            return PowerAutomateUrls.FlowRun(environmentId, flowId, Run, solutionId);
+
+        return (FlowView?.ToLowerInvariant()) switch
+        {
+            "details" => PowerAutomateUrls.FlowDetails(environmentId, flowId, solutionId),
+            "runs" => PowerAutomateUrls.FlowRuns(environmentId, flowId, solutionId),
+            _ => PowerAutomateUrls.FlowEditor(environmentId, flowId, solutionId)
+        };
     }
 
     /// <summary>Build URL for canvas app player.</summary>
@@ -204,7 +237,7 @@ public class ComponentBrowseCliCommand : ProfiledCliCommand
                 customParams[p[..idx]] = p[(idx + 1)..];
         }
 
-        return MakerPortalUrlBuilder.CanvasApp(environmentId, appId, tenantId, Screen,
+        return CanvasAppUrls.Play(environmentId, appId, tenantId, Screen,
             customParams.Count > 0 ? customParams : null, HideNavbar);
     }
 
@@ -216,7 +249,7 @@ public class ComponentBrowseCliCommand : ProfiledCliCommand
             Logger.LogError("--id <guid> is required for reports.");
             return null;
         }
-        return MakerPortalUrlBuilder.Report(orgUrl, reportId, ReportAction ?? "run");
+        return DynamicsUciUrls.Report(orgUrl, reportId, ReportAction ?? "run");
     }
 
     /// <summary>Build URL for maker portal editor (existing component types).</summary>
@@ -266,10 +299,29 @@ public class ComponentBrowseCliCommand : ProfiledCliCommand
             return null;
         }
 
-        var url = MakerPortalUrlBuilder.Build(environmentId, orgUrl, typeCode, componentId, Entity, solutionId);
+        var url = BuildEditorUrl(typeCode, environmentId, orgUrl, componentId, Entity, solutionId);
         if (url is null)
             Logger.LogError("Cannot build URL for type '{Type}' (code {Code}). For SCF types, provide --entity.", Type, (int)typeCode);
         return url;
+    }
+
+    /// <summary>Dispatches to the appropriate URL builder based on component type.</summary>
+    private static Uri? BuildEditorUrl(ComponentType typeCode, Guid envId, string? orgUrl, Guid componentId, string? entity, Guid? solutionId)
+    {
+        return typeCode switch
+        {
+            ComponentType.Solution => MakerPortalUrls.Solution(envId, componentId),
+            ComponentType.Entity => MakerPortalUrls.Entity(envId, componentId, solutionId),
+            ComponentType.SystemForm when entity != null => MakerPortalUrls.FormDesigner(envId, entity, componentId, solutionId),
+            ComponentType.Form when entity != null => MakerPortalUrls.FormDesigner(envId, entity, componentId, solutionId),
+            ComponentType.SavedQuery when entity != null => MakerPortalUrls.ViewDesigner(envId, entity, componentId, solutionId),
+            ComponentType.Bot => CopilotStudioUrls.BotEditor(envId, componentId, solutionId),
+            ComponentType.Dataflow => MakerPortalUrls.DataflowEditor(envId, componentId),
+            ComponentType.Role => MakerPortalUrls.SecurityRoleEditor(envId, componentId, solutionId),
+            // SCF / unknown — fallback to UCI record form
+            _ when orgUrl != null && entity != null => DynamicsUciUrls.RecordForm(orgUrl, entity, componentId),
+            _ => null
+        };
     }
 
     private async Task<Guid?> ResolveNameToGuidAsync(ComponentType typeCode, string name)
