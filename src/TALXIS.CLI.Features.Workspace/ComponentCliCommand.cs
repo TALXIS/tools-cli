@@ -24,7 +24,7 @@ public class ComponentCliCommand
 
     /// <summary>Scaffolding parameter introspection for component creation.</summary>
     [CliCommand(
-        Description = "Scaffolding parameters for 'workspace component create'",
+        Description = "Scaffolding parameters for component creation",
         Children = new[] { typeof(ComponentParameterListCliCommand) },
         Name = "parameter",
         ShortFormAutoGenerate = CliNameAutoGenerate.None)]

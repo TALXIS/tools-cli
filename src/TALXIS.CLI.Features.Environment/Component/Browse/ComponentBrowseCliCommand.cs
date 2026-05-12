@@ -23,7 +23,7 @@ public class ComponentBrowseCliCommand : ProfiledCliCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger<ComponentBrowseCliCommand>();
 
-    [CliOption(Name = "--type", Description = "Component type (name, alias, or integer code). Run 'txc component type list' to see available types.", Required = true)]
+    [CliOption(Name = "--type", Description = "Component type — accepts canonical name (Entity, Workflow), alias (Table, Flow), template name (pp-entity), or integer type code.", Required = true)]
     public string Type { get; set; } = null!;
 
     [CliOption(Name = "--id", Description = "Component GUID. Mutually exclusive with --name.", Required = false)]

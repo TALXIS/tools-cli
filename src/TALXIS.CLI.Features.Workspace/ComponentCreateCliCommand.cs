@@ -24,7 +24,7 @@ public class ComponentCreateCliCommand : TxcLeafCommand, ICliGetCompletions
     // [CliOption(Name = "name", Aliases = ["-n"], Description = "The name for the created output. If not specified, the name of the output directory is used.", Required = false)]
     // public string? Name { get; set; }
 
-    [CliOption(Description = "Component parameters which can be retrieved by parameter list command. Inputs need to be passed in the form key=value. Can be specified multiple times.")]
+    [CliOption(Description = "Component-specific parameters in key=value format. Can be specified multiple times. Use parameter list to discover available parameters.")]
     public List<string> Param { get; set; } = new();
 
     protected override async Task<int> ExecuteAsync()
