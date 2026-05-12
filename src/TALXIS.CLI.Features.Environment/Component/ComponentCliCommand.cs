@@ -5,10 +5,10 @@ namespace TALXIS.CLI.Features.Environment.Component;
 [CliCommand(
     Name = "component",
     Alias = "comp",
-    Description = "Inspect and navigate components in the live environment (layers, dependencies, browser editor).",
+    Description = "Inspect and navigate components in the live environment (layers, dependencies, URLs).",
     Children = new[]
     {
-        typeof(Browse.ComponentBrowseCliCommand),
+        typeof(Url.UrlCliCommand),
         typeof(Layer.ComponentLayerCliCommand),
         typeof(Dependency.ComponentDependencyCliCommand),
     },
