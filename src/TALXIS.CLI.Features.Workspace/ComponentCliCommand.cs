@@ -13,7 +13,6 @@ namespace TALXIS.CLI.Features.Workspace;
     Children = new[]
     {
         typeof(ComponentCreateCliCommand),
-        typeof(ComponentParameterListCliCommand),
     },
     ShortFormAutoGenerate = CliNameAutoGenerate.None)]
 public class ComponentCliCommand
@@ -21,5 +20,19 @@ public class ComponentCliCommand
     public void Run(CliContext context)
     {
         context.ShowHelp();
+    }
+
+    /// <summary>Scaffolding parameter introspection for component creation.</summary>
+    [CliCommand(
+        Description = "Scaffolding parameters for 'workspace component create'",
+        Children = new[] { typeof(ComponentParameterListCliCommand) },
+        Name = "parameter",
+        ShortFormAutoGenerate = CliNameAutoGenerate.None)]
+    public class ComponentParameterCliCommand
+    {
+        public void Run(CliContext context)
+        {
+            context.ShowHelp();
+        }
     }
 }

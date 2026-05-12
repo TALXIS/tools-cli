@@ -52,8 +52,8 @@ public class EquivalenceTests
 
         yield return new object[]
         {
-            "workspace component parameter-list pp-entity",
-            "workspace_component_parameter-list",
+            "workspace component parameter list pp-entity",
+            "workspace_component_parameter_list",
             new Dictionary<string, object?> { { "ShortName", "pp-entity" } }
         };
     }

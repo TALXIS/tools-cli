@@ -12,7 +12,7 @@ public class CliTests
     [Theory]
     [InlineData("component type list")]
     [InlineData("component type explain Entity")]
-    [InlineData("workspace component parameter-list pp-entity")]
+    [InlineData("workspace component parameter list pp-entity")]
     [InlineData("environment package import --help")]
     [InlineData("environment package uninstall --help")]
     [InlineData("environment solution import --help")]

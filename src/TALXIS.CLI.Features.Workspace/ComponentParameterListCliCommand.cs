@@ -13,8 +13,8 @@ namespace TALXIS.CLI.Features.Workspace;
 /// </summary>
 [CliReadOnly]
 [CliCommand(
-    Description = "Lists parameters for a specific component template. Use 'txc component type explain <type>' for type metadata.",
-    Name = "parameter-list"
+    Description = "Lists scaffolding parameters accepted by 'workspace component create' for a specific component type. Shows parameter names, types, defaults, and descriptions.",
+    Name = "list"
 )]
 public class ComponentParameterListCliCommand : TxcLeafCommand
 {
