@@ -87,20 +87,11 @@ public class ComponentTypeExplainCliCommand : TxcLeafCommand
             aliases = def.Aliases ?? (IReadOnlyList<string>)Array.Empty<string>(),
             description = templateDescription,
             templateShortName,
-            serializedName = def.SerializedName,
-            directory = def.Directory,
-            filePattern = def.FilePattern,
             identity = def.Identity,
-            supportsMerge = def.SupportsMerge,
-            isMergeable = def.IsMergeable,
-            isFileBacked = def.IsFileBacked,
-            hasSubfolders = def.HasSubfolders,
             hasParent = def.HasParent,
-            rootComponent = def.RootComponent,
+            rootComponent = def.HasParent ? def.RootComponent : (int?)null,
             isCustomizable = def.IsCustomizable,
             canBeDeleted = def.CanBeDeleted,
-            primaryKeyName = def.PrimaryKeyName,
-            exportKeyAttributes = def.ExportKeyAttributes
         };
 
         OutputFormatter.WriteData(result, _ => PrintExplanation(def, templateDescription, templateShortName));
@@ -112,12 +103,13 @@ public class ComponentTypeExplainCliCommand : TxcLeafCommand
 #pragma warning disable TXC003
     private static void PrintExplanation(ComponentDefinition d, string? description, string? templateShortName)
     {
-        const int labelWidth = -28;
+        const int labelWidth = -22;
 
         OutputWriter.WriteLine($"{"Name:",labelWidth}{d.Name}");
         OutputWriter.WriteLine($"{"Type Code:",labelWidth}{(int)d.TypeCode}");
         if (d.Aliases is { Count: > 0 })
             OutputWriter.WriteLine($"{"Aliases:",labelWidth}{string.Join(", ", d.Aliases)}");
+        OutputWriter.WriteLine($"{"Identity:",labelWidth}{d.Identity}");
 
         if (!string.IsNullOrWhiteSpace(description))
         {
@@ -127,41 +119,20 @@ public class ComponentTypeExplainCliCommand : TxcLeafCommand
         }
 
         if (!string.IsNullOrWhiteSpace(templateShortName))
-            OutputWriter.WriteLine($"\n{"Scaffolding Template:",labelWidth}{templateShortName}");
+            OutputWriter.WriteLine($"\n{"Template:",labelWidth}{templateShortName}");
 
-        OutputWriter.WriteLine();
-        OutputWriter.WriteLine($"{"Serialized Name:",labelWidth}{d.SerializedName}");
-        OutputWriter.WriteLine($"{"Directory:",labelWidth}{d.Directory}");
-        OutputWriter.WriteLine($"{"File Pattern:",labelWidth}{d.FilePattern}");
-        OutputWriter.WriteLine($"{"Identity Strategy:",labelWidth}{d.Identity}");
-
-        OutputWriter.WriteLine();
-        OutputWriter.WriteLine("Behavioral Flags:");
-        OutputWriter.WriteLine($"  {"Supports Merge:",labelWidth}{BoolStr(d.SupportsMerge)}");
-        OutputWriter.WriteLine($"  {"Is Mergeable:",labelWidth}{BoolStr(d.IsMergeable)}");
-        OutputWriter.WriteLine($"  {"Is File-Backed:",labelWidth}{BoolStr(d.IsFileBacked)}");
-        OutputWriter.WriteLine($"  {"Has Subfolders:",labelWidth}{BoolStr(d.HasSubfolders)}");
-        OutputWriter.WriteLine($"  {"Is Customizable:",labelWidth}{BoolStr(d.IsCustomizable)}");
-        OutputWriter.WriteLine($"  {"Can Be Deleted:",labelWidth}{BoolStr(d.CanBeDeleted)}");
+        if (d.IsCustomizable || d.CanBeDeleted)
+        {
+            OutputWriter.WriteLine();
+            if (d.IsCustomizable) OutputWriter.WriteLine($"{"Customizable:",labelWidth}true");
+            if (d.CanBeDeleted) OutputWriter.WriteLine($"{"Can Be Deleted:",labelWidth}true");
+        }
 
         if (d.HasParent)
         {
             OutputWriter.WriteLine();
-            OutputWriter.WriteLine("Parent-Child:");
-            OutputWriter.WriteLine($"  {"Has Parent:",labelWidth}true");
-            OutputWriter.WriteLine($"  {"Root Component:",labelWidth}{d.RootComponent}");
-            if (d.GroupParentComponentType.HasValue)
-                OutputWriter.WriteLine($"  {"Group Parent Type:",labelWidth}{d.GroupParentComponentType}");
-            if (!string.IsNullOrWhiteSpace(d.GroupParentComponentAttributeName))
-                OutputWriter.WriteLine($"  {"Group Parent Attr:",labelWidth}{d.GroupParentComponentAttributeName}");
+            OutputWriter.WriteLine($"{"Parent Type Code:",labelWidth}{d.RootComponent}");
         }
-
-        if (!string.IsNullOrWhiteSpace(d.PrimaryKeyName))
-            OutputWriter.WriteLine($"\n{"Primary Key:",labelWidth}{d.PrimaryKeyName}");
-        if (!string.IsNullOrWhiteSpace(d.ExportKeyAttributes))
-            OutputWriter.WriteLine($"{"Export Key Attrs:",labelWidth}{d.ExportKeyAttributes}");
     }
 #pragma warning restore TXC003
-
-    private static string BoolStr(bool value) => value ? "true" : "false";
 }
