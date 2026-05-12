@@ -20,15 +20,14 @@ public static class TemplateResolver
     /// <summary>
     /// Resolves a user input to a template. Lookup order:
     /// <list type="number">
-    ///   <item>Exact match on template short name or full name</item>
-    ///   <item>Match via <c>componentType</c> tag using <see cref="ComponentDefinitionRegistry.GetByName"/></item>
+    ///   <item>Exact match on template short name or full template name</item>
+    ///   <item>Exact match on <c>componentType</c> tag value (each template has a unique value)</item>
+    ///   <item>Match via <see cref="ComponentDefinitionRegistry.GetByName"/> alias resolution, then tag match</item>
     /// </list>
-    /// When multiple templates share the same componentType tag (e.g. pp-entity and pp-entity-form
-    /// both have componentType=Entity), returns the one with the shortest short name (the primary template).
     /// </summary>
     public static ITemplateInfo? Resolve(string input, IReadOnlyList<ITemplateInfo> templates)
     {
-        // 1. Direct match on short name or full template name
+        // 1. Direct match on short name or full template name (e.g. "pp-entity", "pp-form-tab")
         var direct = templates.FirstOrDefault(t =>
             t.ShortNameList.Any(sn => string.Equals(sn, input, StringComparison.OrdinalIgnoreCase))
             || string.Equals(t.Name, input, StringComparison.OrdinalIgnoreCase));
@@ -36,12 +35,25 @@ public static class TemplateResolver
         if (direct != null)
             return direct;
 
-        // 2. Resolve input via ComponentDefinitionRegistry, then match on componentType tag
-        var def = ComponentDefinitionRegistry.GetByName(input);
-        if (def == null)
-            return null;
+        // 2. Direct match on componentType tag value (e.g. "FormTab", "BpfStage", "Entity")
+        var byTag = templates.FirstOrDefault(t =>
+            string.Equals(GetComponentTypeName(t), input, StringComparison.OrdinalIgnoreCase));
 
-        return FindPrimaryTemplateForType(def.Name, templates);
+        if (byTag != null)
+            return byTag;
+
+        // 3. Resolve via registry aliases (e.g. "Table" → "Entity", "Flow" → "Workflow")
+        //    then match on componentType tag
+        var def = ComponentDefinitionRegistry.GetByName(input);
+        if (def != null)
+        {
+            var byAlias = templates.FirstOrDefault(t =>
+                string.Equals(GetComponentTypeName(t), def.Name, StringComparison.OrdinalIgnoreCase));
+            if (byAlias != null)
+                return byAlias;
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -55,14 +67,12 @@ public static class TemplateResolver
     }
 
     /// <summary>
-    /// Finds the primary (shortest short name) template for a component type.
-    /// Returns null if no template is tagged with this type.
+    /// Finds the template for a component type (1:1 mapping — returns exactly one or null).
     /// </summary>
-    public static ITemplateInfo? FindPrimaryTemplateForType(string componentTypeName, IReadOnlyList<ITemplateInfo> templates)
+    public static ITemplateInfo? FindTemplateForType(string componentTypeName, IReadOnlyList<ITemplateInfo> templates)
     {
-        return FindAllForType(componentTypeName, templates)
-            .OrderBy(t => t.ShortNameList.FirstOrDefault()?.Length ?? int.MaxValue)
-            .FirstOrDefault();
+        return templates.FirstOrDefault(t =>
+            string.Equals(GetComponentTypeName(t), componentTypeName, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>
