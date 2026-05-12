@@ -14,7 +14,7 @@
 
   <ItemGroup>
     <PackageReference Include="DotMake.CommandLine" Version="2.6.7" />
-    <PackageReference Include="TALXIS.Platform.Metadata" Version="0.5.0-preview.1" />
+    <PackageReference Include="TALXIS.Platform.Metadata" Version="0.5.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.5" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.5" />
     <PackageReference Include="Microsoft.Identity.Client" Version="4.83.3" />

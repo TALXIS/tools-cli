@@ -17,7 +17,7 @@ namespace TALXIS.CLI.Features.Environment.Component.Browse;
 [CliReadOnly]
 [CliCommand(
     Name = "browse",
-    Description = "Open the web editor for a component in the connected live environment. Requires an active profile."
+    Description = "Open a component editor, app, record, view, or report in the browser for the connected live environment. Returns the URL. Requires an active profile."
 )]
 public class ComponentBrowseCliCommand : ProfiledCliCommand
 {

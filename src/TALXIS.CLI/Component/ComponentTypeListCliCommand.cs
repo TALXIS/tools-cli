@@ -50,6 +50,7 @@ public class ComponentTypeListCliCommand : TxcLeafCommand
         return Task.FromResult(ExitSuccess);
     }
 
+    // Text-renderer callback — OutputWriter usage is intentional.
 #pragma warning disable TXC003
     private static void PrintTypeTable<T>(IReadOnlyList<T> items) where T : notnull
     {

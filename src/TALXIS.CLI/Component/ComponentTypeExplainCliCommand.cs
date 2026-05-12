@@ -63,6 +63,7 @@ public class ComponentTypeExplainCliCommand : TxcLeafCommand
         return Task.FromResult(ExitSuccess);
     }
 
+    // Text-renderer callback — OutputWriter usage is intentional.
 #pragma warning disable TXC003
     private static void PrintExplanation(ComponentDefinition d)
     {
