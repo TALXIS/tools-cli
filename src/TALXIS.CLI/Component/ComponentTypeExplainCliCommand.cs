@@ -36,21 +36,23 @@ public class ComponentTypeExplainCliCommand : TxcLeafCommand
         string? templateDescription = null;
         string? templateShortName = null;
 
-        // Look up matching template for description
+        // Resolve template using shared TemplateResolver — handles short names, registry names, aliases, type codes.
         using var scaffolder = new TemplateInvoker();
         var templates = await scaffolder.ListTemplatesAsync();
-        var template = templates?.FirstOrDefault(t =>
-            string.Equals(t.Name, Type, StringComparison.OrdinalIgnoreCase)
-            || t.ShortNameList.Any(sn => string.Equals(sn, Type, StringComparison.OrdinalIgnoreCase))
-            // Also match by registry name/alias (e.g. "Entity" → "pp-entity")
-            || (def != null && t.ShortNameList.Any(sn =>
-                sn.EndsWith(def.Name, StringComparison.OrdinalIgnoreCase)
-                || (def.Aliases?.Any(a => sn.EndsWith(a, StringComparison.OrdinalIgnoreCase)) == true))));
+        var template = templates != null ? TemplateResolver.Resolve(Type, templates) : null;
 
         if (template != null)
         {
             templateDescription = template.Description;
             templateShortName = template.ShortNameList.FirstOrDefault();
+
+            // If registry lookup failed but template has a componentType tag, resolve from that
+            if (def == null)
+            {
+                var taggedType = TemplateResolver.GetComponentTypeName(template);
+                if (taggedType != null)
+                    def = ComponentDefinitionRegistry.GetByName(taggedType);
+            }
         }
 
         // If no registry definition found, try to resolve from template name

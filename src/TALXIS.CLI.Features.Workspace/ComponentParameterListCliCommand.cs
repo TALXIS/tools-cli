@@ -20,13 +20,19 @@ public class ComponentParameterListCliCommand : TxcLeafCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ComponentParameterListCliCommand));
 
-    [CliArgument(Description = "Short name of the component.")]
+    [CliArgument(Description = "Component type name, alias, template short name, or integer code (e.g. 'Entity', 'Table', 'pp-entity', '1').")]
     public required string ShortName { get; set; }
 
     protected override async Task<int> ExecuteAsync()
     {
         using var scaffolder = new TemplateInvoker();
-        var parameters = await scaffolder.ListParametersForTemplateAsync(ShortName);
+
+        // Resolve the user's input to a template short name via shared TemplateResolver
+        var templates = await scaffolder.ListTemplatesAsync();
+        var resolved = TemplateEngine.TemplateResolver.Resolve(ShortName, templates);
+        var resolvedShortName = resolved?.ShortNameList.FirstOrDefault() ?? ShortName;
+
+        var parameters = await scaffolder.ListParametersForTemplateAsync(resolvedShortName);
         if (parameters == null || parameters.Count == 0)
         {
             OutputFormatter.WriteList(Array.Empty<object>(), _ =>
