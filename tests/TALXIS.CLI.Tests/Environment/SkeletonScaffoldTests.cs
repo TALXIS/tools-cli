@@ -4,7 +4,6 @@ using DotMake.CommandLine;
 using TALXIS.CLI;
 using TALXIS.CLI.Features.Environment.Deployment;
 using TALXIS.CLI.Features.Workspace;
-using TALXIS.CLI.Features.Workspace.Metamodel;
 using Xunit;
 
 namespace TALXIS.CLI.Tests.Environment;
@@ -27,9 +26,6 @@ public class SkeletonScaffoldTests
         {
             new object[] { typeof(DeploymentPatchCliCommand) },
             new object[] { typeof(WorkspaceLanguageServerCliCommand) },
-            new object[] { typeof(MetamodelCliCommand) },
-            new object[] { typeof(MetamodelDescribeCliCommand) },
-            new object[] { typeof(MetamodelListCliCommand) },
         };
 
     [Theory]

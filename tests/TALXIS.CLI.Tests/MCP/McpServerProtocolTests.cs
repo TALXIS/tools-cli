@@ -105,7 +105,7 @@ public class McpServerProtocolTests : IAsyncDisposable
         var tools = await client.ListToolsAsync(cancellationToken: _cts.Token);
 
         Assert.NotEmpty(tools);
-        Assert.Contains(tools, t => t.Name == "workspace_component_type_list");
+        Assert.Contains(tools, t => t.Name == "component_type_list");
         Assert.Contains(tools, t => t.Name == "copilot-instructions");
     }
 

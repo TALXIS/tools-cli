@@ -64,8 +64,6 @@ public class CommandConventionTests
         "TransformServerStartCliCommand",
         // Reserved stubs that throw NotImplementedException
         "WorkspaceLanguageServerCliCommand",
-        "MetamodelListCliCommand",
-        "MetamodelDescribeCliCommand",
         "DeploymentPatchCliCommand",
     };
 
