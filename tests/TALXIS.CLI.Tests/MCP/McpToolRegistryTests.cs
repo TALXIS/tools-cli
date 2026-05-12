@@ -52,6 +52,18 @@ public class McpToolRegistryTests
     }
 
     [Fact]
+    public void ListTools_ContainsComponentUrlTools()
+    {
+        var tools = GetAllTools();
+        var names = tools.Select(t => t.Name).ToList();
+
+        Assert.Contains("environment_component_url_get", names);
+        Assert.Contains("environment_component_url_open", names);
+        Assert.Contains("environment_component_url_parameter_list", names);
+        Assert.DoesNotContain("environment_component_browse", names);
+    }
+
+    [Fact]
     public void ListTools_ContainsDataTools()
     {
         var tools = GetAllTools();
