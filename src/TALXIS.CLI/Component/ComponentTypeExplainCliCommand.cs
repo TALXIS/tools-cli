@@ -2,46 +2,89 @@ using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
 using TALXIS.CLI.Logging;
+using TALXIS.CLI.Features.Workspace.TemplateEngine;
 using TALXIS.Platform.Metadata;
 
 namespace TALXIS.CLI.Component;
 
 /// <summary>
-/// Explains a specific component type — shows full <see cref="ComponentDefinition"/> details.
-/// Accepts canonical name, alias, enum name, or integer type code.
+/// Explains a specific component type — shows description (from template), metadata (from registry),
+/// and scaffolding availability. Accepts canonical name, alias, enum name, template short name, or integer type code.
 /// </summary>
 [CliReadOnly]
 [CliCommand(
     Name = "explain",
-    Description = "Show detailed information about a component type."
+    Description = "Show detailed information about a component type — description, metadata, identity strategy, parent-child relationships, and scaffolding availability."
 )]
 public class ComponentTypeExplainCliCommand : TxcLeafCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger<ComponentTypeExplainCliCommand>();
 
-    [CliArgument(Description = "Component type name, alias, or integer code (e.g. 'Entity', 'Table', '1').")]
+    [CliArgument(Description = "Component type name, alias, template short name, or integer code (e.g. 'Entity', 'Table', 'pp-entity', '1').")]
     public string Type { get; set; } = null!;
 
-    protected override Task<int> ExecuteAsync()
+    protected override async Task<int> ExecuteAsync()
     {
         if (string.IsNullOrWhiteSpace(Type))
         {
             Logger.LogError("Component type is required. Run 'txc component type list' to see available types.");
-            return Task.FromResult(ExitValidationError);
+            return ExitValidationError;
         }
 
+        // Try registry first, then template lookup
         var def = ComponentDefinitionRegistry.GetByName(Type);
+        string? templateDescription = null;
+        string? templateShortName = null;
+
+        // Look up matching template for description
+        using var scaffolder = new TemplateInvoker();
+        var templates = await scaffolder.ListTemplatesAsync();
+        var template = templates?.FirstOrDefault(t =>
+            string.Equals(t.Name, Type, StringComparison.OrdinalIgnoreCase)
+            || t.ShortNameList.Any(sn => string.Equals(sn, Type, StringComparison.OrdinalIgnoreCase))
+            // Also match by registry name/alias (e.g. "Entity" → "pp-entity")
+            || (def != null && t.ShortNameList.Any(sn =>
+                sn.EndsWith(def.Name, StringComparison.OrdinalIgnoreCase)
+                || (def.Aliases?.Any(a => sn.EndsWith(a, StringComparison.OrdinalIgnoreCase)) == true))));
+
+        if (template != null)
+        {
+            templateDescription = template.Description;
+            templateShortName = template.ShortNameList.FirstOrDefault();
+        }
+
+        // If no registry definition found, try to resolve from template name
+        if (def is null && templateShortName != null)
+        {
+            // Template exists but no ComponentDefinition — show template info only
+            var data = new
+            {
+                templateShortName,
+                description = templateDescription
+            };
+
+            OutputFormatter.WriteData(data, d =>
+            {
+                OutputWriter.WriteLine($"Template: {d.templateShortName}");
+                if (!string.IsNullOrWhiteSpace(d.description))
+                    OutputWriter.WriteLine($"Description: {d.description}");
+            });
+            return ExitSuccess;
+        }
+
         if (def is null)
         {
             Logger.LogError("Unknown component type '{Type}'. Run 'txc component type list' to see available types.", Type);
-            return Task.FromResult(ExitValidationError);
+            return ExitValidationError;
         }
 
-        var data = new
+        var result = new
         {
             typeCode = (int)def.TypeCode,
             name = def.Name,
             aliases = def.Aliases ?? (IReadOnlyList<string>)Array.Empty<string>(),
+            description = templateDescription,
+            templateShortName,
             serializedName = def.SerializedName,
             directory = def.Directory,
             filePattern = def.FilePattern,
@@ -58,14 +101,14 @@ public class ComponentTypeExplainCliCommand : TxcLeafCommand
             exportKeyAttributes = def.ExportKeyAttributes
         };
 
-        OutputFormatter.WriteData(data, _ => PrintExplanation(def));
+        OutputFormatter.WriteData(result, _ => PrintExplanation(def, templateDescription, templateShortName));
 
-        return Task.FromResult(ExitSuccess);
+        return ExitSuccess;
     }
 
     // Text-renderer callback — OutputWriter usage is intentional.
 #pragma warning disable TXC003
-    private static void PrintExplanation(ComponentDefinition d)
+    private static void PrintExplanation(ComponentDefinition d, string? description, string? templateShortName)
     {
         const int labelWidth = -28;
 
@@ -73,6 +116,18 @@ public class ComponentTypeExplainCliCommand : TxcLeafCommand
         OutputWriter.WriteLine($"{"Type Code:",labelWidth}{(int)d.TypeCode}");
         if (d.Aliases is { Count: > 0 })
             OutputWriter.WriteLine($"{"Aliases:",labelWidth}{string.Join(", ", d.Aliases)}");
+
+        if (!string.IsNullOrWhiteSpace(description))
+        {
+            OutputWriter.WriteLine();
+            OutputWriter.WriteLine($"Description:");
+            OutputWriter.WriteLine($"  {description}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(templateShortName))
+            OutputWriter.WriteLine($"\n{"Scaffolding Template:",labelWidth}{templateShortName}");
+
+        OutputWriter.WriteLine();
         OutputWriter.WriteLine($"{"Serialized Name:",labelWidth}{d.SerializedName}");
         OutputWriter.WriteLine($"{"Directory:",labelWidth}{d.Directory}");
         OutputWriter.WriteLine($"{"File Pattern:",labelWidth}{d.FilePattern}");
