@@ -31,16 +31,16 @@ public class EquivalenceTests
     {
         yield return new object[] 
         { 
-            "workspace component type list", 
-            "workspace_component_type_list", 
+            "component type list", 
+            "component_type_list", 
             new Dictionary<string, object?>() 
         };
         
         yield return new object[] 
         { 
-            "workspace component type explain pp-entity", 
-            "workspace_component_type_explain", 
-            new Dictionary<string, object?> { { "Type", "pp-entity" } } 
+            "component type explain Entity", 
+            "component_type_explain", 
+            new Dictionary<string, object?> { { "Type", "Entity" } } 
         };
 
         yield return new object[]

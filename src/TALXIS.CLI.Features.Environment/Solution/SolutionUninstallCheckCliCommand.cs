@@ -4,6 +4,7 @@ using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Logging;
+using TALXIS.Platform.Metadata;
 
 namespace TALXIS.CLI.Features.Environment.Solution;
 
@@ -50,7 +51,6 @@ public class SolutionUninstallCheckCliCommand : ProfiledCliCommand
 
     private void PrintBlocked(IReadOnlyList<DependencyRow> deps)
     {
-        var resolver = new ComponentTypeResolver();
         OutputWriter.WriteLine($"Solution '{Name}' has {deps.Count} blocking dependency(ies):\n");
 
         string header = $"{"Required Type",-25} | {"Required ID",-36} | {"Dependent Type",-25} | {"Dependent ID",-36} | Dep.Type";
@@ -59,8 +59,8 @@ public class SolutionUninstallCheckCliCommand : ProfiledCliCommand
 
         foreach (var d in deps)
         {
-            var reqType = resolver.ResolveName(d.RequiredComponentType);
-            var depType = resolver.ResolveName(d.DependentComponentType);
+            var reqType = ComponentDefinitionRegistry.GetByType((ComponentType)d.RequiredComponentType)?.Name ?? d.RequiredComponentType.ToString();
+            var depType = ComponentDefinitionRegistry.GetByType((ComponentType)d.DependentComponentType)?.Name ?? d.DependentComponentType.ToString();
             var depKind = d.DependencyType switch
             {
                 1 => "Internal",

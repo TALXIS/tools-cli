@@ -33,7 +33,7 @@ public class McpTests
     public async Task ExecuteOperation_WorkspaceComponentList_ReturnsValidResponse()
     {
         var client = await McpTestClient.InstanceAsync;
-        var args = new Dictionary<string, object?> { { "operation", "workspace_component_type_list" } };
+        var args = new Dictionary<string, object?> { { "operation", "component_type_list" } };
         
         var result = await client.CallToolAsync("execute_operation", args);
         
@@ -49,18 +49,17 @@ public class McpTests
 
         // First verify the tool exists in the catalog by listing component types.
         // This also triggers template package auto-installation if needed.
-        var listArgs = new Dictionary<string, object?> { { "operation", "workspace_component_type_list" } };
+        var listArgs = new Dictionary<string, object?> { { "operation", "component_type_list" } };
         var listResult = await client.CallToolAsync("execute_operation", listArgs);
         
-        // If component type list returned empty or error, templates aren't available — skip
+        // If component type list returned empty or error, registry isn't available — skip
         var listText = listResult.Content?.OfType<TextContentBlock>().FirstOrDefault()?.Text ?? "";
         if (listResult.IsError == true || listText == "[]" || string.IsNullOrWhiteSpace(listText))
         {
-            // Template package not available on this runner
             return;
         }
 
-        var args = new Dictionary<string, object?> { { "operation", "workspace_component_type_explain" }, { "arguments", "{\"Type\": \"pp-entity\"}" } };
+        var args = new Dictionary<string, object?> { { "operation", "component_type_explain" }, { "arguments", "{\"Type\": \"Entity\"}" } };
         var result = await client.CallToolAsync("execute_operation", args);
         
         Assert.NotNull(result.Content);
@@ -74,7 +73,7 @@ public class McpTests
 
         if (result.Content[0] is TextContentBlock textBlock)
         {
-            Assert.Contains("pp-entity", textBlock.Text);
+            Assert.Contains("Entity", textBlock.Text);
         }
     }
 }

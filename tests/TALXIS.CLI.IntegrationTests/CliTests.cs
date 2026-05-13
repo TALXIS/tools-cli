@@ -10,8 +10,8 @@ namespace TALXIS.CLI.IntegrationTests;
 public class CliTests
 {
     [Theory]
-    [InlineData("workspace component type list")]
-    [InlineData("workspace component type explain pp-entity")]
+    [InlineData("component type list")]
+    [InlineData("component type explain Entity")]
     [InlineData("workspace component parameter list pp-entity")]
     [InlineData("environment package import --help")]
     [InlineData("environment package uninstall --help")]
@@ -30,21 +30,21 @@ public class CliTests
     }
 
     [Fact]
-    public async Task WorkspaceComponentList_ContainsExpectedComponents()
+    public async Task ComponentTypeList_ContainsExpectedTypes()
     {
-        var output = await CliRunner.RunAsync("workspace component type list");
+        var output = await CliRunner.RunAsync("component type list");
         
-        Assert.Contains("pp-entity", output);
+        Assert.Contains("Entity", output);
     }
 
     [Fact]
-    public async Task WorkspaceComponentType_ReturnsComponentDetails()
+    public async Task ComponentTypeExplain_ReturnsTypeDetails()
     {
-        var output = await CliRunner.RunAsync("workspace component type explain pp-entity");
+        var output = await CliRunner.RunAsync("component type explain Entity");
         
-        // Output is JSON when stdout is redirected (piped) — the new TxcLeafCommand
+        // Output is JSON when stdout is redirected (piped) — the TxcLeafCommand
         // base auto-detects format, so integration tests see JSON instead of plain text.
-        Assert.Contains("pp-entity", output);
-        Assert.Contains("description", output);
+        Assert.Contains("Entity", output);
+        Assert.Contains("Table", output); // alias
     }
 }

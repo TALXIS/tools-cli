@@ -14,7 +14,7 @@ public class ComponentCreateCliCommand : TxcLeafCommand, ICliGetCompletions
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ComponentCreateCliCommand));
 
-    [CliArgument(Description = "Type of the component (e.g. 'pp-entity')")]
+    [CliArgument(Description = "Component type name, alias, template short name, or integer code (e.g. 'Entity', 'Table', 'pp-entity', '1').")]
     public required string Type { get; set; }
 
     [CliOption(Name = "--output", Aliases = ["-o"], Description = "Directory path where the new component will be scaffolded", Required = true)]
@@ -24,7 +24,7 @@ public class ComponentCreateCliCommand : TxcLeafCommand, ICliGetCompletions
     // [CliOption(Name = "name", Aliases = ["-n"], Description = "The name for the created output. If not specified, the name of the output directory is used.", Required = false)]
     // public string? Name { get; set; }
 
-    [CliOption(Description = "Component parameters which can be retrieved by parameter list command. Inputs need to be passed in the form key=value. Can be specified multiple times.")]
+    [CliOption(Description = "Component-specific parameters in key=value format. Can be specified multiple times. Use parameter list to discover available parameters.")]
     public List<string> Param { get; set; } = new();
 
     protected override async Task<int> ExecuteAsync()
@@ -50,7 +50,14 @@ public class ComponentCreateCliCommand : TxcLeafCommand, ICliGetCompletions
             parameters[key] = value;
         }
         using var scaffolder = new TemplateInvoker();
-        var (success, failedActions, failedActionErrors) = await scaffolder.ScaffoldAsync(Type, OutputPath, parameters);
+
+        // Resolve the user's input to a template short name.
+        // Accepts template short names (pp-entity), registry names (Entity), aliases (Table), or type codes (1).
+        var templates = await scaffolder.ListTemplatesAsync();
+        var resolved = TemplateEngine.TemplateResolver.Resolve(Type, templates);
+        var templateShortName = resolved?.ShortNameList.FirstOrDefault() ?? Type;
+
+        var (success, failedActions, failedActionErrors) = await scaffolder.ScaffoldAsync(templateShortName, OutputPath, parameters);
         if (success && failedActions.Count == 0)
         {
             OutputFormatter.WriteResult("succeeded", $"Component scaffolded to {OutputPath} using template {Type}");

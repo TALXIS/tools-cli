@@ -5,6 +5,7 @@ using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Logging;
+using TALXIS.Platform.Metadata;
 
 namespace TALXIS.CLI.Features.Environment.Solution.Component;
 
@@ -37,13 +38,16 @@ public class SolutionComponentRemoveCliCommand : ProfiledCliCommand, IDestructiv
             return ExitValidationError;
         }
 
-        var resolver = new ComponentTypeResolver();
-        if (!resolver.TryResolveCode(Type, out var typeCode))
+        var def = ComponentDefinitionRegistry.GetByName(Type);
+        if (def is null && int.TryParse(Type, out var parsedCode))
+            def = ComponentDefinitionRegistry.GetByType((ComponentType)parsedCode);
+        if (def is null)
         {
-            var known = string.Join(", ", resolver.GetKnownNames().Take(15));
+            var known = string.Join(", ", ComponentDefinitionRegistry.GetAll().Select(d => d.Name).Take(15));
             Logger.LogError("Unknown component type '{Type}'. Available types: {Known}. Or use an integer code.", Type, known);
             return ExitValidationError;
         }
+        var typeCode = (int)def.TypeCode;
 
         // Pre-check: reject managed solutions (can't remove components from managed)
         var detailService = TxcServices.Get<ISolutionDetailService>();
@@ -58,7 +62,7 @@ public class SolutionComponentRemoveCliCommand : ProfiledCliCommand, IDestructiv
         var service = TxcServices.Get<ISolutionComponentMutationService>();
         await service.RemoveAsync(Profile, options, CancellationToken.None).ConfigureAwait(false);
 
-        var typeName = resolver.ResolveName(typeCode);
+        var typeName = def.Name;
         OutputFormatter.WriteData(
             new { status = "removed", solution = SolutionName, componentId = ComponentId, componentType = typeName },
             _ =>

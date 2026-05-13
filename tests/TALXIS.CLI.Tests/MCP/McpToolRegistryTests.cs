@@ -36,11 +36,31 @@ public class McpToolRegistryTests
         var tools = GetAllTools();
         var names = tools.Select(t => t.Name).ToList();
 
-        Assert.Contains("workspace_component_type_list", names);
-        Assert.Contains("workspace_component_type_explain", names);
         Assert.Contains("workspace_component_parameter_list", names);
         Assert.Contains("workspace_component_create", names);
         Assert.Contains("workspace_explain", names);
+    }
+
+    [Fact]
+    public void ListTools_ContainsComponentTypeTools()
+    {
+        var tools = GetAllTools();
+        var names = tools.Select(t => t.Name).ToList();
+
+        Assert.Contains("component_type_list", names);
+        Assert.Contains("component_type_explain", names);
+    }
+
+    [Fact]
+    public void ListTools_ContainsComponentUrlTools()
+    {
+        var tools = GetAllTools();
+        var names = tools.Select(t => t.Name).ToList();
+
+        Assert.Contains("environment_component_url_get", names);
+        Assert.Contains("environment_component_url_open", names);
+        Assert.Contains("environment_component_url_parameter_list", names);
+        Assert.DoesNotContain("environment_component_browse", names);
     }
 
     [Fact]
@@ -76,7 +96,7 @@ public class McpToolRegistryTests
     [Fact]
     public void FindCommandType_ValidTool_ReturnsType()
     {
-        var type = _registry.FindCommandTypeByToolName("workspace_component_type_list");
+        var type = _registry.FindCommandTypeByToolName("component_type_list");
         Assert.NotNull(type);
     }
 
