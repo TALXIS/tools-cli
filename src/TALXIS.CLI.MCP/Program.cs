@@ -16,8 +16,9 @@ var mcpToolRegistry = new McpToolRegistry();
 RootsService? rootsService = null;
 IHostApplicationLifetime? appLifetime = null;
 
-// In-memory store for tool execution logs, exposed as MCP resources
+// In-memory store for structured failure details, exposed as MCP resources
 var toolLogStore = new ToolLogStore();
+var toolResultFactory = new McpToolResultFactory(toolLogStore);
 
 // Per-output-path lock for workspace_component_create to prevent concurrent writes to the same project
 var workspaceOutputLocks = new System.Collections.Concurrent.ConcurrentDictionary<string, SemaphoreSlim>(StringComparer.OrdinalIgnoreCase);
@@ -340,7 +341,7 @@ async Task<CallToolResult> ExecuteCliToolAsync(
 
         mcpLogger.LogInformation("Tool completed: {ToolName} (exit code {ExitCode})", toolName, result.ExitCode);
 
-        return BuildToolResult(toolName, result);
+        return toolResultFactory.Build(toolName, result);
     }
     catch (OperationCanceledException) when (ct.IsCancellationRequested)
     {
@@ -348,7 +349,7 @@ async Task<CallToolResult> ExecuteCliToolAsync(
     }
     catch (Exception ex)
     {
-        return new CallToolResult { Content = [new TextContentBlock { Text = LogRedactionFilter.Redact(ex.ToString()) }], IsError = true };
+        return toolResultFactory.BuildExceptionResult(toolName, ex);
     }
     finally
     {
@@ -423,7 +424,7 @@ async ValueTask<CallToolResult> ExecuteAsTaskAsync(
 
             mcpLogger.LogInformation("Task completed: {ToolName} (exit code {ExitCode}, taskId: {TaskId})", toolName, result.ExitCode, mcpTask.TaskId);
 
-            var callToolResult = BuildToolResult(toolName, result);
+            var callToolResult = toolResultFactory.Build(toolName, result);
 
             var finalStatus = result.ExitCode != 0 ? McpTaskStatus.Failed : McpTaskStatus.Completed;
             var resultElement = System.Text.Json.JsonSerializer.SerializeToElement(callToolResult);
@@ -446,11 +447,7 @@ async ValueTask<CallToolResult> ExecuteAsTaskAsync(
         {
             try
             {
-                var errorResult = new CallToolResult
-                {
-                    IsError = true,
-                    Content = [new TextContentBlock { Text = $"Task execution failed: {LogRedactionFilter.Redact(ex.ToString())}" }]
-                };
+                var errorResult = toolResultFactory.BuildExceptionResult(toolName, ex);
                 var errorElement = System.Text.Json.JsonSerializer.SerializeToElement(errorResult);
                 var failedTask = await taskStore.StoreTaskResultAsync(
                     mcpTask.TaskId, McpTaskStatus.Failed, errorElement, sessionId, CancellationToken.None);
@@ -760,75 +757,18 @@ async Task<CallToolResult> ExecuteMcpSpecificToolWithCapturedOutputAsync(Type co
     }
 }
 
-// Build a CallToolResult, including a resource_link to the full log on failure
-CallToolResult BuildToolResult(string toolName, CliSubprocessResult result)
-{
-    var content = new List<ContentBlock>();
-
-    if (result.ExitCode == 0)
-    {
-        // Success: return stdout content
-        content.Add(new TextContentBlock { Text = result.Output });
-    }
-    else
-    {
-        // Failure: prefer stdout (contains structured error envelope from
-        // OutputFormatter.WriteResult), fall back to stderr error lines.
-        var errorText = !string.IsNullOrWhiteSpace(result.Output)
-            ? result.Output
-            : !string.IsNullOrWhiteSpace(result.LastErrors)
-                ? result.LastErrors
-                : $"Tool '{toolName}' failed with exit code {result.ExitCode}.";
-        content.Add(new TextContentBlock { Text = errorText });
-
-        // Store the full execution log and add a resource_link so the client can fetch details
-        if (!string.IsNullOrWhiteSpace(result.FullLog))
-        {
-            var logUri = toolLogStore.Store(toolName, result.FullLog, result.LastErrors, isError: true);
-            content.Add(new ResourceLinkBlock
-            {
-                Uri = logUri,
-                Name = $"Full execution log for {toolName}",
-                Description = "Complete stderr log from the subprocess. Use resources/read to retrieve.",
-                MimeType = "text/plain"
-            });
-        }
-    }
-
-    return new CallToolResult
-    {
-        Content = content,
-        IsError = result.ExitCode != 0
-    };
-}
-
-// MCP resource listing — exposes stored tool execution logs
+// MCP resource listing — exposes stored failure-detail resources
 ValueTask<ListResourcesResult> ListResourcesAsync(RequestContext<ListResourcesRequestParams> ctx, CancellationToken ct)
 {
-    var entries = toolLogStore.ListAll();
-    var resources = entries.Select(e => new Resource
-    {
-        Uri = e.Uri,
-        Name = $"Execution log: {e.Entry.ToolName}",
-        Description = $"Full stderr log from {e.Entry.ToolName} at {e.Entry.Timestamp:u}",
-        MimeType = "text/plain"
-    }).ToList();
-
-    return ValueTask.FromResult(new ListResourcesResult { Resources = resources });
+    return ValueTask.FromResult(new ListResourcesResult { Resources = toolResultFactory.BuildResources() });
 }
 
-// MCP resource read — returns the full execution log for a given URI
+// MCP resource read — returns structured failure details for a given URI
 ValueTask<ReadResourceResult> ReadResourceAsync(RequestContext<ReadResourceRequestParams> ctx, CancellationToken ct)
 {
     var uri = ctx.Params?.Uri ?? throw new McpException("Resource URI is required.");
 
-    if (!toolLogStore.TryGet(uri, out var entry) || entry is null)
-        throw new McpException($"Resource not found: {uri}");
-
-    return ValueTask.FromResult(new ReadResourceResult
-    {
-        Contents = [new TextResourceContents { Uri = uri, MimeType = "text/plain", Text = entry.FullLog }]
-    });
+    return ValueTask.FromResult(toolResultFactory.ReadResource(uri));
 }
 
 // Helper method to convert JsonElement to the target property type
