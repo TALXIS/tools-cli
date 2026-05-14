@@ -1,8 +1,8 @@
-using System.Text.RegularExpressions;
-using System.Xml.Linq;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
+using TALXIS.Platform.Metadata;
+using TALXIS.Platform.Metadata.Serialization.Xml;
 
 namespace TALXIS.CLI.Features.Environment.Component.Url;
 
@@ -19,32 +19,28 @@ public abstract class UrlCommandBase : ProfiledCliCommand
     [CliOption(Name = "--param", Description = "URL parameter in key=value format. Can be specified multiple times. Available parameters depend on the component type.", Required = false)]
     public List<string> Param { get; set; } = new();
 
-    [CliOption(Name = "--file", Description = "Path to a local component file. Auto-detects component type and GUID from the file path and metadata.", Required = false)]
+    [CliOption(Name = "--file", Description = "Path to a local component file. Auto-detects component type and GUID by loading the workspace with the platform metadata library.", Required = false)]
     public string? File { get; set; }
-
-    /// <summary>
-    /// Regex for extracting a GUID from a file name (e.g. {xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}).
-    /// </summary>
-    private static readonly Regex GuidInFileNamePattern = new(
-        @"\{?([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\}?",
-        RegexOptions.Compiled);
 
     /// <summary>
     /// Builds the URL from the shared options. Returns null on failure (error already logged).
     /// </summary>
     protected async Task<UrlBuilderResult?> BuildUrlFromOptionsAsync()
     {
-        // When --file is provided, resolve type and id from the file before the normal flow.
+        // When --file is provided, resolve type and params from the workspace metadata.
         if (!string.IsNullOrWhiteSpace(File))
         {
             var resolved = ResolveFromFile(Path.GetFullPath(File));
             if (resolved is null)
                 return null;
             Type ??= resolved.Value.Type;
-            // Inject the resolved id into --param unless already provided
+            // Inject resolved params unless the user already specified them
             var existingParams = UrlBuilder.ParseParams(Param);
-            if (!existingParams.ContainsKey("id"))
-                Param.Add($"id={resolved.Value.Id}");
+            foreach (var kvp in resolved.Value.Params)
+            {
+                if (!existingParams.ContainsKey(kvp.Key))
+                    Param.Add($"{kvp.Key}={kvp.Value}");
+            }
         }
 
         if (string.IsNullOrWhiteSpace(Type))
@@ -58,180 +54,134 @@ public abstract class UrlCommandBase : ProfiledCliCommand
     }
 
     /// <summary>
-    /// Auto-detects the component type and GUID from a local file path and its metadata.
+    /// Auto-detects the component type and URL parameters from a local file path by loading
+    /// the workspace with <see cref="XmlWorkspaceReader"/> and matching the file to a component.
     /// </summary>
-    private (string Type, string Id)? ResolveFromFile(string absolutePath)
+    /// <remarks>
+    /// The SourceDocumentKey carries structured identifiers per type:
+    /// <list type="bullet">
+    ///   <item><c>Entity:logicalname</c> — ObjectId is the entity logical name</item>
+    ///   <item><c>Form:entityname:{guid}</c> — ObjectId is the form GUID</item>
+    ///   <item><c>View:entityname:{guid}</c> — ObjectId is the view GUID</item>
+    ///   <item><c>Workflow:name</c> — ObjectId is the workflow GUID</item>
+    /// </list>
+    /// </remarks>
+    private (string Type, Dictionary<string, string> Params)? ResolveFromFile(string absolutePath)
     {
-        var normalizedPath = absolutePath.Replace('\\', '/');
-        var segments = normalizedPath.Split('/');
-
-        string? componentType = null;
-        string? componentId = null;
-
-        // Detect component type from path segments
-        for (int i = 0; i < segments.Length; i++)
+        var workspaceRoot = FindWorkspaceRoot(absolutePath);
+        if (workspaceRoot is null)
         {
-            var segment = segments[i];
-
-            if (segment.Equals("Workflows", StringComparison.OrdinalIgnoreCase) && i + 1 < segments.Length)
-            {
-                componentType = "Workflow";
-                // Read GUID from companion .data.xml file
-                var dataXmlPath = absolutePath + ".data.xml";
-                if (System.IO.File.Exists(dataXmlPath))
-                {
-                    componentId = ExtractWorkflowIdFromDataXml(dataXmlPath);
-                }
-                break;
-            }
-
-            if (segment.Equals("Entities", StringComparison.OrdinalIgnoreCase) && i + 1 < segments.Length)
-            {
-                // Determine sub-type based on further path segments
-                if (i + 2 < segments.Length && segments[i + 2].Equals("FormXml", StringComparison.OrdinalIgnoreCase))
-                {
-                    componentType = "SystemForm";
-                    componentId = ExtractGuidFromPathOrContent(absolutePath, segments);
-                }
-                else if (i + 2 < segments.Length && segments[i + 2].Equals("SavedQueries", StringComparison.OrdinalIgnoreCase))
-                {
-                    componentType = "SavedQuery";
-                    componentId = ExtractGuidFromPathOrContent(absolutePath, segments);
-                }
-                else if (i + 1 < segments.Length && segments.Length > i + 2 && segments[i + 2].Equals("Entity.xml", StringComparison.OrdinalIgnoreCase))
-                {
-                    componentType = "Entity";
-                    componentId = ExtractGuidFromXmlContent(absolutePath, "EntityId", "MetadataId");
-                }
-                else
-                {
-                    // Generic entity path — check if it's Entity.xml directly
-                    var fileName = Path.GetFileName(absolutePath);
-                    if (fileName.Equals("Entity.xml", StringComparison.OrdinalIgnoreCase))
-                    {
-                        componentType = "Entity";
-                        componentId = ExtractGuidFromXmlContent(absolutePath, "EntityId", "MetadataId");
-                    }
-                }
-                break;
-            }
-
-            if (segment.Equals("Roles", StringComparison.OrdinalIgnoreCase))
-            {
-                componentType = "Role";
-                componentId = ExtractGuidFromFileName(absolutePath);
-                break;
-            }
-
-            if (segment.Equals("WebResources", StringComparison.OrdinalIgnoreCase))
-            {
-                componentType = "WebResource";
-                componentId = ExtractGuidFromPathOrContent(absolutePath, segments);
-                break;
-            }
-
-            if (segment.Equals("AppModules", StringComparison.OrdinalIgnoreCase))
-            {
-                componentType = "AppModule";
-                componentId = ExtractGuidFromPathOrContent(absolutePath, segments);
-                break;
-            }
-
-            if (segment.Equals("OptionSets", StringComparison.OrdinalIgnoreCase))
-            {
-                componentType = "OptionSet";
-                componentId = ExtractGuidFromPathOrContent(absolutePath, segments);
-                break;
-            }
-        }
-
-        if (componentType is null)
-        {
-            Logger.LogError("Could not determine component type from file path: {Path}.", absolutePath);
+            Logger.LogError("Could not find workspace root (Other/Solution.xml) for file: {Path}.", absolutePath);
             return null;
         }
 
-        if (componentId is null)
+        var reader = new XmlWorkspaceReader();
+        var workspace = reader.Load(workspaceRoot);
+
+        var normalizedFile = Path.GetFullPath(absolutePath);
+
+        foreach (var component in workspace.EnumerateLayerComponents())
         {
-            Logger.LogError("Could not extract component GUID from file: {Path}.", absolutePath);
-            return null;
+            if (!IsFileMatch(component, normalizedFile, workspaceRoot))
+                continue;
+
+            var typeName = component.Type.ToString();
+            var resolvedParams = ExtractUrlParams(component);
+
+            Logger.LogInformation("Resolved --file to type '{Type}' with params: {Params}.",
+                typeName, string.Join(", ", resolvedParams.Select(p => $"{p.Key}={p.Value}")));
+
+            return (typeName, resolvedParams);
         }
 
-        Logger.LogInformation("Resolved --file to type '{Type}' with id '{Id}'.", componentType, componentId);
-        return (componentType, componentId);
-    }
-
-    /// <summary>
-    /// Reads the WorkflowId from a companion .data.xml file.
-    /// Expected format: <c>&lt;Workflow WorkflowId="{guid}" ...&gt;</c>
-    /// </summary>
-    private static string? ExtractWorkflowIdFromDataXml(string dataXmlPath)
-    {
-        var doc = XDocument.Load(dataXmlPath);
-        var workflowId = doc.Root?.Attribute("WorkflowId")?.Value
-            ?? doc.Descendants().FirstOrDefault(e => e.Name.LocalName == "Workflow")?.Attribute("WorkflowId")?.Value;
-        if (workflowId is not null)
-            return workflowId.Trim('{', '}');
+        Logger.LogError("Could not match file to any component in workspace: {Path}.", absolutePath);
         return null;
     }
 
     /// <summary>
-    /// Extracts a GUID from the file name using regex.
+    /// Walks up from the file to find the solution workspace root (directory containing Other/Solution.xml).
+    /// Also checks for .cdsproj/.csproj files that declare a SolutionRootPath property.
     /// </summary>
-    private static string? ExtractGuidFromFileName(string filePath)
+    private static string? FindWorkspaceRoot(string absolutePath)
     {
-        var fileName = Path.GetFileName(filePath);
-        var match = GuidInFileNamePattern.Match(fileName);
-        return match.Success ? match.Groups[1].Value : null;
-    }
+        var dir = Path.GetDirectoryName(absolutePath);
+        while (dir is not null)
+        {
+            if (System.IO.File.Exists(Path.Combine(dir, "Other", "Solution.xml")))
+                return dir;
 
-    /// <summary>
-    /// Tries to extract a GUID from the file name first, then falls back to XML content.
-    /// </summary>
-    private static string? ExtractGuidFromPathOrContent(string filePath, string[] segments)
-    {
-        // Try file name first
-        var fromName = ExtractGuidFromFileName(filePath);
-        if (fromName is not null)
-            return fromName;
-
-        // Try XML content with common attribute patterns
-        if (filePath.EndsWith(".xml", StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(filePath))
-            return ExtractGuidFromXmlContent(filePath, "id", "formid", "savedqueryid", "webresourceid");
-
+            var csproj = Directory.GetFiles(dir, "*.cdsproj").FirstOrDefault()
+                      ?? Directory.GetFiles(dir, "*.csproj").FirstOrDefault();
+            if (csproj is not null)
+            {
+                var projDoc = System.Xml.Linq.XDocument.Load(csproj);
+                var ns = projDoc.Root?.Name.Namespace ?? System.Xml.Linq.XNamespace.None;
+                var solutionRootPath = projDoc.Descendants(ns + "SolutionRootPath").FirstOrDefault()?.Value ?? ".";
+                var candidateRoot = Path.GetFullPath(Path.Combine(dir, solutionRootPath));
+                if (System.IO.File.Exists(Path.Combine(candidateRoot, "Other", "Solution.xml")))
+                    return candidateRoot;
+            }
+            dir = Path.GetDirectoryName(dir);
+        }
         return null;
     }
 
     /// <summary>
-    /// Searches XML content for a GUID in common id-bearing attributes or elements.
+    /// Checks whether the given component matches the target file path.
+    /// Uses the metadata source file path for an exact match.
     /// </summary>
-    private static string? ExtractGuidFromXmlContent(string xmlPath, params string[] attributeNames)
+    private static bool IsFileMatch(
+        TALXIS.Platform.Metadata.Solutions.LayerComponentDescriptor component,
+        string normalizedFile,
+        string workspaceRoot)
     {
-        if (!System.IO.File.Exists(xmlPath))
-            return null;
-        var doc = XDocument.Load(xmlPath);
-        // Check root element attributes
-        if (doc.Root is not null)
+        if (component.Metadata?.Source?.FilePath is null)
+            return false;
+
+        // Source.FilePath is absolute from the workspace reader
+        var componentFile = Path.GetFullPath(component.Metadata.Source.FilePath);
+        return string.Equals(componentFile, normalizedFile, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Extracts URL parameters from a matched component based on its type and SourceDocumentKey.
+    /// Different types produce different parameter sets for the URL builder.
+    /// </summary>
+    private static Dictionary<string, string> ExtractUrlParams(
+        TALXIS.Platform.Metadata.Solutions.LayerComponentDescriptor component)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        // SourceDocumentKey format: "Type:entityname:{guid}" or "Type:name"
+        var keyParts = component.SourceDocumentKey?.Split(':') ?? Array.Empty<string>();
+
+        switch (component.Type)
         {
-            foreach (var attrName in attributeNames)
-            {
-                var attr = doc.Root.Attributes()
-                    .FirstOrDefault(a => a.Name.LocalName.Equals(attrName, StringComparison.OrdinalIgnoreCase));
-                if (attr is not null && Guid.TryParse(attr.Value.Trim('{', '}'), out _))
-                    return attr.Value.Trim('{', '}');
-            }
-            // Check child elements with those names
-            foreach (var attrName in attributeNames)
-            {
-                var elem = doc.Descendants()
-                    .FirstOrDefault(e => e.Name.LocalName.Equals(attrName, StringComparison.OrdinalIgnoreCase));
-                if (elem is not null && Guid.TryParse(elem.Value.Trim('{', '}'), out _))
-                    return elem.Value.Trim('{', '}');
-            }
+            case ComponentType.Entity:
+                // ObjectId is the entity logical name
+                result["entity"] = component.ObjectId;
+                break;
+
+            case ComponentType.SystemForm:
+                // SourceDocumentKey: "Form:entityname:{guid}"
+                result["id"] = component.ObjectId;
+                if (keyParts.Length >= 2)
+                    result["entity"] = keyParts[1];
+                break;
+
+            case ComponentType.SavedQuery:
+                // SourceDocumentKey: "View:entityname:{guid}"
+                result["id"] = component.ObjectId;
+                if (keyParts.Length >= 2)
+                    result["entity"] = keyParts[1];
+                break;
+
+            default:
+                // For most types (Workflow, Role, AppModule, etc.), ObjectId is the GUID
+                result["id"] = component.ObjectId;
+                break;
         }
-        // Last resort: search entire content for a GUID
-        var content = System.IO.File.ReadAllText(xmlPath);
-        var match = GuidInFileNamePattern.Match(content);
-        return match.Success ? match.Groups[1].Value : null;
+
+        return result;
     }
 }
