@@ -237,7 +237,14 @@ public class SolutionImportCliCommand : ProfiledCliCommand
             return null;
         }
 
-        var zipPath = zipFiles[0];
+        // Pick the most recently written ZIP to avoid using stale build artifacts
+        var zipPath = zipFiles
+            .OrderByDescending(f => new FileInfo(f).LastWriteTimeUtc)
+            .First();
+
+        if (zipFiles.Length > 1)
+            Logger.LogWarning("Multiple .zip files found in '{OutputDir}'. Using newest: {ZipPath}", outputDir, Path.GetFileName(zipPath));
+
         Logger.LogInformation("Using build output: {ZipPath}", zipPath);
         return zipPath;
     }
