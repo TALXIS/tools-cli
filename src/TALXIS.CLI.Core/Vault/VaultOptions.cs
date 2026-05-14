@@ -113,23 +113,28 @@ public sealed record VaultOptions
     /// Env var names honored to pick plaintext / file-based storage. Intentionally
     /// public so the (future) `--plaintext-fallback` flag can set the same value.
     /// </summary>
-    public const string LinuxPlaintextEnvVar = "TXC_PLAINTEXT_FALLBACK";
+    public const string PlaintextFallbackEnvVar = "TXC_PLAINTEXT_FALLBACK";
     public const string MacFileModeEnvVar = "TXC_TOKEN_CACHE_MODE";
+
+    /// <summary>Kept for backward compatibility; same value as <see cref="PlaintextFallbackEnvVar"/>.</summary>
+    public const string LinuxPlaintextEnvVar = PlaintextFallbackEnvVar;
 
     private static (bool plaintext, string? reason) ResolvePlaintextOptIn(IEnvironmentReader env)
     {
-        if (OperatingSystem.IsLinux())
-        {
-            var v = env.Get(LinuxPlaintextEnvVar);
-            if (EnvBool.IsTruthy(v))
-                return (true, $"{LinuxPlaintextEnvVar}={v}");
-        }
-        else if (OperatingSystem.IsMacOS())
+        // TXC_PLAINTEXT_FALLBACK=1 is honored on all platforms (Windows containers,
+        // Linux without libsecret, CI runners, etc.).
+        var fallback = env.Get(PlaintextFallbackEnvVar);
+        if (EnvBool.IsTruthy(fallback))
+            return (true, $"{PlaintextFallbackEnvVar}={fallback}");
+
+        // macOS-specific: TXC_TOKEN_CACHE_MODE=file bypasses Keychain.
+        if (OperatingSystem.IsMacOS())
         {
             var v = env.Get(MacFileModeEnvVar);
             if (!string.IsNullOrEmpty(v) && string.Equals(v, "file", StringComparison.OrdinalIgnoreCase))
                 return (true, $"{MacFileModeEnvVar}=file");
         }
+
         return (false, null);
     }
 }

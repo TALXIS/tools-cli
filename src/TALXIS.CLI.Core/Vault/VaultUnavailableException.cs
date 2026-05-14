@@ -10,13 +10,14 @@ public sealed class VaultUnavailableException : Exception
 {
     /// <summary>
     /// Canonical remedy message shown to the user when the vault fails to
-    /// persist. Kept as a constant so tests can assert on it verbatim and it
-    /// stays in sync with the README.
+    /// persist. The message covers all platforms so it is useful regardless
+    /// of the OS the CLI is running on.
     /// </summary>
     public const string RemedyMessage =
-        "OS credential vault is unavailable. On Linux install `libsecret-1-0` " +
-        "and `gnome-keyring` (or run inside a desktop session with D-Bus). To " +
-        "opt in to a plaintext file (chmod 600) fallback, re-run with " +
+        "OS credential vault is unavailable. " +
+        "On Linux install `libsecret-1-0` and `gnome-keyring` (or run inside a desktop session with D-Bus). " +
+        "On macOS set `TXC_TOKEN_CACHE_MODE=file` if Keychain is unavailable. " +
+        "To opt in to a plaintext file fallback on any platform, re-run with " +
         "`--plaintext-fallback` or set `TXC_PLAINTEXT_FALLBACK=1`.";
 
     public VaultUnavailableException()

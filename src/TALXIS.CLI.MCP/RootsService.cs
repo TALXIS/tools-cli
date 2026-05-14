@@ -81,6 +81,10 @@ internal sealed class RootsService
         if (!string.Equals(parsed.Scheme, "file", StringComparison.OrdinalIgnoreCase))
             return null;
 
-        return parsed.LocalPath;
+        // Uri.LocalPath handles percent-decoding and basic conversion, but
+        // Path.GetFullPath normalises separators and resolves platform
+        // differences (e.g. stripping the leading '/' from '/C:/...' on
+        // Windows, converting '/' → '\\', etc.).
+        return Path.GetFullPath(parsed.LocalPath);
     }
 }

@@ -233,7 +233,7 @@ RECIPE RULES:
         List<ToolCatalogEntry>? tools = null;
         string? recipe = null;
 
-        var lines = responseText.Split('\n');
+        var lines = responseText.ReplaceLineEndings("\n").Split('\n');
         int jsonLineIndex = -1;
 
         // Scan lines to find the first one containing a valid JSON string array

@@ -6,19 +6,32 @@ namespace TALXIS.CLI.Tests.MCP;
 public class RootsServiceTests
 {
     [Fact]
-    public void ConvertFileUri_UnixPath_ReturnsLocalPath()
+    public void ConvertFileUri_UnixPath_ReturnsNormalisedPath()
     {
         var result = RootsService.ConvertFileUriToPath("file:///home/user/project");
-        Assert.Equal("/home/user/project", result);
+        // Path.GetFullPath normalises; on Unix the result is unchanged.
+        Assert.NotNull(result);
+        Assert.Equal("/home/user/project", result.Replace('\\', '/'));
     }
 
     [Fact]
-    public void ConvertFileUri_WindowsPath_ReturnsLocalPath()
+    public void ConvertFileUri_WindowsPath_ReturnsNormalisedPath()
     {
         var result = RootsService.ConvertFileUriToPath("file:///C:/Users/project");
         Assert.NotNull(result);
-        // On Unix, Uri.LocalPath returns "/C:/Users/project"; on Windows, "C:\Users\project"
+        // On both platforms, the path must end with C:/Users/project (separator may vary).
+        // On Windows: Path.GetFullPath strips leading / and uses backslashes.
+        // On Unix: the path stays as-is (no drive letters on Unix).
         Assert.EndsWith("C:/Users/project", result.Replace('\\', '/'));
+    }
+
+    [Fact]
+    public void ConvertFileUri_WindowsLowercaseDrive_ReturnsNormalisedPath()
+    {
+        // VS Code on Windows sends lowercase drive letters
+        var result = RootsService.ConvertFileUriToPath("file:///c:/Users/project");
+        Assert.NotNull(result);
+        Assert.EndsWith("c:/Users/project", result.Replace('\\', '/'));
     }
 
     [Fact]
@@ -48,6 +61,17 @@ public class RootsServiceTests
     public void ConvertFileUri_EncodedSpaces_DecodesCorrectly()
     {
         var result = RootsService.ConvertFileUriToPath("file:///home/user/my%20project");
-        Assert.Equal("/home/user/my project", result);
+        Assert.NotNull(result);
+        Assert.Contains("my project", result);
+    }
+
+    [Fact]
+    public void ConvertFileUri_ResultIsFullPath()
+    {
+        // Path.GetFullPath always returns an absolute path
+        var result = RootsService.ConvertFileUriToPath("file:///home/user/project");
+        Assert.NotNull(result);
+        Assert.True(Path.IsPathFullyQualified(result),
+            $"Expected fully-qualified path but got: {result}");
     }
 }
