@@ -26,6 +26,10 @@ Scaffold components in dependency order:
 3. **Relationships** — after both source and target entities exist
 4. **Forms** — after entity and its attributes exist
 5. **Views** — after entity and its attributes exist
+6. **Separate projects** (Plugin, ScriptLibrary, WorkflowActivity, CodeApp, PCF) — scaffold with their respective `pp-*` template, creates a separate .csproj
+7. **Project Reference** — `dotnet add reference` from solution project to the separate project. The Build SDK auto-detects the project type and handles registration (assembly data.xml, web resource data.xml, etc.) during `dotnet build`
+8. **Ribbon Buttons** (`pp-ribbon-button`) — after entity and script library exist. References the web resource via `LibraryLogicalName=prefix_name`
+9. **Form Event Handlers** (`pp-form-event-handler`) — after entity, form, and script library exist. References via `libraryName=prefix_name.js` and `functionName=prefix_name.ClassName.methodName`
 
 ## Key Parameter Conventions
 
@@ -46,6 +50,9 @@ Some templates use C# file-based apps (`.cs`) for code generation. These run nat
 - ❌ Don't scaffold a Form or View before the Entity and its Attributes exist — XML references will break
 - ❌ Don't scaffold a Relationship if the target table hasn't been created yet
 - ❌ Don't run `pp-plugin-assembly` before building the plugin project (`dotnet build`) — it reads the compiled DLL
+- ❌ Don't run `pp-webresource` for script libraries — the Build SDK auto-generates the web resource when a ScriptLibrary project is referenced via `dotnet add reference`
+- ❌ Don't call `npm install` or `npm run build` manually for script libraries — `dotnet build` handles everything
+- ❌ Don't manually create assembly data.xml for plugins or workflow activities — the Build SDK auto-generates them from project references
 - ✅ Use environment tools only for inspection, troubleshooting, or emergency fixes
 
 See also: [project-structure](project-structure.md), [schema-management](schema-management.md)
