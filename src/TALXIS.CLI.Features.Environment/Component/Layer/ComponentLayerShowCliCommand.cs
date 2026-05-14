@@ -9,8 +9,8 @@ namespace TALXIS.CLI.Features.Environment.Component.Layer;
 
 [CliReadOnly]
 [CliCommand(
-    Name = "show",
-    Description = "Show the active layer component definition as JSON."
+    Name = "get",
+    Description = "Get the active layer component definition as JSON."
 )]
 public class ComponentLayerShowCliCommand : ProfiledCliCommand
 {

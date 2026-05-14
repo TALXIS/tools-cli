@@ -14,8 +14,8 @@ namespace TALXIS.CLI.Features.Environment.OptionSet;
 /// </summary>
 [CliReadOnly]
 [CliCommand(
-    Name = "show",
-    Description = "Show values and labels for a global or local option set."
+    Name = "get",
+    Description = "Get values and labels for a global or local option set."
 )]
 #pragma warning disable TXC003
 public class OptionSetShowCliCommand : ProfiledCliCommand

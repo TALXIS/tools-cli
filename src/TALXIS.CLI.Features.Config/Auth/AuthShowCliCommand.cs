@@ -16,8 +16,8 @@ namespace TALXIS.CLI.Features.Config.Auth;
 /// </summary>
 [CliReadOnly]
 [CliCommand(
-    Name = "show",
-    Description = "Show a stored credential's non-secret fields as JSON."
+    Name = "get",
+    Description = "Get a stored credential's non-secret fields as JSON."
 )]
 public class AuthShowCliCommand : TxcLeafCommand
 {

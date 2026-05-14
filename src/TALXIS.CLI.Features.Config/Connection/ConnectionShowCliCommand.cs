@@ -14,8 +14,8 @@ namespace TALXIS.CLI.Features.Config.Connection;
 /// </summary>
 [CliReadOnly]
 [CliCommand(
-    Name = "show",
-    Description = "Show a single connection as JSON. Exit 2 if not found."
+    Name = "get",
+    Description = "Get a single connection as JSON. Exit 2 if not found."
 )]
 public class ConnectionShowCliCommand : TxcLeafCommand
 {

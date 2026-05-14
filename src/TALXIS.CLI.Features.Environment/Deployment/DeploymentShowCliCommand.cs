@@ -10,8 +10,8 @@ namespace TALXIS.CLI.Features.Environment.Deployment;
 
 [CliReadOnly]
 [CliCommand(
-    Name = "show",
-    Description = "Show details and findings for a single deployment run. Specify exactly one of --package-run-id, --solution-run-id, --async-operation-id, --package-name, --solution-name, or --latest."
+    Name = "get",
+    Description = "Get details and findings for a single deployment run. Specify exactly one of --package-run-id, --solution-run-id, --async-operation-id, --package-name, --solution-name, or --latest."
 )]
 public class DeploymentShowCliCommand : ProfiledCliCommand
 {

@@ -7,7 +7,8 @@ using TALXIS.CLI.Logging;
 namespace TALXIS.CLI.Features.Docs;
 
 [CliCommand(
-    Description = "Shows the full content of a skill from the knowledge base."
+    Name = "get",
+    Description = "Get the full content of a skill from the knowledge base."
 )]
 [CliReadOnly]
 public class DocsShowCliCommand : TxcLeafCommand
@@ -21,7 +22,7 @@ public class DocsShowCliCommand : TxcLeafCommand
     {
         if (string.IsNullOrWhiteSpace(SkillId))
         {
-            Logger.LogError("Skill ID is required. Run 'txc docs list' to see available skills.");
+            Logger.LogError("Skill ID is required. Run `txc docs list` to see available skills.");
             return Task.FromResult(ExitValidationError);
         }
 
@@ -34,7 +35,7 @@ public class DocsShowCliCommand : TxcLeafCommand
 
         if (resourceName is null)
         {
-            Logger.LogError("Skill '{SkillId}' not found. Run 'txc docs list' to see available skills.", SkillId);
+            Logger.LogError("Skill '{SkillId}' not found. Run `txc docs list` to see available skills.", SkillId);
             return Task.FromResult(ExitValidationError);
         }
 

@@ -10,7 +10,7 @@ namespace TALXIS.CLI.Features.Environment.Component.Layer;
 
 [CliDestructive("Permanently removes unmanaged customizations from the component. This cannot be undone.")]
 [CliCommand(
-    Name = "remove-customization",
+    Name = "remove",
     Description = "Remove the unmanaged active layer from a component, reverting to the highest managed layer."
 )]
 public class ComponentLayerRemoveCustomizationCliCommand : ProfiledCliCommand, IDestructiveCommand

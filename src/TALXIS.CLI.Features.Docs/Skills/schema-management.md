@@ -10,7 +10,7 @@
 
 ## Available Operations
 
-Use `guide_environment` to discover environment schema tools and their parameters. Operations cover entities, attributes, relationships, and option sets (list, show, create, update, delete).
+Use `guide_environment` to discover environment schema tools and their parameters. Operations cover entities, attributes, relationships, and option sets (list, get, create, update, delete).
 
 ## Key Rules
 

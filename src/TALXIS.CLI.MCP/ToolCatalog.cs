@@ -212,7 +212,7 @@ public class ToolCatalog
             "environment_solution_create",
             "environment_solution_delete",
             "environment_solution_list",
-            "environment_solution_show",
+            "environment_solution_get",
             "environment_solution_uninstall-check",
             "environment_solution_component_",
             "environment_package_",

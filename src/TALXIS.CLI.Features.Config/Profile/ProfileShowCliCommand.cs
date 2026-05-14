@@ -16,8 +16,8 @@ namespace TALXIS.CLI.Features.Config.Profile;
 /// </summary>
 [CliReadOnly]
 [CliCommand(
-    Name = "show",
-    Description = "Show a profile with its expanded connection + credential. Defaults to the active profile."
+    Name = "get",
+    Description = "Get a profile with its expanded connection + credential. Defaults to the active profile."
 )]
 public class ProfileShowCliCommand : TxcLeafCommand
 {
