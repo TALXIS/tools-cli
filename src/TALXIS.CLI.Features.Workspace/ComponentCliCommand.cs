@@ -12,6 +12,7 @@ namespace TALXIS.CLI.Features.Workspace;
     Alias = "comp",
     Children = new[]
     {
+        typeof(ComponentListCliCommand),
         typeof(ComponentCreateCliCommand),
     },
     ShortFormAutoGenerate = CliNameAutoGenerate.None)]
