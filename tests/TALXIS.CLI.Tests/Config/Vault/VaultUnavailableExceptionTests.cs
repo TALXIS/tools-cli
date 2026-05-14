@@ -22,7 +22,6 @@ public sealed class VaultUnavailableExceptionTests
         Assert.Contains("TXC_TOKEN_CACHE_MODE=file", ex.Message);
         // Cross-platform fallback
         Assert.Contains("TXC_PLAINTEXT_FALLBACK", ex.Message);
-        Assert.Contains("--plaintext-fallback", ex.Message);
     }
 
     [Fact]

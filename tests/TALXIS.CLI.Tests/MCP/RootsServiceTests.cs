@@ -9,9 +9,10 @@ public class RootsServiceTests
     public void ConvertFileUri_UnixPath_ReturnsNormalisedPath()
     {
         var result = RootsService.ConvertFileUriToPath("file:///home/user/project");
-        // Path.GetFullPath normalises; on Unix the result is unchanged.
         Assert.NotNull(result);
-        Assert.Equal("/home/user/project", result.Replace('\\', '/'));
+        // Path.GetFullPath may prepend a drive root on Windows, so assert the
+        // meaningful suffix rather than an exact match.
+        Assert.EndsWith("home/user/project", result.Replace('\\', '/'));
     }
 
     [Fact]

@@ -85,6 +85,16 @@ internal sealed class RootsService
         // Path.GetFullPath normalises separators and resolves platform
         // differences (e.g. stripping the leading '/' from '/C:/...' on
         // Windows, converting '/' → '\\', etc.).
-        return Path.GetFullPath(parsed.LocalPath);
+        try
+        {
+            return Path.GetFullPath(parsed.LocalPath);
+        }
+        catch (Exception)
+        {
+            // Malformed URI path that the OS cannot normalise (e.g. invalid
+            // characters for the current platform). Fall back to null so the
+            // server uses its own CWD rather than crashing.
+            return null;
+        }
     }
 }

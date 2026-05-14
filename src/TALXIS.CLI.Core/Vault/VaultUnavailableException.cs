@@ -17,8 +17,8 @@ public sealed class VaultUnavailableException : Exception
         "OS credential vault is unavailable. " +
         "On Linux install `libsecret-1-0` and `gnome-keyring` (or run inside a desktop session with D-Bus). " +
         "On macOS set `TXC_TOKEN_CACHE_MODE=file` if Keychain is unavailable. " +
-        "To opt in to a plaintext file fallback on any platform, re-run with " +
-        "`--plaintext-fallback` or set `TXC_PLAINTEXT_FALLBACK=1`.";
+        "To opt in to a plaintext file fallback on any platform, set " +
+        "`TXC_PLAINTEXT_FALLBACK=1`.";
 
     public VaultUnavailableException()
         : base(RemedyMessage) { }
