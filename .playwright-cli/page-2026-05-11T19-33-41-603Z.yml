@@ -1,9 +1,0 @@
-- generic [ref=e5]:
-  - banner [ref=e7]:
-    - button "Skip to main content" [ref=e8]
-  - generic [ref=e13]:
-    - tablist [ref=e16]:
-      - tab [ref=e17] [cursor=pointer]:
-        - generic [ref=e21]: 
-    - main [ref=e23]:
-      - progressbar [ref=e26]
