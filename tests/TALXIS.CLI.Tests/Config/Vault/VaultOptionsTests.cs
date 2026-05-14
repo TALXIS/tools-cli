@@ -64,17 +64,39 @@ public sealed class VaultOptionsTests
     }
 
     [Fact]
-    public void Secrets_IgnoresEnvVars_OnWindows()
+    public void Secrets_HonorsPlaintextFallbackEnvVar_OnWindows()
     {
         if (!OperatingSystem.IsWindows())
             return;
         var env = new StubEnv(new Dictionary<string, string?>
         {
-            [VaultOptions.LinuxPlaintextEnvVar] = "1",
+            [VaultOptions.PlaintextFallbackEnvVar] = "1",
+        });
+        var o = VaultOptions.Secrets(env);
+        Assert.True(o.UsePlaintextFallback);
+        Assert.Contains("TXC_PLAINTEXT_FALLBACK", o.PlaintextReason);
+    }
+
+    [Fact]
+    public void Secrets_IgnoresMacFileModeEnvVar_OnWindows()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+        var env = new StubEnv(new Dictionary<string, string?>
+        {
             [VaultOptions.MacFileModeEnvVar] = "file",
         });
         var o = VaultOptions.Secrets(env);
         Assert.False(o.UsePlaintextFallback);
+    }
+
+    [Fact]
+    public void Secrets_HonorsPlaintextFallbackEnvVar_OnAllPlatforms()
+    {
+        var env = new StubEnv(new Dictionary<string, string?> { [VaultOptions.PlaintextFallbackEnvVar] = "1" });
+        var o = VaultOptions.Secrets(env);
+        Assert.True(o.UsePlaintextFallback);
+        Assert.Contains("TXC_PLAINTEXT_FALLBACK", o.PlaintextReason);
     }
 
     [Fact]

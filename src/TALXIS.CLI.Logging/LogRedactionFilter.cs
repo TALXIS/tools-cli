@@ -41,7 +41,7 @@ public static partial class LogRedactionFilter
         // Replace home directory paths with ~
         if (!string.IsNullOrEmpty(HomePath))
         {
-            message = message.Replace(HomePath, "~");
+            message = message.Replace(HomePath, "~", StringComparison.OrdinalIgnoreCase);
         }
 
         return message;

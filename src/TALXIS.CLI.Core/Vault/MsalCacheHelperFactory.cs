@@ -14,12 +14,10 @@ internal static class MsalCacheHelperFactory
 {
     /// <summary>
     /// Creates and verifies an <see cref="MsalCacheHelper"/>. On
-    /// <see cref="MsalCachePersistenceException"/>:
-    /// <list type="bullet">
-    ///   <item>Windows → hard error (DPAPI should always be available).</item>
-    ///   <item>Linux with <c>TXC_PLAINTEXT_FALLBACK=1</c> or <paramref name="options"/>.UsePlaintextFallback → plaintext file fallback with warning.</item>
-    ///   <item>Otherwise → throw <see cref="VaultUnavailableException"/>.</item>
-    /// </list>
+    /// <see cref="MsalCachePersistenceException"/> throws
+    /// <see cref="VaultUnavailableException"/> with a platform-specific remedy
+    /// hint. Set <c>TXC_PLAINTEXT_FALLBACK=1</c> on any platform to use an
+    /// unencrypted file fallback.
     /// </summary>
     public static async Task<MsalCacheHelper> CreateAsync(
         VaultOptions options,
@@ -45,15 +43,24 @@ internal static class MsalCacheHelperFactory
         }
         catch (MsalCachePersistenceException ex)
         {
-            if (OperatingSystem.IsWindows() || OperatingSystem.IsMacOS())
-                throw new VaultUnavailableException(ex);
-
+            string hint = GetPlatformHint();
             logger.LogWarning(ex,
-                "OS credential vault (libsecret) is unavailable; no plaintext opt-in set. " +
-                "Set {EnvVar}=1 to use a plaintext file fallback at chmod 600.",
-                VaultOptions.LinuxPlaintextEnvVar);
+                "OS credential vault is unavailable. {Hint} " +
+                "Set {EnvVar}=1 to use a plaintext file fallback.",
+                hint, VaultOptions.PlaintextFallbackEnvVar);
             throw new VaultUnavailableException(ex);
         }
+    }
+
+    /// <summary>Returns a user-facing hint appropriate for the current OS.</summary>
+    private static string GetPlatformHint()
+    {
+        if (OperatingSystem.IsWindows())
+            return "DPAPI is not available in this environment (container or restricted account).";
+        if (OperatingSystem.IsMacOS())
+            return $"Keychain is not available. You can also set {VaultOptions.MacFileModeEnvVar}=file.";
+        // Linux
+        return "Install `libsecret-1-0` and `gnome-keyring`, or run inside a desktop session with D-Bus.";
     }
 
     private static async Task<MsalCacheHelper> CreatePlaintextAsync(
@@ -62,10 +69,12 @@ internal static class MsalCacheHelperFactory
         ILogger logger)
     {
         var fallbackPath = Path.Combine(paths.AuthDirectory, options.FallbackCacheFileName);
+        var permissionNote = OperatingSystem.IsWindows()
+            ? "Secrets are NOT protected by the OS; rely on NTFS ACLs only."
+            : "Secrets are NOT protected by the OS; rely on file permissions (chmod 600) only.";
         logger.LogWarning(
-            "Vault using PLAINTEXT file-based storage at {Path} (opt-in: {Reason}). " +
-            "Secrets are NOT protected by the OS; rely on POSIX file permissions (chmod 600) only.",
-            fallbackPath, options.PlaintextReason ?? "explicit");
+            "Vault using PLAINTEXT file-based storage at {Path} (opt-in: {Reason}). {PermissionNote}",
+            fallbackPath, options.PlaintextReason ?? "explicit", permissionNote);
 
         var props = new StorageCreationPropertiesBuilder(options.FallbackCacheFileName, paths.AuthDirectory)
             .WithUnprotectedFile()
