@@ -1,4 +1,6 @@
 using System.ComponentModel;
+using System.Diagnostics;
+using System.Xml.Linq;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
@@ -18,8 +20,9 @@ public class SolutionImportCliCommand : ProfiledCliCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(SolutionImportCliCommand));
 
-    [CliArgument(Name = "solution-path", Description = "Path to a solution .zip file, an unpacked solution folder, or a project directory (.cdsproj/.csproj).")]
-    public string SolutionZip { get; set; } = null!;
+    [CliArgument(Name = "solution-path", Description = "Path to a solution .zip file, an unpacked solution folder, or a project directory (.cdsproj/.csproj). Defaults to current directory.")]
+    [DefaultValue(".")]
+    public string SolutionZip { get; set; } = ".";
 
     [CliOption(Name = "--stage-and-upgrade", Description = "Use single-step upgrade when applicable.", Required = false)]
     [DefaultValue(true)]
@@ -45,29 +48,44 @@ public class SolutionImportCliCommand : ProfiledCliCommand
 
     protected override async Task<int> ExecuteAsync()
     {
-        if (string.IsNullOrWhiteSpace(SolutionZip))
-        {
-            Logger.LogError("'solution-path' argument is required.");
-            return ExitValidationError;
-        }
-
         string solutionPath = Path.GetFullPath(SolutionZip);
         string? tempZipPath = null;
 
         // Auto-detect input format:
         // 1. ZIP file → use directly
-        // 2. Directory with *.cdsproj → unpacked solution root is <dir>/src
-        // 3. Directory with Other/Solution.xml → unpacked solution folder
-        // 4. Directory → treated as unpacked solution folder
+        // 2. Directory with Build SDK .csproj → dotnet build, use output ZIP
+        // 3. Directory with *.cdsproj → unpacked solution root is <dir>/src
+        // 4. Directory with Other/Solution.xml → unpacked solution folder
+        // 5. Directory → treated as unpacked solution folder
         if (Directory.Exists(solutionPath))
         {
             // Check for Dataverse project convention: <project-dir>/src is the solution root.
             // *.cdsproj is the Dataverse convention (always use src/).
-            // *.csproj is checked as a fallback but only used if src/ exists (avoids false
-            // positives with non-Dataverse C# projects in the same directory).
+            // *.csproj is checked as a fallback — Build SDK projects are built directly,
+            // others only used if src/ exists (avoids false positives with non-Dataverse C# projects).
             var srcFolder = Path.Combine(solutionPath, "src");
             var hasCdsProj = Directory.GetFiles(solutionPath, "*.cdsproj").Length > 0;
-            var hasCsProj = Directory.GetFiles(solutionPath, "*.csproj").Length > 0;
+            var csProjFiles = Directory.GetFiles(solutionPath, "*.csproj");
+            var hasCsProj = csProjFiles.Length > 0;
+
+            // Build SDK projects: run dotnet build and use the output ZIP directly
+            if (hasCsProj && !hasCdsProj)
+            {
+                var buildSdkProj = FindBuildSdkProject(csProjFiles);
+                if (buildSdkProj is not null)
+                {
+                    var zipPath = await BuildAndLocateZipAsync(buildSdkProj);
+                    if (zipPath is null)
+                        return ExitError;
+                    solutionPath = zipPath;
+                }
+                else if (Directory.Exists(srcFolder))
+                {
+                    // .csproj with src/ subfolder — likely a Dataverse project (non-Build SDK)
+                    Logger.LogInformation("Found .csproj with src/ folder — using '{SrcFolder}' as solution root.", srcFolder);
+                    solutionPath = srcFolder;
+                }
+            }
 
             if (hasCdsProj)
             {
@@ -82,16 +100,13 @@ public class SolutionImportCliCommand : ProfiledCliCommand
                     return ExitValidationError;
                 }
             }
-            else if (hasCsProj && Directory.Exists(srcFolder))
-            {
-                // .csproj with src/ subfolder — likely a Dataverse project
-                Logger.LogInformation("Found .csproj with src/ folder — using '{SrcFolder}' as solution root.", srcFolder);
-                solutionPath = srcFolder;
-            }
-            // Otherwise: treat directory as-is (unpacked solution folder)
 
-            Logger.LogInformation("Input is a folder — packing to ZIP before import...");
-            tempZipPath = Path.Combine(Path.GetTempPath(), $"txc_import_{Guid.NewGuid():N}.zip");
+            // If we didn't resolve to a ZIP via Build SDK, pack the folder
+            if (Directory.Exists(solutionPath))
+            {
+                Logger.LogInformation("Input is a folder — packing to ZIP before import...");
+                tempZipPath = Path.Combine(Path.GetTempPath(), $"txc_import_{Guid.NewGuid():N}.zip");
+            }
         }
         else if (!File.Exists(solutionPath))
         {
@@ -167,4 +182,72 @@ public class SolutionImportCliCommand : ProfiledCliCommand
         SolutionImportPath.Upgrade => "single-step upgrade",
         _ => path.ToString()
     };
+
+    /// <summary>
+    /// Returns the first .csproj that uses TALXIS.DevKit.Build.Sdk, or null if none match.
+    /// </summary>
+    private static string? FindBuildSdkProject(string[] csProjFiles)
+    {
+        foreach (var proj in csProjFiles)
+        {
+            var content = File.ReadAllText(proj);
+            if (content.Contains("TALXIS.DevKit.Build.Sdk", StringComparison.OrdinalIgnoreCase))
+                return proj;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Runs <c>dotnet build</c> on a Build SDK project and locates the output ZIP.
+    /// Returns the ZIP path on success, or null on failure.
+    /// </summary>
+    private async Task<string?> BuildAndLocateZipAsync(string csProjPath)
+    {
+        var config = Managed ? "Release" : "Debug";
+        Logger.LogInformation("Building '{Project}' with configuration '{Config}'...", Path.GetFileName(csProjPath), config);
+
+        var psi = new ProcessStartInfo
+        {
+            FileName = "dotnet",
+            Arguments = $"build \"{csProjPath}\" -c {config}",
+            WorkingDirectory = Path.GetDirectoryName(csProjPath),
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        using var process = new Process { StartInfo = psi };
+        process.OutputDataReceived += (_, e) => { if (e.Data is not null) Logger.LogInformation("{Line}", e.Data); };
+        process.ErrorDataReceived += (_, e) => { if (e.Data is not null) Logger.LogWarning("{Line}", e.Data); };
+        process.Start();
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
+        await process.WaitForExitAsync().ConfigureAwait(false);
+
+        if (process.ExitCode != 0)
+        {
+            Logger.LogError("dotnet build failed with exit code {ExitCode}.", process.ExitCode);
+            return null;
+        }
+
+        // Build SDK convention: output ZIP is in bin/{config}/net462/*.zip
+        var outputDir = Path.Combine(Path.GetDirectoryName(csProjPath)!, "bin", config, "net462");
+        if (!Directory.Exists(outputDir))
+        {
+            Logger.LogError("Build output directory not found: {OutputDir}.", outputDir);
+            return null;
+        }
+
+        var zipFiles = Directory.GetFiles(outputDir, "*.zip");
+        if (zipFiles.Length == 0)
+        {
+            Logger.LogError("No .zip file found in build output directory: {OutputDir}.", outputDir);
+            return null;
+        }
+
+        var zipPath = zipFiles[0];
+        Logger.LogInformation("Using build output: {ZipPath}", zipPath);
+        return zipPath;
+    }
 }
