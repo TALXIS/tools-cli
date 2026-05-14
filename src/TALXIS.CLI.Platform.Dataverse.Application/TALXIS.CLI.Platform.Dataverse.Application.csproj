@@ -9,15 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.PowerPlatform.Dataverse.Client" Version="1.2.10" />
-    <!-- SolutionPackagerLib for solution pack/unpack — the DLL is a managed .NET assembly (cross-platform). -->
-    <PackageReference Include="Microsoft.PowerApps.CLI.Core.linux-x64" Version="2.6.4" GeneratePathProperty="true" ExcludeAssets="all" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Reference Include="SolutionPackagerLib">
-      <HintPath>$(PkgMicrosoft_PowerApps_CLI_Core_linux-x64)\tools\SolutionPackagerLib.dll</HintPath>
-      <Private>true</Private>
-    </Reference>
+    <PackageReference Include="TALXIS.Platform.Metadata.Packaging" Version="0.4.0" />
   </ItemGroup>
 
   <ItemGroup>
