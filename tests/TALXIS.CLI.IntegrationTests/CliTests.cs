@@ -19,7 +19,7 @@ public class CliTests
     [InlineData("environment solution uninstall --help")]
     [InlineData("environment solution list --help")]
     [InlineData("environment deployment list --help")]
-    [InlineData("environment deployment show --help")]
+    [InlineData("environment deployment get --help")]
     [InlineData("environment --help")]
     public async Task Command_ExecutesSuccessfully(string command)
     {

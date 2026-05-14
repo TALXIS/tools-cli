@@ -10,7 +10,7 @@ namespace TALXIS.CLI.IntegrationTests.Config;
 /// Uses an isolated <c>TXC_CONFIG_DIR</c> so the test never touches the
 /// developer's real <c>~/.txc</c>. Exercises the full profile lifecycle:
 /// connection create → auth add-service-principal → profile create →
-/// profile select → profile show → profile list → profile delete.
+/// profile select → profile get → profile list → profile delete.
 ///
 /// The SPN credential is registered via the <c>--secret-from-env</c>
 /// code path so the test stays fully non-interactive and portable across
@@ -89,7 +89,7 @@ public class ProfileEndToEndTests : IDisposable
 
         // 6. Show includes connection + credential refs.
         var show = await CliRunner.RunRawAsync(
-            new[] { "config", "profile", "show", "e2e-profile" }, env: _env);
+            new[] { "config", "profile", "get", "e2e-profile" }, env: _env);
         Assert.Equal(0, show.ExitCode);
         Assert.Contains("e2e-sp", show.Output);
         Assert.Contains("e2e-conn", show.Output);
@@ -111,10 +111,10 @@ public class ProfileEndToEndTests : IDisposable
     [Fact]
     public async Task Profile_Show_MissingProfile_FailsFast()
     {
-        // No profile exists; show should fail with a clear non-zero exit
+        // No profile exists; get should fail with a clear non-zero exit
         // rather than hanging or prompting.
         var result = await CliRunner.RunRawAsync(
-            new[] { "config", "profile", "show", "does-not-exist" }, env: _env);
+            new[] { "config", "profile", "get", "does-not-exist" }, env: _env);
         Assert.NotEqual(0, result.ExitCode);
     }
 }
