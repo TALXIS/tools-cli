@@ -139,7 +139,7 @@ Deploy, inspect, and manage solutions and packages in the target environment.
 ```sh
 # Deploy a package straight from NuGet, inspect the result
 txc env pkg import TALXIS.Controls.FileExplorer.Package
-txc env deploy show --package-name TALXIS.Controls.FileExplorer.Package
+txc env deploy get --package-name TALXIS.Controls.FileExplorer.Package
 
 # Import a solution, target a different environment for one call
 txc env sln import ./Solutions/MySolution_managed.zip --profile customer-b-prod
@@ -163,7 +163,7 @@ txc env sln unpack ./export/MySolution.zip --output ./src/MySolution/
 txc env sln pack ./src/MySolution/ --output ./out/MySolution.zip
 
 # Inspect solution metadata and component breakdown
-txc env sln show MySolution
+txc env sln get MySolution
 txc env sln component list MySolution --type entity
 
 # Drill into component layers and dependencies by name — no GUIDs needed

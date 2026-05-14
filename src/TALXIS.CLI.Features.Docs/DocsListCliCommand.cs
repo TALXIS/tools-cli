@@ -9,6 +9,7 @@ using TALXIS.CLI.Logging;
 namespace TALXIS.CLI.Features.Docs;
 
 [CliCommand(
+    Name = "list",
     Description = "Lists available skills in the knowledge base."
 )]
 [CliReadOnly]

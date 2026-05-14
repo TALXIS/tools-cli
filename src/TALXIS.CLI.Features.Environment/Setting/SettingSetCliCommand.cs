@@ -13,14 +13,14 @@ namespace TALXIS.CLI.Features.Environment.Setting;
 /// </summary>
 [CliIdempotent]
 [CliCommand(
-    Name = "update",
-    Description = "Updates a Dataverse environment-level setting on the LIVE connected environment. Requires an active profile. For LOCAL CLI preferences, use 'config setting set' instead."
+    Name = "set",
+    Description = "Sets a Dataverse environment-level setting on the LIVE connected environment. Requires an active profile. For LOCAL CLI preferences, use 'config setting set' instead."
 )]
-public class SettingUpdateCliCommand : ProfiledCliCommand
+public class SettingSetCliCommand : ProfiledCliCommand
 {
-    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(SettingUpdateCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(SettingSetCliCommand));
 
-    [CliArgument(Description = "Name of the setting to update (e.g. PowerApps_AllowCodeApps, isauditenabled).")]
+    [CliArgument(Description = "Name of the setting to set (e.g. PowerApps_AllowCodeApps, isauditenabled).")]
     public required string Name { get; set; }
 
     [CliArgument(Description = "Value to set. Booleans (true/false) and integers are auto-coerced.")]

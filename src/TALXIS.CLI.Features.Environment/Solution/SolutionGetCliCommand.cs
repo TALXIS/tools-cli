@@ -9,12 +9,12 @@ namespace TALXIS.CLI.Features.Environment.Solution;
 
 [CliReadOnly]
 [CliCommand(
-    Name = "show",
-    Description = "Show detailed information about an installed solution."
+    Name = "get",
+    Description = "Get detailed information about an installed solution."
 )]
-public class SolutionShowCliCommand : ProfiledCliCommand
+public class SolutionGetCliCommand : ProfiledCliCommand
 {
-    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(SolutionShowCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(SolutionGetCliCommand));
 
     [CliArgument(Name = "name", Description = "Solution unique name.")]
     public string Name { get; set; } = null!;

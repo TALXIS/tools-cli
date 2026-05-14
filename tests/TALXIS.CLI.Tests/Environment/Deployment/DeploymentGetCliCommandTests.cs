@@ -5,7 +5,7 @@ using Xunit;
 namespace TALXIS.CLI.Tests.Environment.Deployment;
 
 /// <summary>
-/// Validates that <see cref="DeploymentShowCliCommand"/> exposes exactly the
+/// Validates that <see cref="DeploymentGetCliCommand"/> exposes exactly the
 /// typed selectors the design mandates and that they are mutually exclusive.
 ///
 /// The command rejects "nothing specified" and "more than one specified" via
@@ -13,14 +13,14 @@ namespace TALXIS.CLI.Tests.Environment.Deployment;
 /// so we can exercise the guard by invoking the command directly with no live
 /// connection. Validation errors return <see cref="TxcLeafCommand.ExitValidationError"/> (2).
 /// </summary>
-public class DeploymentShowCliCommandTests
+public class DeploymentGetCliCommandTests
 {
     private const int ExitValidationError = 2;
 
     [Fact]
     public async Task RunAsync_NoSelectorSpecified_ReturnsValidationError()
     {
-        var cmd = new DeploymentShowCliCommand();
+        var cmd = new DeploymentGetCliCommand();
 
         var exit = await cmd.RunAsync();
 
@@ -30,7 +30,7 @@ public class DeploymentShowCliCommandTests
     [Fact]
     public async Task RunAsync_MultipleSelectorsSpecified_ReturnsValidationError()
     {
-        var cmd = new DeploymentShowCliCommand
+        var cmd = new DeploymentGetCliCommand
         {
             PackageRunId = Guid.NewGuid().ToString(),
             SolutionRunId = Guid.NewGuid().ToString(),
@@ -44,7 +44,7 @@ public class DeploymentShowCliCommandTests
     [Fact]
     public async Task RunAsync_LatestAndNameTogether_ReturnsValidationError()
     {
-        var cmd = new DeploymentShowCliCommand
+        var cmd = new DeploymentGetCliCommand
         {
             Latest = true,
             PackageName = "Some.Package",
@@ -58,7 +58,7 @@ public class DeploymentShowCliCommandTests
     [Fact]
     public async Task RunAsync_InvalidPackageRunIdGuid_ReturnsValidationError()
     {
-        var cmd = new DeploymentShowCliCommand
+        var cmd = new DeploymentGetCliCommand
         {
             PackageRunId = "not-a-guid",
         };
@@ -71,7 +71,7 @@ public class DeploymentShowCliCommandTests
     [Fact]
     public async Task RunAsync_EmptyPackageName_ReturnsValidationError()
     {
-        var cmd = new DeploymentShowCliCommand
+        var cmd = new DeploymentGetCliCommand
         {
             PackageName = "   ",
         };

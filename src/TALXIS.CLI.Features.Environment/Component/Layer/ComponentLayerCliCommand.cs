@@ -8,8 +8,8 @@ namespace TALXIS.CLI.Features.Environment.Component.Layer;
     Children = new[]
     {
         typeof(ComponentLayerListCliCommand),
-        typeof(ComponentLayerShowCliCommand),
-        typeof(ComponentLayerRemoveCustomizationCliCommand),
+        typeof(ComponentLayerGetCliCommand),
+        typeof(ComponentLayerRemoveCliCommand),
     },
     ShortFormAutoGenerate = CliNameAutoGenerate.None
 )]

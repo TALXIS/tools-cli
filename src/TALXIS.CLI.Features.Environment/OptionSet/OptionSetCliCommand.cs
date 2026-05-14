@@ -13,7 +13,7 @@ namespace TALXIS.CLI.Features.Environment.OptionSet;
     Children = new[]
     {
         typeof(OptionSetListCliCommand),
-        typeof(OptionSetShowCliCommand),
+        typeof(OptionSetGetCliCommand),
         typeof(OptionSetCreateCliCommand),
         typeof(OptionSetDeleteCliCommand),
         typeof(OptionSetOptionCliCommand)
@@ -37,8 +37,8 @@ public class OptionSetCliCommand
     Description = "Add or remove individual values in an option set.",
     Children = new[]
     {
-        typeof(OptionSetAddOptionCliCommand),
-        typeof(OptionSetRemoveOptionCliCommand)
+        typeof(OptionSetOptionAddCliCommand),
+        typeof(OptionSetOptionRemoveCliCommand)
     },
     ShortFormAutoGenerate = CliNameAutoGenerate.None
 )]

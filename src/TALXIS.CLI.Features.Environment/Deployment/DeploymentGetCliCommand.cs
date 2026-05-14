@@ -10,12 +10,12 @@ namespace TALXIS.CLI.Features.Environment.Deployment;
 
 [CliReadOnly]
 [CliCommand(
-    Name = "show",
-    Description = "Show details and findings for a single deployment run. Specify exactly one of --package-run-id, --solution-run-id, --async-operation-id, --package-name, --solution-name, or --latest."
+    Name = "get",
+    Description = "Get details and findings for a single deployment run. Specify exactly one of --package-run-id, --solution-run-id, --async-operation-id, --package-name, --solution-name, or --latest."
 )]
-public class DeploymentShowCliCommand : ProfiledCliCommand
+public class DeploymentGetCliCommand : ProfiledCliCommand
 {
-    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(DeploymentShowCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(DeploymentGetCliCommand));
 
     [CliOption(Name = "--package-run-id", Description = "GUID of a package deployment run (packagehistory row).", Required = false)]
     public string? PackageRunId { get; set; }

@@ -9,22 +9,19 @@ using TALXIS.CLI.Logging;
 namespace TALXIS.CLI.Features.Environment.OptionSet;
 
 /// <summary>
-/// Removes an option value from a global or local option set.
-/// Global: <c>txc environment optionset remove-option --name &lt;schema-name&gt; --value &lt;int&gt;</c>
-/// Local:  <c>txc environment optionset remove-option --entity &lt;name&gt; --attribute &lt;name&gt; --value &lt;int&gt;</c>
+/// Adds an option value to a global or local option set.
+/// Global: <c>txc environment optionset add-option --name &lt;schema-name&gt; --label &lt;text&gt;</c>
+/// Local:  <c>txc environment optionset add-option --entity &lt;name&gt; --attribute &lt;name&gt; --label &lt;text&gt;</c>
 /// </summary>
-[CliDestructive("Permanently removes the option value from the option set.")]
+[CliIdempotent]
 [CliCommand(
-    Name = "remove",
-    Description = "Remove an option value from a global or local option set."
+    Name = "add",
+    Description = "Add an option value to a global or local option set."
 )]
 #pragma warning disable TXC003
-public class OptionSetRemoveOptionCliCommand : StagedCliCommand, IDestructiveCommand
+public class OptionSetOptionAddCliCommand : StagedCliCommand
 {
-    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(OptionSetRemoveOptionCliCommand));
-
-    [CliOption(Name = "--yes", Description = "Skip interactive confirmation.", Required = false)]
-    public bool Yes { get; set; }
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(OptionSetOptionAddCliCommand));
 
     [CliOption(Name = "--name", Description = "Schema name of the global option set.", Required = false)]
     public string? Name { get; set; }
@@ -35,8 +32,11 @@ public class OptionSetRemoveOptionCliCommand : StagedCliCommand, IDestructiveCom
     [CliOption(Name = "--attribute", Description = "Attribute logical name (for local option sets).", Required = false)]
     public string? Attribute { get; set; }
 
-    [CliOption(Name = "--value", Description = "Integer value of the option to remove.", Required = true)]
-    public int Value { get; set; }
+    [CliOption(Name = "--label", Description = "Label for the new option.", Required = true)]
+    public string Label { get; set; } = null!;
+
+    [CliOption(Name = "--value", Description = "Integer value for the new option (auto-generated if omitted).", Required = false)]
+    public int? Value { get; set; }
 
     protected override async Task<int> ExecuteAsync()
     {
@@ -68,29 +68,30 @@ public class OptionSetRemoveOptionCliCommand : StagedCliCommand, IDestructiveCom
             store.Add(new StagedOperation
             {
                 Category = "schema",
-                OperationType = "DELETE",
+                OperationType = "CREATE",
                 TargetType = "optionset-option",
                 TargetDescription = stageTarget,
-                Details = $"remove option value: {Value}",
+                Details = $"add option: \"{Label}\"" + (Value.HasValue ? $" ({Value})" : ""),
                 Parameters = new Dictionary<string, object?>
                 {
                     ["entity"] = Entity,
                     ["attribute"] = Attribute,
                     ["name"] = Name,
+                    ["label"] = Label,
                     ["value"] = Value
                 }
             });
-            OutputWriter.WriteLine($"Staged: REMOVE option {Value} from {stageTarget}");
+            OutputWriter.WriteLine($"Staged: ADD option '{Label}' to {stageTarget}");
             return ExitSuccess;
         }
 
         var service = TxcServices.Get<IDataverseOptionSetService>();
-        await service.DeleteOptionAsync(
-            Profile, Entity, Attribute, Name, Value, CancellationToken.None
+        await service.InsertOptionAsync(
+            Profile, Entity, Attribute, Name, Label, Value, CancellationToken.None
         ).ConfigureAwait(false);
 
         string target = hasGlobal ? $"global option set '{Name}'" : $"attribute '{Attribute}' on entity '{Entity}'";
-        OutputWriter.WriteLine($"Option value {Value} removed from {target}.");
+        OutputWriter.WriteLine($"Option '{Label}' added to {target}.");
         return ExitSuccess;
     }
 }

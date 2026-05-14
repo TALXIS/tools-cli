@@ -7,12 +7,13 @@ using TALXIS.CLI.Logging;
 namespace TALXIS.CLI.Features.Docs;
 
 [CliCommand(
-    Description = "Shows the full content of a skill from the knowledge base."
+    Name = "get",
+    Description = "Get the full content of a skill from the knowledge base."
 )]
 [CliReadOnly]
-public class DocsShowCliCommand : TxcLeafCommand
+public class DocsGetCliCommand : TxcLeafCommand
 {
-    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger<DocsShowCliCommand>();
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger<DocsGetCliCommand>();
 
     [CliArgument(Description = "ID of the skill to show (e.g. 'component-creation', 'deployment-workflow')")]
     public string SkillId { get; set; } = "";
@@ -21,11 +22,11 @@ public class DocsShowCliCommand : TxcLeafCommand
     {
         if (string.IsNullOrWhiteSpace(SkillId))
         {
-            Logger.LogError("Skill ID is required. Run 'txc docs list' to see available skills.");
+            Logger.LogError("Skill ID is required. Run `txc docs list` to see available skills.");
             return Task.FromResult(ExitValidationError);
         }
 
-        var assembly = typeof(DocsShowCliCommand).Assembly;
+        var assembly = typeof(DocsGetCliCommand).Assembly;
 
         // Try exact match, then with underscores for hyphens
         var resourceName = assembly.GetManifestResourceNames()
@@ -34,7 +35,7 @@ public class DocsShowCliCommand : TxcLeafCommand
 
         if (resourceName is null)
         {
-            Logger.LogError("Skill '{SkillId}' not found. Run 'txc docs list' to see available skills.", SkillId);
+            Logger.LogError("Skill '{SkillId}' not found. Run `txc docs list` to see available skills.", SkillId);
             return Task.FromResult(ExitValidationError);
         }
 
