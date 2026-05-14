@@ -19,9 +19,9 @@ namespace TALXIS.CLI.Features.Config.Auth;
     Name = "get",
     Description = "Get a stored credential's non-secret fields as JSON."
 )]
-public class AuthShowCliCommand : TxcLeafCommand
+public class AuthGetCliCommand : TxcLeafCommand
 {
-    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(AuthShowCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(AuthGetCliCommand));
 
     [CliArgument(Description = "Credential alias (id).")]
     public required string Alias { get; set; }

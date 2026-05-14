@@ -123,7 +123,7 @@ public sealed class ProfileCommandsTests
         var sw = new StringWriter();
         int exit;
         using (OutputWriter.RedirectTo(sw))
-            exit = await new ProfileShowCliCommand().RunAsync();
+            exit = await new ProfileGetCliCommand().RunAsync();
 
         Assert.Equal(0, exit);
         using var doc = JsonDocument.Parse(sw.ToString());
@@ -137,7 +137,7 @@ public sealed class ProfileCommandsTests
     public async Task Show_ReturnsExit2_WhenNoActiveAndNoName()
     {
         using var host = new CommandTestHost();
-        var exit = await new ProfileShowCliCommand().RunAsync();
+        var exit = await new ProfileGetCliCommand().RunAsync();
         Assert.Equal(2, exit);
     }
 
@@ -145,7 +145,7 @@ public sealed class ProfileCommandsTests
     public async Task Show_ReturnsExit2_WhenNamedProfileMissing()
     {
         using var host = new CommandTestHost();
-        var exit = await new ProfileShowCliCommand { Name = "ghost" }.RunAsync();
+        var exit = await new ProfileGetCliCommand { Name = "ghost" }.RunAsync();
         Assert.Equal(2, exit);
     }
 

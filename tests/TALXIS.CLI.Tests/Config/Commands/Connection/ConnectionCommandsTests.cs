@@ -125,7 +125,7 @@ public sealed class ConnectionCommandsTests
     public async Task Show_ReturnsExit2_WhenMissing()
     {
         using var host = new CommandTestHost();
-        var exit = await new ConnectionShowCliCommand { Name = "ghost" }.RunAsync();
+        var exit = await new ConnectionGetCliCommand { Name = "ghost" }.RunAsync();
         Assert.Equal(2, exit);
     }
 
@@ -144,7 +144,7 @@ public sealed class ConnectionCommandsTests
         var sw = new StringWriter();
         int exit;
         using (OutputWriter.RedirectTo(sw))
-            exit = await new ConnectionShowCliCommand { Name = "only" }.RunAsync();
+            exit = await new ConnectionGetCliCommand { Name = "only" }.RunAsync();
         Assert.Equal(0, exit);
 
         using var doc = JsonDocument.Parse(sw.ToString());

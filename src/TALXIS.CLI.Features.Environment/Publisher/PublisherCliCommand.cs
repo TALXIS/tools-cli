@@ -5,7 +5,7 @@ namespace TALXIS.CLI.Features.Environment.Publisher;
 [CliCommand(
     Name = "publisher",
     Description = "Manage solution publishers in the target environment.",
-    Children = new[] { typeof(PublisherListCliCommand), typeof(PublisherShowCliCommand), typeof(PublisherCreateCliCommand), typeof(PublisherDeleteCliCommand) },
+    Children = new[] { typeof(PublisherListCliCommand), typeof(PublisherGetCliCommand), typeof(PublisherCreateCliCommand), typeof(PublisherDeleteCliCommand) },
     ShortFormAutoGenerate = CliNameAutoGenerate.None
 )]
 public class PublisherCliCommand

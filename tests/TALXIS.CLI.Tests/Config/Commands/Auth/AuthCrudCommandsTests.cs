@@ -52,7 +52,7 @@ public sealed class AuthCrudCommandsTests
         var sw = new StringWriter();
         int exit;
         using (OutputWriter.RedirectTo(sw))
-            exit = await new AuthShowCliCommand { Alias = "dev" }.RunAsync();
+            exit = await new AuthGetCliCommand { Alias = "dev" }.RunAsync();
 
         Assert.Equal(0, exit);
         using var doc = JsonDocument.Parse(sw.ToString());
@@ -64,7 +64,7 @@ public sealed class AuthCrudCommandsTests
     public async Task Show_ReturnsTwo_WhenAliasMissing()
     {
         using var host = new CommandTestHost();
-        var exit = await new AuthShowCliCommand { Alias = "nope" }.RunAsync();
+        var exit = await new AuthGetCliCommand { Alias = "nope" }.RunAsync();
         Assert.Equal(2, exit);
     }
 

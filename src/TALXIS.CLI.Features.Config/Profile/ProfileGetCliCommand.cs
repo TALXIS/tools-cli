@@ -19,9 +19,9 @@ namespace TALXIS.CLI.Features.Config.Profile;
     Name = "get",
     Description = "Get a profile with its expanded connection + credential. Defaults to the active profile."
 )]
-public class ProfileShowCliCommand : TxcLeafCommand
+public class ProfileGetCliCommand : TxcLeafCommand
 {
-    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ProfileShowCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ProfileGetCliCommand));
 
     [CliArgument(Description = "Profile name. If omitted, shows the active profile.", Required = false)]
     public string? Name { get; set; }

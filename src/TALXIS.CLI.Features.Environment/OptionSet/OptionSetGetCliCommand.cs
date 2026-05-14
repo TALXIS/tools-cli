@@ -18,9 +18,9 @@ namespace TALXIS.CLI.Features.Environment.OptionSet;
     Description = "Get values and labels for a global or local option set."
 )]
 #pragma warning disable TXC003
-public class OptionSetShowCliCommand : ProfiledCliCommand
+public class OptionSetGetCliCommand : ProfiledCliCommand
 {
-    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(OptionSetShowCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(OptionSetGetCliCommand));
 
     [CliOption(Name = "--name", Description = "Schema name of a global option set.", Required = false)]
     public string? Name { get; set; }

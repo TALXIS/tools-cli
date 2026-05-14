@@ -9,9 +9,9 @@ namespace TALXIS.CLI.Features.Environment.Publisher;
 
 [CliReadOnly]
 [CliCommand(Name = "get", Description = "Get details of a solution publisher.")]
-public class PublisherShowCliCommand : ProfiledCliCommand
+public class PublisherGetCliCommand : ProfiledCliCommand
 {
-    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(PublisherShowCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(PublisherGetCliCommand));
 
     [CliArgument(Name = "name", Description = "Publisher unique name.")]
     public string Name { get; set; } = null!;

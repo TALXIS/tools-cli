@@ -13,9 +13,9 @@ namespace TALXIS.CLI.Features.Environment.Component.Layer;
     Name = "remove",
     Description = "Remove the unmanaged active layer from a component, reverting to the highest managed layer."
 )]
-public class ComponentLayerRemoveCustomizationCliCommand : ProfiledCliCommand, IDestructiveCommand
+public class ComponentLayerRemoveCliCommand : ProfiledCliCommand, IDestructiveCommand
 {
-    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ComponentLayerRemoveCustomizationCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ComponentLayerRemoveCliCommand));
 
     [CliOption(Name = "--id", Description = "Component GUID (MetadataId / objectId). Required unless --entity is given.", Required = false)]
     public string? Id { get; set; }

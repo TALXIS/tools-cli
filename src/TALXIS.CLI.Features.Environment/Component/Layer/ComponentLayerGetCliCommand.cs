@@ -12,9 +12,9 @@ namespace TALXIS.CLI.Features.Environment.Component.Layer;
     Name = "get",
     Description = "Get the active layer component definition as JSON."
 )]
-public class ComponentLayerShowCliCommand : ProfiledCliCommand
+public class ComponentLayerGetCliCommand : ProfiledCliCommand
 {
-    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ComponentLayerShowCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ComponentLayerGetCliCommand));
 
     [CliOption(Name = "--id", Description = "Component GUID (MetadataId / objectId). Required unless --entity is given.", Required = false)]
     public string? Id { get; set; }

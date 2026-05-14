@@ -17,9 +17,9 @@ namespace TALXIS.CLI.Features.Config.Connection;
     Name = "get",
     Description = "Get a single connection as JSON. Exit 2 if not found."
 )]
-public class ConnectionShowCliCommand : TxcLeafCommand
+public class ConnectionGetCliCommand : TxcLeafCommand
 {
-    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ConnectionShowCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ConnectionGetCliCommand));
 
     [CliArgument(Description = "Connection name.")]
     public required string Name { get; set; }

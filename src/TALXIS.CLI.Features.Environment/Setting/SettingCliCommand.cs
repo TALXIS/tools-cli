@@ -10,7 +10,7 @@ namespace TALXIS.CLI.Features.Environment.Setting;
 [CliCommand(
     Name = "setting",
     Description = "Manage environment settings.",
-    Children = new[] { typeof(SettingListCliCommand), typeof(SettingUpdateCliCommand) },
+    Children = new[] { typeof(SettingListCliCommand), typeof(SettingSetCliCommand) },
     ShortFormAutoGenerate = CliNameAutoGenerate.None
 )]
 public class SettingCliCommand
