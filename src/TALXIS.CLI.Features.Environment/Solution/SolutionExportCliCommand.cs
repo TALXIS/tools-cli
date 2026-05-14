@@ -1,9 +1,9 @@
-using System.Xml.Linq;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
+using TALXIS.CLI.Core.Resolution;
 using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.Solution;
@@ -92,45 +92,25 @@ public class SolutionExportCliCommand : ProfiledCliCommand
             return null;
         }
 
-        var projectFile = Directory.EnumerateFiles(dirPath, "*.cdsproj").FirstOrDefault()
-            ?? Directory.EnumerateFiles(dirPath, "*.csproj").FirstOrDefault();
-
+        var projectFile = SolutionProjectResolver.FindProjectFile(dirPath);
         if (projectFile is null)
         {
             Logger.LogError("No .cdsproj or .csproj found in '{Dir}'.", dirPath);
             return null;
         }
 
-        var doc = XDocument.Load(projectFile);
-        XNamespace ns = doc.Root?.Name.Namespace ?? XNamespace.None;
-        var solutionRootPath = doc.Descendants(ns + "SolutionRootPath").FirstOrDefault()?.Value;
-
-        if (string.IsNullOrWhiteSpace(solutionRootPath))
+        var resolvedRoot = SolutionProjectResolver.ResolveSolutionRoot(projectFile);
+        if (resolvedRoot is null)
         {
-            // Fallback: use src/ as the default convention
-            solutionRootPath = "src";
-        }
-
-        var resolvedRoot = Path.GetFullPath(Path.Combine(dirPath, solutionRootPath));
-        if (!Directory.Exists(resolvedRoot))
-        {
-            Logger.LogError("Solution root path '{SolutionRootPath}' does not exist at '{Resolved}'.", solutionRootPath, resolvedRoot);
+            var raw = SolutionProjectResolver.ReadSolutionRootPath(projectFile) ?? SolutionProjectResolver.DefaultSolutionRootPath;
+            Logger.LogError("Solution root path '{SolutionRootPath}' does not exist.", raw);
             return null;
         }
 
-        // Read the unique name from Other/Solution.xml
-        var solutionXmlPath = Path.Combine(resolvedRoot, "Other", "Solution.xml");
-        if (!File.Exists(solutionXmlPath))
-        {
-            Logger.LogError("Solution.xml not found at '{Path}'.", solutionXmlPath);
-            return null;
-        }
-
-        var solutionDoc = XDocument.Load(solutionXmlPath);
-        var uniqueName = solutionDoc.Descendants("UniqueName").FirstOrDefault()?.Value;
+        var uniqueName = SolutionProjectResolver.ReadSolutionUniqueName(resolvedRoot);
         if (string.IsNullOrWhiteSpace(uniqueName))
         {
-            Logger.LogError("Could not read <UniqueName> from '{Path}'.", solutionXmlPath);
+            Logger.LogError("Could not read <UniqueName> from '{Path}'.", Path.Combine(resolvedRoot, "Other", "Solution.xml"));
             return null;
         }
 

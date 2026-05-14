@@ -1,6 +1,7 @@
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
+using TALXIS.CLI.Core.Resolution;
 using TALXIS.Platform.Metadata;
 using TALXIS.Platform.Metadata.Serialization.Xml;
 
@@ -68,7 +69,7 @@ public abstract class UrlCommandBase : ProfiledCliCommand
     /// </remarks>
     private (string Type, Dictionary<string, string> Params)? ResolveFromFile(string absolutePath)
     {
-        var workspaceRoot = FindWorkspaceRoot(absolutePath);
+        var workspaceRoot = SolutionProjectResolver.FindWorkspaceRoot(absolutePath);
         if (workspaceRoot is null)
         {
             Logger.LogError("Could not find workspace root (Other/Solution.xml) for file: {Path}.", absolutePath);
@@ -82,7 +83,7 @@ public abstract class UrlCommandBase : ProfiledCliCommand
 
         foreach (var component in workspace.EnumerateLayerComponents())
         {
-            if (!IsFileMatch(component, normalizedFile, workspaceRoot))
+            if (!IsFileMatch(component, normalizedFile))
                 continue;
 
             var typeName = component.Type.ToString();
@@ -99,41 +100,12 @@ public abstract class UrlCommandBase : ProfiledCliCommand
     }
 
     /// <summary>
-    /// Walks up from the file to find the solution workspace root (directory containing Other/Solution.xml).
-    /// Also checks for .cdsproj/.csproj files that declare a SolutionRootPath property.
-    /// </summary>
-    private static string? FindWorkspaceRoot(string absolutePath)
-    {
-        var dir = Path.GetDirectoryName(absolutePath);
-        while (dir is not null)
-        {
-            if (System.IO.File.Exists(Path.Combine(dir, "Other", "Solution.xml")))
-                return dir;
-
-            var csproj = Directory.GetFiles(dir, "*.cdsproj").FirstOrDefault()
-                      ?? Directory.GetFiles(dir, "*.csproj").FirstOrDefault();
-            if (csproj is not null)
-            {
-                var projDoc = System.Xml.Linq.XDocument.Load(csproj);
-                var ns = projDoc.Root?.Name.Namespace ?? System.Xml.Linq.XNamespace.None;
-                var solutionRootPath = projDoc.Descendants(ns + "SolutionRootPath").FirstOrDefault()?.Value ?? ".";
-                var candidateRoot = Path.GetFullPath(Path.Combine(dir, solutionRootPath));
-                if (System.IO.File.Exists(Path.Combine(candidateRoot, "Other", "Solution.xml")))
-                    return candidateRoot;
-            }
-            dir = Path.GetDirectoryName(dir);
-        }
-        return null;
-    }
-
-    /// <summary>
     /// Checks whether the given component matches the target file path.
     /// Uses the metadata source file path for an exact match.
     /// </summary>
     private static bool IsFileMatch(
         TALXIS.Platform.Metadata.Solutions.LayerComponentDescriptor component,
-        string normalizedFile,
-        string workspaceRoot)
+        string normalizedFile)
     {
         if (component.Metadata?.Source?.FilePath is null)
             return false;
@@ -158,8 +130,9 @@ public abstract class UrlCommandBase : ProfiledCliCommand
         switch (component.Type)
         {
             case ComponentType.Entity:
-                // ObjectId is the entity logical name
-                result["entity"] = component.ObjectId;
+                // ObjectId is the entity logical name — set as 'name' so the URL builder
+                // resolves it to MetadataId via the Dataverse API
+                result["name"] = component.ObjectId;
                 break;
 
             case ComponentType.SystemForm:

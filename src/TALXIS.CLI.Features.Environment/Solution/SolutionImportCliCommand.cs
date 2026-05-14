@@ -1,11 +1,11 @@
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Xml.Linq;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
+using TALXIS.CLI.Core.Resolution;
 using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.Solution;
@@ -54,24 +54,19 @@ public class SolutionImportCliCommand : ProfiledCliCommand
         // Auto-detect input format:
         // 1. ZIP file → use directly
         // 2. Directory with Build SDK .csproj → dotnet build, use output ZIP
-        // 3. Directory with *.cdsproj → unpacked solution root is <dir>/src
+        // 3. Directory with .cdsproj/.csproj → resolve SolutionRootPath, pack
         // 4. Directory with Other/Solution.xml → unpacked solution folder
         // 5. Directory → treated as unpacked solution folder
         if (Directory.Exists(solutionPath))
         {
-            // Check for Dataverse project convention: <project-dir>/src is the solution root.
-            // *.cdsproj is the Dataverse convention (always use src/).
-            // *.csproj is checked as a fallback — Build SDK projects are built directly,
-            // others only used if src/ exists (avoids false positives with non-Dataverse C# projects).
-            var srcFolder = Path.Combine(solutionPath, "src");
-            var hasCdsProj = Directory.GetFiles(solutionPath, "*.cdsproj").Length > 0;
-            var csProjFiles = Directory.GetFiles(solutionPath, "*.csproj");
-            var hasCsProj = csProjFiles.Length > 0;
+            var projectFile = SolutionProjectResolver.FindProjectFile(solutionPath);
 
-            // Build SDK projects: run dotnet build and use the output ZIP directly
-            if (hasCsProj && !hasCdsProj)
+            if (projectFile is not null)
             {
-                var buildSdkProj = FindBuildSdkProject(csProjFiles);
+                // Build SDK projects: run dotnet build and use the output ZIP directly
+                var csProjFiles = Directory.GetFiles(solutionPath, "*.csproj");
+                var buildSdkProj = csProjFiles.Length > 0 ? FindBuildSdkProject(csProjFiles) : null;
+
                 if (buildSdkProj is not null)
                 {
                     var zipPath = await BuildAndLocateZipAsync(buildSdkProj);
@@ -79,25 +74,21 @@ public class SolutionImportCliCommand : ProfiledCliCommand
                         return ExitError;
                     solutionPath = zipPath;
                 }
-                else if (Directory.Exists(srcFolder))
-                {
-                    // .csproj with src/ subfolder — likely a Dataverse project (non-Build SDK)
-                    Logger.LogInformation("Found .csproj with src/ folder — using '{SrcFolder}' as solution root.", srcFolder);
-                    solutionPath = srcFolder;
-                }
-            }
-
-            if (hasCdsProj)
-            {
-                if (Directory.Exists(srcFolder))
-                {
-                    Logger.LogInformation("Found .cdsproj — using '{SrcFolder}' as solution root.", srcFolder);
-                    solutionPath = srcFolder;
-                }
                 else
                 {
-                    Logger.LogError("Found .cdsproj but '{SrcFolder}' does not exist.", srcFolder);
-                    return ExitValidationError;
+                    // Non-Build SDK project — resolve the solution root from SolutionRootPath property
+                    var resolvedRoot = SolutionProjectResolver.ResolveSolutionRoot(projectFile);
+                    if (resolvedRoot is not null)
+                    {
+                        Logger.LogInformation("Using solution root '{SolutionRoot}' from project.", resolvedRoot);
+                        solutionPath = resolvedRoot;
+                    }
+                    else
+                    {
+                        var raw = SolutionProjectResolver.ReadSolutionRootPath(projectFile) ?? SolutionProjectResolver.DefaultSolutionRootPath;
+                        Logger.LogError("Solution root path '{SolutionRootPath}' does not exist.", raw);
+                        return ExitValidationError;
+                    }
                 }
             }
 
