@@ -428,3 +428,4 @@ docs/plan/
 docs/research/
 temp/
 .playwright-cli/
+worktrees/
