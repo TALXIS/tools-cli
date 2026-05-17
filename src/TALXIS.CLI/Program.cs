@@ -1,4 +1,7 @@
 ﻿using DotMake.CommandLine;
+using TALXIS.CLI.Core.Abstractions;
+using TALXIS.CLI.Core.DependencyInjection;
+using TALXIS.CLI.Logging;
 using TALXIS.CLI.Platform.Dataverse.Application.DependencyInjection;
 using TALXIS.CLI.Platform.Dataverse.Application.Sdk;
 
@@ -20,12 +23,41 @@ namespace TALXIS.CLI
             // and wires its own TxcServices via the same bootstrap helper.
             TxcServicesBootstrap.EnsureInitialized();
 
-            return await Cli.RunAsync<TALXIS.CLI.TxcCliCommand>(args, new CliSettings { EnableDefaultExceptionHandler = true });
+            // Initialize telemetry from user config (fire-and-forget, never blocks)
+            InitializeTelemetry();
+
+            try
+            {
+                return await Cli.RunAsync<TALXIS.CLI.TxcCliCommand>(args, new CliSettings { EnableDefaultExceptionHandler = true });
+            }
+            finally
+            {
+                TxcTelemetrySetup.Shutdown();
+            }
         }
 
         public static async Task<int> RunCli(string[] args)
         {
             return await Main(args);
+        }
+
+        private static void InitializeTelemetry()
+        {
+            try
+            {
+                var configStore = TxcServices.Get<IGlobalConfigStore>();
+#pragma warning disable RS0030 // Synchronous telemetry init before async main loop — cannot use await here
+                var config = configStore.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
+#pragma warning restore RS0030
+                TxcTelemetrySetup.Initialize(
+                    configEnabled: config.Telemetry.Enabled,
+                    configConnectionString: config.Telemetry.ConnectionString,
+                    entryPoint: "cli");
+            }
+            catch
+            {
+                // Telemetry initialization must never prevent CLI from running
+            }
         }
     }
 }

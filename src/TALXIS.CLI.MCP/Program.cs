@@ -44,6 +44,9 @@ var taskStore = new CancellableTaskStore(new InMemoryMcpTaskStore(
     pollInterval: TimeSpan.FromSeconds(2)
 ));
 
+// Initialize telemetry for the MCP server (fire-and-forget, never blocks startup)
+InitializeMcpTelemetry();
+
 try
 {
     var builder = new HostApplicationBuilder(args);
@@ -120,6 +123,10 @@ async ValueTask<CallToolResult> CallToolAsync(RequestContext<CallToolRequestPara
     var toolName = p?.Name ?? string.Empty;
     if (string.IsNullOrEmpty(toolName))
         throw new McpException("Tool name is required.");
+
+    using var activity = TxcTelemetry.Source.StartActivity(toolName, System.Diagnostics.ActivityKind.Internal);
+    activity?.SetTag("txc.tool", toolName);
+    activity?.SetTag("txc.entry_point", "mcp");
 
     // --- Route: Guide tools ---
     if (IsGuideTool(toolName))
@@ -887,4 +894,24 @@ object? ConvertJsonElementToPropertyType(System.Text.Json.JsonElement jsonElemen
     
     // For more complex types, try deserializing from JSON
     return System.Text.Json.JsonSerializer.Deserialize(jsonElement.GetRawText(), targetType);
+}
+
+void InitializeMcpTelemetry()
+{
+    try
+    {
+        TALXIS.CLI.Platform.Dataverse.Application.DependencyInjection.TxcServicesBootstrap.EnsureInitialized();
+        var configStore = TALXIS.CLI.Core.DependencyInjection.TxcServices.Get<TALXIS.CLI.Core.Abstractions.IGlobalConfigStore>();
+#pragma warning disable RS0030 // Synchronous telemetry init in top-level MCP setup — before async host.RunAsync
+        var config = configStore.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
+#pragma warning restore RS0030
+        TxcTelemetrySetup.Initialize(
+            configEnabled: config.Telemetry.Enabled,
+            configConnectionString: config.Telemetry.ConnectionString,
+            entryPoint: "mcp");
+    }
+    catch
+    {
+        // Telemetry initialization must never prevent MCP server from starting
+    }
 }

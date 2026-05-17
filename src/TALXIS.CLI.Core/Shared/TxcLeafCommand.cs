@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
@@ -28,6 +29,13 @@ namespace TALXIS.CLI.Core;
 /// </summary>
 public abstract class TxcLeafCommand
 {
+    /// <summary>
+    /// Shared ActivitySource for CLI command telemetry. Uses the same source name
+    /// as <c>TxcTelemetry.Source</c> in the Logging project so a single
+    /// TracerProvider listener captures both CLI and MCP spans.
+    /// </summary>
+    private static readonly ActivitySource TelemetrySource = new("TALXIS.CLI");
+
     /// <summary>Exit code: operation completed successfully.</summary>
     protected const int ExitSuccess = 0;
     /// <summary>Exit code: runtime/operational error.</summary>
@@ -60,9 +68,17 @@ public abstract class TxcLeafCommand
     /// </summary>
     public async Task<int> RunAsync()
     {
+        var commandName = GetType().Name;
+        using var activity = TelemetrySource.StartActivity(commandName, ActivityKind.Internal);
+        activity?.SetTag("txc.command", commandName);
+        activity?.SetTag("txc.entry_point", "cli");
+
         var formatError = ApplyOutputFormat();
         if (formatError.HasValue)
+        {
+            activity?.SetTag("txc.exit_code", formatError.Value);
             return formatError.Value;
+        }
 
         // Production guard runs first so users aren't prompted with --yes
         // only to be immediately blocked for missing --allow-production.
@@ -70,7 +86,10 @@ public abstract class TxcLeafCommand
         {
             var guardResult = await PreExecuteAsync().ConfigureAwait(false);
             if (guardResult.HasValue)
+            {
+                activity?.SetTag("txc.exit_code", guardResult.Value);
                 return guardResult.Value;
+            }
         }
         catch (Exception ex) when (ex is Abstractions.ConfigurationResolutionException)
         {
@@ -80,24 +99,46 @@ public abstract class TxcLeafCommand
 
         var confirmError = await CheckDestructiveConfirmationAsync().ConfigureAwait(false);
         if (confirmError.HasValue)
+        {
+            activity?.SetTag("txc.exit_code", confirmError.Value);
             return confirmError.Value;
+        }
 
         try
         {
-            return await ExecuteAsync().ConfigureAwait(false);
+            var exitCode = await ExecuteAsync().ConfigureAwait(false);
+            activity?.SetTag("txc.exit_code", exitCode);
+            if (exitCode != ExitSuccess)
+                activity?.SetStatus(ActivityStatusCode.Error, $"Exit code {exitCode}");
+            return exitCode;
         }
         catch (Exception ex) when (ex is Abstractions.ConfigurationResolutionException or ArgumentException)
         {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            activity?.SetTag("txc.exit_code", ExitValidationError);
+            activity?.SetTag("txc.error_kind", "validation");
             Logger.LogError("{Error}", ex.Message);
             return ExitValidationError;
         }
         catch (OperationCanceledException)
         {
+            activity?.SetStatus(ActivityStatusCode.Error, "Cancelled");
+            activity?.SetTag("txc.exit_code", ExitError);
+            activity?.SetTag("txc.error_kind", "cancelled");
             Logger.LogWarning("Operation was cancelled.");
             return ExitError;
         }
         catch (Exception ex)
         {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            activity?.SetTag("txc.exit_code", ExitError);
+            activity?.SetTag("txc.error_kind", "internal");
+            activity?.AddEvent(new ActivityEvent("exception", tags: new ActivityTagsCollection
+            {
+                { "exception.type", ex.GetType().FullName },
+                { "exception.message", ex.Message },
+            }));
+
             // Surface the innermost exception message — it typically contains the
             // actionable root cause (e.g. "Run 'txc config auth login' and retry.").
             var root = GetInnermostException(ex);
