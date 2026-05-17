@@ -54,9 +54,11 @@ namespace TALXIS.CLI
                     configConnectionString: config.Telemetry.ConnectionString,
                     entryPoint: "cli");
             }
-            catch
+            catch (Exception)
             {
-                // Telemetry initialization must never prevent CLI from running
+                // Telemetry initialization must never prevent CLI from running.
+                // No logger available yet at this point in startup.
+                return;
             }
         }
     }

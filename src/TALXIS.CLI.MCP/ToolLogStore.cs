@@ -92,7 +92,9 @@ internal sealed class ToolLogStore
         public string Summary => FirstNonEmpty(
             PrimaryText,
             ErrorSummary,
-            $"Tool '{ToolName}' failed with exit code {ExitCode}.")!;
+            ExitCode == 0
+                ? $"Tool '{ToolName}' completed successfully."
+                : $"Tool '{ToolName}' failed with exit code {ExitCode}.")!;
 
         public string ToJson() => JsonSerializer.Serialize(this, TxcOutputJsonOptions.Default);
 

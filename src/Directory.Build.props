@@ -31,7 +31,7 @@
 
   <ItemGroup>
     <!-- Banned API analyzer: prevents Console.Write*/ReadKey/ReadLine in command code.
-         Infrastructure projects (Logging, MCP, Core) opt out via their own .csproj. -->
+         Infrastructure files that legitimately use Console have surgical #pragma RS0030 exemptions. -->
     <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="3.3.4">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>

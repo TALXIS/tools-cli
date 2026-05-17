@@ -41,10 +41,12 @@ public static class TxcTelemetrySetup
         {
             _tracerProvider = CreateTracerProvider(connectionString, entryPoint);
         }
-        catch
+        catch (Exception)
         {
-            // Telemetry initialization must never crash the CLI
+            // Telemetry initialization must never crash the CLI.
+            // Silently degrade to no-telemetry mode.
             _tracerProvider = null;
+            return;
         }
 #endif
     }

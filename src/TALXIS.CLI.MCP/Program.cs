@@ -16,7 +16,7 @@ var mcpToolRegistry = new McpToolRegistry();
 RootsService? rootsService = null;
 IHostApplicationLifetime? appLifetime = null;
 
-// In-memory store for tool execution logs, exposed as MCP resources
+// In-memory store for structured tool execution diagnostics (exit code, logs, errors), exposed as MCP resources
 var toolLogStore = new ToolLogStore();
 var toolResultFactory = new McpToolResultFactory(toolLogStore);
 
@@ -548,8 +548,8 @@ CallToolResult HandleGetExecutionLog(IDictionary<string, JsonElement>? arguments
     var level = arguments.TryGetValue("level", out var lvl) ? lvl.GetString() : null;
     var category = arguments.TryGetValue("category", out var cat) ? cat.GetString() : null;
     var search = arguments.TryGetValue("search", out var srch) ? srch.GetString() : null;
-    var skip = arguments.TryGetValue("skip", out var sk) ? (int)sk.GetDouble() : 0;
-    var take = arguments.TryGetValue("take", out var tk) ? (int)tk.GetDouble() : 50;
+    var skip = arguments.TryGetValue("skip", out var sk) && sk.TryGetInt32(out var skipVal) ? Math.Max(0, skipVal) : 0;
+    var take = arguments.TryGetValue("take", out var tk) && tk.TryGetInt32(out var takeVal) ? Math.Clamp(takeVal, 1, 500) : 50;
 
     return toolResultFactory.BuildExecutionLogResult(uri, level, category, search, skip, take);
 }
@@ -910,8 +910,10 @@ void InitializeMcpTelemetry()
             configConnectionString: config.Telemetry.ConnectionString,
             entryPoint: "mcp");
     }
-    catch
+    catch (Exception)
     {
-        // Telemetry initialization must never prevent MCP server from starting
+        // Telemetry initialization must never prevent MCP server from starting.
+        // No structured logger available yet at this point in bootstrap.
+        return;
     }
 }
