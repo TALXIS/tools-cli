@@ -1,0 +1,29 @@
+- generic [ref=e7]:
+  - banner [ref=e8]:
+    - button "Skip to main content" [ref=e9]
+    - banner [ref=e11]:
+      - button "App launcher" [ref=e14] [cursor=pointer]: 
+      - generic [ref=e20]:
+        - generic [ref=e21]:
+          - link "NETWORG" [ref=e25] [cursor=pointer]:
+            - /url: https://m365.cloud.microsoft?auth=2&home=1&from=ShellLogo&username=tomas.prokop@thenetw.org&login_hint=tomas.prokop@thenetw.org
+            - img "NETWORG" [ref=e26]
+          - generic [ref=e30]: Power Automate
+        - generic [ref=e33]:
+          - button "UDPP26-txc-demo" [ref=e38] [cursor=pointer]:
+            - img [ref=e40]
+            - generic [ref=e43]:
+              - generic [ref=e44]: Environments
+              - generic [ref=e46]: UDPP26-txc-demo
+          - button "Settings" [ref=e49] [cursor=pointer]:
+            - generic [ref=e50]: 
+          - button "Help" [ref=e53] [cursor=pointer]:
+            - generic [ref=e54]: 
+      - generic [ref=e55]:
+        - button "Account manager for Tomas Prokop" [ref=e57] [cursor=pointer]:
+          - generic [ref=e65]: TP
+        - generic: 
+  - main [ref=e72]:
+    - generic [ref=e76]:
+      - status:
+        - generic [ref=e78]: Loading

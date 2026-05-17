@@ -5,7 +5,7 @@ using TALXIS.CLI.Core;
 namespace TALXIS.CLI.MCP;
 
 /// <summary>
-/// In-memory store for failed tool diagnostics, exposed as MCP resources.
+/// In-memory store for tool execution logs, exposed as MCP resources.
 /// Entries are keyed by a unique run ID and evicted FIFO when the store exceeds capacity.
 /// </summary>
 internal sealed class ToolLogStore
@@ -15,7 +15,7 @@ internal sealed class ToolLogStore
     private readonly Queue<string> _order = [];
     private readonly int _maxEntries;
 
-    /// <summary>URI scheme prefix for failure-detail resources.</summary>
+    /// <summary>URI scheme prefix for execution-log resources.</summary>
     internal const string UriScheme = "txc://logs/";
 
     public ToolLogStore(int maxEntries = 50)
@@ -25,9 +25,9 @@ internal sealed class ToolLogStore
     }
 
     /// <summary>
-    /// Stores failed tool diagnostics and returns the resource URI.
+    /// Stores a tool execution log and returns the resource URI.
     /// </summary>
-    public string StoreFailure(string toolName, int exitCode, string? primaryText, string? errorSummary, string? fullLog)
+    public string Store(string toolName, int exitCode, string? primaryText, string? errorSummary, string? fullLog)
     {
         var runId = Guid.NewGuid().ToString("N")[..12];
         var uri = $"{UriScheme}{toolName}/{runId}";
@@ -87,7 +87,7 @@ internal sealed class ToolLogStore
         string? FullLog,
         DateTimeOffset Timestamp)
     {
-        public string Kind => "tool-failure-details";
+        public string Kind => "tool-execution-log";
 
         public string Summary => FirstNonEmpty(
             PrimaryText,

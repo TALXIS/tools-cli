@@ -5,7 +5,7 @@ using TALXIS.CLI.Logging;
 namespace TALXIS.CLI.MCP;
 
 /// <summary>
-/// Builds MCP tool results and exposes failed tool diagnostics as fetchable resources.
+/// Builds MCP tool results and exposes execution logs as fetchable resources.
 /// </summary>
 internal sealed class McpToolResultFactory
 {
@@ -27,7 +27,7 @@ internal sealed class McpToolResultFactory
         }
 
         string summary = BuildFailureSummary(toolName, result.Output, result.LastErrors, result.ExitCode);
-        string diagnosticsUri = _toolLogStore.StoreFailure(
+        string diagnosticsUri = _toolLogStore.Store(
             toolName,
             result.ExitCode,
             summary,
@@ -42,7 +42,7 @@ internal sealed class McpToolResultFactory
         string summary = string.IsNullOrWhiteSpace(exception.Message)
             ? $"Tool '{toolName}' failed before execution completed."
             : LogRedactionFilter.Redact(exception.Message);
-        string diagnosticsUri = _toolLogStore.StoreFailure(
+        string diagnosticsUri = _toolLogStore.Store(
             toolName,
             -1,
             summary,
@@ -57,7 +57,7 @@ internal sealed class McpToolResultFactory
         return _toolLogStore.ListAll().Select(e => new Resource
         {
             Uri = e.Uri,
-            Name = $"Failure details: {e.Entry.ToolName}",
+            Name = $"Execution log: {e.Entry.ToolName}",
             Description = BuildResourceDescription(e.Entry),
             MimeType = "application/json"
         }).ToList();
@@ -76,14 +76,14 @@ internal sealed class McpToolResultFactory
         };
     }
 
-    public CallToolResult BuildFailureDetailsResult(string uri)
+    public CallToolResult BuildExecutionLogResult(string uri)
     {
         if (!_toolLogStore.TryGet(uri, out var entry) || entry is null)
         {
             return new CallToolResult
             {
                 IsError = true,
-                Content = [new TextContentBlock { Text = $"Failure details not found for '{uri}'." }]
+                Content = [new TextContentBlock { Text = $"Execution log not found for '{uri}'." }]
             };
         }
 
@@ -97,7 +97,7 @@ internal sealed class McpToolResultFactory
     {
         string cliFriendlySummary =
             $"{summary}{Environment.NewLine}{Environment.NewLine}" +
-            $"Full diagnostics available via get_failure_details with uri=\"{diagnosticsUri}\".";
+            $"Full execution log available via get_execution_log with uri=\"{diagnosticsUri}\".";
 
         return new CallToolResult
         {
@@ -108,8 +108,8 @@ internal sealed class McpToolResultFactory
                 new ResourceLinkBlock
                 {
                     Uri = diagnosticsUri,
-                    Name = $"Failure details for {toolName}",
-                    Description = "Fetch structured diagnostics for this failed tool call via resources/read.",
+                    Name = $"Execution log for {toolName}",
+                    Description = "Fetch detailed execution log for this tool call via resources/read.",
                     MimeType = "application/json"
                 }
             ]

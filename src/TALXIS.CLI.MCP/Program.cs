@@ -16,7 +16,7 @@ var mcpToolRegistry = new McpToolRegistry();
 RootsService? rootsService = null;
 IHostApplicationLifetime? appLifetime = null;
 
-// In-memory store for structured failure details, exposed as MCP resources
+// In-memory store for tool execution logs, exposed as MCP resources
 var toolLogStore = new ToolLogStore();
 var toolResultFactory = new McpToolResultFactory(toolLogStore);
 
@@ -137,10 +137,10 @@ async ValueTask<CallToolResult> CallToolAsync(RequestContext<CallToolRequestPara
         return HandleGetSkillDetails(p?.Arguments);
     }
 
-    // --- Route: get_failure_details ---
-    if (toolName == "get_failure_details")
+    // --- Route: get_execution_log ---
+    if (toolName == "get_execution_log")
     {
-        return HandleGetFailureDetails(p?.Arguments);
+        return HandleGetExecutionLog(p?.Arguments);
     }
 
     // --- Route: MCP-specific tools (copilot-instructions) ---
@@ -511,8 +511,8 @@ CallToolResult HandleGetSkillDetails(IDictionary<string, JsonElement>? arguments
     };
 }
 
-// Handler: get_failure_details — returns stored diagnostics for a failed tool call
-CallToolResult HandleGetFailureDetails(IDictionary<string, JsonElement>? arguments)
+// Handler: get_execution_log — returns stored execution log for a previous tool call
+CallToolResult HandleGetExecutionLog(IDictionary<string, JsonElement>? arguments)
 {
     if (arguments is null || !arguments.TryGetValue("uri", out var uriElement))
     {
@@ -533,7 +533,7 @@ CallToolResult HandleGetFailureDetails(IDictionary<string, JsonElement>? argumen
         };
     }
 
-    return toolResultFactory.BuildFailureDetailsResult(uri);
+    return toolResultFactory.BuildExecutionLogResult(uri);
 }
 
 // Registers the always-on tools in the ActiveToolSet
@@ -620,9 +620,9 @@ For team-specific naming conventions and coding standards, use native Agent Skil
 
     toolSet.AddAlwaysOn(new Tool
     {
-        Name = "get_failure_details",
+        Name = "get_execution_log",
         Description = "Fetch detailed diagnostics for a previous failed tool call. Pass the diagnostics URI from the failed tool response to retrieve summary, stderr log, and full error details.",
-        InputSchema = BuildGetFailureDetailsInputSchema(),
+        InputSchema = BuildGetExecutionLogInputSchema(),
         Annotations = new ToolAnnotations { ReadOnlyHint = true }
     });
 
@@ -705,7 +705,7 @@ JsonElement BuildGetSkillDetailsInputSchema()
     return JsonSerializer.Deserialize<JsonElement>(JsonSerializer.Serialize(schema));
 }
 
-JsonElement BuildGetFailureDetailsInputSchema()
+JsonElement BuildGetExecutionLogInputSchema()
 {
     var schema = new Dictionary<string, object?>
     {
@@ -814,13 +814,13 @@ async Task<CallToolResult> ExecuteMcpSpecificToolWithCapturedOutputAsync(Type co
     }
 }
 
-// MCP resource listing — exposes stored failure-detail resources
+// MCP resource listing — exposes stored execution-log resources
 ValueTask<ListResourcesResult> ListResourcesAsync(RequestContext<ListResourcesRequestParams> ctx, CancellationToken ct)
 {
     return ValueTask.FromResult(new ListResourcesResult { Resources = toolResultFactory.BuildResources() });
 }
 
-// MCP resource read — returns structured failure details for a given URI
+// MCP resource read — returns structured execution log for a given URI
 ValueTask<ReadResourceResult> ReadResourceAsync(RequestContext<ReadResourceRequestParams> ctx, CancellationToken ct)
 {
     var uri = ctx.Params?.Uri ?? throw new McpException("Resource URI is required.");

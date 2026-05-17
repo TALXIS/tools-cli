@@ -23,7 +23,7 @@ public class McpToolResultFactoryTests
         Assert.True(toolResult.IsError);
         var text = Assert.IsType<TextContentBlock>(toolResult.Content[0]);
         Assert.Contains("Validation complete", text.Text);
-        Assert.Contains("get_failure_details", text.Text);
+        Assert.Contains("get_execution_log", text.Text);
 
         var link = Assert.IsType<ResourceLinkBlock>(toolResult.Content[1]);
         Assert.Equal("application/json", link.MimeType);
@@ -34,7 +34,7 @@ public class McpToolResultFactoryTests
         Assert.Equal("application/json", contents.MimeType);
 
         using var document = JsonDocument.Parse(contents.Text);
-        Assert.Equal("tool-failure-details", document.RootElement.GetProperty("kind").GetString());
+        Assert.Equal("tool-execution-log", document.RootElement.GetProperty("kind").GetString());
         Assert.Equal("workspace_validate", document.RootElement.GetProperty("toolName").GetString());
         Assert.Equal(1, document.RootElement.GetProperty("exitCode").GetInt32());
         Assert.Contains("Validation complete", document.RootElement.GetProperty("summary").GetString());
@@ -52,7 +52,7 @@ public class McpToolResultFactoryTests
         Assert.True(toolResult.IsError);
         var text = Assert.IsType<TextContentBlock>(toolResult.Content[0]);
         Assert.Contains("Boom", text.Text);
-        Assert.Contains("get_failure_details", text.Text);
+        Assert.Contains("get_execution_log", text.Text);
 
         var link = Assert.IsType<ResourceLinkBlock>(toolResult.Content[1]);
         var resource = factory.ReadResource(link.Uri);
@@ -64,13 +64,13 @@ public class McpToolResultFactoryTests
     }
 
     [Fact]
-    public void BuildFailureDetailsResult_ReturnsStoredJsonAsText()
+    public void BuildExecutionLogResult_ReturnsStoredJsonAsText()
     {
         var store = new ToolLogStore();
         var factory = new McpToolResultFactory(store);
-        var uri = store.StoreFailure("workspace_validate", 1, "summary", "error", "full log");
+        var uri = store.Store("workspace_validate", 1, "summary", "error", "full log");
 
-        var toolResult = factory.BuildFailureDetailsResult(uri);
+        var toolResult = factory.BuildExecutionLogResult(uri);
 
         Assert.True(toolResult.IsError != true);
         var text = Assert.IsType<TextContentBlock>(Assert.Single(toolResult.Content));
