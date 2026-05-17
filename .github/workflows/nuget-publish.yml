@@ -133,8 +133,9 @@ jobs:
         run: |
           $pkgVer = "${{ needs.resolve-version.outputs.package-version }}"
           $asmVer = "${{ needs.resolve-version.outputs.assembly-version }}"
-          dotnet pack src/TALXIS.CLI/TALXIS.CLI.csproj --configuration Release -p:Version=$pkgVer -p:PackageVersion=$pkgVer -p:AssemblyVersion=$asmVer -p:FileVersion=$asmVer
-          dotnet pack src/TALXIS.CLI.MCP/TALXIS.CLI.MCP.csproj --configuration Release -p:Version=$pkgVer -p:PackageVersion=$pkgVer -p:AssemblyVersion=$asmVer -p:FileVersion=$asmVer
+          $telemetry = "${{ secrets.TXC_TELEMETRY_CONNECTION_STRING }}"
+          dotnet pack src/TALXIS.CLI/TALXIS.CLI.csproj --configuration Release -p:Version=$pkgVer -p:PackageVersion=$pkgVer -p:AssemblyVersion=$asmVer -p:FileVersion=$asmVer -p:TxcTelemetryConnectionString="$telemetry"
+          dotnet pack src/TALXIS.CLI.MCP/TALXIS.CLI.MCP.csproj --configuration Release -p:Version=$pkgVer -p:PackageVersion=$pkgVer -p:AssemblyVersion=$asmVer -p:FileVersion=$asmVer -p:TxcTelemetryConnectionString="$telemetry"
       - uses: actions/upload-artifact@v4
         with:
           name: nuget
