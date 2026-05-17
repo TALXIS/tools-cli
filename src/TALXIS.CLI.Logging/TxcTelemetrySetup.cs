@@ -1,4 +1,10 @@
 using System.Diagnostics;
+#if TELEMETRY_ENABLED
+using Azure.Monitor.OpenTelemetry.Exporter;
+using OpenTelemetry;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+#endif
 
 namespace TALXIS.CLI.Logging;
 
