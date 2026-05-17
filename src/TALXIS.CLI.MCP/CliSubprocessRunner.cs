@@ -49,7 +49,9 @@ internal static class CliSubprocessRunner
 
         await handler.OnProcessExitedAsync(process.ExitCode);
 
-        return new CliSubprocessResult(process.ExitCode, handler);
+        return handler is McpLogForwarder forwarder
+            ? new CliSubprocessResult(process.ExitCode, forwarder)
+            : new CliSubprocessResult(process.ExitCode, string.Empty);
     }
 
     private static async Task<CliSubprocessResult> RunBufferedAsync(
@@ -218,22 +220,13 @@ internal sealed class CliSubprocessResult
         StructuredEntries = structuredEntries ?? [];
     }
 
-    /// <summary>Creates a result from a streaming output handler (uses stdout content as output).</summary>
-    public CliSubprocessResult(int exitCode, ISubprocessOutputHandler handler)
+    /// <summary>Creates a result from an MCP log forwarder that captured subprocess output.</summary>
+    public CliSubprocessResult(int exitCode, McpLogForwarder forwarder)
     {
         ExitCode = exitCode;
-        if (handler is McpLogForwarder forwarder)
-        {
-            Output = forwarder.StdoutContent;
-            LastErrors = forwarder.LastErrors;
-            StructuredEntries = forwarder.StructuredEntries;
-        }
-        else
-        {
-            Output = string.Empty;
-            LastErrors = string.Empty;
-            StructuredEntries = [];
-        }
+        Output = forwarder.StdoutContent;
+        LastErrors = forwarder.LastErrors;
+        StructuredEntries = forwarder.StructuredEntries;
     }
 
     /// <summary>Error messages captured from subprocess stderr logs.</summary>
