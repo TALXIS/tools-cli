@@ -76,14 +76,35 @@ internal sealed class McpToolResultFactory
         };
     }
 
+    public CallToolResult BuildFailureDetailsResult(string uri)
+    {
+        if (!_toolLogStore.TryGet(uri, out var entry) || entry is null)
+        {
+            return new CallToolResult
+            {
+                IsError = true,
+                Content = [new TextContentBlock { Text = $"Failure details not found for '{uri}'." }]
+            };
+        }
+
+        return new CallToolResult
+        {
+            Content = [new TextContentBlock { Text = entry.ToJson() }]
+        };
+    }
+
     private static CallToolResult BuildFailureResult(string toolName, string summary, string diagnosticsUri)
     {
+        string cliFriendlySummary =
+            $"{summary}{Environment.NewLine}{Environment.NewLine}" +
+            $"Full diagnostics available via get_failure_details with uri=\"{diagnosticsUri}\".";
+
         return new CallToolResult
         {
             IsError = true,
             Content =
             [
-                new TextContentBlock { Text = summary },
+                new TextContentBlock { Text = cliFriendlySummary },
                 new ResourceLinkBlock
                 {
                     Uri = diagnosticsUri,

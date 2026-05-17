@@ -28,6 +28,7 @@ public class McpTests
         Assert.Contains("guide_environment", toolNames);
         Assert.Contains("execute_operation", toolNames);
         Assert.Contains("get_skill_details", toolNames);
+        Assert.Contains("get_failure_details", toolNames);
     }
 
     [Fact]
@@ -94,8 +95,11 @@ public class McpTests
         Assert.NotNull(result.Content);
         Assert.True(result.Content.Count >= 2);
 
+        var errorText = Assert.IsType<TextContentBlock>(result.Content[0]);
         var resourceLink = Assert.IsType<ResourceLinkBlock>(result.Content[1]);
         Assert.Equal("application/json", resourceLink.MimeType);
+        Assert.Contains("get_failure_details", errorText.Text);
+        Assert.Contains(resourceLink.Uri, errorText.Text);
 
         var readResult = await client.ReadResourceAsync(resourceLink.Uri);
         var resource = Assert.IsType<TextResourceContents>(Assert.Single(readResult.Contents));
@@ -105,5 +109,11 @@ public class McpTests
         Assert.Equal("workspace_validate", document.RootElement.GetProperty("toolName").GetString());
         Assert.True(document.RootElement.TryGetProperty("summary", out var summary));
         Assert.False(string.IsNullOrWhiteSpace(summary.GetString()));
+
+        var detailsResult = await client.CallToolAsync("get_failure_details", new Dictionary<string, object?> { { "uri", resourceLink.Uri } });
+        Assert.True(detailsResult.IsError != true);
+        var detailsText = Assert.IsType<TextContentBlock>(Assert.Single(detailsResult.Content));
+        Assert.Contains("\"toolName\": \"workspace_validate\"", detailsText.Text);
+        Assert.Contains("\"fullLog\":", detailsText.Text);
     }
 }

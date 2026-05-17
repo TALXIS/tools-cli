@@ -137,6 +137,12 @@ async ValueTask<CallToolResult> CallToolAsync(RequestContext<CallToolRequestPara
         return HandleGetSkillDetails(p?.Arguments);
     }
 
+    // --- Route: get_failure_details ---
+    if (toolName == "get_failure_details")
+    {
+        return HandleGetFailureDetails(p?.Arguments);
+    }
+
     // --- Route: MCP-specific tools (copilot-instructions) ---
     if (IsMcpSpecificTool(toolName))
     {
@@ -505,6 +511,31 @@ CallToolResult HandleGetSkillDetails(IDictionary<string, JsonElement>? arguments
     };
 }
 
+// Handler: get_failure_details — returns stored diagnostics for a failed tool call
+CallToolResult HandleGetFailureDetails(IDictionary<string, JsonElement>? arguments)
+{
+    if (arguments is null || !arguments.TryGetValue("uri", out var uriElement))
+    {
+        return new CallToolResult
+        {
+            Content = [new TextContentBlock { Text = "'uri' parameter is required. Pass the diagnostics URI from the failed tool response." }],
+            IsError = true
+        };
+    }
+
+    var uri = uriElement.GetString();
+    if (string.IsNullOrWhiteSpace(uri))
+    {
+        return new CallToolResult
+        {
+            Content = [new TextContentBlock { Text = "'uri' parameter must be a non-empty diagnostics URI." }],
+            IsError = true
+        };
+    }
+
+    return toolResultFactory.BuildFailureDetailsResult(uri);
+}
+
 // Registers the always-on tools in the ActiveToolSet
 void RegisterAlwaysOnTools(ActiveToolSet toolSet, McpToolRegistry registry, PublicSkillLoader skillLoader)
 {
@@ -587,6 +618,14 @@ For team-specific naming conventions and coding standards, use native Agent Skil
         Annotations = new ToolAnnotations { ReadOnlyHint = true }
     });
 
+    toolSet.AddAlwaysOn(new Tool
+    {
+        Name = "get_failure_details",
+        Description = "Fetch detailed diagnostics for a previous failed tool call. Pass the diagnostics URI from the failed tool response to retrieve summary, stderr log, and full error details.",
+        InputSchema = BuildGetFailureDetailsInputSchema(),
+        Annotations = new ToolAnnotations { ReadOnlyHint = true }
+    });
+
     // copilot-instructions — existing MCP-specific tool (registered via catalog too, but needs always-on)
     var copilotEntry = registry.Catalog.GetEntry("copilot-instructions");
     if (copilotEntry is not null)
@@ -662,6 +701,24 @@ JsonElement BuildGetSkillDetailsInputSchema()
             }
         },
         ["required"] = new List<string> { "skill_id" }
+    };
+    return JsonSerializer.Deserialize<JsonElement>(JsonSerializer.Serialize(schema));
+}
+
+JsonElement BuildGetFailureDetailsInputSchema()
+{
+    var schema = new Dictionary<string, object?>
+    {
+        ["type"] = "object",
+        ["properties"] = new Dictionary<string, object?>
+        {
+            ["uri"] = new Dictionary<string, object?>
+            {
+                ["type"] = "string",
+                ["description"] = "Diagnostics URI returned by a failed tool call (e.g. 'txc://logs/workspace_validate/abc123')."
+            }
+        },
+        ["required"] = new List<string> { "uri" }
     };
     return JsonSerializer.Deserialize<JsonElement>(JsonSerializer.Serialize(schema));
 }

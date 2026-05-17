@@ -23,9 +23,11 @@ public class McpToolResultFactoryTests
         Assert.True(toolResult.IsError);
         var text = Assert.IsType<TextContentBlock>(toolResult.Content[0]);
         Assert.Contains("Validation complete", text.Text);
+        Assert.Contains("get_failure_details", text.Text);
 
         var link = Assert.IsType<ResourceLinkBlock>(toolResult.Content[1]);
         Assert.Equal("application/json", link.MimeType);
+        Assert.Contains(link.Uri, text.Text);
 
         var resource = factory.ReadResource(link.Uri);
         var contents = Assert.IsType<TextResourceContents>(Assert.Single(resource.Contents));
@@ -49,7 +51,8 @@ public class McpToolResultFactoryTests
 
         Assert.True(toolResult.IsError);
         var text = Assert.IsType<TextContentBlock>(toolResult.Content[0]);
-        Assert.Equal("Boom", text.Text);
+        Assert.Contains("Boom", text.Text);
+        Assert.Contains("get_failure_details", text.Text);
 
         var link = Assert.IsType<ResourceLinkBlock>(toolResult.Content[1]);
         var resource = factory.ReadResource(link.Uri);
@@ -58,5 +61,20 @@ public class McpToolResultFactoryTests
         using var document = JsonDocument.Parse(contents.Text);
         Assert.Equal(-1, document.RootElement.GetProperty("exitCode").GetInt32());
         Assert.Equal("Boom", document.RootElement.GetProperty("summary").GetString());
+    }
+
+    [Fact]
+    public void BuildFailureDetailsResult_ReturnsStoredJsonAsText()
+    {
+        var store = new ToolLogStore();
+        var factory = new McpToolResultFactory(store);
+        var uri = store.StoreFailure("workspace_validate", 1, "summary", "error", "full log");
+
+        var toolResult = factory.BuildFailureDetailsResult(uri);
+
+        Assert.True(toolResult.IsError != true);
+        var text = Assert.IsType<TextContentBlock>(Assert.Single(toolResult.Content));
+        Assert.Contains("\"toolName\": \"workspace_validate\"", text.Text);
+        Assert.Contains("\"fullLog\": \"full log\"", text.Text);
     }
 }
