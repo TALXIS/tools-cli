@@ -27,8 +27,10 @@ public sealed class HeadlessAuthRequiredException : Exception
     public CredentialKind AttemptedKind { get; }
     public string HeadlessReason { get; }
 
+#pragma warning disable RS0030 // Domain-specific exception type — inheriting from Exception is intentional
     public HeadlessAuthRequiredException(CredentialKind attemptedKind, string headlessReason)
         : base(BuildMessage(attemptedKind, headlessReason))
+#pragma warning restore RS0030
     {
         AttemptedKind = attemptedKind;
         HeadlessReason = headlessReason;

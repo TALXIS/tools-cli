@@ -46,4 +46,10 @@ internal static class DiagnosticIds
 
     /// <summary>Logger calls must use message templates, not string interpolation, to preserve structured data.</summary>
     public const string NoInterpolatedLogMessage = "TXC014";
+
+    /// <summary>Catch blocks must not silently swallow exceptions — must log, rethrow, or return error.</summary>
+    public const string NoBareExceptionSwallow = "TXC015";
+
+    /// <summary>CreateLogger calls must use nameof() for consistent category names.</summary>
+    public const string LoggerMustUseNameof = "TXC016";
 }

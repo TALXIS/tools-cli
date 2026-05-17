@@ -15,5 +15,7 @@ public interface IHttpClientFactoryWrapper
 public sealed class DefaultHttpClientFactoryWrapper : IHttpClientFactoryWrapper
 {
     public static readonly DefaultHttpClientFactoryWrapper Instance = new();
+#pragma warning disable RS0030 // Factory method — this IS the HttpClient creation abstraction
     public HttpClient Create() => new();
+#pragma warning restore RS0030
 }

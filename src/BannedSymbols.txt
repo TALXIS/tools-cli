@@ -17,6 +17,10 @@ M:System.Console.WriteLine(System.Object);Use OutputWriter.WriteLine() or Output
 M:System.Console.WriteLine(System.String,System.Object);Use OutputWriter.WriteLine() or OutputFormatter for command output
 M:System.Console.WriteLine(System.String,System.Object[]);Use OutputWriter.WriteLine() or OutputFormatter for command output
 
+# Console.Error / Console.Out — prevent direct stream access outside approved sinks
+P:System.Console.Error;Use ILogger for diagnostics or an approved logging sink
+P:System.Console.Out;Use OutputWriter/OutputFormatter for command output or an approved stdout sink
+
 # Console.ReadKey / Console.ReadLine — interactive I/O forbidden in command code
 # Use IHeadlessDetector to guard interactive flows and prompt via a dedicated abstraction.
 M:System.Console.ReadKey;Use IHeadlessDetector and a prompt abstraction instead

@@ -17,11 +17,13 @@ internal sealed class ConsoleConfirmationPrompter : IConfirmationPrompter
     {
         ct.ThrowIfCancellationRequested();
 
+#pragma warning disable RS0030 // Approved interactive prompt — sanctioned Console I/O for TTY confirmation
         Console.Error.Write($"{message} [y/N]: ");
 
         // Read stdin on a background thread so the cancellation token can
         // abort the wait if the caller cancels before the user types.
         var response = await Task.Run(() => Console.ReadLine(), ct).ConfigureAwait(false);
+#pragma warning restore RS0030
         return response?.Trim().Equals("y", StringComparison.OrdinalIgnoreCase) == true;
     }
 }

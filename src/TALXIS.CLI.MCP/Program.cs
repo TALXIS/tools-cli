@@ -103,7 +103,9 @@ PREFER LOCAL OPERATIONS: Workspace operations are instant and reversible. Enviro
 }
 catch (Exception ex)
 {
+#pragma warning disable RS0030 // Bootstrap error path — logger not yet initialized
     Console.Error.WriteLine($"Fatal error starting MCP server: {LogRedactionFilter.Redact(ex.ToString())}");
+#pragma warning restore RS0030
     return 1;
 }
 
@@ -205,8 +207,10 @@ async ValueTask<CallToolResult> HandleGuideToolAsync(
                 "environment-mutation", query, top, server, ct, guideName);
             await Task.WhenAll(inspectionTask, mutationTask);
 
+#pragma warning disable RS0030 // Tasks already completed after WhenAll — .Result is non-blocking
             var inspectionResult = inspectionTask.Result;
             var mutationResult = mutationTask.Result;
+#pragma warning restore RS0030
 
             // Merge text from both results
             var parts = new List<string>();
@@ -813,7 +817,9 @@ async Task<int> ExecuteMcpSpecificToolAsync(Type commandType, IDictionary<string
     }
     catch (Exception ex)
     {
+#pragma warning disable RS0030 // MCP-specific tool fallback error path
         Console.Error.WriteLine($"Error executing MCP-specific tool: {LogRedactionFilter.Redact(ex.Message)}");
+#pragma warning restore RS0030
         return 1;
     }
 }

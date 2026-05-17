@@ -37,7 +37,9 @@ public static class TxcLoggerFactory
         // redirected (e.g. piped into an MCP stdio transport). This prevents
         // the SimpleConsole provider from writing to stdout and corrupting the
         // JSON-RPC stream.
+#pragma warning disable RS0030 // Approved infrastructure — detecting stdout redirection for log routing
         bool jsonMode = logFormat == "json" || System.Console.IsOutputRedirected;
+#pragma warning restore RS0030
 
         LogLevel minimumLogLevel = Enum.TryParse<LogLevel>(configuredLogLevel, ignoreCase: true, out LogLevel parsed)
             ? parsed

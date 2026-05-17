@@ -19,8 +19,10 @@ public interface IConfigurationResolver
     Task<ResolvedProfileContext> ResolveAsync(string? profileName, CancellationToken ct);
 }
 
+#pragma warning disable RS0030 // Domain-specific exception type — inheriting from Exception is intentional
 public sealed class ConfigurationResolutionException : Exception
 {
     public ConfigurationResolutionException(string message) : base(message) { }
     public ConfigurationResolutionException(string message, Exception inner) : base(message, inner) { }
 }
+#pragma warning restore RS0030

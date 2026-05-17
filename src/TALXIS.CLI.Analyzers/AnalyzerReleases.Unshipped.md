@@ -16,3 +16,5 @@ TXC011 | TALXIS.CLI.Design | Warning | Profiled command description should menti
 TXC012 | TALXIS.CLI.Design | Warning | [CliDestructive] command description should signal danger
 TXC013 | TALXIS.CLI.Design | Warning | Command with ambiguous name should declare [CliWorkflow]
 TXC014 | TALXIS.CLI.Design | Warning | Use message templates instead of string interpolation in logger calls
+TXC016 | TALXIS.CLI.Design | Warning | CreateLogger must use nameof() for the category name
+TXC015 | TALXIS.CLI.Design | Warning | Catch blocks must not silently swallow exceptions

@@ -39,8 +39,8 @@ internal sealed class TxcConsoleFormatter : ConsoleFormatter
         // Redact before writing
         message = LogRedactionFilter.Redact(message) ?? string.Empty;
 
-        // Timestamp
-        textWriter.Write(DateTime.Now.ToString("HH:mm:ss"));
+        // Timestamp with UTC offset for log correlation
+        textWriter.Write(DateTimeOffset.Now.ToString("HH:mm:ss zzz"));
         textWriter.Write(' ');
 
         // Level prefix with ANSI color

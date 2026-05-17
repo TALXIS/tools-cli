@@ -7,7 +7,9 @@ namespace TALXIS.CLI.Core.Contracts.Packaging;
 public sealed class NuGetPackageInstallerService
 {
     private const string LatestVersionKeyword = "latest";
+#pragma warning disable RS0030 // Shared static HttpClient — approved long-lived instance
     private static readonly HttpClient SharedHttpClient = new();
+#pragma warning restore RS0030
 
     private readonly HttpClient _httpClient;
 

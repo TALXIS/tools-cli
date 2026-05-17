@@ -20,6 +20,7 @@ public sealed class VaultUnavailableException : Exception
         "To opt in to a plaintext file fallback on any platform, set " +
         "`TXC_PLAINTEXT_FALLBACK=1`.";
 
+#pragma warning disable RS0030 // Domain-specific exception type — inheriting from Exception is intentional
     public VaultUnavailableException()
         : base(RemedyMessage) { }
 
@@ -28,4 +29,5 @@ public sealed class VaultUnavailableException : Exception
 
     public VaultUnavailableException(string message, Exception? inner = null)
         : base(message, inner) { }
+#pragma warning restore RS0030
 }
