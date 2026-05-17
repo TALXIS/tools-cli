@@ -264,6 +264,7 @@ internal sealed class DataverseDeploymentDetailService : IDeploymentDetailServic
         for (int i = 0; i < attempts; i++)
         {
             if (i > 0) await Task.Delay(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+            logger.LogInformation("Waiting for deployment details... attempt {Attempt}", i + 1);
             sol = await historyReader.GetByActivityIdAsync(asyncOpId, nearUtc: pivot).ConfigureAwait(false);
             if (sol is not null) break;
         }

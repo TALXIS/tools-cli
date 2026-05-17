@@ -1,5 +1,7 @@
+using System.Text.Json;
 using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
+using TALXIS.CLI.Core;
 using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.MCP;
@@ -18,22 +20,31 @@ internal sealed class McpToolResultFactory
 
     public CallToolResult Build(string toolName, CliSubprocessResult result)
     {
+        // Store execution log for every run — clients may need to troubleshoot
+        // unexpected output even from successful executions
+        string diagnosticsUri = _toolLogStore.Store(
+            toolName,
+            result.ExitCode,
+            result.Output?.Trim(),
+            result.LastErrors,
+            result.StructuredEntries);
+
         if (result.ExitCode == 0)
         {
+            string successText = result.Output;
+            if (result.StructuredEntries.Count > 0)
+            {
+                successText = $"{result.Output.TrimEnd()}{Environment.NewLine}{Environment.NewLine}" +
+                    $"Diagnostics URI: {diagnosticsUri}";
+            }
+
             return new CallToolResult
             {
-                Content = [new TextContentBlock { Text = result.Output }]
+                Content = [new TextContentBlock { Text = successText }]
             };
         }
 
         string summary = BuildFailureSummary(toolName, result.Output, result.LastErrors, result.ExitCode);
-        string diagnosticsUri = _toolLogStore.Store(
-            toolName,
-            result.ExitCode,
-            summary,
-            result.LastErrors,
-            result.FullLog);
-
         return BuildFailureResult(toolName, summary, diagnosticsUri);
     }
 
@@ -42,12 +53,17 @@ internal sealed class McpToolResultFactory
         string summary = string.IsNullOrWhiteSpace(exception.Message)
             ? $"Tool '{toolName}' failed before execution completed."
             : LogRedactionFilter.Redact(exception.Message);
+        var exceptionEntry = new RedactedLogEntry(
+            Timestamp: DateTime.UtcNow.ToString("o"),
+            Level: "Critical",
+            Category: toolName,
+            Message: LogRedactionFilter.Redact(exception.ToString()));
         string diagnosticsUri = _toolLogStore.Store(
             toolName,
             -1,
             summary,
             summary,
-            LogRedactionFilter.Redact(exception.ToString()));
+            [exceptionEntry]);
 
         return BuildFailureResult(toolName, summary, diagnosticsUri);
     }
@@ -76,7 +92,8 @@ internal sealed class McpToolResultFactory
         };
     }
 
-    public CallToolResult BuildExecutionLogResult(string uri)
+    public CallToolResult BuildExecutionLogResult(string uri, string? level = null,
+        string? category = null, string? search = null, int skip = 0, int take = 50)
     {
         if (!_toolLogStore.TryGet(uri, out var entry) || entry is null)
         {
@@ -87,10 +104,67 @@ internal sealed class McpToolResultFactory
             };
         }
 
+        var allEntries = entry.LogEntries;
+        var filtered = FilterLogEntries(allEntries, level, category, search);
+        var paged = filtered.Skip(skip).Take(take).ToList();
+
+        var result = new
+        {
+            entry.ToolName,
+            entry.ExitCode,
+            entry.Summary,
+            TotalEntries = allEntries.Count,
+            FilteredCount = filtered.Count,
+            Skip = skip,
+            Take = take,
+            LogEntries = paged
+        };
+
         return new CallToolResult
         {
-            Content = [new TextContentBlock { Text = entry.ToJson() }]
+            Content = [new TextContentBlock
+            {
+                Text = JsonSerializer.Serialize(result, TxcOutputJsonOptions.Default)
+            }]
         };
+    }
+
+    private static readonly string[] LogLevelOrder =
+        ["Trace", "Debug", "Information", "Warning", "Error", "Critical"];
+
+    private static IReadOnlyList<RedactedLogEntry> FilterLogEntries(
+        IReadOnlyList<RedactedLogEntry> entries, string? level, string? category, string? search)
+    {
+        IEnumerable<RedactedLogEntry> result = entries;
+
+        if (!string.IsNullOrWhiteSpace(level))
+        {
+            int minIndex = Array.IndexOf(LogLevelOrder, level);
+            if (minIndex >= 0)
+            {
+                result = result.Where(e =>
+                {
+                    int idx = Array.IndexOf(LogLevelOrder, e.Level);
+                    return idx >= minIndex;
+                });
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(category))
+        {
+            result = result.Where(e =>
+                e.Category.Contains(category, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            result = result.Where(e =>
+                e.Message.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                (e.Data != null && e.Data.Values.Any(v =>
+                    v?.ToString()?.Contains(search, StringComparison.OrdinalIgnoreCase) == true)));
+        }
+
+        return result.ToList();
     }
 
     private static CallToolResult BuildFailureResult(string toolName, string summary, string diagnosticsUri)

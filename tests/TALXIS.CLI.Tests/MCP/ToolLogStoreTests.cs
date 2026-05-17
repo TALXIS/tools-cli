@@ -5,11 +5,16 @@ namespace TALXIS.CLI.Tests.MCP;
 
 public class ToolLogStoreTests
 {
+    private static List<RedactedLogEntry> MakeEntries(params string[] messages) =>
+        messages.Select((m, i) => new RedactedLogEntry(
+            $"2026-05-04T10:00:{i:D2}Z", "Error", "TestCategory", m)).ToList();
+
     [Fact]
     public void Store_ReturnsUriWithToolName()
     {
         var store = new ToolLogStore();
-        var uri = store.Store("data_package_import", 1, "summary", "error summary", "full log");
+        var entries = MakeEntries("schema error");
+        var uri = store.Store("data_package_import", 1, "summary", "error summary", entries);
 
         Assert.StartsWith(ToolLogStore.UriScheme + "data_package_import/", uri);
     }
@@ -18,15 +23,22 @@ public class ToolLogStoreTests
     public void TryGet_ReturnsStoredEntry()
     {
         var store = new ToolLogStore();
-        var uri = store.Store("my_tool", 1, "summary", "errors here", "full log content");
+        var entries = new List<RedactedLogEntry>
+        {
+            new("2026-05-04T10:00:00Z", "Error", "TestCategory", "schema error"),
+            new("2026-05-04T10:00:01Z", "Warning", "TestCategory", "minor issue")
+        };
+        var uri = store.Store("my_tool", 1, "summary", "errors here", entries);
 
         Assert.True(store.TryGet(uri, out var entry));
         Assert.NotNull(entry);
         Assert.Equal("my_tool", entry.ToolName);
         Assert.Equal(1, entry.ExitCode);
         Assert.Equal("summary", entry.PrimaryText);
-        Assert.Equal("full log content", entry.FullLog);
         Assert.Equal("errors here", entry.ErrorSummary);
+        Assert.Equal(2, entry.LogEntries.Count);
+        Assert.Equal("schema error", entry.LogEntries[0].Message);
+        Assert.Equal("minor issue", entry.LogEntries[1].Message);
     }
 
     [Fact]
@@ -40,8 +52,8 @@ public class ToolLogStoreTests
     public void ListAll_ReturnsAllEntries()
     {
         var store = new ToolLogStore();
-        store.Store("tool_a", 1, "summary a", "", "log a");
-        store.Store("tool_b", 1, "summary b", "err", "log b");
+        store.Store("tool_a", 1, "summary a", "", MakeEntries("log a"));
+        store.Store("tool_b", 1, "summary b", "err", MakeEntries("log b"));
 
         var all = store.ListAll();
         Assert.Equal(2, all.Count);
@@ -51,10 +63,10 @@ public class ToolLogStoreTests
     public void Store_EvictsOldestWhenOverCapacity()
     {
         var store = new ToolLogStore(maxEntries: 3);
-        var uri1 = store.Store("tool", 1, "summary1", "", "log1");
-        store.Store("tool", 1, "summary2", "", "log2");
-        store.Store("tool", 1, "summary3", "", "log3");
-        store.Store("tool", 1, "summary4", "", "log4"); // Should evict uri1
+        var uri1 = store.Store("tool", 1, "summary1", "", MakeEntries("log1"));
+        store.Store("tool", 1, "summary2", "", MakeEntries("log2"));
+        store.Store("tool", 1, "summary3", "", MakeEntries("log3"));
+        store.Store("tool", 1, "summary4", "", MakeEntries("log4")); // Should evict uri1
 
         Assert.False(store.TryGet(uri1, out _));
         Assert.Equal(3, store.ListAll().Count);
@@ -64,8 +76,8 @@ public class ToolLogStoreTests
     public void Store_GeneratesUniqueUris()
     {
         var store = new ToolLogStore();
-        var uri1 = store.Store("tool", 1, "summary1", "", "log1");
-        var uri2 = store.Store("tool", 1, "summary2", "", "log2");
+        var uri1 = store.Store("tool", 1, "summary1", "", MakeEntries("log1"));
+        var uri2 = store.Store("tool", 1, "summary2", "", MakeEntries("log2"));
 
         Assert.NotEqual(uri1, uri2);
     }

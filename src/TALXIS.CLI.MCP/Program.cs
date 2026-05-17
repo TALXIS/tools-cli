@@ -518,7 +518,7 @@ CallToolResult HandleGetExecutionLog(IDictionary<string, JsonElement>? arguments
     {
         return new CallToolResult
         {
-            Content = [new TextContentBlock { Text = "'uri' parameter is required. Pass the diagnostics URI from the failed tool response." }],
+            Content = [new TextContentBlock { Text = "'uri' parameter is required. Pass the diagnostics URI from the tool response." }],
             IsError = true
         };
     }
@@ -533,7 +533,14 @@ CallToolResult HandleGetExecutionLog(IDictionary<string, JsonElement>? arguments
         };
     }
 
-    return toolResultFactory.BuildExecutionLogResult(uri);
+    // Extract optional filter/paging parameters
+    var level = arguments.TryGetValue("level", out var lvl) ? lvl.GetString() : null;
+    var category = arguments.TryGetValue("category", out var cat) ? cat.GetString() : null;
+    var search = arguments.TryGetValue("search", out var srch) ? srch.GetString() : null;
+    var skip = arguments.TryGetValue("skip", out var sk) ? (int)sk.GetDouble() : 0;
+    var take = arguments.TryGetValue("take", out var tk) ? (int)tk.GetDouble() : 50;
+
+    return toolResultFactory.BuildExecutionLogResult(uri, level, category, search, skip, take);
 }
 
 // Registers the always-on tools in the ActiveToolSet
@@ -621,7 +628,7 @@ For team-specific naming conventions and coding standards, use native Agent Skil
     toolSet.AddAlwaysOn(new Tool
     {
         Name = "get_execution_log",
-        Description = "Fetch detailed diagnostics for a previous failed tool call. Pass the diagnostics URI from the failed tool response to retrieve summary, stderr log, and full error details.",
+        Description = "Fetch detailed diagnostics for a previous tool call. Pass the diagnostics URI from the tool response to retrieve summary, stderr log, and full error details. Supports filtering by log level, category, text search, and pagination.",
         InputSchema = BuildGetExecutionLogInputSchema(),
         Annotations = new ToolAnnotations { ReadOnlyHint = true }
     });
@@ -716,6 +723,32 @@ JsonElement BuildGetExecutionLogInputSchema()
             {
                 ["type"] = "string",
                 ["description"] = "Diagnostics URI returned by a failed tool call (e.g. 'txc://logs/workspace_validate/abc123')."
+            },
+            ["level"] = new Dictionary<string, object?>
+            {
+                ["type"] = "string",
+                ["description"] = "Minimum log level filter. Only entries at this level or above are returned.",
+                ["enum"] = new List<string> { "Trace", "Debug", "Information", "Warning", "Error", "Critical" }
+            },
+            ["category"] = new Dictionary<string, object?>
+            {
+                ["type"] = "string",
+                ["description"] = "Filter log entries by category substring (e.g. 'WorkspaceValidateCliCommand')."
+            },
+            ["search"] = new Dictionary<string, object?>
+            {
+                ["type"] = "string",
+                ["description"] = "Full-text search across log entry messages and data values (case-insensitive)."
+            },
+            ["skip"] = new Dictionary<string, object?>
+            {
+                ["type"] = "integer",
+                ["description"] = "Number of matching entries to skip for pagination (default: 0)."
+            },
+            ["take"] = new Dictionary<string, object?>
+            {
+                ["type"] = "integer",
+                ["description"] = "Maximum entries to return per call (default: 50)."
             }
         },
         ["required"] = new List<string> { "uri" }

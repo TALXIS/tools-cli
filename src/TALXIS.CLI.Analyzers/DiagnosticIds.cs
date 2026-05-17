@@ -43,4 +43,7 @@ internal static class DiagnosticIds
 
     /// <summary>Leaf command with ambiguous name should declare [CliWorkflow] to prevent workflow misclassification.</summary>
     public const string WorkflowRecommended = "TXC013";
+
+    /// <summary>Logger calls must use message templates, not string interpolation, to preserve structured data.</summary>
+    public const string NoInterpolatedLogMessage = "TXC014";
 }

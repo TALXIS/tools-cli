@@ -113,7 +113,13 @@ public class McpTests
         var detailsResult = await client.CallToolAsync("get_execution_log", new Dictionary<string, object?> { { "uri", resourceLink.Uri } });
         Assert.True(detailsResult.IsError != true);
         var detailsText = Assert.IsType<TextContentBlock>(Assert.Single(detailsResult.Content));
-        Assert.Contains("\"toolName\": \"workspace_validate\"", detailsText.Text);
-        Assert.Contains("\"fullLog\":", detailsText.Text);
+        using var detailsDoc = JsonDocument.Parse(detailsText.Text);
+        Assert.Equal("workspace_validate", detailsDoc.RootElement.GetProperty("toolName").GetString());
+        Assert.True(detailsDoc.RootElement.TryGetProperty("logEntries", out var logEntries));
+        Assert.Equal(JsonValueKind.Array, logEntries.ValueKind);
+        Assert.True(detailsDoc.RootElement.TryGetProperty("totalEntries", out _));
+        Assert.True(detailsDoc.RootElement.TryGetProperty("filteredCount", out _));
+        Assert.True(detailsDoc.RootElement.TryGetProperty("skip", out _));
+        Assert.True(detailsDoc.RootElement.TryGetProperty("take", out _));
     }
 }

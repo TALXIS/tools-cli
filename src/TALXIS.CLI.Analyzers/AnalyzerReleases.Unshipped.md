@@ -15,3 +15,4 @@ TXC010 | TALXIS.CLI.Design | Error | CLI command description must be at least 20
 TXC011 | TALXIS.CLI.Design | Warning | Profiled command description should mention profile or environment
 TXC012 | TALXIS.CLI.Design | Warning | [CliDestructive] command description should signal danger
 TXC013 | TALXIS.CLI.Design | Warning | Command with ambiguous name should declare [CliWorkflow]
+TXC014 | TALXIS.CLI.Design | Warning | Use message templates instead of string interpolation in logger calls

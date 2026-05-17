@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using TALXIS.CLI.Core;
 
 namespace TALXIS.CLI.MCP;
@@ -27,7 +26,8 @@ internal sealed class ToolLogStore
     /// <summary>
     /// Stores a tool execution log and returns the resource URI.
     /// </summary>
-    public string Store(string toolName, int exitCode, string? primaryText, string? errorSummary, string? fullLog)
+    public string Store(string toolName, int exitCode, string? primaryText, string? errorSummary,
+        IReadOnlyList<RedactedLogEntry>? logEntries)
     {
         var runId = Guid.NewGuid().ToString("N")[..12];
         var uri = $"{UriScheme}{toolName}/{runId}";
@@ -36,7 +36,7 @@ internal sealed class ToolLogStore
             ExitCode: exitCode,
             PrimaryText: Normalize(primaryText),
             ErrorSummary: Normalize(errorSummary),
-            FullLog: Normalize(fullLog),
+            LogEntries: logEntries ?? [],
             Timestamp: DateTimeOffset.UtcNow);
 
         lock (_sync)
@@ -84,7 +84,7 @@ internal sealed class ToolLogStore
         int ExitCode,
         string? PrimaryText,
         string? ErrorSummary,
-        string? FullLog,
+        IReadOnlyList<RedactedLogEntry> LogEntries,
         DateTimeOffset Timestamp)
     {
         public string Kind => "tool-execution-log";
@@ -93,9 +93,6 @@ internal sealed class ToolLogStore
             PrimaryText,
             ErrorSummary,
             $"Tool '{ToolName}' failed with exit code {ExitCode}.")!;
-
-        [JsonIgnore]
-        public bool HasFullLog => !string.IsNullOrWhiteSpace(FullLog);
 
         public string ToJson() => JsonSerializer.Serialize(this, TxcOutputJsonOptions.Default);
 

@@ -209,12 +209,13 @@ internal sealed class CliSubprocessResult
     }
 
     /// <summary>Creates a result with explicit stdout/stderr-derived diagnostic fields.</summary>
-    internal CliSubprocessResult(int exitCode, string output, string lastErrors, string fullLog)
+    internal CliSubprocessResult(int exitCode, string output, string lastErrors,
+        IReadOnlyList<RedactedLogEntry>? structuredEntries = null)
     {
         ExitCode = exitCode;
         Output = output;
         LastErrors = lastErrors;
-        FullLog = fullLog;
+        StructuredEntries = structuredEntries ?? [];
     }
 
     /// <summary>Creates a result from a streaming output handler (uses stdout content as output).</summary>
@@ -225,19 +226,19 @@ internal sealed class CliSubprocessResult
         {
             Output = forwarder.StdoutContent;
             LastErrors = forwarder.LastErrors;
-            FullLog = forwarder.FullLog;
+            StructuredEntries = forwarder.StructuredEntries;
         }
         else
         {
             Output = string.Empty;
             LastErrors = string.Empty;
-            FullLog = string.Empty;
+            StructuredEntries = [];
         }
     }
 
     /// <summary>Error messages captured from subprocess stderr logs.</summary>
     public string LastErrors { get; } = string.Empty;
 
-    /// <summary>Complete stderr log from the subprocess (all levels).</summary>
-    public string FullLog { get; } = string.Empty;
+    /// <summary>Structured log entries captured from subprocess stderr (preserves level, category, data for filtering).</summary>
+    public IReadOnlyList<RedactedLogEntry> StructuredEntries { get; } = [];
 }
