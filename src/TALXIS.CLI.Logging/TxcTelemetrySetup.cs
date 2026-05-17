@@ -6,7 +6,7 @@ namespace TALXIS.CLI.Logging;
 /// Initializes and manages the OpenTelemetry TracerProvider for the CLI process.
 /// Call <see cref="Initialize"/> once at startup; call <see cref="Shutdown"/> at process exit.
 ///
-/// The Azure Monitor exporter is only wired in Release builds (<c>TELEMETRY_ENABLED</c>).
+/// Telemetry is on by default for all published (Release) builds.
 /// Debug builds skip initialization entirely — no NuGet dependency loaded, no network calls.
 /// </summary>
 public static class TxcTelemetrySetup
@@ -76,6 +76,7 @@ public static class TxcTelemetrySetup
                     .AddAttributes(new Dictionary<string, object>
                     {
                         ["talxis.cli.entry_point"] = entryPoint,
+                        ["talxis.cli.is_ci"] = TxcTelemetry.IsRunningInCi(),
                         ["os.type"] = System.Runtime.InteropServices.RuntimeInformation.OSDescription,
                     }))
             .AddAzureMonitorTraceExporter(opts =>

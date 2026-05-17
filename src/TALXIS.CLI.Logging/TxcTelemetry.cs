@@ -7,11 +7,10 @@ namespace TALXIS.CLI.Logging;
 /// Central telemetry entry point for the TALXIS CLI.
 /// Owns the shared <see cref="ActivitySource"/> used by CLI commands and MCP tool dispatch.
 /// 
-/// Telemetry is opt-in:
+/// Telemetry is on by default for published builds:
 /// <list type="number">
-///   <item><b>Build-time gate:</b> <c>#if TELEMETRY_ENABLED</c> (Release builds only).</item>
-///   <item><b>User opt-in:</b> <c>telemetry.enabled = true</c> in <c>~/.txc/config.json</c>.</item>
-///   <item><b>Env var opt-out:</b> <c>TXC_TELEMETRY_OPTOUT=1</c> (overrides config).</item>
+///   <item><b>Build-time gate:</b> <c>#if TELEMETRY_ENABLED</c> (Release builds only — Debug/local never emits).</item>
+///   <item><b>On by default:</b> <c>telemetry.enabled = true</c> in <c>~/.txc/config.json</c>.</item>
 /// </list>
 /// 
 /// Connection string resolution (highest priority wins):
@@ -31,10 +30,10 @@ public static class TxcTelemetry
     public static readonly ActivitySource Source = new("TALXIS.CLI", GetCliVersion());
 
     /// <summary>
-    /// Environment variable that, when set to "1" or "true", disables telemetry
-    /// regardless of config file settings. Intended for CI/pipeline use.
+    /// Environment variable that tags telemetry with pipeline/CI context.
+    /// Not an opt-out — telemetry still flows, but spans are tagged for filtering.
     /// </summary>
-    public const string OptOutEnvVar = "TXC_TELEMETRY_OPTOUT";
+    public const string CiEnvVar = "TXC_CI";
 
     /// <summary>
     /// Standard Azure SDK environment variable for App Insights connection string.
@@ -63,18 +62,26 @@ public static class TxcTelemetry
     }
 
     /// <summary>
-    /// Checks whether telemetry should be active based on config and environment.
+    /// Checks whether telemetry should be active based on config.
+    /// Telemetry is on by default; only disabled if the user explicitly sets
+    /// <c>telemetry.enabled = false</c> in their config file.
     /// </summary>
     /// <param name="configEnabled">The <c>telemetry.enabled</c> value from config file.</param>
     public static bool ShouldEnable(bool configEnabled)
     {
-        // Env var opt-out always wins
-        var optOut = Environment.GetEnvironmentVariable(OptOutEnvVar);
-        if (string.Equals(optOut, "1", StringComparison.Ordinal) ||
-            string.Equals(optOut, "true", StringComparison.OrdinalIgnoreCase))
-            return false;
-
         return configEnabled;
+    }
+
+    /// <summary>
+    /// Returns true if the CLI is running in a CI/pipeline environment.
+    /// Used to tag telemetry spans, not to disable them.
+    /// </summary>
+    public static bool IsRunningInCi()
+    {
+        return !string.IsNullOrEmpty(Environment.GetEnvironmentVariable(CiEnvVar))
+            || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("CI"))
+            || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("TF_BUILD"))
+            || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"));
     }
 
     /// <summary>
