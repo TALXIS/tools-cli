@@ -69,7 +69,13 @@ public abstract class TxcLeafCommand
     public async Task<int> RunAsync()
     {
         var commandName = GetType().Name;
-        using var activity = TelemetrySource.StartActivity(commandName, ActivityKind.Internal);
+
+        // If spawned by MCP, adopt the parent trace context so this span
+        // appears as a child of the MCP tool dispatch span in App Insights.
+        var parentContext = RestoreParentTraceContext();
+        using var activity = parentContext.HasValue
+            ? TelemetrySource.StartActivity(commandName, ActivityKind.Internal, parentContext.Value)
+            : TelemetrySource.StartActivity(commandName, ActivityKind.Internal);
         activity?.SetTag("txc.command", commandName);
         activity?.SetTag("txc.entry_point", "cli");
 
@@ -238,6 +244,37 @@ public abstract class TxcLeafCommand
         while (ex.InnerException is not null)
             ex = ex.InnerException;
         return ex;
+    }
+
+    /// <summary>
+    /// Reads <c>TXC_TRACEPARENT</c> environment variable (set by the MCP server when
+    /// spawning CLI subprocesses) and returns a parent <see cref="ActivityContext"/>
+    /// so this process's span becomes a child of the MCP tool dispatch span.
+    /// Returns null for standalone CLI usage (no parent context).
+    /// </summary>
+    private static ActivityContext? RestoreParentTraceContext()
+    {
+        // W3C traceparent format: 00-{traceId 32 hex}-{spanId 16 hex}-{flags 2 hex}
+        var traceparent = Environment.GetEnvironmentVariable("TXC_TRACEPARENT");
+        if (string.IsNullOrEmpty(traceparent))
+            return null;
+
+        try
+        {
+            var parts = traceparent.Split('-');
+            if (parts.Length < 4 || parts[1].Length != 32 || parts[2].Length != 16)
+                return null;
+
+            var traceId = ActivityTraceId.CreateFromString(parts[1].AsSpan());
+            var spanId = ActivitySpanId.CreateFromString(parts[2].AsSpan());
+            var flags = parts[3] == "01" ? ActivityTraceFlags.Recorded : ActivityTraceFlags.None;
+            return new ActivityContext(traceId, spanId, flags, isRemote: true);
+        }
+        catch
+        {
+            // Malformed traceparent — run as standalone (no parent)
+            return null;
+        }
     }
 
     /// <summary>

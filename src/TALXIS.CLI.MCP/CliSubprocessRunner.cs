@@ -111,10 +111,16 @@ internal static class CliSubprocessRunner
         // Enable structured JSON logging for MCP consumption
         startInfo.Environment["TXC_LOG_FORMAT"] = "json";
 
-        // Suppress telemetry in subprocess — the MCP server's Activity span already
-        // covers this tool invocation and detailed execution is captured via structured
-        // log entries. Without this, both processes export duplicate uncorrelated spans.
-        startInfo.Environment[TALXIS.CLI.Logging.TxcTelemetry.OptOutEnvVar] = "1";
+        // Propagate trace context so the subprocess's Activity span becomes a child
+        // of the MCP server's current span. Both export independently to App Insights,
+        // but they appear as a single correlated trace (MCP dispatch → CLI execution).
+        var currentActivity = System.Diagnostics.Activity.Current;
+        if (currentActivity != null)
+        {
+            // W3C traceparent format: 00-{traceId}-{spanId}-{flags}
+            var flags = (currentActivity.ActivityTraceFlags & System.Diagnostics.ActivityTraceFlags.Recorded) != 0 ? "01" : "00";
+            startInfo.Environment["TXC_TRACEPARENT"] = $"00-{currentActivity.TraceId}-{currentActivity.SpanId}-{flags}";
+        }
 
         // Force headless mode for every MCP-spawned tool invocation so that
         // interactive auth flows (browser, device code, masked secret prompts)
