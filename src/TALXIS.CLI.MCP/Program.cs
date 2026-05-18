@@ -30,6 +30,10 @@ reasoningEngine.LoadSkills();
 var publicSkillLoader = new PublicSkillLoader();
 publicSkillLoader.LoadIndex();
 
+// Load UI testing step bindings catalog via reflection
+var testingBindingsCatalog = new TestingBindingsCatalog();
+testingBindingsCatalog.Load();
+
 // Session-scoped active tool set — starts with always-on tools only
 var activeToolSet = new ActiveToolSet();
 var guideHandler = new GuideHandler(mcpToolRegistry.Catalog, activeToolSet, reasoningEngine);
@@ -71,6 +75,7 @@ USE THE GUIDE TOOLS to discover operations for your task:
 - guide_deployment: Deployment lifecycle — import/export/pack solutions, manage components, publish. Requires profile.
 - guide_data: LIVE data operations — SQL/FetchXML/OData queries, record CRUD, bulk ops, CMT migration. Requires profile.
 - guide_config: CLI setup — auth credentials, connections, profiles, settings. Required before environment operations.
+- guide_testing: UI test generation — discover available Reqnroll step bindings for Power Apps BDD tests.
 
 WORKFLOW: Call a guide tool → use execute_operation for immediate execution → discovered tools become direct calls on next turn.
 
@@ -214,6 +219,10 @@ async ValueTask<CallToolResult> HandleGuideToolAsync(
             };
         }
     }
+    else if (guideName == "guide_testing")
+    {
+        result = await HandleGuideTestingAsync(query, top, server, ct);
+    }
     else if (workflowScope is not null)
     {
         result = await guideHandler.HandleWorkflowGuideAsync(workflowScope, query, top, server, ct, guideName);
@@ -226,6 +235,78 @@ async ValueTask<CallToolResult> HandleGuideToolAsync(
     // Clients discover injected tools by re-fetching tools/list on subsequent turns.
 
     return result;
+}
+
+// Handles guide_testing calls — uses TestingBindingsCatalog + sampling to recommend step bindings
+async ValueTask<CallToolResult> HandleGuideTestingAsync(
+    string query, int top, McpServer server, CancellationToken ct)
+{
+    if (testingBindingsCatalog.Count == 0)
+    {
+        return new CallToolResult
+        {
+            Content = [new TextContentBlock { Text = "No step bindings loaded. Ensure the TALXIS.TestKit.Bindings assembly is available." }],
+            IsError = true
+        };
+    }
+
+    if (string.IsNullOrEmpty(query))
+    {
+        // No query — return full catalog listing
+        return new CallToolResult
+        {
+            Content = [new TextContentBlock { Text = testingBindingsCatalog.GetCatalogPrompt() }]
+        };
+    }
+
+    // Use sampling to select relevant bindings based on user's query
+    var skillsContext = reasoningEngine.GetSkillsContext("guide_testing");
+    var catalogPrompt = testingBindingsCatalog.GetCatalogPrompt();
+
+    var systemPrompt = $@"You are a Power Apps UI test automation assistant. Given the user's testing task and available step bindings, produce a Gherkin feature file or scenario.
+
+FORMAT YOUR RESPONSE AS:
+1. A complete Gherkin scenario (or scenarios) using the available step bindings
+2. Include comments explaining any custom steps that would need to be implemented
+
+RULES:
+- Use ONLY the step bindings listed below when possible
+- For login, ALWAYS start with: Given I am logged in to the '{{app}}' app as '{{user}}'
+- Use realistic placeholder values based on the user's description
+- Each scenario should test ONE behavior
+- Include test data setup (Given steps) before actions (When steps)
+- End with assertions (Then steps)
+- If the available bindings don't cover something, note it as a custom step with a comment
+
+{catalogPrompt}{skillsContext}";
+
+    var samplingParams = new CreateMessageRequestParams
+    {
+        Messages =
+        [
+            new SamplingMessage
+            {
+                Role = Role.User,
+                Content = [new TextContentBlock { Text = $"Generate a Gherkin test for this scenario: {query}" }]
+            }
+        ],
+        SystemPrompt = systemPrompt,
+        MaxTokens = 2000,
+        ModelPreferences = new ModelPreferences
+        {
+            SpeedPriority = 0.6f,
+            CostPriority = 0.4f,
+            IntelligencePriority = 0.8f
+        },
+    };
+
+    var result = await server.SampleAsync(samplingParams, ct);
+    var responseText = result.Content.OfType<TextContentBlock>().FirstOrDefault()?.Text ?? "";
+
+    return new CallToolResult
+    {
+        Content = [new TextContentBlock { Text = responseText }]
+    };
 }
 
 // Bridge: execute_operation dispatches any tool from the internal catalog
@@ -473,7 +554,7 @@ async ValueTask<CallToolResult> ExecuteAsTaskAsync(
 bool IsGuideTool(string toolName)
 {
     return toolName is "guide" or "guide_workspace" or "guide_environment"
-        or "guide_deployment" or "guide_data" or "guide_config";
+        or "guide_deployment" or "guide_data" or "guide_config" or "guide_testing";
 }
 
 // Helper: checks if a tool is an MCP-specific in-process tool (not a CLI subprocess)
@@ -560,6 +641,13 @@ After calling guide, you can IMMEDIATELY use execute_operation with the returned
     {
         Name = "guide_config",
         Description = @"Sets up and manages CLI configuration. Create auth credentials (service principals), connections, and profiles. Pin profiles to workspaces. Manage CLI settings. Validate profile connectivity. Required before any environment operation.",
+        InputSchema = BuildGuideInputSchema()
+    });
+
+    toolSet.AddAlwaysOn(new Tool
+    {
+        Name = "guide_testing",
+        Description = @"Helps generate Power Apps UI tests using Reqnroll (BDD). Discovers available step bindings from TALXIS.TestKit.Bindings and generates Gherkin scenarios. Provide a description of what you want to test and get ready-to-use feature file content with Given/When/Then steps.",
         InputSchema = BuildGuideInputSchema()
     });
 
