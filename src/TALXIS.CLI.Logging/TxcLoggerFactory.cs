@@ -48,6 +48,11 @@ public static class TxcLoggerFactory
         builder.ClearProviders();
         builder.SetMinimumLevel(minimumLogLevel);
 
+        // Bridge ILogger events to the current OTel Activity span so that
+        // error tags, exception recordings, and status all flow through ILogger
+        // as the single source of truth — command code never touches Activity.
+        builder.AddProvider(new TxcTelemetryLogProvider());
+
         if (jsonMode)
         {
             builder.AddProvider(new JsonStderrLoggerProvider());

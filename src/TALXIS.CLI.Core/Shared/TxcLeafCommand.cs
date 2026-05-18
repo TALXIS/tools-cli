@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Reflection;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
-using OpenTelemetry.Trace;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.DependencyInjection;
 
@@ -122,54 +121,32 @@ public abstract class TxcLeafCommand
         }
         catch (Exception ex) when (ex is Abstractions.ConfigurationResolutionException or ArgumentException)
         {
-            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-            activity?.SetTag("txc.exit_code", ExitValidationError);
-            activity?.SetTag("txc.error_kind", "validation");
-            activity?.RecordException(ex);
-            Logger.LogError("{Error}", ex.Message);
+            // Structured properties flow to all ILogger providers including
+            // TxcTelemetryLogProvider which maps txc.* to Activity tags and records
+            // the exception in App Insights — no direct Activity calls needed here.
+            LogCommandFailure(ex, ExitValidationError, "validation");
             return ExitValidationError;
         }
         catch (OperationCanceledException ex)
         {
-            activity?.SetStatus(ActivityStatusCode.Error, "Cancelled");
-            activity?.SetTag("txc.exit_code", ExitError);
-            activity?.SetTag("txc.error_kind", "cancelled");
-            activity?.RecordException(ex);
-            Logger.LogWarning("Operation was cancelled.");
+            LogCommandFailure(ex, ExitError, "cancelled", LogLevel.Warning);
             return ExitError;
         }
         catch (Exception ex)
         {
-            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-            activity?.SetTag("txc.exit_code", ExitError);
-            activity?.SetTag("txc.error_kind", "internal");
-            // RecordException uses OTel semantic conventions (exception.type, exception.message,
-            // exception.stacktrace) so the Azure Monitor exporter creates 'exceptions' table rows
-            // with full stack traces. The extension method is a no-op when activity is null.
-            activity?.RecordException(ex);
-
             // Surface the innermost exception message — it typically contains the
             // actionable root cause (e.g. "Run 'txc config auth login' and retry.").
             var root = GetInnermostException(ex);
             var hasDistinctCause = root != ex && !string.Equals(root.Message, ex.Message, StringComparison.Ordinal);
-            var errorMessage = hasDistinctCause ? root.Message : ex.Message;
 
             // Write structured error to stdout so scripts, pipes, and MCP get
             // a machine-readable error envelope instead of empty stdout.
-            OutputFormatter.WriteResult("failed", errorMessage);
+            OutputFormatter.WriteResult("failed", hasDistinctCause ? root.Message : ex.Message);
 
-            // Also log to stderr for diagnostic visibility (log lines are always
-            // forwarded as MCP notifications and are visible with --verbose).
+            LogCommandFailure(ex, ExitError, "internal");
             if (hasDistinctCause)
-            {
-                Logger.LogError("Command failed: {Error}", ex.Message);
                 Logger.LogError("Cause: {RootCause}", root.Message);
-            }
-            else
-            {
-                Logger.LogError("Command failed: {Error}", ex.Message);
-            }
-            Logger.LogDebug(ex, "Full exception details:");
+
             return ExitError;
         }
     }
@@ -235,6 +212,36 @@ public abstract class TxcLeafCommand
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Logs a command failure with structured telemetry properties (<c>txc.exit_code</c>,
+    /// <c>txc.error_kind</c>) that flow to all ILogger providers — console, JSON stderr,
+    /// and the <c>TxcTelemetryLogProvider</c> which bridges them to Activity tags and
+    /// App Insights exception recording. This keeps command code free of direct Activity calls.
+    /// </summary>
+    /// <summary>
+    /// Logs a command failure and tags the current Activity span.
+    /// The ILogger call carries the error message and exception to all providers
+    /// (console, JSON stderr, telemetry). The Activity tags are span-level metadata
+    /// set directly — they're infrastructure, not per-provider concerns.
+    /// </summary>
+    private void LogCommandFailure(Exception ex, int exitCode, string errorKind,
+        LogLevel level = LogLevel.Error)
+    {
+        // Tag the Activity span with exit code and error classification.
+        // These are span-level metadata (like txc.command, txc.entry_point)
+        // set in RunAsync — keeping them here rather than in each catch block.
+        var activity = Activity.Current;
+        activity?.SetTag("txc.exit_code", exitCode);
+        activity?.SetTag("txc.error_kind", errorKind);
+
+        // Log through ILogger — TxcTelemetryLogProvider bridges the exception
+        // to Activity.RecordException (→ App Insights exceptions table) and
+        // sets Activity error status. Console/JSON providers render the message.
+#pragma warning disable CA2254 // Log message template is intentionally dynamic for level routing
+        Logger.Log(level, ex, "{Error}", ex.Message);
+#pragma warning restore CA2254
     }
 
     /// <summary>

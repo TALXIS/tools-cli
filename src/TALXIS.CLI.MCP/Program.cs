@@ -376,6 +376,10 @@ async Task<CallToolResult> ExecuteCliToolAsync(
     }
     catch (Exception ex)
     {
+        // Log through ILogger so TxcTelemetryLogProvider bridges the exception
+        // to the Activity span (→ App Insights exceptions table with redaction).
+        TxcLoggerFactory.CreateLogger($"txc.{toolName}")
+            .LogError(ex, "Tool dispatch failed: {ToolName}", toolName);
         return toolResultFactory.BuildExceptionResult(toolName, ex);
     }
     finally
