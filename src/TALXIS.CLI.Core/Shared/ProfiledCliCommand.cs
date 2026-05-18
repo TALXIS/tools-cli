@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.RegularExpressions;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
@@ -97,14 +98,34 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
     /// </summary>
     protected override async Task<int?> PreExecuteAsync()
     {
+        // Try to resolve the profile early to tag the Activity span with
+        // user/tenant identity for App Insights correlation (OTel semantic
+        // conventions: enduser.id, enduser.scope). This runs for ALL profiled
+        // commands, not just destructive ones.
+        ResolvedProfileContext? resolvedContext = null;
+        try
+        {
+            var resolver = TxcServices.Get<IConfigurationResolver>();
+            resolvedContext = await resolver.ResolveAsync(Profile, CancellationToken.None).ConfigureAwait(false);
+            TagActivityWithIdentity(resolvedContext);
+        }
+        catch (Exception) when (true)
+        {
+            // If profile resolution fails (missing config, DI not bootstrapped,
+            // invalid profile name), let ExecuteAsync handle it — it will produce
+            // a better error message. Identity tags are best-effort; we never
+            // block a command for telemetry reasons.
+        }
+
         if (!Attribute.IsDefined(GetType(), typeof(CliDestructiveAttribute)))
+            return null;
+
+        if (resolvedContext is null)
             return null;
 
         try
         {
-            var resolver = TxcServices.Get<IConfigurationResolver>();
-            var context = await resolver.ResolveAsync(Profile, CancellationToken.None).ConfigureAwait(false);
-            var connection = context.Connection;
+            var connection = resolvedContext.Connection;
 
             if (!IsProductionLike(connection.EnvironmentType, connection.DisplayName, connection.EnvironmentUrl))
                 return null;
@@ -129,9 +150,36 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
         }
         catch (ConfigurationResolutionException)
         {
-            // If we can't resolve the profile, let ExecuteAsync handle it —
-            // it will produce a better error message.
             return null;
         }
+    }
+
+    /// <summary>
+    /// Tags the current Activity span with user and tenant identity using
+    /// OTel semantic conventions (<c>enduser.id</c>, <c>enduser.scope</c>).
+    /// These appear in App Insights as custom dimensions, enabling queries like
+    /// <c>requests | where customDimensions["enduser.id"] == "user@tenant.com"</c>.
+    /// </summary>
+    private static void TagActivityWithIdentity(ResolvedProfileContext context)
+    {
+        var activity = Activity.Current;
+        if (activity == null) return;
+
+        var credential = context.Credential;
+
+        // enduser.id — UPN (email) for interactive users, app ID for service principals
+        var userId = credential.InteractiveUpn ?? credential.ApplicationId ?? credential.Id;
+        if (!string.IsNullOrWhiteSpace(userId))
+            activity.SetTag("enduser.id", userId);
+
+        // enduser.scope — tenant ID (Entra directory) for multi-tenant correlation
+        if (!string.IsNullOrWhiteSpace(credential.TenantId))
+            activity.SetTag("enduser.scope", credential.TenantId);
+
+        // Profile and connection for operational context
+        if (context.Profile is not null)
+            activity.SetTag("txc.profile", context.Profile.Id);
+
+        activity.SetTag("txc.connection", context.Connection.Id);
     }
 }
