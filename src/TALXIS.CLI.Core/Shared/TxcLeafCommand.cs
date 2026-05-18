@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Reflection;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
+using OpenTelemetry.Trace;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.DependencyInjection;
 
@@ -73,9 +74,10 @@ public abstract class TxcLeafCommand
         // If spawned by MCP, adopt the parent trace context so this span
         // appears as a child of the MCP tool dispatch span in App Insights.
         var parentContext = RestoreParentTraceContext();
+        // Server span — CLI command is the top-level "request" being served → App Insights 'requests' table
         using var activity = parentContext.HasValue
-            ? TelemetrySource.StartActivity(commandName, ActivityKind.Internal, parentContext.Value)
-            : TelemetrySource.StartActivity(commandName, ActivityKind.Internal);
+            ? TelemetrySource.StartActivity(commandName, ActivityKind.Server, parentContext.Value)
+            : TelemetrySource.StartActivity(commandName, ActivityKind.Server);
         activity?.SetTag("txc.command", commandName);
         activity?.SetTag("txc.entry_point", "cli");
 
@@ -139,11 +141,10 @@ public abstract class TxcLeafCommand
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             activity?.SetTag("txc.exit_code", ExitError);
             activity?.SetTag("txc.error_kind", "internal");
-            activity?.AddEvent(new ActivityEvent("exception", tags: new ActivityTagsCollection
-            {
-                { "exception.type", ex.GetType().FullName },
-                { "exception.message", ex.Message },
-            }));
+            // RecordException uses OTel semantic conventions (exception.type, exception.message,
+            // exception.stacktrace) so the Azure Monitor exporter creates 'exceptions' table rows
+            // with full stack traces. The extension method is a no-op when activity is null.
+            activity?.RecordException(ex);
 
             // Surface the innermost exception message — it typically contains the
             // actionable root cause (e.g. "Run 'txc config auth login' and retry.").

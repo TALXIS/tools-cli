@@ -2,6 +2,7 @@ using System.Diagnostics;
 #if TELEMETRY_ENABLED
 using Azure.Monitor.OpenTelemetry.Exporter;
 using OpenTelemetry;
+using OpenTelemetry.Instrumentation.Http;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 #endif
@@ -87,6 +88,7 @@ public static class TxcTelemetrySetup
                         ["talxis.cli.is_ci"] = TxcTelemetry.IsRunningInCi(),
                         ["os.type"] = System.Runtime.InteropServices.RuntimeInformation.OSDescription,
                     }))
+            .AddHttpClientInstrumentation()
             .AddAzureMonitorTraceExporter(opts =>
             {
                 opts.ConnectionString = connectionString;

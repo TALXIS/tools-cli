@@ -10,13 +10,26 @@ public class ToolLogStoreTests
             $"2026-05-04T10:00:{i:D2}Z", "Error", "TestCategory", m)).ToList();
 
     [Fact]
-    public void Store_ReturnsUriWithToolName()
+    public void Store_ReturnsUriWithExecutionId()
+    {
+        var store = new ToolLogStore();
+        var entries = MakeEntries("schema error");
+        var executionId = "abc123def456";
+        var uri = store.Store("data_package_import", 1, "summary", "error summary", entries, executionId);
+
+        Assert.Equal(ToolLogStore.UriScheme + executionId, uri);
+    }
+
+    [Fact]
+    public void Store_GeneratesFallbackIdWhenNoExecutionId()
     {
         var store = new ToolLogStore();
         var entries = MakeEntries("schema error");
         var uri = store.Store("data_package_import", 1, "summary", "error summary", entries);
 
-        Assert.StartsWith(ToolLogStore.UriScheme + "data_package_import/", uri);
+        Assert.StartsWith(ToolLogStore.UriScheme, uri);
+        // URI should not contain tool name (old format was txc://logs/{toolName}/{runId})
+        Assert.DoesNotContain("data_package_import", uri);
     }
 
     [Fact]
@@ -45,7 +58,7 @@ public class ToolLogStoreTests
     public void TryGet_ReturnsFalseForUnknownUri()
     {
         var store = new ToolLogStore();
-        Assert.False(store.TryGet("txc://logs/unknown/abc123", out _));
+        Assert.False(store.TryGet("txc://logs/abc123def456deadbeef0000", out _));
     }
 
     [Fact]

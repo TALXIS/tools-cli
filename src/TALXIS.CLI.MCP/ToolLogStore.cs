@@ -25,12 +25,15 @@ internal sealed class ToolLogStore
 
     /// <summary>
     /// Stores a tool execution log and returns the resource URI.
+    /// The <paramref name="executionId"/> should be the root Activity trace id (= App Insights operation_Id)
+    /// so the diagnostics URI, telemetry, and log store all share one canonical identity.
+    /// Falls back to a random id when no Activity is active (e.g. telemetry disabled).
     /// </summary>
     public string Store(string toolName, int exitCode, string? primaryText, string? errorSummary,
-        IReadOnlyList<RedactedLogEntry>? logEntries)
+        IReadOnlyList<RedactedLogEntry>? logEntries, string? executionId = null)
     {
-        var runId = Guid.NewGuid().ToString("N")[..12];
-        var uri = $"{UriScheme}{toolName}/{runId}";
+        executionId ??= Guid.NewGuid().ToString("N");
+        var uri = $"{UriScheme}{executionId}";
         var entry = new LogEntry(
             ToolName: toolName,
             ExitCode: exitCode,

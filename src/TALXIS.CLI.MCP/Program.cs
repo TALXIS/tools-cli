@@ -124,7 +124,8 @@ async ValueTask<CallToolResult> CallToolAsync(RequestContext<CallToolRequestPara
     if (string.IsNullOrEmpty(toolName))
         throw new McpException("Tool name is required.");
 
-    using var activity = TxcTelemetry.Source.StartActivity(toolName, System.Diagnostics.ActivityKind.Internal);
+    // Server span — MCP tool call is an incoming request → App Insights 'requests' table
+    using var activity = TxcTelemetry.Source.StartActivity(toolName, System.Diagnostics.ActivityKind.Server);
     activity?.SetTag("txc.tool", toolName);
     activity?.SetTag("txc.entry_point", "mcp");
 
@@ -354,7 +355,16 @@ async Task<CallToolResult> ExecuteCliToolAsync(
             ? await rootsService.GetWorkingDirectoryAsync(ct)
             : null;
 
+        // Client span for the subprocess dispatch — shows as a dependency in App Insights,
+        // creating the MCP Server → CLI Server parent-child relationship across the process boundary
+        using var dispatchActivity = TxcTelemetry.Source.StartActivity(
+            $"subprocess:{toolName}", System.Diagnostics.ActivityKind.Client);
+
         CliSubprocessResult result = await CliSubprocessRunner.RunAsync(cliArgs, logForwarder, ct, workingDirectory);
+
+        dispatchActivity?.SetTag("txc.subprocess.exit_code", result.ExitCode);
+        if (result.ExitCode != 0)
+            dispatchActivity?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, $"Exit code {result.ExitCode}");
 
         mcpLogger.LogInformation("Tool completed: {ToolName} (exit code {ExitCode})", toolName, result.ExitCode);
 

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
@@ -21,13 +22,16 @@ internal sealed class McpToolResultFactory
     public CallToolResult Build(string toolName, CliSubprocessResult result)
     {
         // Store execution log for every run — clients may need to troubleshoot
-        // unexpected output even from successful executions
+        // unexpected output even from successful executions.
+        // Use the root trace id as execution identity so diagnostics URI, telemetry,
+        // and App Insights operation_Id all share one canonical id.
         string diagnosticsUri = _toolLogStore.Store(
             toolName,
             result.ExitCode,
             result.Output?.Trim(),
             result.LastErrors,
-            result.StructuredEntries);
+            result.StructuredEntries,
+            Activity.Current?.TraceId.ToHexString());
 
         if (result.ExitCode == 0)
         {
@@ -63,7 +67,8 @@ internal sealed class McpToolResultFactory
             -1,
             summary,
             summary,
-            [exceptionEntry]);
+            [exceptionEntry],
+            Activity.Current?.TraceId.ToHexString());
 
         return BuildFailureResult(toolName, summary, diagnosticsUri);
     }
