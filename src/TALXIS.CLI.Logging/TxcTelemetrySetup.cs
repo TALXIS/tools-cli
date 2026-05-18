@@ -17,7 +17,11 @@ namespace TALXIS.CLI.Logging;
 /// </summary>
 public static class TxcTelemetrySetup
 {
+#if TELEMETRY_ENABLED
+    private static OpenTelemetry.Trace.TracerProvider? _tracerProvider;
+#else
     private static IDisposable? _tracerProvider;
+#endif
     private static bool _initialized;
 
     /// <summary>
@@ -73,16 +77,13 @@ public static class TxcTelemetrySetup
         // batch exporter sends pending spans even for sub-second CLI commands.
         // Dispose() also calls ForceFlush internally, but with an unbounded timeout
         // that could hang; the explicit call gives us a predictable upper bound.
-        if (_tracerProvider is OpenTelemetry.Trace.TracerProvider tp)
+        try
         {
-            try
-            {
-                tp.ForceFlush(timeoutMilliseconds: 5000);
-            }
-            catch (Exception)
-            {
-                // Best-effort — never block process exit on telemetry failures
-            }
+            _tracerProvider?.ForceFlush(timeoutMilliseconds: 10000);
+        }
+        catch (Exception)
+        {
+            // Best-effort — never block process exit on telemetry failures
         }
 #endif
         _tracerProvider?.Dispose();
@@ -90,7 +91,7 @@ public static class TxcTelemetrySetup
     }
 
 #if TELEMETRY_ENABLED
-    private static IDisposable CreateTracerProvider(string connectionString, string entryPoint)
+    private static OpenTelemetry.Trace.TracerProvider CreateTracerProvider(string connectionString, string entryPoint)
     {
         // Use OpenTelemetry SDK to create a TracerProvider with Azure Monitor exporter.
         // This is loaded via reflection-free direct API calls — the NuGet packages
@@ -113,14 +114,17 @@ public static class TxcTelemetrySetup
             .AddAzureMonitorTraceExporter(opts =>
             {
                 opts.ConnectionString = connectionString;
-                // Disable SDK-side adaptive sampling — export 100% of spans.
+                // Disable ALL SDK-side sampling — export 100% of spans.
                 // Server-side ingestion sampling is configured in Azure Portal
-                // (currently "All data 100%"), so this ensures nothing is dropped
-                // before reaching App Insights.
+                // (currently "All data 100%"), so this ensures nothing is dropped.
+                // TracesPerSecond must be set to null because it overrides SamplingRatio
+                // when both are specified (Azure Monitor exporter default enables
+                // rate-limited sampling via TracesPerSecond).
                 opts.SamplingRatio = 1.0f;
+                opts.TracesPerSecond = null;
             });
 
-        return builder.Build()!;
+        return (OpenTelemetry.Trace.TracerProvider)builder.Build()!;
     }
 #endif
 }

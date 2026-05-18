@@ -100,10 +100,8 @@ public static class TxcTelemetry
 
     private static string GetCliVersion()
     {
-        var asm = typeof(TxcTelemetry).Assembly;
-        var infoAttr = asm.GetCustomAttributes(typeof(AssemblyInformationalVersionAttribute), false)
-            .OfType<AssemblyInformationalVersionAttribute>()
-            .FirstOrDefault();
-        return infoAttr?.InformationalVersion ?? asm.GetName().Version?.ToString() ?? "0.0.0";
+        // Use AssemblyVersion (e.g. "1.11.0") not InformationalVersion which
+        // appends the git commit hash and is noisy in App Insights dashboards.
+        return typeof(TxcTelemetry).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
     }
 }

@@ -324,11 +324,10 @@ public abstract class TxcLeafCommand
 
     private static string GetCliVersion()
     {
-        var asm = typeof(TxcLeafCommand).Assembly;
-        var infoAttr = asm.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
-            .OfType<System.Reflection.AssemblyInformationalVersionAttribute>()
-            .FirstOrDefault();
-        return infoAttr?.InformationalVersion ?? asm.GetName().Version?.ToString() ?? "unknown";
+        // Use AssemblyVersion (e.g. "1.11.0") not InformationalVersion which
+        // includes the git commit hash (e.g. "1.11.0+9fdf7ed...") and is ugly
+        // in App Insights dashboards.
+        return typeof(TxcLeafCommand).Assembly.GetName().Version?.ToString(3) ?? "unknown";
     }
 
     /// <summary>
