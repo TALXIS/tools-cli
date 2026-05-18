@@ -80,6 +80,10 @@ public abstract class TxcLeafCommand
         activity?.SetTag("txc.command", commandName);
         activity?.SetTag("txc.entry_point", "cli");
         activity?.SetTag("txc.version", GetCliVersion());
+        // Set URL and response code so App Insights request blade shows meaningful values
+        // instead of <empty> / 0. Uses OTel HTTP semantic conventions that the Azure Monitor
+        // exporter maps to the requests table url and resultCode fields.
+        activity?.SetTag("url.full", $"txc://cli/{commandName}");
 
         // Best-effort: tag span with identity from the active profile so ALL
         // commands (not just ProfiledCliCommand) are attributable to a user.
@@ -91,6 +95,7 @@ public abstract class TxcLeafCommand
         if (formatError.HasValue)
         {
             activity?.SetTag("txc.exit_code", formatError.Value);
+            SetResponseCode(activity, formatError.Value);
             return formatError.Value;
         }
 
@@ -102,6 +107,7 @@ public abstract class TxcLeafCommand
             if (guardResult.HasValue)
             {
                 activity?.SetTag("txc.exit_code", guardResult.Value);
+                SetResponseCode(activity, guardResult.Value);
                 return guardResult.Value;
             }
         }
@@ -115,6 +121,7 @@ public abstract class TxcLeafCommand
         if (confirmError.HasValue)
         {
             activity?.SetTag("txc.exit_code", confirmError.Value);
+            SetResponseCode(activity, confirmError.Value);
             return confirmError.Value;
         }
 
@@ -122,6 +129,7 @@ public abstract class TxcLeafCommand
         {
             var exitCode = await ExecuteAsync().ConfigureAwait(false);
             activity?.SetTag("txc.exit_code", exitCode);
+            SetResponseCode(activity, exitCode);
             if (exitCode != ExitSuccess)
                 activity?.SetStatus(ActivityStatusCode.Error, $"Exit code {exitCode}");
             return exitCode;
@@ -242,6 +250,7 @@ public abstract class TxcLeafCommand
         var activity = Activity.Current;
         activity?.SetTag("txc.exit_code", exitCode);
         activity?.SetTag("txc.error_kind", errorKind);
+        SetResponseCode(activity, exitCode);
 
         // Log through ILogger — TxcTelemetryLogProvider bridges the exception
         // to Activity.RecordException (→ App Insights exceptions table) and
@@ -249,6 +258,22 @@ public abstract class TxcLeafCommand
 #pragma warning disable CA2254 // Log message template is intentionally dynamic for level routing
         Logger.Log(level, ex, "{Error}", ex.Message);
 #pragma warning restore CA2254
+    }
+
+    /// <summary>
+    /// Maps CLI exit codes to HTTP-like response codes so App Insights' request
+    /// blade shows meaningful "Response code" values instead of 0.
+    /// 0 → 200 (OK), 1 → 500 (internal error), 2 → 400 (validation/input error).
+    /// </summary>
+    private static void SetResponseCode(Activity? activity, int exitCode)
+    {
+        var httpCode = exitCode switch
+        {
+            ExitSuccess => 200,
+            ExitValidationError => 400,
+            _ => 500,
+        };
+        activity?.SetTag("http.response.status_code", httpCode);
     }
 
     /// <summary>
