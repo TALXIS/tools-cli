@@ -113,6 +113,11 @@ public static class TxcTelemetrySetup
             .AddAzureMonitorTraceExporter(opts =>
             {
                 opts.ConnectionString = connectionString;
+                // Disable SDK-side adaptive sampling — export 100% of spans.
+                // Server-side ingestion sampling is configured in Azure Portal
+                // (currently "All data 100%"), so this ensures nothing is dropped
+                // before reaching App Insights.
+                opts.SamplingRatio = 1.0f;
             });
 
         return builder.Build()!;
