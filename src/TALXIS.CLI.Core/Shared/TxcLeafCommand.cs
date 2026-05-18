@@ -79,6 +79,13 @@ public abstract class TxcLeafCommand
             : TelemetrySource.StartActivity(commandName, ActivityKind.Server);
         activity?.SetTag("txc.command", commandName);
         activity?.SetTag("txc.entry_point", "cli");
+        activity?.SetTag("txc.version", GetCliVersion());
+
+        // Best-effort: tag span with identity from the active profile so ALL
+        // commands (not just ProfiledCliCommand) are attributable to a user.
+        // ProfiledCliCommand.PreExecuteAsync overrides with the resolved profile
+        // for commands that specify --profile explicitly.
+        await TagActiveProfileIdentityAsync(activity).ConfigureAwait(false);
 
         var formatError = ApplyOutputFormat();
         if (formatError.HasValue)
@@ -254,6 +261,74 @@ public abstract class TxcLeafCommand
         while (ex.InnerException is not null)
             ex = ex.InnerException;
         return ex;
+    }
+
+    /// <summary>
+    /// Tags the Activity with identity from the globally active profile (if any).
+    /// This ensures even non-profiled commands like <c>config profile list</c> are
+    /// attributable to a user when an active profile is set. Best-effort: any
+    /// failure is silently ignored — telemetry never blocks command execution.
+    /// </summary>
+    private static async Task TagActiveProfileIdentityAsync(Activity? activity)
+    {
+        if (activity == null) return;
+
+        try
+        {
+            var configStore = DependencyInjection.TxcServices.Get<Abstractions.IGlobalConfigStore>();
+            var config = await configStore.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+
+            if (string.IsNullOrWhiteSpace(config.ActiveProfile)) return;
+
+            var resolver = DependencyInjection.TxcServices.Get<Abstractions.IConfigurationResolver>();
+            var context = await resolver.ResolveAsync(null, CancellationToken.None).ConfigureAwait(false);
+
+            var credential = context.Credential;
+            var connection = context.Connection;
+
+            // Extract Entra object ID from MSAL HomeAccountId ({objectId}.{tenantId})
+            var objectId = ExtractObjectId(credential.InteractiveAccountId)
+                ?? credential.ApplicationId;
+            if (!string.IsNullOrWhiteSpace(objectId))
+                activity.SetTag("enduser.id", objectId);
+
+            var upn = credential.InteractiveUpn ?? credential.Id;
+            if (!string.IsNullOrWhiteSpace(upn))
+                activity.SetTag("user.name", upn);
+
+            var tenantId = connection.TenantId ?? credential.TenantId;
+            if (!string.IsNullOrWhiteSpace(tenantId))
+                activity.SetTag("enduser.scope", tenantId);
+
+            if (!string.IsNullOrWhiteSpace(connection.EnvironmentUrl))
+                activity.SetTag("txc.environment_url", connection.EnvironmentUrl);
+            if (!string.IsNullOrWhiteSpace(connection.DisplayName))
+                activity.SetTag("txc.environment_name", connection.DisplayName);
+        }
+        catch (Exception) when (true)
+        {
+            // Best-effort — never block CLI for telemetry
+        }
+    }
+
+    /// <summary>
+    /// Extracts the Entra object ID (first GUID) from MSAL's HomeAccountId.Identifier
+    /// format: <c>{objectId}.{tenantId}</c>. Returns null if the format is unexpected.
+    /// </summary>
+    private static string? ExtractObjectId(string? homeAccountId)
+    {
+        if (string.IsNullOrWhiteSpace(homeAccountId)) return null;
+        var dot = homeAccountId.IndexOf('.');
+        return dot > 0 ? homeAccountId[..dot] : homeAccountId;
+    }
+
+    private static string GetCliVersion()
+    {
+        var asm = typeof(TxcLeafCommand).Assembly;
+        var infoAttr = asm.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+            .OfType<System.Reflection.AssemblyInformationalVersionAttribute>()
+            .FirstOrDefault();
+        return infoAttr?.InformationalVersion ?? asm.GetName().Version?.ToString() ?? "unknown";
     }
 
     /// <summary>

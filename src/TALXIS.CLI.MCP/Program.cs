@@ -128,6 +128,7 @@ async ValueTask<CallToolResult> CallToolAsync(RequestContext<CallToolRequestPara
     using var activity = TxcTelemetry.Source.StartActivity(toolName, System.Diagnostics.ActivityKind.Server);
     activity?.SetTag("txc.tool", toolName);
     activity?.SetTag("txc.entry_point", "mcp");
+    activity?.SetTag("txc.version", typeof(Program).Assembly.GetName().Version?.ToString() ?? "unknown");
 
     // --- Route: Guide tools ---
     if (IsGuideTool(toolName))
