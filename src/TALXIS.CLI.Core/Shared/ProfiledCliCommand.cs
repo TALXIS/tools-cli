@@ -155,10 +155,9 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
     }
 
     /// <summary>
-    /// Tags the current Activity span with user and tenant identity using
-    /// OTel semantic conventions (<c>enduser.id</c>, <c>enduser.scope</c>).
-    /// These appear in App Insights as custom dimensions, enabling queries like:
-    /// <code>requests | where customDimensions["enduser.id"] == "user@tenant.com"</code>
+    /// Tags the current Activity span with user, tenant, and environment identity
+    /// using OTel semantic conventions. These appear in App Insights as custom
+    /// dimensions for employee activity tracking and troubleshooting.
     /// </summary>
     private static void TagActivityWithIdentity(ResolvedProfileContext context)
     {
@@ -168,24 +167,41 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
         var credential = context.Credential;
         var connection = context.Connection;
 
-        // enduser.id — UPN for interactive users, credential ID (often the UPN) as
-        // fallback, app ID for service principals. Credential.Id is typically set to
-        // the UPN during interactive auth bootstrap.
-        var userId = credential.InteractiveUpn
-            ?? credential.Id
+        // enduser.id — Entra object ID (GUID) extracted from MSAL HomeAccountId
+        // ({objectId}.{tenantId}). For service principals, falls back to app ID.
+        // This is the stable, join-friendly identity for analytics.
+        var entraObjectId = ExtractObjectId(credential.InteractiveAccountId)
             ?? credential.ApplicationId;
-        if (!string.IsNullOrWhiteSpace(userId))
-            activity.SetTag("enduser.id", userId);
+        if (!string.IsNullOrWhiteSpace(entraObjectId))
+            activity.SetTag("enduser.id", entraObjectId);
 
-        // enduser.scope — tenant ID for multi-tenant user/employee correlation.
-        // Prefer connection-level tenant (resolved from the environment) over
-        // credential-level (which may be the home tenant, not the target).
+        // user.name — UPN (email) for human-readable identification in dashboards
+        var upn = credential.InteractiveUpn ?? credential.Id;
+        if (!string.IsNullOrWhiteSpace(upn))
+            activity.SetTag("user.name", upn);
+
+        // enduser.scope — tenant ID for multi-tenant employee correlation.
+        // Prefer connection-level tenant (target environment) over credential-level
+        // (home tenant, which may differ for guest/B2B users).
         var tenantId = connection.TenantId ?? credential.TenantId;
         if (!string.IsNullOrWhiteSpace(tenantId))
             activity.SetTag("enduser.scope", tenantId);
 
-        // Target environment URL — the Dataverse instance being operated on
+        // Target environment for operational context
         if (!string.IsNullOrWhiteSpace(connection.EnvironmentUrl))
             activity.SetTag("txc.environment_url", connection.EnvironmentUrl);
+        if (!string.IsNullOrWhiteSpace(connection.DisplayName))
+            activity.SetTag("txc.environment_name", connection.DisplayName);
+    }
+
+    /// <summary>
+    /// Extracts the Entra object ID (first GUID) from MSAL's HomeAccountId.Identifier
+    /// format: <c>{objectId}.{tenantId}</c>. Returns null if the format is unexpected.
+    /// </summary>
+    private static string? ExtractObjectId(string? homeAccountId)
+    {
+        if (string.IsNullOrWhiteSpace(homeAccountId)) return null;
+        var dot = homeAccountId.IndexOf('.');
+        return dot > 0 ? homeAccountId[..dot] : homeAccountId;
     }
 }
