@@ -2,7 +2,6 @@ using System.Diagnostics;
 #if TELEMETRY_ENABLED
 using Azure.Monitor.OpenTelemetry.Exporter;
 using OpenTelemetry;
-using OpenTelemetry.Instrumentation.Http;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 #endif
@@ -61,9 +60,31 @@ public static class TxcTelemetrySetup
     /// <summary>
     /// Flushes pending telemetry and shuts down the provider.
     /// Call at process exit for clean shutdown. Safe if not initialized.
+    /// <para>
+    /// For short-lived CLI processes this is critical: the OTel batch exporter fires
+    /// every 5 seconds by default, so a command that completes in &lt;5s would silently
+    /// lose all spans without an explicit flush before disposal.
+    /// </para>
     /// </summary>
     public static void Shutdown()
     {
+#if TELEMETRY_ENABLED
+        // Explicit ForceFlush with bounded timeout before Dispose — ensures the
+        // batch exporter sends pending spans even for sub-second CLI commands.
+        // Dispose() also calls ForceFlush internally, but with an unbounded timeout
+        // that could hang; the explicit call gives us a predictable upper bound.
+        if (_tracerProvider is OpenTelemetry.Trace.TracerProvider tp)
+        {
+            try
+            {
+                tp.ForceFlush(timeoutMilliseconds: 5000);
+            }
+            catch (Exception)
+            {
+                // Best-effort — never block process exit on telemetry failures
+            }
+        }
+#endif
         _tracerProvider?.Dispose();
         _tracerProvider = null;
     }
