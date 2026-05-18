@@ -157,8 +157,8 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
     /// <summary>
     /// Tags the current Activity span with user and tenant identity using
     /// OTel semantic conventions (<c>enduser.id</c>, <c>enduser.scope</c>).
-    /// These appear in App Insights as custom dimensions, enabling queries like
-    /// <c>requests | where customDimensions["enduser.id"] == "user@tenant.com"</c>.
+    /// These appear in App Insights as custom dimensions, enabling queries like:
+    /// <code>requests | where customDimensions["enduser.id"] == "user@tenant.com"</code>
     /// </summary>
     private static void TagActivityWithIdentity(ResolvedProfileContext context)
     {
@@ -166,20 +166,26 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
         if (activity == null) return;
 
         var credential = context.Credential;
+        var connection = context.Connection;
 
-        // enduser.id — UPN (email) for interactive users, app ID for service principals
-        var userId = credential.InteractiveUpn ?? credential.ApplicationId ?? credential.Id;
+        // enduser.id — UPN for interactive users, credential ID (often the UPN) as
+        // fallback, app ID for service principals. Credential.Id is typically set to
+        // the UPN during interactive auth bootstrap.
+        var userId = credential.InteractiveUpn
+            ?? credential.Id
+            ?? credential.ApplicationId;
         if (!string.IsNullOrWhiteSpace(userId))
             activity.SetTag("enduser.id", userId);
 
-        // enduser.scope — tenant ID (Entra directory) for multi-tenant correlation
-        if (!string.IsNullOrWhiteSpace(credential.TenantId))
-            activity.SetTag("enduser.scope", credential.TenantId);
+        // enduser.scope — tenant ID for multi-tenant user/employee correlation.
+        // Prefer connection-level tenant (resolved from the environment) over
+        // credential-level (which may be the home tenant, not the target).
+        var tenantId = connection.TenantId ?? credential.TenantId;
+        if (!string.IsNullOrWhiteSpace(tenantId))
+            activity.SetTag("enduser.scope", tenantId);
 
-        // Profile and connection for operational context
-        if (context.Profile is not null)
-            activity.SetTag("txc.profile", context.Profile.Id);
-
-        activity.SetTag("txc.connection", context.Connection.Id);
+        // Target environment URL — the Dataverse instance being operated on
+        if (!string.IsNullOrWhiteSpace(connection.EnvironmentUrl))
+            activity.SetTag("txc.environment_url", connection.EnvironmentUrl);
     }
 }
