@@ -125,14 +125,16 @@ public abstract class TxcLeafCommand
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             activity?.SetTag("txc.exit_code", ExitValidationError);
             activity?.SetTag("txc.error_kind", "validation");
+            activity?.RecordException(ex);
             Logger.LogError("{Error}", ex.Message);
             return ExitValidationError;
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
             activity?.SetStatus(ActivityStatusCode.Error, "Cancelled");
             activity?.SetTag("txc.exit_code", ExitError);
             activity?.SetTag("txc.error_kind", "cancelled");
+            activity?.RecordException(ex);
             Logger.LogWarning("Operation was cancelled.");
             return ExitError;
         }
