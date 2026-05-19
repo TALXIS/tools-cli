@@ -101,7 +101,7 @@ public static class TxcTelemetrySetup
             .SetResourceBuilder(
                 OpenTelemetry.Resources.ResourceBuilder.CreateDefault()
                     .AddService(
-                        serviceName: "talxis-cli",
+                        serviceName: $"talxis-{entryPoint}",
                         serviceVersion: TxcTelemetry.Source.Version,
                         serviceInstanceId: Environment.MachineName)
                     .AddAttributes(new Dictionary<string, object>

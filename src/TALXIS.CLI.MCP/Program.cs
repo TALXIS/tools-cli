@@ -367,6 +367,9 @@ async Task<CallToolResult> ExecuteCliToolAsync(
         using (var dispatchActivity = TxcTelemetry.Source.StartActivity(
             $"subprocess:{toolName}", System.Diagnostics.ActivityKind.Client))
         {
+            // Set peer.service so App Insights shows "talxis-cli" instead of "OTHER"
+            // in the dependency type and Application Map
+            dispatchActivity?.SetTag("peer.service", "talxis-cli");
             result = await CliSubprocessRunner.RunAsync(cliArgs, logForwarder, ct, workingDirectory);
 
             dispatchActivity?.SetTag(TALXIS.CLI.Core.Telemetry.TxcTelemetryTags.SubprocessExitCode, result.ExitCode);
