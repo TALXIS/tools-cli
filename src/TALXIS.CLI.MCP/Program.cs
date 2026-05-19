@@ -356,18 +356,40 @@ async Task<CallToolResult> ExecuteCliToolAsync(
             ? await rootsService.GetWorkingDirectoryAsync(ct)
             : null;
 
+        // Capture the MCP Server span before creating the Client span —
+        // Activity.Current will change once the dispatch span starts.
+        var mcpActivity = System.Diagnostics.Activity.Current;
+
+        CliSubprocessResult result;
         // Client span for the subprocess dispatch — shows as a dependency in App Insights,
-        // creating the MCP Server → CLI Server parent-child relationship across the process boundary
-        using var dispatchActivity = TxcTelemetry.Source.StartActivity(
-            $"subprocess:{toolName}", System.Diagnostics.ActivityKind.Client);
+        // creating the MCP Server → CLI Server parent-child relationship across the process boundary.
+        // Using explicit scope so the Client span is stopped before we tag the Server span.
+        using (var dispatchActivity = TxcTelemetry.Source.StartActivity(
+            $"subprocess:{toolName}", System.Diagnostics.ActivityKind.Client))
+        {
+            result = await CliSubprocessRunner.RunAsync(cliArgs, logForwarder, ct, workingDirectory);
 
-        CliSubprocessResult result = await CliSubprocessRunner.RunAsync(cliArgs, logForwarder, ct, workingDirectory);
+            dispatchActivity?.SetTag(TALXIS.CLI.Core.Telemetry.TxcTelemetryTags.SubprocessExitCode, result.ExitCode);
+            if (result.ExitCode != 0)
+                dispatchActivity?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, $"Exit code {result.ExitCode}");
+        }
 
-        dispatchActivity?.SetTag(TALXIS.CLI.Core.Telemetry.TxcTelemetryTags.SubprocessExitCode, result.ExitCode);
+        // Propagate subprocess result to the MCP Server span so the request
+        // row in App Insights shows the correct exit code and failure status.
+        mcpActivity?.SetTag(TALXIS.CLI.Core.Telemetry.TxcTelemetryTags.ExitCode, result.ExitCode);
         if (result.ExitCode != 0)
-            dispatchActivity?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, $"Exit code {result.ExitCode}");
-
-        mcpLogger.LogInformation("Tool completed: {ToolName} (exit code {ExitCode})", toolName, result.ExitCode);
+        {
+            mcpActivity?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, $"Exit code {result.ExitCode}");
+            // Log the failure so TxcTelemetryLogProvider records it as an exception
+            // on the MCP Server span (Activity.Current is now the Server span again).
+            if (!string.IsNullOrWhiteSpace(result.LastErrors))
+                mcpLogger.LogError("Tool failed: {ToolName} (exit code {ExitCode}): {Error}",
+                    toolName, result.ExitCode, result.LastErrors.Split('\n')[0]);
+        }
+        else
+        {
+            mcpLogger.LogInformation("Tool completed: {ToolName} (exit code {ExitCode})", toolName, result.ExitCode);
+        }
 
         return toolResultFactory.Build(toolName, result);
     }
