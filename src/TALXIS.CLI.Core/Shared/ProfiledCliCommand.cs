@@ -107,7 +107,8 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
         {
             var resolver = TxcServices.Get<IConfigurationResolver>();
             resolvedContext = await resolver.ResolveAsync(Profile, CancellationToken.None).ConfigureAwait(false);
-            TagActivityWithIdentity(Activity.Current, resolvedContext.Credential, resolvedContext.Connection);
+            Telemetry.ActivityIdentityTagger.TagFromResolvedProfile(
+                Activity.Current, resolvedContext.Credential, resolvedContext.Connection);
         }
         catch (Exception) when (true)
         {

@@ -126,9 +126,9 @@ async ValueTask<CallToolResult> CallToolAsync(RequestContext<CallToolRequestPara
 
     // Server span — MCP tool call is an incoming request → App Insights 'requests' table
     using var activity = TxcTelemetry.Source.StartActivity(toolName, System.Diagnostics.ActivityKind.Server);
-    activity?.SetTag("txc.tool", toolName);
-    activity?.SetTag("txc.entry_point", "mcp");
-    activity?.SetTag("txc.version", typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "unknown");
+    activity?.SetTag(TALXIS.CLI.Core.Telemetry.TxcTelemetryTags.Tool, toolName);
+    activity?.SetTag(TALXIS.CLI.Core.Telemetry.TxcTelemetryTags.EntryPoint, TALXIS.CLI.Core.Telemetry.TxcTelemetryTags.EntryPointMcp);
+    activity?.SetTag(TALXIS.CLI.Core.Telemetry.TxcTelemetryTags.Version, typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "unknown");
 
     // --- Route: Guide tools ---
     if (IsGuideTool(toolName))
@@ -363,7 +363,7 @@ async Task<CallToolResult> ExecuteCliToolAsync(
 
         CliSubprocessResult result = await CliSubprocessRunner.RunAsync(cliArgs, logForwarder, ct, workingDirectory);
 
-        dispatchActivity?.SetTag("txc.subprocess.exit_code", result.ExitCode);
+        dispatchActivity?.SetTag(TALXIS.CLI.Core.Telemetry.TxcTelemetryTags.SubprocessExitCode, result.ExitCode);
         if (result.ExitCode != 0)
             dispatchActivity?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, $"Exit code {result.ExitCode}");
 

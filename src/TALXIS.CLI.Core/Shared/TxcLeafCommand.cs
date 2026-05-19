@@ -29,14 +29,6 @@ namespace TALXIS.CLI.Core;
 /// </summary>
 public abstract class TxcLeafCommand
 {
-    /// <summary>
-    /// Shared ActivitySource for CLI command telemetry. Uses the same source name
-    /// as <c>TxcTelemetry.Source</c> in the Logging project so a single
-    /// TracerProvider listener captures both CLI and MCP spans.
-    /// </summary>
-    private static readonly ActivitySource TelemetrySource = new("TALXIS.CLI",
-        typeof(TxcLeafCommand).Assembly.GetName().Version?.ToString(3));
-
     /// <summary>Exit code: operation completed successfully.</summary>
     protected const int ExitSuccess = 0;
     /// <summary>Exit code: runtime/operational error.</summary>
@@ -70,92 +62,76 @@ public abstract class TxcLeafCommand
     public async Task<int> RunAsync()
     {
         var commandName = GetType().Name;
+        var traceparent = Environment.GetEnvironmentVariable("TXC_TRACEPARENT");
 
-        // If spawned by MCP, adopt the parent trace context so this span
-        // appears as a child of the MCP tool dispatch span in App Insights.
-        var parentContext = RestoreParentTraceContext();
-        // Server span — CLI command is the top-level "request" being served → App Insights 'requests' table
-        using var activity = parentContext.HasValue
-            ? TelemetrySource.StartActivity(commandName, ActivityKind.Server, parentContext.Value)
-            : TelemetrySource.StartActivity(commandName, ActivityKind.Server);
-        activity?.SetTag("txc.command", commandName);
-        activity?.SetTag("txc.entry_point", "cli");
-        activity?.SetTag("txc.version", TelemetrySource.Version);
+        using var scope = new Telemetry.CommandActivityScope(
+            commandName, Telemetry.TxcTelemetryTags.EntryPointCli, traceparent);
+        var exitCode = ExitError;
 
-        // Best-effort: tag span with identity from the active profile so ALL
-        // commands (not just ProfiledCliCommand) are attributable to a user.
-        // ProfiledCliCommand.PreExecuteAsync overrides with the resolved profile
-        // for commands that specify --profile explicitly.
-        await TagActiveProfileIdentityAsync(activity).ConfigureAwait(false);
-
-        var formatError = ApplyOutputFormat();
-        if (formatError.HasValue)
-        {
-            activity?.SetTag("txc.exit_code", formatError.Value);
-            return formatError.Value;
-        }
-
-        // Production guard runs first so users aren't prompted with --yes
-        // only to be immediately blocked for missing --allow-production.
         try
         {
-            var guardResult = await PreExecuteAsync().ConfigureAwait(false);
-            if (guardResult.HasValue)
+            // Best-effort: tag span with identity from the active profile so ALL
+            // commands (not just ProfiledCliCommand) are attributable to a user.
+            // ProfiledCliCommand.PreExecuteAsync overrides with the resolved profile.
+            await TagActiveProfileIdentityAsync(scope.Activity).ConfigureAwait(false);
+
+            var formatError = ApplyOutputFormat();
+            if (formatError.HasValue)
+                return exitCode = formatError.Value;
+
+            // Production guard runs first so users aren't prompted with --yes
+            // only to be immediately blocked for missing --allow-production.
+            try
             {
-                activity?.SetTag("txc.exit_code", guardResult.Value);
-                return guardResult.Value;
+                var guardResult = await PreExecuteAsync().ConfigureAwait(false);
+                if (guardResult.HasValue)
+                    return exitCode = guardResult.Value;
             }
-        }
-        catch (Exception ex) when (ex is Abstractions.ConfigurationResolutionException)
-        {
-            // If profile resolution fails in the guard, fall through — ExecuteAsync
-            // will produce a better error message.
-        }
+            catch (Exception ex) when (ex is Abstractions.ConfigurationResolutionException)
+            {
+                // If profile resolution fails in the guard, fall through — ExecuteAsync
+                // will produce a better error message.
+            }
 
-        var confirmError = await CheckDestructiveConfirmationAsync().ConfigureAwait(false);
-        if (confirmError.HasValue)
-        {
-            activity?.SetTag("txc.exit_code", confirmError.Value);
-            return confirmError.Value;
-        }
+            var confirmError = await CheckDestructiveConfirmationAsync().ConfigureAwait(false);
+            if (confirmError.HasValue)
+                return exitCode = confirmError.Value;
 
-        try
-        {
-            var exitCode = await ExecuteAsync().ConfigureAwait(false);
-            activity?.SetTag("txc.exit_code", exitCode);
-            if (exitCode != ExitSuccess)
-                activity?.SetStatus(ActivityStatusCode.Error, $"Exit code {exitCode}");
+            exitCode = await ExecuteAsync().ConfigureAwait(false);
             return exitCode;
         }
         catch (Exception ex) when (ex is Abstractions.ConfigurationResolutionException or ArgumentException)
         {
-            // Structured properties flow to all ILogger providers including
-            // TxcTelemetryLogProvider which maps txc.* to Activity tags and records
-            // the exception in App Insights — no direct Activity calls needed here.
-            LogCommandFailure(ex, ExitValidationError, "validation");
-            return ExitValidationError;
+            exitCode = ExitValidationError;
+            scope.SetError(exitCode, "validation");
+            Logger.LogError(ex, "{Error}", ex.Message);
+            return exitCode;
         }
         catch (OperationCanceledException ex)
         {
-            LogCommandFailure(ex, ExitError, "cancelled", LogLevel.Warning);
-            return ExitError;
+            exitCode = ExitError;
+            scope.SetError(exitCode, "cancelled");
+            Logger.LogWarning(ex, "Operation was cancelled.");
+            return exitCode;
         }
         catch (Exception ex)
         {
-            // Surface the innermost exception message — it typically contains the
-            // actionable root cause (e.g. "Run 'txc config auth login' and retry.").
+            exitCode = ExitError;
+            scope.SetError(exitCode, "internal");
+
             var root = GetInnermostException(ex);
             var hasDistinctCause = root != ex && !string.Equals(root.Message, ex.Message, StringComparison.Ordinal);
 
-            // Write structured error to stdout so scripts, pipes, and MCP get
-            // a machine-readable error envelope instead of empty stdout.
             OutputFormatter.WriteResult("failed", hasDistinctCause ? root.Message : ex.Message);
-
-            LogCommandFailure(ex, ExitError, "internal");
+            Logger.LogError(ex, "Command failed: {Error}", ex.Message);
             if (hasDistinctCause)
                 Logger.LogError("Cause: {RootCause}", root.Message);
 
-            return ExitError;
+            return exitCode;
+        }
+        finally
+        {
+            scope.SetExitCode(exitCode);
         }
     }
 
@@ -223,30 +199,6 @@ public abstract class TxcLeafCommand
     }
 
     /// <summary>
-    /// Logs a command failure and tags the current Activity span.
-    /// The ILogger call carries the error message and exception to all providers
-    /// (console, JSON stderr, telemetry). The Activity tags are span-level metadata
-    /// set directly — they're infrastructure, not per-provider concerns.
-    /// </summary>
-    private void LogCommandFailure(Exception ex, int exitCode, string errorKind,
-        LogLevel level = LogLevel.Error)
-    {
-        // Tag the Activity span with exit code and error classification.
-        // These are span-level metadata (like txc.command, txc.entry_point)
-        // set in RunAsync — keeping them here rather than in each catch block.
-        var activity = Activity.Current;
-        activity?.SetTag("txc.exit_code", exitCode);
-        activity?.SetTag("txc.error_kind", errorKind);
-
-        // Log through ILogger — TxcTelemetryLogProvider bridges the exception
-        // to Activity.RecordException (→ App Insights exceptions table) and
-        // sets Activity error status. Console/JSON providers render the message.
-#pragma warning disable CA2254 // Log message template is intentionally dynamic for level routing
-        Logger.Log(level, ex, "{Error}", ex.Message);
-#pragma warning restore CA2254
-    }
-
-    /// <summary>
     /// Walks the <see cref="Exception.InnerException"/> chain and returns the
     /// deepest (innermost) exception. This is the one that usually contains the
     /// actionable root-cause message.
@@ -259,102 +211,14 @@ public abstract class TxcLeafCommand
     }
 
     /// <summary>
-    /// Tags the Activity with identity from the globally active profile (if any).
-    /// This ensures even non-profiled commands like <c>config profile list</c> are
-    /// attributable to a user when an active profile is set. Best-effort: any
-    /// failure is silently ignored — telemetry never blocks command execution.
+    /// Tags the Activity with identity from the globally active profile.
+    /// Delegates to <see cref="Telemetry.ActivityIdentityTagger"/> resolved from DI.
     /// </summary>
     private static async Task TagActiveProfileIdentityAsync(Activity? activity)
     {
-        if (activity == null) return;
-
-        try
-        {
-            var configStore = DependencyInjection.TxcServices.Get<Abstractions.IGlobalConfigStore>();
-            var config = await configStore.LoadAsync(CancellationToken.None).ConfigureAwait(false);
-
-            if (string.IsNullOrWhiteSpace(config.ActiveProfile)) return;
-
-            var resolver = DependencyInjection.TxcServices.Get<Abstractions.IConfigurationResolver>();
-            var context = await resolver.ResolveAsync(null, CancellationToken.None).ConfigureAwait(false);
-
-            TagActivityWithIdentity(activity, context.Credential, context.Connection);
-        }
-        catch (Exception) when (true)
-        {
-            // Best-effort — never block CLI for telemetry
-        }
-    }
-
-    /// <summary>
-    /// Tags the Activity with user/tenant/environment identity from a resolved profile.
-    /// Shared by both <see cref="TagActiveProfileIdentityAsync"/> (base class, active profile)
-    /// and <see cref="ProfiledCliCommand.PreExecuteAsync"/> (explicit --profile override).
-    /// </summary>
-    protected static void TagActivityWithIdentity(Activity? activity,
-        Model.Credential credential, Model.Connection connection)
-    {
-        if (activity == null) return;
-
-        var objectId = ExtractObjectId(credential.InteractiveAccountId)
-            ?? credential.ApplicationId;
-        if (!string.IsNullOrWhiteSpace(objectId))
-            activity.SetTag("enduser.id", objectId);
-
-        var upn = credential.InteractiveUpn ?? credential.Id;
-        if (!string.IsNullOrWhiteSpace(upn))
-            activity.SetTag("user.name", upn);
-
-        var tenantId = connection.TenantId ?? credential.TenantId;
-        if (!string.IsNullOrWhiteSpace(tenantId))
-            activity.SetTag("enduser.scope", tenantId);
-
-        if (!string.IsNullOrWhiteSpace(connection.EnvironmentUrl))
-            activity.SetTag("txc.environment_url", connection.EnvironmentUrl);
-        if (!string.IsNullOrWhiteSpace(connection.DisplayName))
-            activity.SetTag("txc.environment_name", connection.DisplayName);
-    }
-
-    /// <summary>
-    /// Extracts the Entra object ID (first GUID) from MSAL's HomeAccountId.Identifier
-    /// format: <c>{objectId}.{tenantId}</c>. Returns null if the format is unexpected.
-    /// </summary>
-    private static string? ExtractObjectId(string? homeAccountId)
-    {
-        if (string.IsNullOrWhiteSpace(homeAccountId)) return null;
-        var dot = homeAccountId.IndexOf('.');
-        return dot > 0 ? homeAccountId[..dot] : homeAccountId;
-    }
-
-    /// <summary>
-    /// Reads <c>TXC_TRACEPARENT</c> environment variable (set by the MCP server when
-    /// spawning CLI subprocesses) and returns a parent <see cref="ActivityContext"/>
-    /// so this process's span becomes a child of the MCP tool dispatch span.
-    /// Returns null for standalone CLI usage (no parent context).
-    /// </summary>
-    private static ActivityContext? RestoreParentTraceContext()
-    {
-        // W3C traceparent format: 00-{traceId 32 hex}-{spanId 16 hex}-{flags 2 hex}
-        var traceparent = Environment.GetEnvironmentVariable("TXC_TRACEPARENT");
-        if (string.IsNullOrEmpty(traceparent))
-            return null;
-
-        try
-        {
-            var parts = traceparent.Split('-');
-            if (parts.Length < 4 || parts[1].Length != 32 || parts[2].Length != 16)
-                return null;
-
-            var traceId = ActivityTraceId.CreateFromString(parts[1].AsSpan());
-            var spanId = ActivitySpanId.CreateFromString(parts[2].AsSpan());
-            var flags = parts[3] == "01" ? ActivityTraceFlags.Recorded : ActivityTraceFlags.None;
-            return new ActivityContext(traceId, spanId, flags, isRemote: true);
-        }
-        catch
-        {
-            // Malformed traceparent — run as standalone (no parent)
-            return null;
-        }
+        var tagger = DependencyInjection.TxcServices.GetOptional<Telemetry.ActivityIdentityTagger>();
+        if (tagger != null)
+            await tagger.TagFromActiveProfileAsync(activity).ConfigureAwait(false);
     }
 
     /// <summary>

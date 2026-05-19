@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using TALXIS.CLI.Core.DependencyInjection;
+using TALXIS.CLI.Core.Telemetry;
 using TALXIS.CLI.Logging;
 using TALXIS.CLI.Platform.Dataverse.Data.DependencyInjection;
 using TALXIS.CLI.Platform.Dataverse.Runtime.DependencyInjection;
@@ -30,6 +31,7 @@ public static class TxcServicesBootstrap
         services.AddTxcDataverseProvider();
         services.AddTxcDataverseApplication();
         services.AddTxcDataverseData();
+        services.AddSingleton<ActivityIdentityTagger>();
 
         var provider = services.BuildServiceProvider();
         TxcServices.Initialize(provider);

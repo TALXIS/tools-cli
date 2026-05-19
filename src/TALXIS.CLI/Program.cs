@@ -23,6 +23,12 @@ namespace TALXIS.CLI
             // and wires its own TxcServices via the same bootstrap helper.
             TxcServicesBootstrap.EnsureInitialized();
 
+            // Wire DotMake's DI bridge so command classes can use constructor injection.
+            // This uses the same IServiceProvider as TxcServices — both paths resolve
+            // from the same container. Existing TxcServices.Get<T>() calls still work.
+            if (TxcServices.Provider is not null)
+                Cli.Ext.SetServiceProvider(TxcServices.Provider);
+
             // Initialize telemetry from user config (fire-and-forget, never blocks)
             InitializeTelemetry();
 
