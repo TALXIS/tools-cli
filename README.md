@@ -50,7 +50,7 @@ txc workspace explain
 - [Collaboration](#collaboration)
 
 **Detailed guides:**
-[Schema Management](docs/schema-management.md) · [Changeset Staging](docs/changeset-staging.md) · [Architecture](docs/architecture.md) · [Profiles & Auth](docs/profiles-and-authentication.md) · [Output Contract](docs/output-contract.md)
+[Data Plane](docs/data-plane.md) · [Schema Management](docs/schema-management.md) · [Changeset Staging](docs/changeset-staging.md) · [Architecture](docs/architecture.md) · [Profiles & Auth](docs/profiles-and-authentication.md) · [Output Contract](docs/output-contract.md)
 
 ---
 
@@ -173,7 +173,7 @@ txc env component dep delete-check --entity tom_project
 
 ### Data Plane
 
-Query, create, update, and bulk-operate on Dataverse records — all cross-platform on modern .NET.
+Query, create, update, and bulk-operate on Dataverse records — all cross-platform on modern .NET. See [docs/data-plane.md](docs/data-plane.md) for the full guide; the highlights below.
 
 **Three query languages — pick the one you think in:**
 
@@ -188,15 +188,26 @@ txc env data query fetchxml '<fetch top="5"><entity name="contact"><attribute na
 txc env data query sql "SELECT fullname, emailaddress1 FROM contact WHERE statecode = 0" --top 20
 ```
 
-**Record CRUD, file columns, relationships, bulk:**
+**Single-record CRUD — apply now or stage for later:**
 
 ```sh
 txc env data record create --entity account --data '{"name":"Contoso Ltd","revenue":5000000}' --apply
 txc env data record upload-file --entity account $ID --column logo --file ./logo.png --apply
-txc env data record associate $ID --entity account \
-  --target $TARGET_ID --target-entity contact --relationship accountleads_association --apply
-txc env data bulk upsert --entity contact --file ./contacts.json   # CreateMultiple/UpsertMultiple under the hood
+txc env data record update $ID --entity contact --data '{"jobtitle":"VP Sales"}' --stage   # queue, apply later
 ```
+
+**Bulk writes — two paths, same `CreateMultiple`/`UpdateMultiple` SDK messages:**
+
+```sh
+# 1. Heterogeneous mix? Stage anything (across entities + operations), review, submit as one batch:
+txc env data record create --entity account --data '{...}' --stage   # × N
+txc env changeset apply --strategy bulk
+
+# 2. Got a prepared JSON array for one table? Skip staging entirely:
+txc env data bulk upsert --entity contact --file ./contacts.json
+```
+
+See [docs/data-plane.md](docs/data-plane.md) for the full guide — decision matrix, query reference, JSON value formats for lookups/option sets/money.
 
 **Configuration Migration Tool (CMT)** — import, export, convert. Runs natively on macOS/Linux (no Windows VM needed). Exports to a folder by default so you can commit data directly to your repo:
 
@@ -221,6 +232,9 @@ See [docs/configuration-migration.md](docs/configuration-migration.md) for the f
 ### Application Plane — Schema Management
 
 Define your Dataverse schema from the terminal — entities, columns, relationships, option sets. Every mutating command supports `--apply` (execute now) or `--stage` (queue for batch). See [docs/schema-management.md](docs/schema-management.md).
+
+> [!NOTE]
+> Staging (`--stage` + `changeset apply`) is **cross-plane** — schema, data writes, and file uploads share one queue and one optimised submission pipeline. See [docs/data-plane.md](docs/data-plane.md#bulk-writes-via-staging) for the data-plane angle.
 
 ```sh
 # Spin up a new entity with a money column in seconds
