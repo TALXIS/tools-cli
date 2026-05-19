@@ -50,7 +50,7 @@ txc workspace explain
 - [Collaboration](#collaboration)
 
 **Detailed guides:**
-[Schema Management](docs/schema-management.md) · [Changeset Staging](docs/changeset-staging.md) · [Architecture](docs/architecture.md) · [Profiles & Auth](docs/profiles-and-authentication.md) · [Output Contract](docs/output-contract.md)
+[Data Plane](docs/data-plane.md) · [Schema Management](docs/schema-management.md) · [Changeset Staging](docs/changeset-staging.md) · [Architecture](docs/architecture.md) · [Profiles & Auth](docs/profiles-and-authentication.md) · [Output Contract](docs/output-contract.md)
 
 ---
 
@@ -173,7 +173,7 @@ txc env component dep delete-check --entity tom_project
 
 ### Data Plane
 
-Query, create, update, and bulk-operate on Dataverse records — all cross-platform on modern .NET.
+Query, create, update, and bulk-operate on Dataverse records — all cross-platform on modern .NET. See [docs/data-plane.md](docs/data-plane.md) for the full guide; the highlights below.
 
 **Three query languages — pick the one you think in:**
 
@@ -188,15 +188,38 @@ txc env data query fetchxml '<fetch top="5"><entity name="contact"><attribute na
 txc env data query sql "SELECT fullname, emailaddress1 FROM contact WHERE statecode = 0" --top 20
 ```
 
-**Record CRUD, file columns, relationships, bulk:**
+**Single-record CRUD (`--apply` / `--stage`):** Every record-mutating command accepts either `--apply` (send now) or `--stage` (queue locally for batch apply — see below).
 
 ```sh
 txc env data record create --entity account --data '{"name":"Contoso Ltd","revenue":5000000}' --apply
+txc env data record update $ID --entity account --data '{"revenue":7500000}' --apply
 txc env data record upload-file --entity account $ID --column logo --file ./logo.png --apply
 txc env data record associate $ID --entity account \
   --target $TARGET_ID --target-entity contact --relationship accountleads_association --apply
-txc env data bulk upsert --entity contact --file ./contacts.json   # CreateMultiple/UpsertMultiple under the hood
 ```
+
+**Bulk writes — two paths:**
+
+*1. Stage many writes, submit as one batch.* Same changeset mechanism schema commands use — works across entities and operation types. Best when a script or coding agent assembles the workload step-by-step:
+
+```sh
+txc env data record create --entity account --data '{"name":"Contoso Ltd"}' --stage
+txc env data record create --entity account --data '{"name":"Fabrikam Inc"}' --stage
+txc env data record update $EXISTING --entity contact --data '{"jobtitle":"VP Sales"}' --stage
+
+txc env changeset status                          # review what's queued
+txc env changeset apply --strategy bulk           # one optimised submission
+```
+
+*2. One-shot bulk for a prepared array.* `txc env data bulk` operates on **one entity, one operation, one JSON array** — no local staging state. Internally uses the same `CreateMultiple` / `UpdateMultiple` / `UpsertMultiple` SDK messages as `--strategy bulk`; choose it when you already have the array (typical ETL / "load this file into this table" shape):
+
+```sh
+txc env data bulk create --entity contact --file ./new-contacts.json
+txc env data bulk update --entity contact --file ./contact-updates.json
+txc env data bulk upsert --entity contact --file ./contacts.json
+```
+
+See [docs/data-plane.md](docs/data-plane.md) for the full decision matrix (single vs. staged vs. bulk vs. CMT) and JSON value formats for lookups, option sets, and money columns.
 
 **Configuration Migration Tool (CMT)** — import, export, convert. Runs natively on macOS/Linux (no Windows VM needed). Exports to a folder by default so you can commit data directly to your repo:
 
@@ -221,6 +244,9 @@ See [docs/configuration-migration.md](docs/configuration-migration.md) for the f
 ### Application Plane — Schema Management
 
 Define your Dataverse schema from the terminal — entities, columns, relationships, option sets. Every mutating command supports `--apply` (execute now) or `--stage` (queue for batch). See [docs/schema-management.md](docs/schema-management.md).
+
+> [!NOTE]
+> Changeset staging (`--stage` + `txc env changeset apply`) is a **cross-plane** mechanism — schema, data, and file uploads can all be queued together and submitted in one optimised pipeline. Schema scaffolding is shown here because it's the most striking example, but the same flow applies to data writes — see [docs/data-plane.md](docs/data-plane.md#bulk-writes-via-staging).
 
 ```sh
 # Spin up a new entity with a money column in seconds
