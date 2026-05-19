@@ -110,7 +110,14 @@ public static class TxcTelemetrySetup
                         ["talxis.cli.is_ci"] = TxcTelemetry.IsRunningInCi(),
                         ["os.type"] = System.Runtime.InteropServices.RuntimeInformation.OSDescription,
                     }))
-            .AddHttpClientInstrumentation()
+            .AddHttpClientInstrumentation(opts =>
+            {
+                // Filter out the Azure Monitor exporter's own telemetry upload calls
+                // to avoid a feedback loop where we log our own logging HTTP requests.
+                opts.FilterHttpRequestMessage = req =>
+                    req.RequestUri is null ||
+                    !req.RequestUri.Host.Contains(".applicationinsights.azure.com");
+            })
             .AddAzureMonitorTraceExporter(opts =>
             {
                 opts.ConnectionString = connectionString;
