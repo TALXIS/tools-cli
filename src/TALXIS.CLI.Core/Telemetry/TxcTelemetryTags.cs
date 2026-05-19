@@ -22,11 +22,15 @@ public static class TxcTelemetryTags
     public const string EnvironmentUrl = "txc.environment_url";
     public const string EnvironmentName = "txc.environment_name";
 
-    // User identity — using txc.* namespace because OTel enduser.* attributes
-    // are mapped to App Insights built-in fields and may be stripped from customDimensions
-    public const string EndUserId = "txc.user_id";
-    public const string EndUserName = "txc.user_name";
-    public const string EndUserScope = "txc.tenant_id";
+    // User identity — OTel enduser.* attributes map to App Insights built-in
+    // fields (Users blade, user_Id column). The txc.* duplicates ensure the
+    // values are also visible in customDimensions for Kusto queries.
+    public const string EndUserId = "enduser.id";
+    public const string EndUserName = "enduser.name";
+    public const string EndUserScope = "enduser.scope";
+    public const string UserId = "txc.user_id";
+    public const string UserName = "txc.user_name";
+    public const string TenantId = "txc.tenant_id";
 
     // Entry point values
     public const string EntryPointCli = "cli";
