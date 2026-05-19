@@ -25,12 +25,6 @@ internal static class SettingRegistry
             new[] { "plain", "json" },
             g => g.Log.Format,
             (g, v) => g.Log.Format = v),
-        new(
-            "telemetry.enabled",
-            "Whether anonymous usage telemetry is enabled.",
-            null,
-            g => g.Telemetry.Enabled ? "true" : "false",
-            (g, v) => g.Telemetry.Enabled = ParseBool(v)),
     };
 
     public static SettingDescriptor? Find(string key)

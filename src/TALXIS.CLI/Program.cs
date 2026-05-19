@@ -56,7 +56,6 @@ namespace TALXIS.CLI
                 var config = configStore.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
 #pragma warning restore RS0030
                 TxcTelemetrySetup.Initialize(
-                    configEnabled: config.Telemetry.Enabled,
                     configConnectionString: config.Telemetry.ConnectionString,
                     entryPoint: "cli");
             }

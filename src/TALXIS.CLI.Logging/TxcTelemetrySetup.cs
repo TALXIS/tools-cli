@@ -31,7 +31,14 @@ public static class TxcTelemetrySetup
     /// <param name="configEnabled">Value of <c>telemetry.enabled</c> from config file.</param>
     /// <param name="configConnectionString">Optional connection string override from config file.</param>
     /// <param name="entryPoint">Identifies the host: "cli" or "mcp".</param>
-    public static void Initialize(bool configEnabled, string? configConnectionString = null, string entryPoint = "cli")
+    /// <summary>
+    /// Initializes telemetry. Always on in Release builds — the only gate is
+    /// whether a connection string is available (embedded at build time or
+    /// set via environment variable).
+    /// </summary>
+    /// <param name="configConnectionString">Optional connection string override from config file.</param>
+    /// <param name="entryPoint">Identifies the host: "cli" or "mcp".</param>
+    public static void Initialize(string? configConnectionString = null, string entryPoint = "cli")
     {
         if (_initialized) return;
         _initialized = true;
@@ -40,9 +47,6 @@ public static class TxcTelemetrySetup
         // Debug/local builds — no telemetry, no exporter loaded
         return;
 #else
-        if (!configEnabled)
-            return;
-
         var connectionString = TxcTelemetry.ResolveConnectionString(configConnectionString);
         if (string.IsNullOrWhiteSpace(connectionString))
             return;
@@ -79,7 +83,7 @@ public static class TxcTelemetrySetup
         // that could hang; the explicit call gives us a predictable upper bound.
         try
         {
-            _tracerProvider?.ForceFlush(timeoutMilliseconds: 10000);
+            _tracerProvider?.ForceFlush(timeoutMilliseconds: 15000);
         }
         catch (Exception)
         {

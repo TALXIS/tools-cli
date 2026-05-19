@@ -20,12 +20,6 @@ public sealed class LogSettings
 public sealed class TelemetrySettings
 {
     /// <summary>
-    /// Telemetry is on by default for all published builds.
-    /// Can be disabled via <c>txc config setting set telemetry.enabled false</c>.
-    /// </summary>
-    public bool Enabled { get; set; } = true;
-
-    /// <summary>
     /// Optional user-provided App Insights connection string override.
     /// When null, the built-in default (embedded at Release build time) is used.
     /// </summary>
