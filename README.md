@@ -173,7 +173,7 @@ txc env component dep delete-check --entity tom_project
 
 ### Data Plane
 
-Query, create, update, and bulk-operate on Dataverse records — all cross-platform on modern .NET. See [docs/data-plane.md](docs/data-plane.md) for the full guide; the highlights below.
+Query, create, update, and bulk-operate on Dataverse records.
 
 **Three query languages — pick the one you think in:**
 
