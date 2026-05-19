@@ -34,7 +34,8 @@ public abstract class TxcLeafCommand
     /// as <c>TxcTelemetry.Source</c> in the Logging project so a single
     /// TracerProvider listener captures both CLI and MCP spans.
     /// </summary>
-    private static readonly ActivitySource TelemetrySource = new("TALXIS.CLI");
+    private static readonly ActivitySource TelemetrySource = new("TALXIS.CLI",
+        typeof(TxcLeafCommand).Assembly.GetName().Version?.ToString(3));
 
     /// <summary>Exit code: operation completed successfully.</summary>
     protected const int ExitSuccess = 0;
@@ -79,11 +80,7 @@ public abstract class TxcLeafCommand
             : TelemetrySource.StartActivity(commandName, ActivityKind.Server);
         activity?.SetTag("txc.command", commandName);
         activity?.SetTag("txc.entry_point", "cli");
-        activity?.SetTag("txc.version", GetCliVersion());
-        // Set URL and response code so App Insights request blade shows meaningful values
-        // instead of <empty> / 0. Uses OTel HTTP semantic conventions that the Azure Monitor
-        // exporter maps to the requests table url and resultCode fields.
-        activity?.SetTag("url.full", $"txc://cli/{commandName}");
+        activity?.SetTag("txc.version", TelemetrySource.Version);
 
         // Best-effort: tag span with identity from the active profile so ALL
         // commands (not just ProfiledCliCommand) are attributable to a user.
@@ -95,7 +92,6 @@ public abstract class TxcLeafCommand
         if (formatError.HasValue)
         {
             activity?.SetTag("txc.exit_code", formatError.Value);
-            SetResponseCode(activity, formatError.Value);
             return formatError.Value;
         }
 
@@ -107,7 +103,6 @@ public abstract class TxcLeafCommand
             if (guardResult.HasValue)
             {
                 activity?.SetTag("txc.exit_code", guardResult.Value);
-                SetResponseCode(activity, guardResult.Value);
                 return guardResult.Value;
             }
         }
@@ -121,7 +116,6 @@ public abstract class TxcLeafCommand
         if (confirmError.HasValue)
         {
             activity?.SetTag("txc.exit_code", confirmError.Value);
-            SetResponseCode(activity, confirmError.Value);
             return confirmError.Value;
         }
 
@@ -129,7 +123,6 @@ public abstract class TxcLeafCommand
         {
             var exitCode = await ExecuteAsync().ConfigureAwait(false);
             activity?.SetTag("txc.exit_code", exitCode);
-            SetResponseCode(activity, exitCode);
             if (exitCode != ExitSuccess)
                 activity?.SetStatus(ActivityStatusCode.Error, $"Exit code {exitCode}");
             return exitCode;
@@ -230,12 +223,6 @@ public abstract class TxcLeafCommand
     }
 
     /// <summary>
-    /// Logs a command failure with structured telemetry properties (<c>txc.exit_code</c>,
-    /// <c>txc.error_kind</c>) that flow to all ILogger providers — console, JSON stderr,
-    /// and the <c>TxcTelemetryLogProvider</c> which bridges them to Activity tags and
-    /// App Insights exception recording. This keeps command code free of direct Activity calls.
-    /// </summary>
-    /// <summary>
     /// Logs a command failure and tags the current Activity span.
     /// The ILogger call carries the error message and exception to all providers
     /// (console, JSON stderr, telemetry). The Activity tags are span-level metadata
@@ -250,7 +237,6 @@ public abstract class TxcLeafCommand
         var activity = Activity.Current;
         activity?.SetTag("txc.exit_code", exitCode);
         activity?.SetTag("txc.error_kind", errorKind);
-        SetResponseCode(activity, exitCode);
 
         // Log through ILogger — TxcTelemetryLogProvider bridges the exception
         // to Activity.RecordException (→ App Insights exceptions table) and
@@ -258,22 +244,6 @@ public abstract class TxcLeafCommand
 #pragma warning disable CA2254 // Log message template is intentionally dynamic for level routing
         Logger.Log(level, ex, "{Error}", ex.Message);
 #pragma warning restore CA2254
-    }
-
-    /// <summary>
-    /// Maps CLI exit codes to HTTP-like response codes so App Insights' request
-    /// blade shows meaningful "Response code" values instead of 0.
-    /// 0 → 200 (OK), 1 → 500 (internal error), 2 → 400 (validation/input error).
-    /// </summary>
-    private static void SetResponseCode(Activity? activity, int exitCode)
-    {
-        var httpCode = exitCode switch
-        {
-            ExitSuccess => 200,
-            ExitValidationError => 400,
-            _ => 500,
-        };
-        activity?.SetTag("http.response.status_code", httpCode);
     }
 
     /// <summary>
@@ -308,32 +278,41 @@ public abstract class TxcLeafCommand
             var resolver = DependencyInjection.TxcServices.Get<Abstractions.IConfigurationResolver>();
             var context = await resolver.ResolveAsync(null, CancellationToken.None).ConfigureAwait(false);
 
-            var credential = context.Credential;
-            var connection = context.Connection;
-
-            // Extract Entra object ID from MSAL HomeAccountId ({objectId}.{tenantId})
-            var objectId = ExtractObjectId(credential.InteractiveAccountId)
-                ?? credential.ApplicationId;
-            if (!string.IsNullOrWhiteSpace(objectId))
-                activity.SetTag("enduser.id", objectId);
-
-            var upn = credential.InteractiveUpn ?? credential.Id;
-            if (!string.IsNullOrWhiteSpace(upn))
-                activity.SetTag("user.name", upn);
-
-            var tenantId = connection.TenantId ?? credential.TenantId;
-            if (!string.IsNullOrWhiteSpace(tenantId))
-                activity.SetTag("enduser.scope", tenantId);
-
-            if (!string.IsNullOrWhiteSpace(connection.EnvironmentUrl))
-                activity.SetTag("txc.environment_url", connection.EnvironmentUrl);
-            if (!string.IsNullOrWhiteSpace(connection.DisplayName))
-                activity.SetTag("txc.environment_name", connection.DisplayName);
+            TagActivityWithIdentity(activity, context.Credential, context.Connection);
         }
         catch (Exception) when (true)
         {
             // Best-effort — never block CLI for telemetry
         }
+    }
+
+    /// <summary>
+    /// Tags the Activity with user/tenant/environment identity from a resolved profile.
+    /// Shared by both <see cref="TagActiveProfileIdentityAsync"/> (base class, active profile)
+    /// and <see cref="ProfiledCliCommand.PreExecuteAsync"/> (explicit --profile override).
+    /// </summary>
+    protected static void TagActivityWithIdentity(Activity? activity,
+        Model.Credential credential, Model.Connection connection)
+    {
+        if (activity == null) return;
+
+        var objectId = ExtractObjectId(credential.InteractiveAccountId)
+            ?? credential.ApplicationId;
+        if (!string.IsNullOrWhiteSpace(objectId))
+            activity.SetTag("enduser.id", objectId);
+
+        var upn = credential.InteractiveUpn ?? credential.Id;
+        if (!string.IsNullOrWhiteSpace(upn))
+            activity.SetTag("user.name", upn);
+
+        var tenantId = connection.TenantId ?? credential.TenantId;
+        if (!string.IsNullOrWhiteSpace(tenantId))
+            activity.SetTag("enduser.scope", tenantId);
+
+        if (!string.IsNullOrWhiteSpace(connection.EnvironmentUrl))
+            activity.SetTag("txc.environment_url", connection.EnvironmentUrl);
+        if (!string.IsNullOrWhiteSpace(connection.DisplayName))
+            activity.SetTag("txc.environment_name", connection.DisplayName);
     }
 
     /// <summary>
@@ -345,14 +324,6 @@ public abstract class TxcLeafCommand
         if (string.IsNullOrWhiteSpace(homeAccountId)) return null;
         var dot = homeAccountId.IndexOf('.');
         return dot > 0 ? homeAccountId[..dot] : homeAccountId;
-    }
-
-    private static string GetCliVersion()
-    {
-        // Use AssemblyVersion (e.g. "1.11.0") not InformationalVersion which
-        // includes the git commit hash (e.g. "1.11.0+9fdf7ed...") and is ugly
-        // in App Insights dashboards.
-        return typeof(TxcLeafCommand).Assembly.GetName().Version?.ToString(3) ?? "unknown";
     }
 
     /// <summary>

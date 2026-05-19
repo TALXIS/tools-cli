@@ -107,7 +107,7 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
         {
             var resolver = TxcServices.Get<IConfigurationResolver>();
             resolvedContext = await resolver.ResolveAsync(Profile, CancellationToken.None).ConfigureAwait(false);
-            TagActivityWithIdentity(resolvedContext);
+            TagActivityWithIdentity(Activity.Current, resolvedContext.Credential, resolvedContext.Connection);
         }
         catch (Exception) when (true)
         {
@@ -154,54 +154,4 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
         }
     }
 
-    /// <summary>
-    /// Tags the current Activity span with user, tenant, and environment identity
-    /// using OTel semantic conventions. These appear in App Insights as custom
-    /// dimensions for employee activity tracking and troubleshooting.
-    /// </summary>
-    private static void TagActivityWithIdentity(ResolvedProfileContext context)
-    {
-        var activity = Activity.Current;
-        if (activity == null) return;
-
-        var credential = context.Credential;
-        var connection = context.Connection;
-
-        // enduser.id — Entra object ID (GUID) extracted from MSAL HomeAccountId
-        // ({objectId}.{tenantId}). For service principals, falls back to app ID.
-        // This is the stable, join-friendly identity for analytics.
-        var entraObjectId = ExtractObjectId(credential.InteractiveAccountId)
-            ?? credential.ApplicationId;
-        if (!string.IsNullOrWhiteSpace(entraObjectId))
-            activity.SetTag("enduser.id", entraObjectId);
-
-        // user.name — UPN (email) for human-readable identification in dashboards
-        var upn = credential.InteractiveUpn ?? credential.Id;
-        if (!string.IsNullOrWhiteSpace(upn))
-            activity.SetTag("user.name", upn);
-
-        // enduser.scope — tenant ID for multi-tenant employee correlation.
-        // Prefer connection-level tenant (target environment) over credential-level
-        // (home tenant, which may differ for guest/B2B users).
-        var tenantId = connection.TenantId ?? credential.TenantId;
-        if (!string.IsNullOrWhiteSpace(tenantId))
-            activity.SetTag("enduser.scope", tenantId);
-
-        // Target environment for operational context
-        if (!string.IsNullOrWhiteSpace(connection.EnvironmentUrl))
-            activity.SetTag("txc.environment_url", connection.EnvironmentUrl);
-        if (!string.IsNullOrWhiteSpace(connection.DisplayName))
-            activity.SetTag("txc.environment_name", connection.DisplayName);
-    }
-
-    /// <summary>
-    /// Extracts the Entra object ID (first GUID) from MSAL's HomeAccountId.Identifier
-    /// format: <c>{objectId}.{tenantId}</c>. Returns null if the format is unexpected.
-    /// </summary>
-    private static string? ExtractObjectId(string? homeAccountId)
-    {
-        if (string.IsNullOrWhiteSpace(homeAccountId)) return null;
-        var dot = homeAccountId.IndexOf('.');
-        return dot > 0 ? homeAccountId[..dot] : homeAccountId;
-    }
 }

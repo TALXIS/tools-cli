@@ -27,23 +27,7 @@ public sealed class TxcTelemetryLogProvider : ILoggerProvider
 
 internal sealed class TxcTelemetryLogger : ILogger
 {
-    /// <summary>
-    /// Thread-local scope properties set via <see cref="BeginScope{TState}"/>.
-    /// Used to pass telemetry-only properties (txc.*) without polluting the
-    /// formatted log message that human-facing providers render.
-    /// </summary>
-    private static readonly AsyncLocal<Dictionary<string, object>?> _scopeProperties = new();
-
-    public IDisposable? BeginScope<TState>(TState state) where TState : notnull
-    {
-        // Accept Dictionary<string, object> scopes containing txc.* properties
-        if (state is Dictionary<string, object> dict)
-        {
-            _scopeProperties.Value = dict;
-            return new ScopeDisposable();
-        }
-        return null;
-    }
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
 
     public bool IsEnabled(LogLevel logLevel) => logLevel != LogLevel.None && Activity.Current != null;
 
@@ -57,30 +41,6 @@ internal sealed class TxcTelemetryLogger : ILogger
         var activity = Activity.Current;
         if (activity == null)
             return;
-
-        // Map well-known structured properties from message template to Activity tags
-        if (state is IReadOnlyList<KeyValuePair<string, object?>> properties)
-        {
-            foreach (var kvp in properties)
-            {
-                if (kvp.Key.StartsWith("txc.", StringComparison.Ordinal) && kvp.Value != null)
-                {
-                    activity.SetTag(kvp.Key, kvp.Value.ToString());
-                }
-            }
-        }
-
-        // Map scope properties (set via BeginScope) to Activity tags —
-        // these are telemetry-only properties that don't appear in the
-        // formatted log message visible to human-facing providers.
-        if (_scopeProperties.Value is { } scope)
-        {
-            foreach (var kvp in scope)
-            {
-                if (kvp.Key.StartsWith("txc.", StringComparison.Ordinal))
-                    activity.SetTag(kvp.Key, kvp.Value.ToString());
-            }
-        }
 
         // Record exceptions with redaction for Error and Critical levels.
         // Uses OTel semantic conventions (exception.type, exception.message,
@@ -103,10 +63,5 @@ internal sealed class TxcTelemetryLogger : ILogger
             var message = LogRedactionFilter.Redact(formatter(state, null));
             activity.SetStatus(ActivityStatusCode.Error, message);
         }
-    }
-
-    private sealed class ScopeDisposable : IDisposable
-    {
-        public void Dispose() => _scopeProperties.Value = null;
     }
 }

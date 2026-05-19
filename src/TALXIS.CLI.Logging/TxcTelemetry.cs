@@ -62,17 +62,6 @@ public static class TxcTelemetry
     }
 
     /// <summary>
-    /// Checks whether telemetry should be active based on config.
-    /// Telemetry is on by default; only disabled if the user explicitly sets
-    /// <c>telemetry.enabled = false</c> in their config file.
-    /// </summary>
-    /// <param name="configEnabled">The <c>telemetry.enabled</c> value from config file.</param>
-    public static bool ShouldEnable(bool configEnabled)
-    {
-        return configEnabled;
-    }
-
-    /// <summary>
     /// Returns true if the CLI is running in a CI/pipeline environment.
     /// Used to tag telemetry spans, not to disable them.
     /// </summary>

@@ -40,7 +40,7 @@ public static class TxcTelemetrySetup
         // Debug/local builds — no telemetry, no exporter loaded
         return;
 #else
-        if (!TxcTelemetry.ShouldEnable(configEnabled))
+        if (!configEnabled)
             return;
 
         var connectionString = TxcTelemetry.ResolveConnectionString(configConnectionString);
