@@ -24,7 +24,7 @@ public static class TxcTelemetryTags
 
     // OTel semantic conventions for user identity
     public const string EndUserId = "enduser.id";
-    public const string UserName = "user.name";
+    public const string EndUserName = "enduser.name";
     public const string EndUserScope = "enduser.scope";
 
     // Entry point values

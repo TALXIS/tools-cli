@@ -57,7 +57,7 @@ public sealed class ActivityIdentityTagger
 
         var upn = credential.InteractiveUpn ?? credential.Id;
         if (!string.IsNullOrWhiteSpace(upn))
-            activity.SetTag(TxcTelemetryTags.UserName, upn);
+            activity.SetTag(TxcTelemetryTags.EndUserName, upn);
 
         var tenantId = connection.TenantId ?? credential.TenantId;
         if (!string.IsNullOrWhiteSpace(tenantId))
