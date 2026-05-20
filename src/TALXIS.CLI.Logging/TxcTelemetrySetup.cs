@@ -139,6 +139,7 @@ public static class TxcTelemetrySetup
                         && !host.Contains(".visualstudio.com");
                 };
             })
+            .AddProcessor(new SessionIdActivityProcessor(sessionResolver))
             .AddAzureMonitorTraceExporter(opts =>
             {
                 opts.ConnectionString = connectionString;

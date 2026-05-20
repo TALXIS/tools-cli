@@ -53,24 +53,15 @@ public sealed class ActivityIdentityTagger
         var objectId = ExtractObjectId(credential.InteractiveAccountId)
             ?? credential.ApplicationId;
         if (!string.IsNullOrWhiteSpace(objectId))
-        {
-            activity.SetTag(TxcTelemetryTags.EndUserId, objectId);  // → App Insights built-in user_Id
-            activity.SetTag(TxcTelemetryTags.UserId, objectId);     // → customDimensions for Kusto
-        }
+            activity.SetTag(TxcTelemetryTags.EndUserId, objectId);  // → user_AuthenticatedId + customDimensions
 
         var upn = credential.InteractiveUpn ?? credential.Id;
         if (!string.IsNullOrWhiteSpace(upn))
-        {
-            activity.SetTag(TxcTelemetryTags.EndUserName, upn);     // → App Insights built-in
-            activity.SetTag(TxcTelemetryTags.UserName, upn);        // → customDimensions for Kusto
-        }
+            activity.SetTag(TxcTelemetryTags.EndUserName, upn);     // → customDimensions
 
         var tenantId = connection.TenantId ?? credential.TenantId;
         if (!string.IsNullOrWhiteSpace(tenantId))
-        {
-            activity.SetTag(TxcTelemetryTags.EndUserScope, tenantId); // → App Insights built-in
-            activity.SetTag(TxcTelemetryTags.TenantId, tenantId);     // → customDimensions for Kusto
-        }
+            activity.SetTag(TxcTelemetryTags.EndUserScope, tenantId); // → customDimensions
 
         if (!string.IsNullOrWhiteSpace(connection.EnvironmentUrl))
             activity.SetTag(TxcTelemetryTags.EnvironmentUrl, connection.EnvironmentUrl);

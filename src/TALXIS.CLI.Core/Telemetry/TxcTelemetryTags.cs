@@ -23,18 +23,19 @@ public static class TxcTelemetryTags
     public const string EnvironmentName = "txc.environment_name";
 
     // User identity — OTel enduser.* attributes map to App Insights built-in
-    // fields (Users blade, user_Id column). The txc.* duplicates ensure the
-    // values are also visible in customDimensions for Kusto queries.
+    // fields (user_AuthenticatedId via enduser.id) and also appear in
+    // customDimensions for Kusto queries.
     public const string EndUserId = "enduser.id";
     public const string EndUserName = "enduser.name";
     public const string EndUserScope = "enduser.scope";
-    public const string UserId = "txc.user_id";
-    public const string UserName = "txc.user_name";
-    public const string TenantId = "txc.tenant_id";
 
-    // Session tracking — correlates all CLI/MCP activity from one terminal session
+    // Session tracking — correlates all CLI/MCP activity from one terminal session.
+    // Stamped on every span by SessionIdActivityProcessor.
     public const string SessionId = "txc.session_id";
     public const string SessionIdSource = "txc.session_id.source";
+
+    // Client identification — which MCP client or host is driving this process
+    public const string Client = "txc.client";
 
     // Entry point values
     public const string EntryPointCli = "cli";
