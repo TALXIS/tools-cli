@@ -63,9 +63,13 @@ public abstract class TxcLeafCommand
     {
         var commandName = GetType().Name;
         var traceparent = Environment.GetEnvironmentVariable("TXC_TRACEPARENT");
+        // When the CLI runs as an MCP subprocess, TXC_ENTRY_POINT=mcp is set by the
+        // MCP server. Use it so all child spans consistently report the MCP entry point.
+        var entryPoint = Environment.GetEnvironmentVariable("TXC_ENTRY_POINT")
+            ?? Telemetry.TxcTelemetryTags.EntryPointCli;
 
         using var scope = new Telemetry.CommandActivityScope(
-            commandName, Telemetry.TxcTelemetryTags.EntryPointCli, traceparent);
+            commandName, entryPoint, traceparent);
         var exitCode = ExitError;
 
         try
