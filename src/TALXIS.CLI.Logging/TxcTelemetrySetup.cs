@@ -131,11 +131,13 @@ public static class TxcTelemetrySetup
             {
                 // Filter out the Azure Monitor exporter's own telemetry upload calls
                 // to avoid a feedback loop where we log our own logging HTTP requests.
-                // Also filter livediagnostics calls (Live Metrics Stream).
                 opts.FilterHttpRequestMessage = req =>
-                    req.RequestUri is not null
-                    && !req.RequestUri.Host.Contains(".applicationinsights.azure.com")
-                    && !req.RequestUri.Host.Contains(".livediagnostics.monitor.azure.com");
+                {
+                    var host = req.RequestUri?.Host ?? string.Empty;
+                    return !host.Contains(".applicationinsights.azure.com")
+                        && !host.Contains(".livediagnostics.monitor.azure.com")
+                        && !host.Contains(".visualstudio.com");
+                };
             })
             .AddAzureMonitorTraceExporter(opts =>
             {
