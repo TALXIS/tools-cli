@@ -32,6 +32,10 @@ public static class TxcTelemetryTags
     public const string UserName = "txc.user_name";
     public const string TenantId = "txc.tenant_id";
 
+    // Session tracking — correlates all CLI/MCP activity from one terminal session
+    public const string SessionId = "txc.session_id";
+    public const string SessionIdSource = "txc.session_id.source";
+
     // Entry point values
     public const string EntryPointCli = "cli";
     public const string EntryPointMcp = "mcp";

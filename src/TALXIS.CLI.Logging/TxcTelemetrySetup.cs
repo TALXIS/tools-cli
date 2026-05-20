@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using TALXIS.CLI.Logging.SessionId;
 #if TELEMETRY_ENABLED
 using Azure.Monitor.OpenTelemetry.Exporter;
 using OpenTelemetry;
@@ -23,6 +24,15 @@ public static class TxcTelemetrySetup
     private static IDisposable? _tracerProvider;
 #endif
     private static bool _initialized;
+    private static SessionIdResolver? _sessionIdResolver;
+
+    /// <summary>
+    /// The session ID resolver used during initialization.
+    /// Exposed so the MCP subprocess runner can propagate the resolved session ID
+    /// to child CLI processes via the <c>TXC_SESSION_ID</c> environment variable.
+    /// Null before <see cref="Initialize"/> is called.
+    /// </summary>
+    public static SessionIdResolver? SessionResolver => _sessionIdResolver;
 
     /// <summary>
     /// Initializes telemetry. Always on in Release builds — the only gate is
@@ -37,6 +47,12 @@ public static class TxcTelemetrySetup
         if (_initialized) return;
         _initialized = true;
 
+        // Resolve session ID early — always available even without telemetry
+        // so the MCP subprocess runner can propagate it to child processes.
+        _sessionIdResolver = new SessionIdResolver();
+        System.Diagnostics.Trace.TraceInformation(
+            $"Session ID resolved: {_sessionIdResolver.SessionId} (source: {_sessionIdResolver.Source})");
+
 #if !TELEMETRY_ENABLED
         // Debug/local builds — no telemetry, no exporter loaded
         return;
@@ -47,7 +63,7 @@ public static class TxcTelemetrySetup
 
         try
         {
-            _tracerProvider = CreateTracerProvider(connectionString, entryPoint);
+            _tracerProvider = CreateTracerProvider(connectionString, entryPoint, _sessionIdResolver);
         }
         catch (Exception)
         {
@@ -89,7 +105,8 @@ public static class TxcTelemetrySetup
     }
 
 #if TELEMETRY_ENABLED
-    private static OpenTelemetry.Trace.TracerProvider CreateTracerProvider(string connectionString, string entryPoint)
+    private static OpenTelemetry.Trace.TracerProvider CreateTracerProvider(
+        string connectionString, string entryPoint, SessionIdResolver sessionResolver)
     {
         // Use OpenTelemetry SDK to create a TracerProvider with Azure Monitor exporter.
         // This is loaded via reflection-free direct API calls — the NuGet packages
@@ -107,14 +124,18 @@ public static class TxcTelemetrySetup
                         ["talxis.cli.entry_point"] = entryPoint,
                         ["talxis.cli.is_ci"] = TxcTelemetry.IsRunningInCi(),
                         ["os.type"] = System.Runtime.InteropServices.RuntimeInformation.OSDescription,
+                        ["txc.session_id"] = sessionResolver.SessionId,
+                        ["txc.session_id.source"] = sessionResolver.Source,
                     }))
             .AddHttpClientInstrumentation(opts =>
             {
                 // Filter out the Azure Monitor exporter's own telemetry upload calls
                 // to avoid a feedback loop where we log our own logging HTTP requests.
+                // Also filter livediagnostics calls (Live Metrics Stream).
                 opts.FilterHttpRequestMessage = req =>
-                    req.RequestUri is null ||
-                    !req.RequestUri.Host.Contains(".applicationinsights.azure.com");
+                    req.RequestUri is not null
+                    && !req.RequestUri.Host.Contains(".applicationinsights.azure.com")
+                    && !req.RequestUri.Host.Contains(".livediagnostics.monitor.azure.com");
             })
             .AddAzureMonitorTraceExporter(opts =>
             {

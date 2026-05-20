@@ -122,6 +122,15 @@ internal static class CliSubprocessRunner
             startInfo.Environment["TXC_TRACEPARENT"] = $"00-{currentActivity.TraceId}-{currentActivity.SpanId}-{flags}";
         }
 
+        // Propagate the resolved session ID so CLI subprocesses use the same
+        // session identifier as the MCP server. The child's SessionIdResolver
+        // picks this up via ExplicitEnvVarStrategy (highest priority).
+        var sessionResolver = TALXIS.CLI.Logging.TxcTelemetrySetup.SessionResolver;
+        if (sessionResolver != null)
+        {
+            startInfo.Environment[TALXIS.CLI.Logging.SessionId.ExplicitEnvVarStrategy.EnvVar] = sessionResolver.SessionId;
+        }
+
         // Force headless mode for every MCP-spawned tool invocation so that
         // interactive auth flows (browser, device code, masked secret prompts)
         // can never run: stdout is reserved for JSON-RPC frames and the
