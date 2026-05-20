@@ -29,6 +29,10 @@ public sealed class SessionIdActivityProcessor : BaseProcessor<Activity>
         data.SetTag("txc.session_id", _sessionId);
         data.SetTag("txc.session_id.source", _sessionSource);
         data.SetTag("txc.client", _client);
+
+        // Azure Monitor exporter maps this tag to the native session_Id column,
+        // enabling built-in Sessions and User Flows in the App Insights portal.
+        data.SetTag("microsoft.session.id", _sessionId);
     }
 
     /// <summary>
