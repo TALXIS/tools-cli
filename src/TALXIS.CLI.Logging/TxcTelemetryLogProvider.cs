@@ -11,7 +11,6 @@ namespace TALXIS.CLI.Logging;
 ///
 /// <para>Behavior:</para>
 /// <list type="bullet">
-///   <item>Structured properties prefixed with <c>txc.</c> are mapped to Activity tags.</item>
 ///   <item><see cref="LogLevel.Error"/> and <see cref="LogLevel.Critical"/> events with
 ///         an exception produce OTel exception events (→ App Insights <c>exceptions</c> table).</item>
 ///   <item>All text is redacted via <see cref="LogRedactionFilter"/> before reaching the Activity.</item>

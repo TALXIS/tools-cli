@@ -7,11 +7,9 @@ namespace TALXIS.CLI.Logging;
 /// Central telemetry entry point for the TALXIS CLI.
 /// Owns the shared <see cref="ActivitySource"/> used by CLI commands and MCP tool dispatch.
 /// 
-/// Telemetry is on by default for published builds:
-/// <list type="number">
-///   <item><b>Build-time gate:</b> <c>#if TELEMETRY_ENABLED</c> (Release builds only — Debug/local never emits).</item>
-///   <item><b>On by default:</b> <c>telemetry.enabled = true</c> in <c>~/.txc/config.json</c>.</item>
-/// </list>
+/// Telemetry is always on for published (Release) builds. The only gate is whether
+/// a connection string is available (embedded at build time or set via environment variable).
+/// Debug/local builds skip initialization entirely via <c>#if TELEMETRY_ENABLED</c>.
 /// 
 /// Connection string resolution (highest priority wins):
 /// <list type="number">

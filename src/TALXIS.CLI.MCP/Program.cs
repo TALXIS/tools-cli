@@ -773,7 +773,7 @@ JsonElement BuildGetExecutionLogInputSchema()
             ["uri"] = new Dictionary<string, object?>
             {
                 ["type"] = "string",
-                ["description"] = "Diagnostics URI returned by a failed tool call (e.g. 'txc://logs/workspace_validate/abc123')."
+                ["description"] = "Diagnostics URI returned by a tool call (e.g. 'txc://logs/48c92ef8cab808755681d0981be837ec')."
             },
             ["level"] = new Dictionary<string, object?>
             {

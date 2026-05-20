@@ -25,16 +25,10 @@ public static class TxcTelemetrySetup
     private static bool _initialized;
 
     /// <summary>
-    /// Initializes telemetry if all gates pass (build config, user opt-in, env var).
-    /// Safe to call multiple times — subsequent calls are no-ops.
-    /// </summary>
-    /// <param name="configEnabled">Value of <c>telemetry.enabled</c> from config file.</param>
-    /// <param name="configConnectionString">Optional connection string override from config file.</param>
-    /// <param name="entryPoint">Identifies the host: "cli" or "mcp".</param>
-    /// <summary>
     /// Initializes telemetry. Always on in Release builds — the only gate is
     /// whether a connection string is available (embedded at build time or
     /// set via environment variable).
+    /// Safe to call multiple times — subsequent calls are no-ops.
     /// </summary>
     /// <param name="configConnectionString">Optional connection string override from config file.</param>
     /// <param name="entryPoint">Identifies the host: "cli" or "mcp".</param>

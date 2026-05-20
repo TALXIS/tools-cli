@@ -31,7 +31,8 @@
 
   <ItemGroup>
     <!-- Banned API analyzer: prevents Console.Write*/ReadKey/ReadLine in command code.
-         Infrastructure files that legitimately use Console have surgical #pragma RS0030 exemptions. -->
+         Infrastructure code that legitimately uses Console has surgical #pragma RS0030 exemptions
+         at each call site (e.g. TxcConsoleFormatter, JsonStderrLoggerProvider, Program.cs bootstrap). -->
     <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="3.3.4">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>

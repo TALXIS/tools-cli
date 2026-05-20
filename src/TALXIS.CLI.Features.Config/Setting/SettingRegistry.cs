@@ -32,9 +32,6 @@ internal static class SettingRegistry
 
     public static string NormalizeValue(SettingDescriptor descriptor, string raw)
     {
-        if (descriptor.Key == "telemetry.enabled")
-            return ParseBool(raw) ? "true" : "false";
-
         var lowered = raw.Trim().ToLowerInvariant();
         if (descriptor.AllowedValues is { } allowed)
         {
@@ -46,18 +43,6 @@ internal static class SettingRegistry
             return match;
         }
         return lowered;
-    }
-
-    private static bool ParseBool(string raw)
-    {
-        var v = raw.Trim().ToLowerInvariant();
-        return v switch
-        {
-            "true" or "1" or "yes" or "on" => true,
-            "false" or "0" or "no" or "off" => false,
-            _ => throw new ArgumentException(
-                $"Invalid boolean value '{raw}'. Allowed: true, false."),
-        };
     }
 }
 
