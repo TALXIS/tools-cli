@@ -34,6 +34,9 @@ namespace TALXIS.CLI
             var entryPoint = Environment.GetEnvironmentVariable("TXC_ENTRY_POINT") ?? "cli";
             TxcTelemetryBootstrap.Initialize(entryPoint: entryPoint);
 
+            // Wire support escalation info into CLI error output
+            TALXIS.CLI.Core.TxcLeafCommand.SupportInfoFormatter = Logging.TxcSupportInfo.FormatEscalation;
+
             try
             {
                 return await Cli.RunAsync<TALXIS.CLI.TxcCliCommand>(args, new CliSettings { EnableDefaultExceptionHandler = true });

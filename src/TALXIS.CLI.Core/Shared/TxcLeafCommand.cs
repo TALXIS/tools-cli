@@ -109,6 +109,7 @@ public abstract class TxcLeafCommand
             exitCode = ExitValidationError;
             scope.SetError(exitCode, "validation");
             Logger.LogError(ex, "{Error}", ex.Message);
+            LogSupportInfo();
             return exitCode;
         }
         catch (OperationCanceledException ex)
@@ -128,12 +129,30 @@ public abstract class TxcLeafCommand
 
             OutputFormatter.WriteResult("failed", hasDistinctCause ? root.Message : ex.Message);
             Logger.LogError(ex, "Command failed: {Error}", ex.Message);
+            LogSupportInfo();
             return exitCode;
         }
         finally
         {
             scope.SetExitCode(exitCode);
         }
+    }
+
+    /// <summary>
+    /// Delegate that formats support escalation info (session ID, operation ID, GitHub link).
+    /// Set once at startup by the entry-point layer (CLI/MCP) to avoid a Core → Logging dependency.
+    /// When null, no support info is emitted.
+    /// </summary>
+    public static Func<string>? SupportInfoFormatter { get; set; }
+
+    /// <summary>
+    /// Logs support escalation info to stderr after an error.
+    /// </summary>
+    private void LogSupportInfo()
+    {
+        var info = SupportInfoFormatter?.Invoke();
+        if (!string.IsNullOrEmpty(info))
+            Logger.LogInformation("{SupportInfo}", info);
     }
 
     /// <summary>

@@ -50,6 +50,7 @@ public static class TxcTelemetrySetup
         // Resolve session ID early — always available even without telemetry
         // so the MCP subprocess runner can propagate it to child processes.
         _sessionIdResolver = new SessionIdResolver();
+        TxcSupportInfo.SetSessionId(_sessionIdResolver.SessionId);
         System.Diagnostics.Trace.TraceInformation(
             $"Session ID resolved: {_sessionIdResolver.SessionId} (source: {_sessionIdResolver.Source})");
 

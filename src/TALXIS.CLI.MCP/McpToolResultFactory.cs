@@ -174,8 +174,11 @@ internal sealed class McpToolResultFactory
 
     private static CallToolResult BuildFailureResult(string toolName, string summary, string diagnosticsUri)
     {
+        var supportInfo = TALXIS.CLI.Logging.TxcSupportInfo.FormatEscalation();
+        var supportBlock = string.IsNullOrEmpty(supportInfo) ? "" : $"{Environment.NewLine}{supportInfo}";
+
         string cliFriendlySummary =
-            $"{summary}{Environment.NewLine}{Environment.NewLine}" +
+            $"{summary}{Environment.NewLine}{supportBlock}{Environment.NewLine}" +
             $"Full execution log available via get_execution_log with uri=\"{diagnosticsUri}\".";
 
         return new CallToolResult
