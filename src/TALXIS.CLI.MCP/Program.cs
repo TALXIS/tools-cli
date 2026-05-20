@@ -938,21 +938,5 @@ object? ConvertJsonElementToPropertyType(System.Text.Json.JsonElement jsonElemen
 
 void InitializeMcpTelemetry()
 {
-    try
-    {
-        TALXIS.CLI.Platform.Dataverse.Application.DependencyInjection.TxcServicesBootstrap.EnsureInitialized();
-        var configStore = TALXIS.CLI.Core.DependencyInjection.TxcServices.Get<TALXIS.CLI.Core.Abstractions.IGlobalConfigStore>();
-#pragma warning disable RS0030 // Synchronous telemetry init in top-level MCP setup — before async host.RunAsync
-        var config = configStore.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
-#pragma warning restore RS0030
-        TxcTelemetrySetup.Initialize(
-            configConnectionString: config.Telemetry.ConnectionString,
-            entryPoint: "mcp");
-    }
-    catch (Exception)
-    {
-        // Telemetry initialization must never prevent MCP server from starting.
-        // No structured logger available yet at this point in bootstrap.
-        return;
-    }
+    TALXIS.CLI.TxcTelemetryBootstrap.Initialize(entryPoint: "mcp", ensureServices: true);
 }

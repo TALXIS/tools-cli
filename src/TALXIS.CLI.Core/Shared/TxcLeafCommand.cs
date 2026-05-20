@@ -124,9 +124,6 @@ public abstract class TxcLeafCommand
 
             OutputFormatter.WriteResult("failed", hasDistinctCause ? root.Message : ex.Message);
             Logger.LogError(ex, "Command failed: {Error}", ex.Message);
-            if (hasDistinctCause)
-                Logger.LogError("Cause: {RootCause}", root.Message);
-
             return exitCode;
         }
         finally

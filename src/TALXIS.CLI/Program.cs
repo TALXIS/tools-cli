@@ -1,5 +1,4 @@
 ﻿using DotMake.CommandLine;
-using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Logging;
 using TALXIS.CLI.Platform.Dataverse.Application.DependencyInjection;
@@ -30,7 +29,7 @@ namespace TALXIS.CLI
                 Cli.Ext.SetServiceProvider(TxcServices.Provider);
 
             // Initialize telemetry from user config (fire-and-forget, never blocks)
-            InitializeTelemetry();
+            TxcTelemetryBootstrap.Initialize(entryPoint: "cli");
 
             try
             {
@@ -45,26 +44,6 @@ namespace TALXIS.CLI
         public static async Task<int> RunCli(string[] args)
         {
             return await Main(args);
-        }
-
-        private static void InitializeTelemetry()
-        {
-            try
-            {
-                var configStore = TxcServices.Get<IGlobalConfigStore>();
-#pragma warning disable RS0030 // Synchronous telemetry init before async main loop — cannot use await here
-                var config = configStore.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
-#pragma warning restore RS0030
-                TxcTelemetrySetup.Initialize(
-                    configConnectionString: config.Telemetry.ConnectionString,
-                    entryPoint: "cli");
-            }
-            catch (Exception)
-            {
-                // Telemetry initialization must never prevent CLI from running.
-                // No logger available yet at this point in startup.
-                return;
-            }
         }
     }
 }
