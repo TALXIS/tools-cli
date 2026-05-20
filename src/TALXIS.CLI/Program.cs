@@ -28,8 +28,11 @@ namespace TALXIS.CLI
             if (TxcServices.Provider is not null)
                 Cli.Ext.SetServiceProvider(TxcServices.Provider);
 
-            // Initialize telemetry from user config (fire-and-forget, never blocks)
-            TxcTelemetryBootstrap.Initialize(entryPoint: "cli");
+            // Initialize telemetry from user config (fire-and-forget, never blocks).
+            // When invoked as an MCP subprocess, TXC_ENTRY_POINT=mcp is set by the
+            // MCP server so all child spans correctly report the MCP entry point.
+            var entryPoint = Environment.GetEnvironmentVariable("TXC_ENTRY_POINT") ?? "cli";
+            TxcTelemetryBootstrap.Initialize(entryPoint: entryPoint);
 
             try
             {

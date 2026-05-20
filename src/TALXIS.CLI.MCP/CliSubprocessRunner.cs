@@ -125,11 +125,18 @@ internal static class CliSubprocessRunner
         // Propagate the resolved session ID so CLI subprocesses use the same
         // session identifier as the MCP server. The child's SessionIdResolver
         // picks this up via ExplicitEnvVarStrategy (highest priority).
+        // Also propagate the original source so the child doesn't report "explicit"
+        // when the real source was e.g. "copilot".
         var sessionResolver = TALXIS.CLI.Logging.TxcTelemetrySetup.SessionResolver;
         if (sessionResolver != null)
         {
             startInfo.Environment[TALXIS.CLI.Logging.SessionId.ExplicitEnvVarStrategy.EnvVar] = sessionResolver.SessionId;
+            startInfo.Environment[TALXIS.CLI.Logging.SessionId.ExplicitEnvVarStrategy.SourceEnvVar] = sessionResolver.Source;
         }
+
+        // Tell the child CLI process it was invoked from MCP, not standalone terminal.
+        // This ensures txc.entry_point=mcp on all child spans.
+        startInfo.Environment["TXC_ENTRY_POINT"] = "mcp";
 
         // Force headless mode for every MCP-spawned tool invocation so that
         // interactive auth flows (browser, device code, masked secret prompts)

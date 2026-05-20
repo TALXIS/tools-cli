@@ -131,14 +131,15 @@ public static class TxcTelemetrySetup
             {
                 // Filter out the Azure Monitor exporter's own telemetry upload calls
                 // to avoid a feedback loop where we log our own logging HTTP requests.
+                // This covers standard HttpClient usage; Azure.Core's HttpPipeline
+                // may bypass this, so TelemetryFilterProcessor provides a second safety net.
                 opts.FilterHttpRequestMessage = req =>
                 {
                     var host = req.RequestUri?.Host ?? string.Empty;
-                    return !host.Contains(".applicationinsights.azure.com")
-                        && !host.Contains(".livediagnostics.monitor.azure.com")
-                        && !host.Contains(".visualstudio.com");
+                    return !IsAzureMonitorHost(host);
                 };
             })
+            .AddProcessor(new TelemetryFilterProcessor())
             .AddProcessor(new SessionIdActivityProcessor(sessionResolver))
             .AddAzureMonitorTraceExporter(opts =>
             {
@@ -154,6 +155,46 @@ public static class TxcTelemetrySetup
             });
 
         return (OpenTelemetry.Trace.TracerProvider)builder.Build()!;
+    }
+
+    /// <summary>
+    /// Returns true for Azure Monitor / App Insights ingestion hosts.
+    /// Used by both the HTTP filter and the fallback processor.
+    /// </summary>
+    internal static bool IsAzureMonitorHost(string host)
+    {
+        return host.Contains(".applicationinsights.azure.com")
+            || host.Contains(".livediagnostics.monitor.azure.com")
+            || host.Contains(".visualstudio.com");
+    }
+
+    /// <summary>
+    /// Safety-net processor that drops HTTP dependency spans targeting Azure Monitor
+    /// endpoints. Covers cases where Azure.Core's HttpPipeline bypasses the
+    /// standard <c>FilterHttpRequestMessage</c> hook.
+    /// </summary>
+    private sealed class TelemetryFilterProcessor : BaseProcessor<System.Diagnostics.Activity>
+    {
+        public override void OnEnd(System.Diagnostics.Activity data)
+        {
+            // HTTP spans set "url.full" or "http.url" or have the host in the display name.
+            // The most reliable tag set by the OTel HTTP instrumentation is "server.address"
+            // or the URL-related tags.
+            var serverAddress = data.GetTagItem("server.address") as string;
+            if (serverAddress != null && IsAzureMonitorHost(serverAddress))
+            {
+                data.ActivityTraceFlags &= ~System.Diagnostics.ActivityTraceFlags.Recorded;
+                return;
+            }
+
+            // Fallback: check the span's display name for the host pattern
+            if (data.DisplayName != null
+                && (data.DisplayName.Contains(".applicationinsights.azure.com")
+                    || data.DisplayName.Contains(".livediagnostics.monitor.azure.com")))
+            {
+                data.ActivityTraceFlags &= ~System.Diagnostics.ActivityTraceFlags.Recorded;
+            }
+        }
     }
 #endif
 }
