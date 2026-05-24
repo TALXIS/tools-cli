@@ -56,11 +56,8 @@ internal sealed class TxcTelemetryLogger : ILogger
                 }));
         }
 
-        // Set span error status from log level
-        if (logLevel >= LogLevel.Error)
-        {
-            var message = LogRedactionFilter.Redact(formatter(state, null));
-            activity.SetStatus(ActivityStatusCode.Error, message);
-        }
+        // Note: span error status is NOT set here — CommandActivityScope.SetExitCode()
+        // is the sole authority for span status. This avoids double-SetStatus where the
+        // logger's descriptive message gets overwritten by the generic "Exit code N".
     }
 }

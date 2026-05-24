@@ -42,21 +42,38 @@ internal sealed class McpToolResultFactory
                     $"Diagnostics URI: {diagnosticsUri}";
             }
 
-            return new CallToolResult
+            // Try to parse CLI output as JSON for structuredContent
+            JsonElement? structuredData = TryParseJson(result.Output?.Trim());
+            var callResult = new CallToolResult
             {
                 Content = [new TextContentBlock { Text = successText }]
             };
+            if (structuredData.HasValue)
+            {
+                callResult.StructuredContent = JsonSerializer.SerializeToElement(new
+                {
+                    status = "succeeded",
+                    data = structuredData.Value
+                }, TxcOutputJsonOptions.Default);
+            }
+            return callResult;
         }
 
         string summary = BuildFailureSummary(toolName, result.Output, result.LastErrors, result.ExitCode);
-        return BuildFailureResult(toolName, summary, diagnosticsUri);
+        return BuildFailureResult(toolName, summary, diagnosticsUri, result.ExitCode);
     }
 
     public CallToolResult BuildExceptionResult(string toolName, Exception exception)
     {
-        string summary = string.IsNullOrWhiteSpace(exception.Message)
+        // Surface the innermost exception message — for wrapped exceptions
+        // (e.g. HttpRequestException → SocketException), the root cause is
+        // more actionable than the outer wrapper message.
+        var root = GetInnermostException(exception);
+        var rootMessage = root != exception && !string.Equals(root.Message, exception.Message, StringComparison.Ordinal)
+            ? root.Message : exception.Message;
+        string summary = string.IsNullOrWhiteSpace(rootMessage)
             ? $"Tool '{toolName}' failed before execution completed."
-            : LogRedactionFilter.Redact(exception.Message);
+            : LogRedactionFilter.Redact(rootMessage);
         var exceptionEntry = new RedactedLogEntry(
             Timestamp: DateTime.UtcNow.ToString("o"),
             Level: "Critical",
@@ -70,7 +87,21 @@ internal sealed class McpToolResultFactory
             [exceptionEntry],
             Activity.Current?.TraceId.ToHexString());
 
-        return BuildFailureResult(toolName, summary, diagnosticsUri);
+        return BuildFailureResult(toolName, summary, diagnosticsUri, exitCode: -1);
+    }
+
+    private static JsonElement? TryParseJson(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(text);
+            return doc.RootElement.Clone();
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     public List<Resource> BuildResources()
@@ -172,7 +203,8 @@ internal sealed class McpToolResultFactory
         return result.ToList();
     }
 
-    private static CallToolResult BuildFailureResult(string toolName, string summary, string diagnosticsUri)
+    private static CallToolResult BuildFailureResult(string toolName, string summary,
+        string diagnosticsUri, int exitCode = -1)
     {
         var supportInfo = TALXIS.CLI.Logging.TxcSupportInfo.FormatEscalation();
         var supportBlock = string.IsNullOrEmpty(supportInfo) ? "" : $"{Environment.NewLine}{supportInfo}";
@@ -180,6 +212,9 @@ internal sealed class McpToolResultFactory
         string cliFriendlySummary =
             $"{summary}{Environment.NewLine}{supportBlock}{Environment.NewLine}" +
             $"Full execution log available via get_execution_log with uri=\"{diagnosticsUri}\".";
+
+        var sessionId = TxcTelemetrySetup.SessionResolver?.SessionId;
+        var operationId = Activity.Current?.TraceId.ToHexString();
 
         return new CallToolResult
         {
@@ -194,7 +229,23 @@ internal sealed class McpToolResultFactory
                     Description = "Fetch detailed execution log for this tool call via resources/read.",
                     MimeType = "application/json"
                 }
-            ]
+            ],
+            StructuredContent = JsonSerializer.SerializeToElement(new
+            {
+                status = "failed",
+                error = new
+                {
+                    message = summary,
+                    exitCode,
+                },
+                diagnosticsUri,
+                support = new
+                {
+                    sessionId = sessionId ?? "unknown",
+                    operationId = operationId ?? "unknown",
+                    reportUrl = "https://github.com/TALXIS/tools-cli/issues"
+                }
+            }, TxcOutputJsonOptions.Default)
         };
     }
 
@@ -226,5 +277,12 @@ internal sealed class McpToolResultFactory
         }
 
         return $"{singleLineSummary} Use resources/read to retrieve detailed diagnostics.";
+    }
+
+    private static Exception GetInnermostException(Exception ex)
+    {
+        while (ex.InnerException != null)
+            ex = ex.InnerException;
+        return ex;
     }
 }

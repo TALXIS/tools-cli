@@ -36,6 +36,8 @@ namespace TALXIS.CLI
 
             // Wire support escalation info into CLI error output
             TALXIS.CLI.Core.TxcLeafCommand.SupportInfoFormatter = Logging.TxcSupportInfo.FormatEscalation;
+            TALXIS.CLI.Core.OutputFormatter.SupportInfoSessionId =
+                Logging.TxcTelemetrySetup.SessionResolver?.SessionId;
 
             try
             {

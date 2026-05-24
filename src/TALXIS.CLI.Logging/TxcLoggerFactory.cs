@@ -53,6 +53,16 @@ public static class TxcLoggerFactory
         // as the single source of truth — command code never touches Activity.
         builder.AddProvider(new TxcTelemetryLogProvider());
 
+        // Persistent session log file — written alongside console/stderr output.
+        // Uses the session ID from the telemetry resolver (set before loggers are created).
+        var sessionId = TxcTelemetrySetup.SessionResolver?.SessionId;
+        if (sessionId != null)
+        {
+            var fileProvider = new JsonFileLoggerProvider(sessionId);
+            builder.AddProvider(fileProvider);
+            TxcSupportInfo.SetLogFilePath(fileProvider.FilePath);
+        }
+
         if (jsonMode)
         {
             builder.AddProvider(new JsonStderrLoggerProvider());

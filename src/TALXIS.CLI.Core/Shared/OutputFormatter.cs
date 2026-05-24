@@ -107,11 +107,24 @@ public static class OutputFormatter
     /// <param name="status">Outcome status (e.g., "succeeded", "failed").</param>
     /// <param name="message">Human-readable description of what happened.</param>
     /// <param name="id">Optional entity identifier (e.g., created record ID).</param>
-    public static void WriteResult(string status, string? message = null, string? id = null)
+    public static void WriteResult(string status, string? message = null, string? id = null, int? exitCode = null)
     {
         if (OutputContext.IsJson)
         {
             var envelope = new CommandResultEnvelope { Status = status, Message = message, Id = id };
+
+            // Include troubleshooting context on failure
+            if (status == "failed")
+            {
+                envelope.ExitCode = exitCode;
+                var activity = System.Diagnostics.Activity.Current;
+                envelope.Support = new SupportContext
+                {
+                    SessionId = SupportInfoSessionId,
+                    OperationId = activity?.TraceId.ToHexString()
+                };
+            }
+
             OutputWriter.WriteLine(JsonSerializer.Serialize(envelope, TxcOutputJsonOptions.Default));
         }
         else
@@ -119,6 +132,12 @@ public static class OutputFormatter
             OutputWriter.WriteLine(message ?? status);
         }
     }
+
+    /// <summary>
+    /// Set once at startup by the telemetry bootstrap layer.
+    /// Used to include session ID in error envelopes without a Core → Logging dependency.
+    /// </summary>
+    public static string? SupportInfoSessionId { get; set; }
 
     /// <summary>
     /// Writes a dynamic table with string columns (useful for query results
@@ -143,10 +162,27 @@ public static class OutputFormatter
 
 /// <summary>
 /// Standard JSON envelope for mutative command results.
+/// On failure, includes exit code and support context for troubleshooting.
 /// </summary>
 internal sealed class CommandResultEnvelope
 {
     public string Status { get; set; } = "succeeded";
     public string? Message { get; set; }
     public string? Id { get; set; }
+
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public int? ExitCode { get; set; }
+
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public SupportContext? Support { get; set; }
+}
+
+/// <summary>
+/// Troubleshooting context included in error envelopes.
+/// </summary>
+internal sealed class SupportContext
+{
+    public string? SessionId { get; set; }
+    public string? OperationId { get; set; }
+    public string ReportUrl { get; set; } = "https://github.com/TALXIS/tools-cli/issues";
 }

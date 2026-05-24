@@ -108,7 +108,10 @@ public abstract class TxcLeafCommand
         {
             exitCode = ExitValidationError;
             scope.SetError(exitCode, "validation");
-            Logger.LogError(ex, "{Error}", ex.Message);
+            var root = GetInnermostException(ex);
+            var message = root != ex && !string.Equals(root.Message, ex.Message, StringComparison.Ordinal)
+                ? root.Message : ex.Message;
+            Logger.LogError(ex, "{Error}", message);
             LogSupportInfo();
             return exitCode;
         }
@@ -125,10 +128,11 @@ public abstract class TxcLeafCommand
             scope.SetError(exitCode, "internal");
 
             var root = GetInnermostException(ex);
-            var hasDistinctCause = root != ex && !string.Equals(root.Message, ex.Message, StringComparison.Ordinal);
+            var message = root != ex && !string.Equals(root.Message, ex.Message, StringComparison.Ordinal)
+                ? root.Message : ex.Message;
 
-            OutputFormatter.WriteResult("failed", hasDistinctCause ? root.Message : ex.Message);
-            Logger.LogError(ex, "Command failed: {Error}", ex.Message);
+            OutputFormatter.WriteResult("failed", message, exitCode: exitCode);
+            Logger.LogError(ex, "Command failed: {Error}", message);
             LogSupportInfo();
             return exitCode;
         }

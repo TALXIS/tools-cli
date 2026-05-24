@@ -16,6 +16,7 @@ public static class TxcSupportInfo
     private const string IssuesUrl = "https://github.com/TALXIS/tools-cli/issues";
 
     private static string? _sessionId;
+    private static string? _logFilePath;
 
     /// <summary>
     /// Called once at telemetry init to make the session ID available for error output.
@@ -23,7 +24,12 @@ public static class TxcSupportInfo
     public static void SetSessionId(string sessionId) => _sessionId = sessionId;
 
     /// <summary>
-    /// Formats a support escalation block with session ID, operation ID, and GitHub link.
+    /// Called once when the file logger provider is created.
+    /// </summary>
+    public static void SetLogFilePath(string path) => _logFilePath = path;
+
+    /// <summary>
+    /// Formats a support escalation block with session ID, operation ID, log file path, and GitHub link.
     /// Returns an empty string if no telemetry context is available (e.g. Debug builds).
     /// </summary>
     public static string FormatEscalation()
@@ -33,8 +39,13 @@ public static class TxcSupportInfo
         if (_sessionId == null && operationId == null)
             return string.Empty;
 
-        return $"If this is unexpected, report at {IssuesUrl}{Environment.NewLine}" +
-               $"  Session: {_sessionId ?? "unknown"}{Environment.NewLine}" +
-               $"  Operation: {operationId ?? "unknown"}";
+        var lines = $"If this is unexpected, report at {IssuesUrl}{Environment.NewLine}" +
+                    $"  Session: {_sessionId ?? "unknown"}{Environment.NewLine}" +
+                    $"  Operation: {operationId ?? "unknown"}";
+
+        if (_logFilePath != null)
+            lines += $"{Environment.NewLine}  Logs: {_logFilePath}";
+
+        return lines;
     }
 }

@@ -865,10 +865,9 @@ async Task<int> ExecuteMcpSpecificToolAsync(Type commandType, IDictionary<string
     }
     catch (Exception ex)
     {
-#pragma warning disable RS0030 // MCP-specific tool fallback error path
-        Console.Error.WriteLine($"Error executing MCP-specific tool: {LogRedactionFilter.Redact(ex.Message)}");
-#pragma warning restore RS0030
-        return 1;
+        // Re-throw so the caller (ExecuteMcpSpecificToolWithCapturedOutputAsync)
+        // can handle it with BuildExceptionResult and proper diagnostics.
+        throw;
     }
 }
 
@@ -893,11 +892,8 @@ async Task<CallToolResult> ExecuteMcpSpecificToolWithCapturedOutputAsync(Type co
     }
     catch (Exception ex)
     {
-        return new CallToolResult
-        {
-            Content = [new TextContentBlock { Text = LogRedactionFilter.Redact(ex.ToString()) }],
-            IsError = true
-        };
+        return toolResultFactory.BuildExceptionResult(
+            commandType.Name, ex);
     }
 }
 

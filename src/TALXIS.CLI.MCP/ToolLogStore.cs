@@ -34,13 +34,16 @@ internal sealed class ToolLogStore
     {
         executionId ??= Guid.NewGuid().ToString("N");
         var uri = $"{UriScheme}{executionId}";
+        var sessionId = TALXIS.CLI.Logging.TxcTelemetrySetup.SessionResolver?.SessionId;
         var entry = new LogEntry(
             ToolName: toolName,
             ExitCode: exitCode,
             PrimaryText: Normalize(primaryText),
             ErrorSummary: Normalize(errorSummary),
             LogEntries: logEntries ?? [],
-            Timestamp: DateTimeOffset.UtcNow);
+            Timestamp: DateTimeOffset.UtcNow,
+            SessionId: sessionId,
+            OperationId: executionId);
 
         lock (_sync)
         {
@@ -88,7 +91,9 @@ internal sealed class ToolLogStore
         string? PrimaryText,
         string? ErrorSummary,
         IReadOnlyList<RedactedLogEntry> LogEntries,
-        DateTimeOffset Timestamp)
+        DateTimeOffset Timestamp,
+        string? SessionId = null,
+        string? OperationId = null)
     {
         public string Kind => "tool-execution-log";
 
