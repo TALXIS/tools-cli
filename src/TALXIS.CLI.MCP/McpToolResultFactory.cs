@@ -21,6 +21,10 @@ internal sealed class McpToolResultFactory
 
     public CallToolResult Build(string toolName, CliSubprocessResult result)
     {
+        // Capture operation ID while Activity is still active — by the time
+        // BuildFailureResult runs the Activity scope may have ended.
+        var operationId = Activity.Current?.TraceId.ToHexString();
+
         // Store execution log for every run — clients may need to troubleshoot
         // unexpected output even from successful executions.
         // Use the root trace id as execution identity so diagnostics URI, telemetry,
@@ -31,7 +35,7 @@ internal sealed class McpToolResultFactory
             result.Output?.Trim(),
             result.LastErrors,
             result.StructuredEntries,
-            Activity.Current?.TraceId.ToHexString());
+            operationId);
 
         if (result.ExitCode == 0)
         {
@@ -60,11 +64,14 @@ internal sealed class McpToolResultFactory
         }
 
         string summary = BuildFailureSummary(toolName, result.Output, result.LastErrors, result.ExitCode);
-        return BuildFailureResult(toolName, summary, diagnosticsUri, result.ExitCode);
+        return BuildFailureResult(toolName, summary, diagnosticsUri, result.ExitCode, operationId);
     }
 
     public CallToolResult BuildExceptionResult(string toolName, Exception exception)
     {
+        // Capture operation ID while Activity is still active.
+        var operationId = Activity.Current?.TraceId.ToHexString();
+
         // Surface the innermost exception message — for wrapped exceptions
         // (e.g. HttpRequestException → SocketException), the root cause is
         // more actionable than the outer wrapper message.
@@ -85,9 +92,9 @@ internal sealed class McpToolResultFactory
             summary,
             summary,
             [exceptionEntry],
-            Activity.Current?.TraceId.ToHexString());
+            operationId);
 
-        return BuildFailureResult(toolName, summary, diagnosticsUri, exitCode: -1);
+        return BuildFailureResult(toolName, summary, diagnosticsUri, exitCode: -1, operationId);
     }
 
     private static JsonElement? TryParseJson(string? text)
@@ -204,7 +211,7 @@ internal sealed class McpToolResultFactory
     }
 
     private static CallToolResult BuildFailureResult(string toolName, string summary,
-        string diagnosticsUri, int exitCode = -1)
+        string diagnosticsUri, int exitCode = -1, string? operationId = null)
     {
         var supportInfo = TALXIS.CLI.Logging.TxcSupportInfo.FormatEscalation();
         var supportBlock = string.IsNullOrEmpty(supportInfo) ? "" : $"{Environment.NewLine}{supportInfo}";
@@ -214,7 +221,6 @@ internal sealed class McpToolResultFactory
             $"Full execution log available via get_execution_log with uri=\"{diagnosticsUri}\".";
 
         var sessionId = TxcTelemetrySetup.SessionResolver?.SessionId;
-        var operationId = Activity.Current?.TraceId.ToHexString();
 
         return new CallToolResult
         {
