@@ -37,14 +37,23 @@ public sealed class CommandActivityScope : IDisposable
 
     /// <summary>
     /// Records the exit code on the span. Called once before disposal.
-    /// Non-zero exit codes also set the span error status.
+    /// Non-zero exit codes also set the span error status and default
+    /// <c>txc.error_kind</c> to <c>"validation"</c> when no catch block
+    /// has already classified the error via <see cref="SetError"/>.
     /// </summary>
     public void SetExitCode(int exitCode)
     {
         _exitCode = exitCode;
         Activity?.SetTag(TxcTelemetryTags.ExitCode, exitCode);
         if (exitCode != 0)
+        {
             Activity?.SetStatus(ActivityStatusCode.Error, $"Exit code {exitCode}");
+
+            // Default error kind for non-exception failures (e.g. Logger.LogError + return ExitError).
+            // Exception-based failures always call SetError() first, which already sets ErrorKind.
+            if (Activity?.GetTagItem(TxcTelemetryTags.ErrorKind) is null)
+                Activity?.SetTag(TxcTelemetryTags.ErrorKind, "validation");
+        }
     }
 
     /// <summary>

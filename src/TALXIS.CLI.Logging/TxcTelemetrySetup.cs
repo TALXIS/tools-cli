@@ -42,8 +42,8 @@ public static class TxcTelemetrySetup
     /// </summary>
     /// <param name="configConnectionString">Optional connection string from the user's config file
     /// (<c>telemetry.connectionString</c>). Falls back to build-time embedded value if null.</param>
-    /// <param name="entryPoint">Identifies the host: <c>"cli"</c> or <c>"mcp"</c>.
-    /// Used to set the OTel service name (<c>talxis-cli</c> vs <c>talxis-mcp</c>).</param>
+    /// <param name="entryPoint">Identifies how the process was reached: <c>"cli"</c> or <c>"mcp"</c>.
+    /// Emitted as telemetry metadata and used as the default service suffix unless the host overrides it.</param>
     /// <param name="configOptOut">Opt-out flag from the user's config file
     /// (<c>telemetry.optOut</c>). Environment variable <c>TXC_TELEMETRY_OPTOUT</c> takes priority.</param>
     public static void Initialize(string? configConnectionString = null, string entryPoint = "cli", bool configOptOut = false)
@@ -116,6 +116,8 @@ public static class TxcTelemetrySetup
     private static OpenTelemetry.Trace.TracerProvider CreateTracerProvider(
         string connectionString, string entryPoint, SessionIdResolver sessionResolver)
     {
+        var serviceSuffix = ResolveServiceSuffix(entryPoint);
+
         // Use OpenTelemetry SDK to create a TracerProvider with Azure Monitor exporter.
         // This is loaded via reflection-free direct API calls — the NuGet packages
         // are referenced by the entry-point projects (CLI, MCP).
@@ -124,7 +126,7 @@ public static class TxcTelemetrySetup
             .SetResourceBuilder(
                 OpenTelemetry.Resources.ResourceBuilder.CreateDefault()
                     .AddService(
-                        serviceName: $"talxis-{entryPoint}",
+                        serviceName: $"talxis-{serviceSuffix}",
                         serviceVersion: TxcTelemetry.Source.Version,
                         serviceInstanceId: Environment.MachineName)
                     .AddAttributes(new Dictionary<string, object>
@@ -158,6 +160,12 @@ public static class TxcTelemetrySetup
             });
 
         return (OpenTelemetry.Trace.TracerProvider)builder.Build()!;
+    }
+
+    internal static string ResolveServiceSuffix(string entryPoint)
+    {
+        var overrideSuffix = Environment.GetEnvironmentVariable("TXC_SERVICE_SUFFIX");
+        return string.IsNullOrWhiteSpace(overrideSuffix) ? entryPoint : overrideSuffix;
     }
 
 #endif
