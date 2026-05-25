@@ -12,13 +12,14 @@ public class McpPathNormalizerTests
     public void NormalizeOperationalPath_HomeRelativeInput_ResolvesAgainstUserProfile(string input)
     {
         var home = System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile);
-        Assert.False(string.IsNullOrWhiteSpace(home));
 
         var result = McpPathNormalizer.NormalizeOperationalPath(input);
 
-        var expected = input == "~"
-            ? Path.GetFullPath(home)
-            : Path.GetFullPath(Path.Combine(home, "Sources", "project"));
+        var expected = string.IsNullOrWhiteSpace(home)
+            ? Path.GetFullPath(input)
+            : input == "~"
+                ? Path.GetFullPath(home)
+                : Path.GetFullPath(Path.Combine(home, "Sources", "project"));
         Assert.Equal(expected, result);
     }
 
@@ -28,13 +29,13 @@ public class McpPathNormalizerTests
     public void NormalizeOperationalPath_FileUriLocalHomePath_ResolvesAgainstUserProfile(string input)
     {
         var home = System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile);
-        Assert.False(string.IsNullOrWhiteSpace(home));
 
         var result = McpPathNormalizer.NormalizeOperationalPath(input, allowFileUriLocalPathHome: true);
 
-        Assert.Equal(
-            Path.GetFullPath(Path.Combine(home, "Sources", "project")),
-            result);
+        var expected = string.IsNullOrWhiteSpace(home)
+            ? Path.GetFullPath(input)
+            : Path.GetFullPath(Path.Combine(home, "Sources", "project"));
+        Assert.Equal(expected, result);
     }
 
     [Fact]

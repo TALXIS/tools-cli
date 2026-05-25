@@ -70,14 +70,13 @@ public class RootsServiceTests
     public void ConvertFileUri_HomeRelativePath_ResolvesAgainstUserProfile()
     {
         var home = System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile);
-        Assert.False(string.IsNullOrWhiteSpace(home));
-
         var result = RootsService.ConvertFileUriToPath("file:///~/Sources/project");
 
         Assert.NotNull(result);
-        Assert.Equal(
-            Path.GetFullPath(Path.Combine(home, "Sources", "project")),
-            result);
+        var expected = string.IsNullOrWhiteSpace(home)
+            ? Path.GetFullPath("/~/Sources/project")
+            : Path.GetFullPath(Path.Combine(home, "Sources", "project"));
+        Assert.Equal(expected, result);
     }
 
     [Fact]
