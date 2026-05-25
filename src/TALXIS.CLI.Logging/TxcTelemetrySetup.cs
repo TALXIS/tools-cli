@@ -42,8 +42,8 @@ public static class TxcTelemetrySetup
     /// </summary>
     /// <param name="configConnectionString">Optional connection string from the user's config file
     /// (<c>telemetry.connectionString</c>). Falls back to build-time embedded value if null.</param>
-    /// <param name="entryPoint">Identifies the host: <c>"cli"</c> or <c>"mcp"</c>.
-    /// Used to set the OTel service name (<c>talxis-cli</c> vs <c>talxis-mcp</c>).</param>
+    /// <param name="entryPoint">Identifies how the process was reached: <c>"cli"</c> or <c>"mcp"</c>.
+    /// Emitted as telemetry metadata and used as the default service suffix unless the host overrides it.</param>
     /// <param name="configOptOut">Opt-out flag from the user's config file
     /// (<c>telemetry.optOut</c>). Environment variable <c>TXC_TELEMETRY_OPTOUT</c> takes priority.</param>
     public static void Initialize(string? configConnectionString = null, string entryPoint = "cli", bool configOptOut = false)
@@ -116,6 +116,8 @@ public static class TxcTelemetrySetup
     private static OpenTelemetry.Trace.TracerProvider CreateTracerProvider(
         string connectionString, string entryPoint, SessionIdResolver sessionResolver)
     {
+        var serviceSuffix = ResolveServiceSuffix(entryPoint);
+
         // Use OpenTelemetry SDK to create a TracerProvider with Azure Monitor exporter.
         // This is loaded via reflection-free direct API calls — the NuGet packages
         // are referenced by the entry-point projects (CLI, MCP).
@@ -124,7 +126,7 @@ public static class TxcTelemetrySetup
             .SetResourceBuilder(
                 OpenTelemetry.Resources.ResourceBuilder.CreateDefault()
                     .AddService(
-                        serviceName: $"talxis-{entryPoint}",
+                        serviceName: $"talxis-{serviceSuffix}",
                         serviceVersion: TxcTelemetry.Source.Version,
                         serviceInstanceId: Environment.MachineName)
                     .AddAttributes(new Dictionary<string, object>
@@ -135,19 +137,14 @@ public static class TxcTelemetrySetup
                         ["txc.session_id"] = sessionResolver.SessionId,
                         ["txc.session_id.source"] = sessionResolver.Source,
                     }))
-            .AddHttpClientInstrumentation(opts =>
-            {
-                // Filter out the Azure Monitor exporter's own telemetry upload calls
-                // to avoid a feedback loop where we log our own logging HTTP requests.
-                // This covers standard HttpClient usage; Azure.Core's HttpPipeline
-                // may bypass this, so TelemetryFilterProcessor provides a second safety net.
-                opts.FilterHttpRequestMessage = req =>
-                {
-                    var host = req.RequestUri?.Host ?? string.Empty;
-                    return !IsAzureMonitorHost(host);
-                };
-            })
-            .AddProcessor(new TelemetryFilterProcessor())
+            // HTTP client instrumentation intentionally omitted. Command-level activity
+            // spans already capture CLI operations end-to-end. HTTP dependency tracking
+            // added noise — Azure Monitor exporter's own POST /v2.1/track calls leaked
+            // through both FilterHttpRequestMessage and TelemetryFilterProcessor (the
+            // Azure.Core HttpPipeline bypasses standard HttpClient instrumentation hooks,
+            // and clearing ActivityTraceFlags.Recorded in OnEnd is too late — the exporter
+            // has already captured the span data). Removing this eliminates the self-tracking
+            // feedback loop without losing useful telemetry.
             .AddProcessor(new SessionIdActivityProcessor(sessionResolver))
             .AddAzureMonitorTraceExporter(opts =>
             {
@@ -165,44 +162,16 @@ public static class TxcTelemetrySetup
         return (OpenTelemetry.Trace.TracerProvider)builder.Build()!;
     }
 
-    /// <summary>
-    /// Returns true for Azure Monitor / App Insights ingestion hosts.
-    /// Used by both the HTTP filter and the fallback processor.
-    /// </summary>
-    internal static bool IsAzureMonitorHost(string host)
-    {
-        return host.Contains(".applicationinsights.azure.com")
-            || host.Contains(".livediagnostics.monitor.azure.com")
-            || host.Contains(".visualstudio.com");
-    }
-
-    /// <summary>
-    /// Safety-net processor that drops HTTP dependency spans targeting Azure Monitor
-    /// endpoints. Covers cases where Azure.Core's HttpPipeline bypasses the
-    /// standard <c>FilterHttpRequestMessage</c> hook.
-    /// </summary>
-    private sealed class TelemetryFilterProcessor : BaseProcessor<System.Diagnostics.Activity>
-    {
-        public override void OnEnd(System.Diagnostics.Activity data)
-        {
-            // HTTP spans set "url.full" or "http.url" or have the host in the display name.
-            // The most reliable tag set by the OTel HTTP instrumentation is "server.address"
-            // or the URL-related tags.
-            var serverAddress = data.GetTagItem("server.address") as string;
-            if (serverAddress != null && IsAzureMonitorHost(serverAddress))
-            {
-                data.ActivityTraceFlags &= ~System.Diagnostics.ActivityTraceFlags.Recorded;
-                return;
-            }
-
-            // Fallback: check the span's display name for the host pattern
-            if (data.DisplayName != null
-                && (data.DisplayName.Contains(".applicationinsights.azure.com")
-                    || data.DisplayName.Contains(".livediagnostics.monitor.azure.com")))
-            {
-                data.ActivityTraceFlags &= ~System.Diagnostics.ActivityTraceFlags.Recorded;
-            }
-        }
-    }
 #endif
+
+    /// <summary>
+    /// Resolves the OTel service name suffix. Defaults to <paramref name="entryPoint"/>
+    /// unless overridden by <c>TXC_SERVICE_SUFFIX</c> (set by the MCP subprocess runner
+    /// so child CLI processes identify as <c>talxis-cli</c> instead of <c>talxis-mcp</c>).
+    /// </summary>
+    internal static string ResolveServiceSuffix(string entryPoint)
+    {
+        var overrideSuffix = Environment.GetEnvironmentVariable("TXC_SERVICE_SUFFIX");
+        return string.IsNullOrWhiteSpace(overrideSuffix) ? entryPoint : overrideSuffix;
+    }
 }

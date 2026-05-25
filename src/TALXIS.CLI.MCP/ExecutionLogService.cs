@@ -50,50 +50,14 @@ internal sealed class ExecutionLogService
         };
     }
 
-    /// <summary>
-    /// Builds a filtered, paginated execution log result for the get_execution_log tool.
-    /// </summary>
-    public CallToolResult BuildExecutionLogResult(string uri, string? level = null,
-        string? category = null, string? search = null, int skip = 0, int take = 50)
-    {
-        if (!_toolLogStore.TryGet(uri, out var entry) || entry is null)
-        {
-            return new CallToolResult
-            {
-                IsError = true,
-                Content = [new TextContentBlock { Text = $"Execution log not found for '{uri}'." }]
-            };
-        }
-
-        var allEntries = entry.LogEntries;
-        var filtered = FilterLogEntries(allEntries, level, category, search);
-        var paged = filtered.Skip(skip).Take(take).ToList();
-
-        var result = new
-        {
-            entry.ToolName,
-            entry.ExitCode,
-            entry.Summary,
-            TotalEntries = allEntries.Count,
-            FilteredCount = filtered.Count,
-            Skip = skip,
-            Take = take,
-            LogEntries = paged
-        };
-
-        return new CallToolResult
-        {
-            Content = [new TextContentBlock
-            {
-                Text = JsonSerializer.Serialize(result, TxcOutputJsonOptions.Default)
-            }]
-        };
-    }
-
     private static readonly string[] LogLevelOrder =
         ["Trace", "Debug", "Information", "Warning", "Error", "Critical"];
 
-    private static IReadOnlyList<RedactedLogEntry> FilterLogEntries(
+    /// <summary>
+    /// Filters log entries by level, category, and search text.
+    /// Internal so <see cref="McpToolResultFactory.BuildExecutionLogResult"/> can reuse the logic.
+    /// </summary>
+    internal static IReadOnlyList<RedactedLogEntry> FilterLogEntries(
         IReadOnlyList<RedactedLogEntry> entries, string? level, string? category, string? search)
     {
         IEnumerable<RedactedLogEntry> result = entries;

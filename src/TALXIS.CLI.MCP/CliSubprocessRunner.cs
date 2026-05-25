@@ -134,9 +134,11 @@ internal static class CliSubprocessRunner
             startInfo.Environment[TALXIS.CLI.Logging.SessionId.ExplicitEnvVarStrategy.SourceEnvVar] = sessionResolver.Source;
         }
 
-        // Tell the child CLI process it was invoked from MCP, not standalone terminal.
-        // This ensures txc.entry_point=mcp on all child spans.
+        // Tell the child CLI process it was invoked from MCP so command spans keep
+        // txc.entry_point=mcp for attribution, but override the OTel service suffix
+        // so App Insights still shows the child process as talxis-cli.
         startInfo.Environment["TXC_ENTRY_POINT"] = "mcp";
+        startInfo.Environment["TXC_SERVICE_SUFFIX"] = "cli";
 
         // Force headless mode for every MCP-spawned tool invocation so that
         // interactive auth flows (browser, device code, masked secret prompts)

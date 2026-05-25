@@ -26,3 +26,8 @@ TXC021 | TALXIS.CLI.Design | Warning | Use TxcActivitySource.CurrentOperationId 
 TXC022 | TALXIS.CLI.Design | Warning | GetInnermostException must only be in ExceptionHelpers
 TXC023 | TALXIS.CLI.Design | Info | Prefer named interfaces over Func/Action in constructors
 TXC024 | TALXIS.CLI.Design | Info | DI-injected classes should not access static singletons
+TXC025 | TALXIS.CLI.Design | Warning | Do not call Activity.SetTag/SetStatus/AddEvent in command code
+TXC026 | TALXIS.CLI.Design | Warning | Do not spawn processes directly in command code
+TXC027 | TALXIS.CLI.Design | Warning | Mutative commands must call OutputFormatter.WriteResult()
+TXC028 | TALXIS.CLI.Design | Warning | [CliReadOnly] commands must not call OutputFormatter.WriteResult()
+TXC029 | TALXIS.CLI.Design | Warning | Do not construct CallToolResult directly — use McpToolResultFactory

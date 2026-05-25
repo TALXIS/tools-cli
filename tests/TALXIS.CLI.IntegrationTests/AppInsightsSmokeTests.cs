@@ -141,6 +141,7 @@ public class AppInsightsSmokeTests
         var entryPoint = row[colIndex["entryPoint"]]?.ToString();
         var command = row[colIndex["command"]]?.ToString();
         var exitCode = row[colIndex["exitCode"]]?.ToString();
+        var errorKind = row[colIndex["errorKind"]]?.ToString();
         var version = row[colIndex["version"]]?.ToString();
         var clientTag = row[colIndex["clientTag"]]?.ToString();
         var success = row[colIndex["success"]]?.ToString();
@@ -153,6 +154,8 @@ public class AppInsightsSmokeTests
         Assert.False(string.IsNullOrWhiteSpace(command), "command dimension should be non-empty");
         Assert.False(string.IsNullOrWhiteSpace(exitCode), "exitCode dimension should be non-empty");
         Assert.NotEqual("0", exitCode);
+        Assert.False(string.IsNullOrWhiteSpace(errorKind), "errorKind dimension should be non-empty");
+        Assert.Equal("validation", errorKind);
         Assert.False(string.IsNullOrWhiteSpace(version), "version dimension should be non-empty");
         Assert.Equal("terminal", clientTag);
         Assert.Equal("False", success, StringComparer.OrdinalIgnoreCase);

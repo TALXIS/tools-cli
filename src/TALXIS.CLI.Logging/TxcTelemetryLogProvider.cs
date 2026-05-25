@@ -60,6 +60,19 @@ internal sealed class TxcTelemetryLogger : ILogger
                 }));
         }
 
+        // For Error/Critical log calls WITHOUT an exception object (e.g.,
+        // WorkspaceValidateCliCommand logging per-file validation errors),
+        // stamp the formatted message as txc.error_message on the span.
+        // This provides at-a-glance context in App Insights even when there
+        // is no exception event. Overwrites on each call — the last error
+        // message wins, giving a representative sample.
+        if (exception == null && logLevel >= LogLevel.Error)
+        {
+            var msg = formatter(state, null);
+            if (!string.IsNullOrWhiteSpace(msg))
+                activity.SetTag("txc.error_message", LogRedactionFilter.Redact(msg));
+        }
+
         // Note: span error status is NOT set here — CommandActivityScope.SetExitCode()
         // is the sole authority for span status. This avoids double-SetStatus where the
         // logger's descriptive message gets overwritten by the generic "Exit code N".

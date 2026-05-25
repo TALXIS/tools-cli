@@ -27,7 +27,7 @@ public class McpToolResultFactoryTests
             lastErrors: "file1.xml(1,1): schema error",
             structuredEntries: entries);
 
-        var toolResult = factory.Build("workspace_validate", result);
+        var toolResult = factory.BuildDataResult("workspace_validate", result);
 
         Assert.True(toolResult.IsError);
         var text = Assert.IsType<TextContentBlock>(toolResult.Content[0]);
@@ -78,7 +78,7 @@ public class McpToolResultFactoryTests
     public void BuildExecutionLogResult_ReturnsStructuredLogEntries()
     {
         var store = new ToolLogStore(() => "test-session");
-        var logService = new ExecutionLogService(store);
+        var factory = new McpToolResultFactory(store, () => "test-session");
         var entries = new List<RedactedLogEntry>
         {
             new("2026-05-04T10:00:00Z", "Error", "TestCategory", "schema error"),
@@ -86,7 +86,7 @@ public class McpToolResultFactoryTests
         };
         var uri = store.Store("workspace_validate", 1, "summary", "error", entries);
 
-        var toolResult = logService.BuildExecutionLogResult(uri);
+        var toolResult = factory.BuildExecutionLogResult(uri);
 
         Assert.True(toolResult.IsError != true);
         var text = Assert.IsType<TextContentBlock>(Assert.Single(toolResult.Content));
@@ -109,7 +109,7 @@ public class McpToolResultFactoryTests
     public void BuildExecutionLogResult_FiltersByLevel()
     {
         var store = new ToolLogStore(() => "test-session");
-        var logService = new ExecutionLogService(store);
+        var factory = new McpToolResultFactory(store, () => "test-session");
         var entries = new List<RedactedLogEntry>
         {
             new("2026-05-04T10:00:00Z", "Information", "Cat", "info msg"),
@@ -118,7 +118,7 @@ public class McpToolResultFactoryTests
         };
         var uri = store.Store("tool", 1, "summary", "error", entries);
 
-        var toolResult = logService.BuildExecutionLogResult(uri, level: "Warning");
+        var toolResult = factory.BuildExecutionLogResult(uri, level: "Warning");
 
         var text = Assert.IsType<TextContentBlock>(Assert.Single(toolResult.Content));
         using var document = JsonDocument.Parse(text.Text);
@@ -134,7 +134,7 @@ public class McpToolResultFactoryTests
     public void BuildExecutionLogResult_SearchesMessages()
     {
         var store = new ToolLogStore(() => "test-session");
-        var logService = new ExecutionLogService(store);
+        var factory = new McpToolResultFactory(store, () => "test-session");
         var entries = new List<RedactedLogEntry>
         {
             new("2026-05-04T10:00:00Z", "Error", "Cat", "schema validation failed"),
@@ -143,7 +143,7 @@ public class McpToolResultFactoryTests
         };
         var uri = store.Store("tool", 1, "summary", "error", entries);
 
-        var toolResult = logService.BuildExecutionLogResult(uri, search: "schema");
+        var toolResult = factory.BuildExecutionLogResult(uri, search: "schema");
 
         var text = Assert.IsType<TextContentBlock>(Assert.Single(toolResult.Content));
         using var document = JsonDocument.Parse(text.Text);
@@ -154,13 +154,13 @@ public class McpToolResultFactoryTests
     public void BuildExecutionLogResult_SupportsPaging()
     {
         var store = new ToolLogStore(() => "test-session");
-        var logService = new ExecutionLogService(store);
+        var factory = new McpToolResultFactory(store, () => "test-session");
         var entries = Enumerable.Range(0, 10)
             .Select(i => new RedactedLogEntry($"2026-05-04T10:00:{i:D2}Z", "Error", "Cat", $"msg {i}"))
             .ToList();
         var uri = store.Store("tool", 1, "summary", "error", entries);
 
-        var toolResult = logService.BuildExecutionLogResult(uri, skip: 3, take: 2);
+        var toolResult = factory.BuildExecutionLogResult(uri, skip: 3, take: 2);
 
         var text = Assert.IsType<TextContentBlock>(Assert.Single(toolResult.Content));
         using var document = JsonDocument.Parse(text.Text);
@@ -171,6 +171,55 @@ public class McpToolResultFactoryTests
         Assert.Equal(2, logEntries.GetArrayLength());
         Assert.Equal("msg 3", logEntries[0].GetProperty("message").GetString());
         Assert.Equal("msg 4", logEntries[1].GetProperty("message").GetString());
+    }
+
+    [Fact]
+    public void BuildDataResult_SuccessEnvelope_ExtractsMessageForContent()
+    {
+        var store = new ToolLogStore(() => "test-session");
+        var factory = new McpToolResultFactory(store, () => "test-session");
+        var result = new CliSubprocessResult(
+            exitCode: 0,
+            output: "{\"status\":\"succeeded\",\"message\":\"Record deleted successfully.\"}",
+            lastErrors: "",
+            structuredEntries: []);
+
+        var toolResult = factory.BuildDataResult("data_record_delete", result);
+
+        Assert.True(toolResult.IsError != true);
+
+        // content[0] should be human-readable message with diagnostics URI, NOT raw JSON
+        var text = Assert.IsType<TextContentBlock>(toolResult.Content[0]);
+        Assert.StartsWith("Record deleted successfully.", text.Text);
+        Assert.Contains("Diagnostics URI:", text.Text);
+
+        // content[1] should be a ResourceLinkBlock for the execution log
+        var resourceLink = Assert.IsType<ResourceLinkBlock>(toolResult.Content[1]);
+
+        // structuredContent should have clean envelope fields
+        Assert.NotNull(toolResult.StructuredContent);
+        using var doc = JsonDocument.Parse(toolResult.StructuredContent.Value.GetRawText());
+        var root = doc.RootElement;
+        Assert.Equal("succeeded", root.GetProperty("status").GetString());
+        Assert.Equal("Record deleted successfully.", root.GetProperty("message").GetString());
+    }
+
+    [Fact]
+    public void BuildDataResult_SuccessEnvelopeWithId_IncludesIdInStructuredContent()
+    {
+        var store = new ToolLogStore(() => "test-session");
+        var factory = new McpToolResultFactory(store, () => "test-session");
+        var result = new CliSubprocessResult(
+            exitCode: 0,
+            output: "{\"status\":\"succeeded\",\"message\":\"Record created.\",\"id\":\"abc-123\"}",
+            lastErrors: "",
+            structuredEntries: []);
+
+        var toolResult = factory.BuildDataResult("data_record_create", result);
+
+        Assert.NotNull(toolResult.StructuredContent);
+        using var doc = JsonDocument.Parse(toolResult.StructuredContent.Value.GetRawText());
+        Assert.Equal("abc-123", doc.RootElement.GetProperty("id").GetString());
     }
 
     [Fact]
@@ -188,7 +237,7 @@ public class McpToolResultFactoryTests
             lastErrors: "",
             structuredEntries: entries);
 
-        var toolResult = factory.Build("my_tool", result);
+        var toolResult = factory.BuildDataResult("my_tool", result);
 
         Assert.True(toolResult.IsError != true);
         var text = Assert.IsType<TextContentBlock>(toolResult.Content[0]);

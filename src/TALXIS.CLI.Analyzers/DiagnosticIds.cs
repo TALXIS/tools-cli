@@ -76,4 +76,19 @@ internal static class DiagnosticIds
 
     /// <summary>DI-injected classes should not access static singletons — inject them instead.</summary>
     public const string NoStaticSingletonInDiServices = "TXC024";
+
+    /// <summary>Command code must not call Activity.SetTag/SetStatus/AddEvent/RecordException directly — use CommandActivityScope and ILogger.</summary>
+    public const string NoDirectActivityTagging = "TXC025";
+
+    /// <summary>Command code must not spawn processes directly — use CliSubprocessRunner or infrastructure.</summary>
+    public const string NoDirectProcessStart = "TXC026";
+
+    /// <summary>Mutative commands ([CliDestructive]/[CliIdempotent]) must call OutputFormatter.WriteResult() to produce a CommandResultEnvelope.</summary>
+    public const string MustUseWriteResultForMutations = "TXC027";
+
+    /// <summary>[CliReadOnly] commands must not call OutputFormatter.WriteResult() — use WriteData/WriteList/WriteDynamicTable for data output.</summary>
+    public const string NoWriteResultInReadOnly = "TXC028";
+
+    /// <summary>Do not construct CallToolResult directly — use McpToolResultFactory to ensure content/structuredContent consistency.</summary>
+    public const string NoDirectCallToolResult = "TXC029";
 }
