@@ -172,7 +172,7 @@ async ValueTask<CallToolResult> CallToolAsync(RequestContext<CallToolRequestPara
         var cmdType = mcpToolRegistry.FindCommandTypeByToolName(toolName);
         if (cmdType == null)
             throw new McpException($"Tool '{toolName}' not found.");
-        return await ExecuteMcpSpecificToolWithCapturedOutputAsync(cmdType, p?.Arguments, ct);
+        return await ExecuteMcpSpecificToolWithCapturedOutputAsync(toolName, cmdType, p?.Arguments, ct);
     }
 
     // --- Route: Active injected tools (direct call) or any known tool ---
@@ -394,7 +394,9 @@ async Task<CallToolResult> ExecuteCliToolAsync(
             // Set error message on MCP server span for at-a-glance context in App Insights
             if (!string.IsNullOrWhiteSpace(result.LastErrors))
             {
-                var firstError = result.LastErrors.Split('\n')[0];
+                var firstError = result.LastErrors
+                    .Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .FirstOrDefault() ?? result.LastErrors.Trim();
                 mcpActivity?.SetTag(TALXIS.CLI.Core.Telemetry.TxcTelemetryTags.ErrorMessage, firstError);
                 mcpLogger.LogError("Tool failed: {ToolName} (exit code {ExitCode}): {Error}",
                     toolName, result.ExitCode, firstError);
@@ -869,7 +871,7 @@ async Task<int> ExecuteMcpSpecificToolAsync(Type commandType, IDictionary<string
     }
 }
 
-async Task<CallToolResult> ExecuteMcpSpecificToolWithCapturedOutputAsync(Type commandType, IDictionary<string, System.Text.Json.JsonElement>? arguments, CancellationToken ct)
+async Task<CallToolResult> ExecuteMcpSpecificToolWithCapturedOutputAsync(string toolName, Type commandType, IDictionary<string, System.Text.Json.JsonElement>? arguments, CancellationToken ct)
 {
     var output = new StringWriter();
 
@@ -891,12 +893,11 @@ async Task<CallToolResult> ExecuteMcpSpecificToolWithCapturedOutputAsync(Type co
             output: captured,
             lastErrors: string.Empty,
             structuredEntries: []);
-        return toolResultFactory.BuildDataResult(commandType.Name, subprocessResult);
+        return toolResultFactory.BuildDataResult(toolName, subprocessResult);
     }
     catch (Exception ex)
     {
-        return toolResultFactory.BuildExceptionResult(
-            commandType.Name, ex);
+        return toolResultFactory.BuildExceptionResult(toolName, ex);
     }
 }
 

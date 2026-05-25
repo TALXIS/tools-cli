@@ -55,7 +55,7 @@ internal sealed class ExecutionLogService
 
     /// <summary>
     /// Filters log entries by level, category, and search text.
-    /// Public so <see cref="McpToolResultFactory.BuildExecutionLogResult"/> can reuse the logic.
+    /// Internal so <see cref="McpToolResultFactory.BuildExecutionLogResult"/> can reuse the logic.
     /// </summary>
     internal static IReadOnlyList<RedactedLogEntry> FilterLogEntries(
         IReadOnlyList<RedactedLogEntry> entries, string? level, string? category, string? search)

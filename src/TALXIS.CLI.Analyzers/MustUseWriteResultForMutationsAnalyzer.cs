@@ -1,7 +1,9 @@
+using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.CodeAnalysis.Operations;
 
 namespace TALXIS.CLI.Analyzers;
 
@@ -10,6 +12,7 @@ namespace TALXIS.CLI.Analyzers;
 /// <c>OutputFormatter.WriteResult()</c> to produce a <c>CommandResultEnvelope</c>.
 /// Without <c>WriteResult</c>, the MCP server cannot detect the envelope and build
 /// proper <c>content</c>/<c>structuredContent</c> for the client.
+/// Uses semantic analysis to detect actual <c>OutputFormatter.WriteResult</c> invocations.
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class MustUseWriteResultForMutationsAnalyzer : DiagnosticAnalyzer
@@ -29,48 +32,52 @@ public sealed class MustUseWriteResultForMutationsAnalyzer : DiagnosticAnalyzer
     {
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         context.EnableConcurrentExecution();
-        context.RegisterSymbolAction(AnalyzeNamedType, SymbolKind.NamedType);
-    }
 
-    private static void AnalyzeNamedType(SymbolAnalysisContext context)
-    {
-        var type = (INamedTypeSymbol)context.Symbol;
-        if (type.IsAbstract || type.TypeKind != TypeKind.Class)
-            return;
-
-        // Must be a mutative command ([CliDestructive] or [CliIdempotent])
-        bool isMutative = type.GetAttributes().Any(a =>
-            a.AttributeClass?.Name is "CliDestructiveAttribute" or "CliIdempotentAttribute");
-        if (!isMutative)
-            return;
-
-        // Must inherit TxcLeafCommand
-        if (!RoslynHelpers.InheritsFrom(type, "TALXIS.CLI.Core.Shared.TxcLeafCommand"))
-            return;
-
-        // Look for WriteResult call in ExecuteAsync method body
-        var executeAsync = type.GetMembers("ExecuteAsync")
-            .OfType<IMethodSymbol>()
-            .FirstOrDefault(m => m.IsOverride || m.DeclaredAccessibility == Accessibility.Protected);
-        if (executeAsync == null)
-            return;
-
-        // Check all syntax references for WriteResult invocations
-        foreach (var syntaxRef in executeAsync.DeclaringSyntaxReferences)
+        context.RegisterCompilationStartAction(compilationContext =>
         {
-            var syntax = syntaxRef.GetSyntax(context.CancellationToken);
-            var text = syntax.ToFullString();
-            // Simple text-based check for WriteResult presence.
-            // A full semantic check would require a SyntaxNodeAction + SemanticModel
-            // which is significantly more complex. This is sufficient since
-            // OutputFormatter.WriteResult is a distinctive call site.
-            if (text.Contains("WriteResult"))
-                return;
-        }
+            // Track which mutative command types call WriteResult
+            var typesWithWriteResult = new ConcurrentDictionary<INamedTypeSymbol, bool>(SymbolEqualityComparer.Default);
 
-        context.ReportDiagnostic(Diagnostic.Create(
-            Rule,
-            type.Locations.FirstOrDefault(),
-            type.Name));
+            // Detect WriteResult invocations semantically
+            compilationContext.RegisterOperationAction(operationContext =>
+            {
+                var invocation = (IInvocationOperation)operationContext.Operation;
+                if (invocation.TargetMethod.Name != "WriteResult")
+                    return;
+
+                var receiverType = invocation.TargetMethod.ContainingType;
+                if (receiverType?.Name != "OutputFormatter")
+                    return;
+
+                // Walk up to find the containing named type
+                var containingType = operationContext.ContainingSymbol?.ContainingType;
+                if (containingType != null)
+                    typesWithWriteResult[containingType] = true;
+            }, OperationKind.Invocation);
+
+            // At end of compilation, check mutative types that never called WriteResult
+            compilationContext.RegisterSymbolAction(symbolContext =>
+            {
+                var type = (INamedTypeSymbol)symbolContext.Symbol;
+                if (type.IsAbstract || type.TypeKind != TypeKind.Class)
+                    return;
+
+                bool isMutative = type.GetAttributes().Any(a =>
+                    a.AttributeClass?.Name is "CliDestructiveAttribute" or "CliIdempotentAttribute");
+                if (!isMutative)
+                    return;
+
+                if (!RoslynHelpers.InheritsFrom(type, "TALXIS.CLI.Core.Shared.TxcLeafCommand"))
+                    return;
+
+                if (typesWithWriteResult.ContainsKey(type))
+                    return;
+
+                symbolContext.ReportDiagnostic(Diagnostic.Create(
+                    Rule,
+                    type.Locations.FirstOrDefault(),
+                    type.Name));
+            }, SymbolKind.NamedType);
+        });
     }
 }

@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.CodeAnalysis.Operations;
 
 namespace TALXIS.CLI.Analyzers;
 
@@ -11,6 +12,7 @@ namespace TALXIS.CLI.Analyzers;
 /// <c>WriteList</c>, or <c>WriteDynamicTable</c>. Using <c>WriteResult</c> produces a
 /// <c>CommandResultEnvelope</c> with a status message instead of actual data, confusing
 /// both humans and the MCP <c>structuredContent</c> pipeline.
+/// Uses semantic analysis to detect actual <c>OutputFormatter.WriteResult</c> invocations.
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class NoWriteResultInReadOnlyAnalyzer : DiagnosticAnalyzer
@@ -30,44 +32,39 @@ public sealed class NoWriteResultInReadOnlyAnalyzer : DiagnosticAnalyzer
     {
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         context.EnableConcurrentExecution();
-        context.RegisterSymbolAction(AnalyzeNamedType, SymbolKind.NamedType);
+
+        // Detect WriteResult invocations inside [CliReadOnly] command types
+        context.RegisterOperationAction(AnalyzeInvocation, OperationKind.Invocation);
     }
 
-    private static void AnalyzeNamedType(SymbolAnalysisContext context)
+    private static void AnalyzeInvocation(OperationAnalysisContext context)
     {
-        var type = (INamedTypeSymbol)context.Symbol;
-        if (type.IsAbstract || type.TypeKind != TypeKind.Class)
+        var invocation = (IInvocationOperation)context.Operation;
+        if (invocation.TargetMethod.Name != "WriteResult")
             return;
 
-        // Must be a [CliReadOnly] command
-        bool isReadOnly = type.GetAttributes().Any(a =>
+        var receiverType = invocation.TargetMethod.ContainingType;
+        if (receiverType?.Name != "OutputFormatter")
+            return;
+
+        // Walk up to find the containing named type
+        var containingType = context.ContainingSymbol?.ContainingType;
+        if (containingType == null)
+            return;
+
+        // Must be a [CliReadOnly] command inheriting TxcLeafCommand
+        bool isReadOnly = containingType.GetAttributes().Any(a =>
             a.AttributeClass?.Name is "CliReadOnlyAttribute");
         if (!isReadOnly)
             return;
 
-        // Must inherit TxcLeafCommand
-        if (!RoslynHelpers.InheritsFrom(type, "TALXIS.CLI.Core.Shared.TxcLeafCommand"))
+        if (!RoslynHelpers.InheritsFrom(containingType, "TALXIS.CLI.Core.Shared.TxcLeafCommand"))
             return;
 
-        // Look for WriteResult call in ExecuteAsync method body
-        var executeAsync = type.GetMembers("ExecuteAsync")
-            .OfType<IMethodSymbol>()
-            .FirstOrDefault(m => m.IsOverride || m.DeclaredAccessibility == Accessibility.Protected);
-        if (executeAsync == null)
-            return;
-
-        foreach (var syntaxRef in executeAsync.DeclaringSyntaxReferences)
-        {
-            var syntax = syntaxRef.GetSyntax(context.CancellationToken);
-            var text = syntax.ToFullString();
-            if (text.Contains("WriteResult"))
-            {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    Rule,
-                    type.Locations.FirstOrDefault(),
-                    type.Name));
-                return;
-            }
-        }
+        // Report at the invocation site, not the type declaration
+        context.ReportDiagnostic(Diagnostic.Create(
+            Rule,
+            invocation.Syntax.GetLocation(),
+            containingType.Name));
     }
 }
