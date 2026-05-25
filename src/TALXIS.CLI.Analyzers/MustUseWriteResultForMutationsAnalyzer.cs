@@ -37,6 +37,7 @@ public sealed class MustUseWriteResultForMutationsAnalyzer : DiagnosticAnalyzer
         {
             // Track which mutative command types call WriteResult
             var typesWithWriteResult = new ConcurrentDictionary<INamedTypeSymbol, bool>(SymbolEqualityComparer.Default);
+            var mutativeCommandTypes = new ConcurrentDictionary<INamedTypeSymbol, bool>(SymbolEqualityComparer.Default);
 
             // Detect WriteResult invocations semantically
             compilationContext.RegisterOperationAction(operationContext =>
@@ -55,7 +56,6 @@ public sealed class MustUseWriteResultForMutationsAnalyzer : DiagnosticAnalyzer
                     typesWithWriteResult[containingType] = true;
             }, OperationKind.Invocation);
 
-            // At end of compilation, check mutative types that never called WriteResult
             compilationContext.RegisterSymbolAction(symbolContext =>
             {
                 var type = (INamedTypeSymbol)symbolContext.Symbol;
@@ -70,14 +70,24 @@ public sealed class MustUseWriteResultForMutationsAnalyzer : DiagnosticAnalyzer
                 if (!RoslynHelpers.InheritsFrom(type, "TALXIS.CLI.Core.Shared.TxcLeafCommand"))
                     return;
 
-                if (typesWithWriteResult.ContainsKey(type))
-                    return;
-
-                symbolContext.ReportDiagnostic(Diagnostic.Create(
-                    Rule,
-                    type.Locations.FirstOrDefault(),
-                    type.Name));
+                mutativeCommandTypes[type] = true;
             }, SymbolKind.NamedType);
+
+            // Report only after all symbol and operation actions have run. Reporting from
+            // the symbol action races with invocation analysis under concurrent execution.
+            compilationContext.RegisterCompilationEndAction(endContext =>
+            {
+                foreach (var type in mutativeCommandTypes.Keys)
+                {
+                    if (typesWithWriteResult.ContainsKey(type))
+                        continue;
+
+                    endContext.ReportDiagnostic(Diagnostic.Create(
+                        Rule,
+                        type.Locations.FirstOrDefault(),
+                        type.Name));
+                }
+            });
         });
     }
 }
