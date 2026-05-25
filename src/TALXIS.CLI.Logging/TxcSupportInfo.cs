@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using TALXIS.CLI.Abstractions;
 
 namespace TALXIS.CLI.Logging;
@@ -37,7 +36,7 @@ public static class TxcSupportInfo
         var context = new SupportContext
         {
             SessionId = _sessionId,
-            OperationId = Activity.Current?.TraceId.ToHexString(),
+            OperationId = TxcActivitySource.CurrentOperationId,
             LogFilePath = _logFilePath
         };
         return context.FormatAsText();

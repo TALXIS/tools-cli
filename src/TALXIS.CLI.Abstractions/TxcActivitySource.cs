@@ -23,6 +23,16 @@ public static class TxcActivitySource
     /// </summary>
     public static readonly ActivitySource Instance = new(Name, GetVersion());
 
+    /// <summary>
+    /// Returns the current operation ID (W3C trace ID as 32-char hex) from the
+    /// ambient <see cref="Activity"/>. Returns null when no Activity is active
+    /// (e.g. telemetry disabled in Debug builds).
+    /// Centralizes the <c>Activity.Current?.TraceId.ToHexString()</c> pattern
+    /// used across multiple projects for consistent operation ID resolution.
+    /// </summary>
+    public static string? CurrentOperationId =>
+        Activity.Current?.TraceId.ToHexString();
+
     private static string GetVersion()
     {
         // All projects in the solution share the same version from Directory.Build.props.

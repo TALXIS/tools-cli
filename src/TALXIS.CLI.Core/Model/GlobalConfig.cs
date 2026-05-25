@@ -15,6 +15,28 @@ public sealed class LogSettings
 {
     public string Level { get; set; } = "information";
     public string Format { get; set; } = "plain";
+
+    /// <summary>
+    /// Applies stored log settings as environment variables so that
+    /// <c>TxcLoggerFactory</c> (which reads <c>TXC_LOG_LEVEL</c> and
+    /// <c>TXC_LOG_FORMAT</c>) picks them up. Only sets vars that are
+    /// not already overridden by the environment (env takes priority).
+    /// Called once during telemetry bootstrap after config is loaded.
+    /// </summary>
+    public void ApplyAsEnvironmentDefaults()
+    {
+        if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("TXC_LOG_LEVEL"))
+            && !string.Equals(Level, "information", StringComparison.OrdinalIgnoreCase))
+        {
+            Environment.SetEnvironmentVariable("TXC_LOG_LEVEL", Level);
+        }
+
+        if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("TXC_LOG_FORMAT"))
+            && !string.Equals(Format, "plain", StringComparison.OrdinalIgnoreCase))
+        {
+            Environment.SetEnvironmentVariable("TXC_LOG_FORMAT", Format);
+        }
+    }
 }
 
 public sealed class TelemetrySettings

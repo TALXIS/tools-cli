@@ -1,4 +1,4 @@
-using System.Diagnostics;
+using TALXIS.CLI.Abstractions;
 using Microsoft.Extensions.Logging;
 
 namespace TALXIS.CLI.Logging;
@@ -103,7 +103,7 @@ internal sealed class JsonFileLogger : ILogger
         }
 
         // Include operation ID for filtering by specific tool call
-        var operationId = Activity.Current?.TraceId.ToHexString();
+        var operationId = TxcActivitySource.CurrentOperationId;
 
         var logLine = new JsonLogLine
         {

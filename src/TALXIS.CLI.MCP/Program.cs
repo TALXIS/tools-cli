@@ -24,6 +24,7 @@ Func<string?> sessionIdAccessor = () => TALXIS.CLI.Logging.TxcTelemetrySetup.Ses
 // In-memory store for structured tool execution diagnostics (exit code, logs, errors), exposed as MCP resources
 var toolLogStore = new ToolLogStore(sessionIdAccessor);
 var toolResultFactory = new McpToolResultFactory(toolLogStore, sessionIdAccessor);
+var executionLogService = new ExecutionLogService(toolLogStore);
 
 // Per-output-path lock for workspace_component_create to prevent concurrent writes to the same project
 var workspaceOutputLocks = new System.Collections.Concurrent.ConcurrentDictionary<string, SemaphoreSlim>(StringComparer.OrdinalIgnoreCase);
@@ -597,7 +598,7 @@ CallToolResult HandleGetExecutionLog(IDictionary<string, JsonElement>? arguments
     var skip = arguments.TryGetValue("skip", out var sk) && sk.TryGetInt32(out var skipVal) ? Math.Max(0, skipVal) : 0;
     var take = arguments.TryGetValue("take", out var tk) && tk.TryGetInt32(out var takeVal) ? Math.Clamp(takeVal, 1, 500) : 50;
 
-    return toolResultFactory.BuildExecutionLogResult(uri, level, category, search, skip, take);
+    return executionLogService.BuildExecutionLogResult(uri, level, category, search, skip, take);
 }
 
 // Registers the always-on tools in the ActiveToolSet
@@ -905,7 +906,7 @@ async Task<CallToolResult> ExecuteMcpSpecificToolWithCapturedOutputAsync(Type co
 // MCP resource listing — exposes stored execution-log resources
 ValueTask<ListResourcesResult> ListResourcesAsync(RequestContext<ListResourcesRequestParams> ctx, CancellationToken ct)
 {
-    return ValueTask.FromResult(new ListResourcesResult { Resources = toolResultFactory.BuildResources() });
+    return ValueTask.FromResult(new ListResourcesResult { Resources = executionLogService.ListResources() });
 }
 
 // MCP resource read — returns structured execution log for a given URI
@@ -913,7 +914,7 @@ ValueTask<ReadResourceResult> ReadResourceAsync(RequestContext<ReadResourceReque
 {
     var uri = ctx.Params?.Uri ?? throw new McpException("Resource URI is required.");
 
-    return ValueTask.FromResult(toolResultFactory.ReadResource(uri));
+    return ValueTask.FromResult(executionLogService.ReadResource(uri));
 }
 
 // Helper method to convert JsonElement to the target property type

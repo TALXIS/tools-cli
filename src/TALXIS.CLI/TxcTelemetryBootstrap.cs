@@ -24,6 +24,11 @@ public static class TxcTelemetryBootstrap
 #pragma warning disable RS0030 // Synchronous telemetry init before async main loop / host.RunAsync
             var config = configStore.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
 #pragma warning restore RS0030
+
+            // Apply stored log settings (log.level, log.format) as env-var defaults
+            // so TxcLoggerFactory picks them up. Env vars take priority over config.
+            config.Log?.ApplyAsEnvironmentDefaults();
+
             TxcTelemetrySetup.Initialize(
                 configConnectionString: config.Telemetry.ConnectionString,
                 entryPoint: entryPoint);

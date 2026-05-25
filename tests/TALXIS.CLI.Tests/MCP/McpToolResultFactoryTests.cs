@@ -16,6 +16,7 @@ public class McpToolResultFactoryTests
     {
         var store = new ToolLogStore(() => "test-session");
         var factory = new McpToolResultFactory(store, () => "test-session");
+        var logService = new ExecutionLogService(store);
         var entries = new List<RedactedLogEntry>
         {
             new("2026-05-04T10:00:00Z", "Error", "WorkspaceValidateCliCommand", "file1.xml(1,1): schema error")
@@ -37,7 +38,7 @@ public class McpToolResultFactoryTests
         Assert.Equal("application/json", link.MimeType);
         Assert.Contains(link.Uri, text.Text);
 
-        var resource = factory.ReadResource(link.Uri);
+        var resource = logService.ReadResource(link.Uri);
         var contents = Assert.IsType<TextResourceContents>(Assert.Single(resource.Contents));
         Assert.Equal("application/json", contents.MimeType);
 
@@ -55,6 +56,7 @@ public class McpToolResultFactoryTests
     {
         var store = new ToolLogStore(() => "test-session");
         var factory = new McpToolResultFactory(store, () => "test-session");
+        var logService = new ExecutionLogService(store);
 
         var toolResult = factory.BuildExceptionResult("workspace_validate", new InvalidOperationException("Boom"));
 
@@ -64,7 +66,7 @@ public class McpToolResultFactoryTests
         Assert.Contains("get_execution_log", text.Text);
 
         var link = Assert.IsType<ResourceLinkBlock>(toolResult.Content[1]);
-        var resource = factory.ReadResource(link.Uri);
+        var resource = logService.ReadResource(link.Uri);
         var contents = Assert.IsType<TextResourceContents>(Assert.Single(resource.Contents));
 
         using var document = JsonDocument.Parse(contents.Text);
@@ -76,7 +78,7 @@ public class McpToolResultFactoryTests
     public void BuildExecutionLogResult_ReturnsStructuredLogEntries()
     {
         var store = new ToolLogStore(() => "test-session");
-        var factory = new McpToolResultFactory(store, () => "test-session");
+        var logService = new ExecutionLogService(store);
         var entries = new List<RedactedLogEntry>
         {
             new("2026-05-04T10:00:00Z", "Error", "TestCategory", "schema error"),
@@ -84,7 +86,7 @@ public class McpToolResultFactoryTests
         };
         var uri = store.Store("workspace_validate", 1, "summary", "error", entries);
 
-        var toolResult = factory.BuildExecutionLogResult(uri);
+        var toolResult = logService.BuildExecutionLogResult(uri);
 
         Assert.True(toolResult.IsError != true);
         var text = Assert.IsType<TextContentBlock>(Assert.Single(toolResult.Content));
@@ -107,7 +109,7 @@ public class McpToolResultFactoryTests
     public void BuildExecutionLogResult_FiltersByLevel()
     {
         var store = new ToolLogStore(() => "test-session");
-        var factory = new McpToolResultFactory(store, () => "test-session");
+        var logService = new ExecutionLogService(store);
         var entries = new List<RedactedLogEntry>
         {
             new("2026-05-04T10:00:00Z", "Information", "Cat", "info msg"),
@@ -116,7 +118,7 @@ public class McpToolResultFactoryTests
         };
         var uri = store.Store("tool", 1, "summary", "error", entries);
 
-        var toolResult = factory.BuildExecutionLogResult(uri, level: "Warning");
+        var toolResult = logService.BuildExecutionLogResult(uri, level: "Warning");
 
         var text = Assert.IsType<TextContentBlock>(Assert.Single(toolResult.Content));
         using var document = JsonDocument.Parse(text.Text);
@@ -132,7 +134,7 @@ public class McpToolResultFactoryTests
     public void BuildExecutionLogResult_SearchesMessages()
     {
         var store = new ToolLogStore(() => "test-session");
-        var factory = new McpToolResultFactory(store, () => "test-session");
+        var logService = new ExecutionLogService(store);
         var entries = new List<RedactedLogEntry>
         {
             new("2026-05-04T10:00:00Z", "Error", "Cat", "schema validation failed"),
@@ -141,7 +143,7 @@ public class McpToolResultFactoryTests
         };
         var uri = store.Store("tool", 1, "summary", "error", entries);
 
-        var toolResult = factory.BuildExecutionLogResult(uri, search: "schema");
+        var toolResult = logService.BuildExecutionLogResult(uri, search: "schema");
 
         var text = Assert.IsType<TextContentBlock>(Assert.Single(toolResult.Content));
         using var document = JsonDocument.Parse(text.Text);
@@ -152,13 +154,13 @@ public class McpToolResultFactoryTests
     public void BuildExecutionLogResult_SupportsPaging()
     {
         var store = new ToolLogStore(() => "test-session");
-        var factory = new McpToolResultFactory(store, () => "test-session");
+        var logService = new ExecutionLogService(store);
         var entries = Enumerable.Range(0, 10)
             .Select(i => new RedactedLogEntry($"2026-05-04T10:00:{i:D2}Z", "Error", "Cat", $"msg {i}"))
             .ToList();
         var uri = store.Store("tool", 1, "summary", "error", entries);
 
-        var toolResult = factory.BuildExecutionLogResult(uri, skip: 3, take: 2);
+        var toolResult = logService.BuildExecutionLogResult(uri, skip: 3, take: 2);
 
         var text = Assert.IsType<TextContentBlock>(Assert.Single(toolResult.Content));
         using var document = JsonDocument.Parse(text.Text);

@@ -118,11 +118,10 @@ public static class OutputFormatter
             if (status == "failed")
             {
                 envelope.ExitCode = exitCode;
-                var activity = System.Diagnostics.Activity.Current;
                 envelope.Support = new SupportContext
                 {
                     SessionId = SupportInfoSessionId,
-                    OperationId = activity?.TraceId.ToHexString(),
+                    OperationId = TxcActivitySource.CurrentOperationId,
                 };
             }
 
