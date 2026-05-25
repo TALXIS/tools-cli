@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
+using TALXIS.CLI.Abstractions;
 using TALXIS.CLI.Core;
 using TALXIS.CLI.Logging;
 
@@ -13,10 +14,15 @@ namespace TALXIS.CLI.MCP;
 internal sealed class McpToolResultFactory
 {
     private readonly ToolLogStore _toolLogStore;
+    private readonly Func<string?> _sessionIdAccessor;
 
-    public McpToolResultFactory(ToolLogStore toolLogStore)
+    /// <param name="toolLogStore">Execution log store for diagnostics resources.</param>
+    /// <param name="sessionIdAccessor">Provides the current session ID. Injected to avoid
+    /// static coupling to <c>TxcTelemetrySetup</c>.</param>
+    public McpToolResultFactory(ToolLogStore toolLogStore, Func<string?> sessionIdAccessor)
     {
         _toolLogStore = toolLogStore;
+        _sessionIdAccessor = sessionIdAccessor;
     }
 
     public CallToolResult Build(string toolName, CliSubprocessResult result)
@@ -75,7 +81,7 @@ internal sealed class McpToolResultFactory
         // Surface the innermost exception message — for wrapped exceptions
         // (e.g. HttpRequestException → SocketException), the root cause is
         // more actionable than the outer wrapper message.
-        var root = GetInnermostException(exception);
+        var root = ExceptionHelpers.GetInnermostException(exception);
         var rootMessage = root != exception && !string.Equals(root.Message, exception.Message, StringComparison.Ordinal)
             ? root.Message : exception.Message;
         string summary = string.IsNullOrWhiteSpace(rootMessage)
@@ -210,17 +216,20 @@ internal sealed class McpToolResultFactory
         return result.ToList();
     }
 
-    private static CallToolResult BuildFailureResult(string toolName, string summary,
+    private CallToolResult BuildFailureResult(string toolName, string summary,
         string diagnosticsUri, int exitCode = -1, string? operationId = null)
     {
-        var supportInfo = TALXIS.CLI.Logging.TxcSupportInfo.FormatEscalation();
-        var supportBlock = string.IsNullOrEmpty(supportInfo) ? "" : $"{Environment.NewLine}{supportInfo}";
+        var support = new SupportContext
+        {
+            SessionId = _sessionIdAccessor() ?? "unknown",
+            OperationId = operationId ?? "unknown",
+        };
+        var supportText = support.FormatAsText();
+        var supportBlock = string.IsNullOrEmpty(supportText) ? "" : $"{Environment.NewLine}{supportText}";
 
         string cliFriendlySummary =
             $"{summary}{Environment.NewLine}{supportBlock}{Environment.NewLine}" +
             $"Full execution log available via get_execution_log with uri=\"{diagnosticsUri}\".";
-
-        var sessionId = TxcTelemetrySetup.SessionResolver?.SessionId;
 
         return new CallToolResult
         {
@@ -245,12 +254,7 @@ internal sealed class McpToolResultFactory
                     exitCode,
                 },
                 diagnosticsUri,
-                support = new
-                {
-                    sessionId = sessionId ?? "unknown",
-                    operationId = operationId ?? "unknown",
-                    reportUrl = "https://github.com/TALXIS/tools-cli/issues"
-                }
+                support
             }, TxcOutputJsonOptions.Default)
         };
     }
@@ -285,10 +289,4 @@ internal sealed class McpToolResultFactory
         return $"{singleLineSummary} Use resources/read to retrieve detailed diagnostics.";
     }
 
-    private static Exception GetInnermostException(Exception ex)
-    {
-        while (ex.InnerException != null)
-            ex = ex.InnerException;
-        return ex;
-    }
 }

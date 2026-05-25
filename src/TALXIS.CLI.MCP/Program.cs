@@ -16,9 +16,14 @@ var mcpToolRegistry = new McpToolRegistry();
 RootsService? rootsService = null;
 IHostApplicationLifetime? appLifetime = null;
 
+// Session ID accessor — resolved lazily because telemetry may not be initialized yet at this point.
+// Avoids static coupling: ToolLogStore and McpToolResultFactory receive this delegate
+// instead of reaching into TxcTelemetrySetup.SessionResolver directly.
+Func<string?> sessionIdAccessor = () => TALXIS.CLI.Logging.TxcTelemetrySetup.SessionResolver?.SessionId;
+
 // In-memory store for structured tool execution diagnostics (exit code, logs, errors), exposed as MCP resources
-var toolLogStore = new ToolLogStore();
-var toolResultFactory = new McpToolResultFactory(toolLogStore);
+var toolLogStore = new ToolLogStore(sessionIdAccessor);
+var toolResultFactory = new McpToolResultFactory(toolLogStore, sessionIdAccessor);
 
 // Per-output-path lock for workspace_component_create to prevent concurrent writes to the same project
 var workspaceOutputLocks = new System.Collections.Concurrent.ConcurrentDictionary<string, SemaphoreSlim>(StringComparer.OrdinalIgnoreCase);

@@ -22,6 +22,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\TALXIS.CLI.Abstractions\TALXIS.CLI.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="TALXIS.CLI.Tests" />
     <InternalsVisibleTo Include="TALXIS.CLI.Platform.Dataverse.Runtime" />
   </ItemGroup>

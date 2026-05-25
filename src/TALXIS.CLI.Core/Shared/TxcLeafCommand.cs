@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Reflection;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
+using TALXIS.CLI.Abstractions;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.DependencyInjection;
 
@@ -108,7 +109,7 @@ public abstract class TxcLeafCommand
         {
             exitCode = ExitValidationError;
             scope.SetError(exitCode, "validation");
-            var root = GetInnermostException(ex);
+            var root = ExceptionHelpers.GetInnermostException(ex);
             var message = root != ex && !string.Equals(root.Message, ex.Message, StringComparison.Ordinal)
                 ? root.Message : ex.Message;
             Logger.LogError(ex, "{Error}", message);
@@ -127,7 +128,7 @@ public abstract class TxcLeafCommand
             exitCode = ExitError;
             scope.SetError(exitCode, "internal");
 
-            var root = GetInnermostException(ex);
+            var root = ExceptionHelpers.GetInnermostException(ex);
             var message = root != ex && !string.Equals(root.Message, ex.Message, StringComparison.Ordinal)
                 ? root.Message : ex.Message;
 
@@ -220,18 +221,6 @@ public abstract class TxcLeafCommand
         }
 
         return null;
-    }
-
-    /// <summary>
-    /// Walks the <see cref="Exception.InnerException"/> chain and returns the
-    /// deepest (innermost) exception. This is the one that usually contains the
-    /// actionable root-cause message.
-    /// </summary>
-    private static Exception GetInnermostException(Exception ex)
-    {
-        while (ex.InnerException is not null)
-            ex = ex.InnerException;
-        return ex;
     }
 
     /// <summary>

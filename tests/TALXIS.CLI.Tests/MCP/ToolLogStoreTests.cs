@@ -12,7 +12,7 @@ public class ToolLogStoreTests
     [Fact]
     public void Store_ReturnsUriWithExecutionId()
     {
-        var store = new ToolLogStore();
+        var store = new ToolLogStore(() => "test-session");
         var entries = MakeEntries("schema error");
         var executionId = "abc123def456";
         var uri = store.Store("data_package_import", 1, "summary", "error summary", entries, executionId);
@@ -23,7 +23,7 @@ public class ToolLogStoreTests
     [Fact]
     public void Store_GeneratesFallbackIdWhenNoExecutionId()
     {
-        var store = new ToolLogStore();
+        var store = new ToolLogStore(() => "test-session");
         var entries = MakeEntries("schema error");
         var uri = store.Store("data_package_import", 1, "summary", "error summary", entries);
 
@@ -35,7 +35,7 @@ public class ToolLogStoreTests
     [Fact]
     public void TryGet_ReturnsStoredEntry()
     {
-        var store = new ToolLogStore();
+        var store = new ToolLogStore(() => "test-session");
         var entries = new List<RedactedLogEntry>
         {
             new("2026-05-04T10:00:00Z", "Error", "TestCategory", "schema error"),
@@ -57,14 +57,14 @@ public class ToolLogStoreTests
     [Fact]
     public void TryGet_ReturnsFalseForUnknownUri()
     {
-        var store = new ToolLogStore();
+        var store = new ToolLogStore(() => "test-session");
         Assert.False(store.TryGet("txc://logs/abc123def456deadbeef0000", out _));
     }
 
     [Fact]
     public void ListAll_ReturnsAllEntries()
     {
-        var store = new ToolLogStore();
+        var store = new ToolLogStore(() => "test-session");
         store.Store("tool_a", 1, "summary a", "", MakeEntries("log a"));
         store.Store("tool_b", 1, "summary b", "err", MakeEntries("log b"));
 
@@ -75,7 +75,7 @@ public class ToolLogStoreTests
     [Fact]
     public void Store_EvictsOldestWhenOverCapacity()
     {
-        var store = new ToolLogStore(maxEntries: 3);
+        var store = new ToolLogStore(() => "test-session", maxEntries: 3);
         var uri1 = store.Store("tool", 1, "summary1", "", MakeEntries("log1"));
         store.Store("tool", 1, "summary2", "", MakeEntries("log2"));
         store.Store("tool", 1, "summary3", "", MakeEntries("log3"));
@@ -88,7 +88,7 @@ public class ToolLogStoreTests
     [Fact]
     public void Store_GeneratesUniqueUris()
     {
-        var store = new ToolLogStore();
+        var store = new ToolLogStore(() => "test-session");
         var uri1 = store.Store("tool", 1, "summary1", "", MakeEntries("log1"));
         var uri2 = store.Store("tool", 1, "summary2", "", MakeEntries("log2"));
 
@@ -100,6 +100,6 @@ public class ToolLogStoreTests
     [InlineData(-1)]
     public void Constructor_ThrowsForNonPositiveMaxEntries(int maxEntries)
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new ToolLogStore(maxEntries));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ToolLogStore(() => "test-session", maxEntries));
     }
 }

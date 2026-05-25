@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using TALXIS.CLI.Abstractions;
 
 namespace TALXIS.CLI.Core.Telemetry;
 
@@ -10,8 +11,6 @@ namespace TALXIS.CLI.Core.Telemetry;
 /// </summary>
 public sealed class CommandActivityScope : IDisposable
 {
-    private static readonly ActivitySource Source = new("TALXIS.CLI",
-        typeof(CommandActivityScope).Assembly.GetName().Version?.ToString(3));
 
     private int _exitCode;
 
@@ -28,12 +27,12 @@ public sealed class CommandActivityScope : IDisposable
     {
         var parentContext = ParseTraceparent(parentTraceparent);
         Activity = parentContext.HasValue
-            ? Source.StartActivity(operationName, ActivityKind.Server, parentContext.Value)
-            : Source.StartActivity(operationName, ActivityKind.Server);
+            ? TxcActivitySource.Instance.StartActivity(operationName, ActivityKind.Server, parentContext.Value)
+            : TxcActivitySource.Instance.StartActivity(operationName, ActivityKind.Server);
 
         Activity?.SetTag(TxcTelemetryTags.Command, operationName);
         Activity?.SetTag(TxcTelemetryTags.EntryPoint, entryPoint);
-        Activity?.SetTag(TxcTelemetryTags.Version, Source.Version);
+        Activity?.SetTag(TxcTelemetryTags.Version, TxcActivitySource.Instance.Version);
     }
 
     /// <summary>

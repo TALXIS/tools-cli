@@ -1,11 +1,14 @@
 using System.Diagnostics;
 using System.Reflection;
+using TALXIS.CLI.Abstractions;
 
 namespace TALXIS.CLI.Logging;
 
 /// <summary>
 /// Central telemetry entry point for the TALXIS CLI.
-/// Owns the shared <see cref="ActivitySource"/> used by CLI commands and MCP tool dispatch.
+/// Provides connection string resolution and CI detection.
+/// The canonical <see cref="ActivitySource"/> lives in <see cref="TxcActivitySource"/>
+/// (Abstractions) so both Core and Logging share a single instance.
 /// 
 /// Telemetry is always on for published (Release) builds. The only gate is whether
 /// a connection string is available (embedded at build time or set via environment variable).
@@ -22,10 +25,10 @@ public static class TxcTelemetry
 {
     /// <summary>
     /// The single <see cref="ActivitySource"/> for all CLI/MCP instrumentation.
-    /// Always safe to use regardless of telemetry state — <c>StartActivity()</c>
-    /// returns null when no listener is registered (zero overhead).
+    /// Delegates to <see cref="TxcActivitySource.Instance"/> — kept here for
+    /// backward compatibility and discoverability within the Logging layer.
     /// </summary>
-    public static readonly ActivitySource Source = new("TALXIS.CLI", GetCliVersion());
+    public static ActivitySource Source => TxcActivitySource.Instance;
 
     /// <summary>
     /// Environment variable that tags telemetry with pipeline/CI context.
@@ -85,10 +88,4 @@ public static class TxcTelemetry
             ?.Value;
     }
 
-    private static string GetCliVersion()
-    {
-        // Use AssemblyVersion (e.g. "1.11.0") not InformationalVersion which
-        // appends the git commit hash and is noisy in App Insights dashboards.
-        return typeof(TxcTelemetry).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
-    }
 }

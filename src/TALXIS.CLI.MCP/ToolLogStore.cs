@@ -13,12 +13,17 @@ internal sealed class ToolLogStore
     private readonly Dictionary<string, LogEntry> _logs = [];
     private readonly Queue<string> _order = [];
     private readonly int _maxEntries;
+    private readonly Func<string?> _sessionIdAccessor;
 
     /// <summary>URI scheme prefix for execution-log resources.</summary>
     internal const string UriScheme = "txc://logs/";
 
-    public ToolLogStore(int maxEntries = 50)
+    /// <param name="sessionIdAccessor">Provides the current session ID. Injected to avoid
+    /// static coupling to <c>TxcTelemetrySetup</c>.</param>
+    /// <param name="maxEntries">Maximum number of log entries to retain (FIFO eviction).</param>
+    public ToolLogStore(Func<string?> sessionIdAccessor, int maxEntries = 50)
     {
+        _sessionIdAccessor = sessionIdAccessor;
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxEntries);
         _maxEntries = maxEntries;
     }
@@ -34,7 +39,7 @@ internal sealed class ToolLogStore
     {
         executionId ??= Guid.NewGuid().ToString("N");
         var uri = $"{UriScheme}{executionId}";
-        var sessionId = TALXIS.CLI.Logging.TxcTelemetrySetup.SessionResolver?.SessionId;
+        var sessionId = _sessionIdAccessor();
         var entry = new LogEntry(
             ToolName: toolName,
             ExitCode: exitCode,

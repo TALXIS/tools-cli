@@ -1,4 +1,5 @@
 using System.Text.Json;
+using TALXIS.CLI.Abstractions;
 
 namespace TALXIS.CLI.Core;
 
@@ -121,7 +122,7 @@ public static class OutputFormatter
                 envelope.Support = new SupportContext
                 {
                     SessionId = SupportInfoSessionId,
-                    OperationId = activity?.TraceId.ToHexString()
+                    OperationId = activity?.TraceId.ToHexString(),
                 };
             }
 
@@ -175,14 +176,4 @@ internal sealed class CommandResultEnvelope
 
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public SupportContext? Support { get; set; }
-}
-
-/// <summary>
-/// Troubleshooting context included in error envelopes.
-/// </summary>
-internal sealed class SupportContext
-{
-    public string? SessionId { get; set; }
-    public string? OperationId { get; set; }
-    public string ReportUrl { get; set; } = "https://github.com/TALXIS/tools-cli/issues";
 }

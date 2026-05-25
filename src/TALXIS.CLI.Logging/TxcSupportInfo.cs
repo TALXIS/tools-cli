@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using TALXIS.CLI.Abstractions;
 
 namespace TALXIS.CLI.Logging;
 
@@ -10,11 +11,10 @@ namespace TALXIS.CLI.Logging;
 /// Lives in the Logging project because it depends on telemetry state
 /// (session ID, Activity). Consumers that cannot reference Logging directly
 /// (e.g. Core) should not call this — the entry-point layer handles it.
+/// Builds a shared <see cref="SupportContext"/> and formats it as text.
 /// </summary>
 public static class TxcSupportInfo
 {
-    private const string IssuesUrl = "https://github.com/TALXIS/tools-cli/issues";
-
     private static string? _sessionId;
     private static string? _logFilePath;
 
@@ -34,18 +34,12 @@ public static class TxcSupportInfo
     /// </summary>
     public static string FormatEscalation()
     {
-        var operationId = Activity.Current?.TraceId.ToHexString();
-
-        if (_sessionId == null && operationId == null)
-            return string.Empty;
-
-        var lines = $"If this is unexpected, report at {IssuesUrl}{Environment.NewLine}" +
-                    $"  Session: {_sessionId ?? "unknown"}{Environment.NewLine}" +
-                    $"  Operation: {operationId ?? "unknown"}";
-
-        if (_logFilePath != null)
-            lines += $"{Environment.NewLine}  Logs: {_logFilePath}";
-
-        return lines;
+        var context = new SupportContext
+        {
+            SessionId = _sessionId,
+            OperationId = Activity.Current?.TraceId.ToHexString(),
+            LogFilePath = _logFilePath
+        };
+        return context.FormatAsText();
     }
 }

@@ -21,7 +21,11 @@ public sealed class SessionIdActivityProcessor : BaseProcessor<Activity>
     {
         _sessionId = resolver.SessionId;
         _sessionSource = resolver.Source;
-        _client = ResolveClient();
+        // Derive client from the session ID source rather than checking a separate
+        // set of env vars. This keeps client detection aligned with session strategies
+        // — adding a new client only requires a new ISessionIdStrategy, not a separate
+        // if-chain here.
+        _client = DeriveClient(_sessionSource);
     }
 
     public override void OnStart(Activity data)
@@ -36,9 +40,25 @@ public sealed class SessionIdActivityProcessor : BaseProcessor<Activity>
     }
 
     /// <summary>
-    /// Detects which MCP client / host environment is driving this process.
+    /// Maps the session ID source (from <see cref="ISessionIdStrategy.Source"/>) to
+    /// a client identifier for the <c>txc.client</c> telemetry tag.
     /// </summary>
-    private static string ResolveClient()
+    internal static string DeriveClient(string sessionSource) => sessionSource switch
+    {
+        "copilot" => "copilot-cli",
+        "claude-code" => "claude-code",
+        // "explicit" means the parent MCP server propagated the ID — the real client
+        // is determined by the original source, but at the subprocess level we can
+        // fall back to env-var detection for backward compatibility.
+        "explicit" => DetectExplicitClient(),
+        _ => "terminal",
+    };
+
+    /// <summary>
+    /// Fallback detection for "explicit" source (MCP→CLI propagation) where the
+    /// original client is not encoded in the session source.
+    /// </summary>
+    private static string DetectExplicitClient()
     {
         if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("COPILOT_RUN_APP")))
             return "copilot-cli";

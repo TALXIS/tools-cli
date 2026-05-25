@@ -14,8 +14,8 @@ public class McpToolResultFactoryTests
     [Fact]
     public void Build_FailedResultWithSummary_AttachesReadableDiagnosticsResource()
     {
-        var store = new ToolLogStore();
-        var factory = new McpToolResultFactory(store);
+        var store = new ToolLogStore(() => "test-session");
+        var factory = new McpToolResultFactory(store, () => "test-session");
         var entries = new List<RedactedLogEntry>
         {
             new("2026-05-04T10:00:00Z", "Error", "WorkspaceValidateCliCommand", "file1.xml(1,1): schema error")
@@ -53,8 +53,8 @@ public class McpToolResultFactoryTests
     [Fact]
     public void BuildExceptionResult_AttachesDiagnosticsResource()
     {
-        var store = new ToolLogStore();
-        var factory = new McpToolResultFactory(store);
+        var store = new ToolLogStore(() => "test-session");
+        var factory = new McpToolResultFactory(store, () => "test-session");
 
         var toolResult = factory.BuildExceptionResult("workspace_validate", new InvalidOperationException("Boom"));
 
@@ -75,8 +75,8 @@ public class McpToolResultFactoryTests
     [Fact]
     public void BuildExecutionLogResult_ReturnsStructuredLogEntries()
     {
-        var store = new ToolLogStore();
-        var factory = new McpToolResultFactory(store);
+        var store = new ToolLogStore(() => "test-session");
+        var factory = new McpToolResultFactory(store, () => "test-session");
         var entries = new List<RedactedLogEntry>
         {
             new("2026-05-04T10:00:00Z", "Error", "TestCategory", "schema error"),
@@ -106,8 +106,8 @@ public class McpToolResultFactoryTests
     [Fact]
     public void BuildExecutionLogResult_FiltersByLevel()
     {
-        var store = new ToolLogStore();
-        var factory = new McpToolResultFactory(store);
+        var store = new ToolLogStore(() => "test-session");
+        var factory = new McpToolResultFactory(store, () => "test-session");
         var entries = new List<RedactedLogEntry>
         {
             new("2026-05-04T10:00:00Z", "Information", "Cat", "info msg"),
@@ -131,8 +131,8 @@ public class McpToolResultFactoryTests
     [Fact]
     public void BuildExecutionLogResult_SearchesMessages()
     {
-        var store = new ToolLogStore();
-        var factory = new McpToolResultFactory(store);
+        var store = new ToolLogStore(() => "test-session");
+        var factory = new McpToolResultFactory(store, () => "test-session");
         var entries = new List<RedactedLogEntry>
         {
             new("2026-05-04T10:00:00Z", "Error", "Cat", "schema validation failed"),
@@ -151,8 +151,8 @@ public class McpToolResultFactoryTests
     [Fact]
     public void BuildExecutionLogResult_SupportsPaging()
     {
-        var store = new ToolLogStore();
-        var factory = new McpToolResultFactory(store);
+        var store = new ToolLogStore(() => "test-session");
+        var factory = new McpToolResultFactory(store, () => "test-session");
         var entries = Enumerable.Range(0, 10)
             .Select(i => new RedactedLogEntry($"2026-05-04T10:00:{i:D2}Z", "Error", "Cat", $"msg {i}"))
             .ToList();
@@ -174,8 +174,8 @@ public class McpToolResultFactoryTests
     [Fact]
     public void Build_SuccessResult_StoresLogAndIncludesDiagnosticsUri()
     {
-        var store = new ToolLogStore();
-        var factory = new McpToolResultFactory(store);
+        var store = new ToolLogStore(() => "test-session");
+        var factory = new McpToolResultFactory(store, () => "test-session");
         var entries = new List<RedactedLogEntry>
         {
             new("2026-05-04T10:00:00Z", "Information", "Cat", "all good")

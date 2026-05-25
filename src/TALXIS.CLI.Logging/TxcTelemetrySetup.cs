@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using TALXIS.CLI.Abstractions;
 using TALXIS.CLI.Logging.SessionId;
 #if TELEMETRY_ENABLED
 using Azure.Monitor.OpenTelemetry.Exporter;
