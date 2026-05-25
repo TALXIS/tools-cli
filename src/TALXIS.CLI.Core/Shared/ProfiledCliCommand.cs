@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.RegularExpressions;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
@@ -97,14 +98,35 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
     /// </summary>
     protected override async Task<int?> PreExecuteAsync()
     {
+        // Try to resolve the profile early to tag the Activity span with
+        // user/tenant identity for App Insights correlation (OTel semantic
+        // conventions: enduser.id, enduser.scope). This runs for ALL profiled
+        // commands, not just destructive ones.
+        ResolvedProfileContext? resolvedContext = null;
+        try
+        {
+            var resolver = TxcServices.Get<IConfigurationResolver>();
+            resolvedContext = await resolver.ResolveAsync(Profile, CancellationToken.None).ConfigureAwait(false);
+            Telemetry.ActivityIdentityTagger.TagFromResolvedProfile(
+                Activity.Current, resolvedContext.Credential, resolvedContext.Connection);
+        }
+        catch (Exception) when (true)
+        {
+            // If profile resolution fails (missing config, DI not bootstrapped,
+            // invalid profile name), let ExecuteAsync handle it — it will produce
+            // a better error message. Identity tags are best-effort; we never
+            // block a command for telemetry reasons.
+        }
+
         if (!Attribute.IsDefined(GetType(), typeof(CliDestructiveAttribute)))
+            return null;
+
+        if (resolvedContext is null)
             return null;
 
         try
         {
-            var resolver = TxcServices.Get<IConfigurationResolver>();
-            var context = await resolver.ResolveAsync(Profile, CancellationToken.None).ConfigureAwait(false);
-            var connection = context.Connection;
+            var connection = resolvedContext.Connection;
 
             if (!IsProductionLike(connection.EnvironmentType, connection.DisplayName, connection.EnvironmentUrl))
                 return null;
@@ -129,9 +151,8 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
         }
         catch (ConfigurationResolutionException)
         {
-            // If we can't resolve the profile, let ExecuteAsync handle it —
-            // it will produce a better error message.
             return null;
         }
     }
+
 }

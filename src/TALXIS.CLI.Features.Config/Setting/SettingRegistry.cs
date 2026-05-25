@@ -26,11 +26,11 @@ internal static class SettingRegistry
             g => g.Log.Format,
             (g, v) => g.Log.Format = v),
         new(
-            "telemetry.enabled",
-            "Whether anonymous usage telemetry is enabled.",
-            null,
-            g => g.Telemetry.Enabled ? "true" : "false",
-            (g, v) => g.Telemetry.Enabled = ParseBool(v)),
+            "telemetry.optOut",
+            "Disable telemetry collection. See TELEMETRY.md for details.",
+            new[] { "true", "false" },
+            g => g.Telemetry.OptOut.ToString().ToLowerInvariant(),
+            (g, v) => g.Telemetry.OptOut = string.Equals(v, "true", StringComparison.OrdinalIgnoreCase)),
     };
 
     public static SettingDescriptor? Find(string key)
@@ -38,9 +38,6 @@ internal static class SettingRegistry
 
     public static string NormalizeValue(SettingDescriptor descriptor, string raw)
     {
-        if (descriptor.Key == "telemetry.enabled")
-            return ParseBool(raw) ? "true" : "false";
-
         var lowered = raw.Trim().ToLowerInvariant();
         if (descriptor.AllowedValues is { } allowed)
         {
@@ -52,18 +49,6 @@ internal static class SettingRegistry
             return match;
         }
         return lowered;
-    }
-
-    private static bool ParseBool(string raw)
-    {
-        var v = raw.Trim().ToLowerInvariant();
-        return v switch
-        {
-            "true" or "1" or "yes" or "on" => true,
-            "false" or "0" or "no" or "off" => false,
-            _ => throw new ArgumentException(
-                $"Invalid boolean value '{raw}'. Allowed: true, false."),
-        };
     }
 }
 

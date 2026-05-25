@@ -49,7 +49,9 @@ internal static class CliSubprocessRunner
 
         await handler.OnProcessExitedAsync(process.ExitCode);
 
-        return new CliSubprocessResult(process.ExitCode, handler);
+        return handler is McpLogForwarder forwarder
+            ? new CliSubprocessResult(process.ExitCode, forwarder)
+            : new CliSubprocessResult(process.ExitCode, string.Empty);
     }
 
     private static async Task<CliSubprocessResult> RunBufferedAsync(
@@ -108,6 +110,33 @@ internal static class CliSubprocessRunner
 
         // Enable structured JSON logging for MCP consumption
         startInfo.Environment["TXC_LOG_FORMAT"] = "json";
+
+        // Propagate trace context so the subprocess's Activity span becomes a child
+        // of the MCP server's current span. Both export independently to App Insights,
+        // but they appear as a single correlated trace (MCP dispatch → CLI execution).
+        var currentActivity = System.Diagnostics.Activity.Current;
+        if (currentActivity != null)
+        {
+            // W3C traceparent format: 00-{traceId}-{spanId}-{flags}
+            var flags = (currentActivity.ActivityTraceFlags & System.Diagnostics.ActivityTraceFlags.Recorded) != 0 ? "01" : "00";
+            startInfo.Environment["TXC_TRACEPARENT"] = $"00-{currentActivity.TraceId}-{currentActivity.SpanId}-{flags}";
+        }
+
+        // Propagate the resolved session ID so CLI subprocesses use the same
+        // session identifier as the MCP server. The child's SessionIdResolver
+        // picks this up via ExplicitEnvVarStrategy (highest priority).
+        // Also propagate the original source so the child doesn't report "explicit"
+        // when the real source was e.g. "copilot".
+        var sessionResolver = TALXIS.CLI.Logging.TxcTelemetrySetup.SessionResolver;
+        if (sessionResolver != null)
+        {
+            startInfo.Environment[TALXIS.CLI.Logging.SessionId.ExplicitEnvVarStrategy.EnvVar] = sessionResolver.SessionId;
+            startInfo.Environment[TALXIS.CLI.Logging.SessionId.ExplicitEnvVarStrategy.SourceEnvVar] = sessionResolver.Source;
+        }
+
+        // Tell the child CLI process it was invoked from MCP, not standalone terminal.
+        // This ensures txc.entry_point=mcp on all child spans.
+        startInfo.Environment["TXC_ENTRY_POINT"] = "mcp";
 
         // Force headless mode for every MCP-spawned tool invocation so that
         // interactive auth flows (browser, device code, masked secret prompts)
@@ -208,27 +237,28 @@ internal sealed class CliSubprocessResult
         Output = output;
     }
 
-    /// <summary>Creates a result from a streaming output handler (uses stdout content as output).</summary>
-    public CliSubprocessResult(int exitCode, ISubprocessOutputHandler handler)
+    /// <summary>Creates a result with explicit stdout/stderr-derived diagnostic fields.</summary>
+    internal CliSubprocessResult(int exitCode, string output, string lastErrors,
+        IReadOnlyList<RedactedLogEntry>? structuredEntries = null)
     {
         ExitCode = exitCode;
-        if (handler is McpLogForwarder forwarder)
-        {
-            Output = forwarder.StdoutContent;
-            LastErrors = forwarder.LastErrors;
-            FullLog = forwarder.FullLog;
-        }
-        else
-        {
-            Output = string.Empty;
-            LastErrors = string.Empty;
-            FullLog = string.Empty;
-        }
+        Output = output;
+        LastErrors = lastErrors;
+        StructuredEntries = structuredEntries ?? [];
+    }
+
+    /// <summary>Creates a result from an MCP log forwarder that captured subprocess output.</summary>
+    public CliSubprocessResult(int exitCode, McpLogForwarder forwarder)
+    {
+        ExitCode = exitCode;
+        Output = forwarder.StdoutContent;
+        LastErrors = forwarder.LastErrors;
+        StructuredEntries = forwarder.StructuredEntries;
     }
 
     /// <summary>Error messages captured from subprocess stderr logs.</summary>
     public string LastErrors { get; } = string.Empty;
 
-    /// <summary>Complete stderr log from the subprocess (all levels).</summary>
-    public string FullLog { get; } = string.Empty;
+    /// <summary>Structured log entries captured from subprocess stderr (preserves level, category, data for filtering).</summary>
+    public IReadOnlyList<RedactedLogEntry> StructuredEntries { get; } = [];
 }

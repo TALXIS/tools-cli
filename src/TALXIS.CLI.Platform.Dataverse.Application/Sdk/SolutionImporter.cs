@@ -248,8 +248,11 @@ public sealed class SolutionImporter
         // Poll asyncoperation row until state transitions to Completed. StateCode values:
         // 0 = Ready, 1 = Suspended, 2 = Locked, 3 = Completed.
         var delay = TimeSpan.FromSeconds(3);
+        var pollStart = System.Diagnostics.Stopwatch.StartNew();
         while (!cancellationToken.IsCancellationRequested)
         {
+            _logger?.LogInformation("Waiting for solution import to complete... {ElapsedSeconds}s elapsed", (int)pollStart.Elapsed.TotalSeconds);
+
             var entity = await _service.RetrieveAsync(
                 DataverseSchema.AsyncOperation.EntityName,
                 asyncOperationId,

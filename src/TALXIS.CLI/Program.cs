@@ -1,4 +1,6 @@
 ﻿using DotMake.CommandLine;
+using TALXIS.CLI.Core.DependencyInjection;
+using TALXIS.CLI.Logging;
 using TALXIS.CLI.Platform.Dataverse.Application.DependencyInjection;
 using TALXIS.CLI.Platform.Dataverse.Application.Sdk;
 
@@ -20,7 +22,31 @@ namespace TALXIS.CLI
             // and wires its own TxcServices via the same bootstrap helper.
             TxcServicesBootstrap.EnsureInitialized();
 
-            return await Cli.RunAsync<TALXIS.CLI.TxcCliCommand>(args, new CliSettings { EnableDefaultExceptionHandler = true });
+            // Wire DotMake's DI bridge so command classes can use constructor injection.
+            // This uses the same IServiceProvider as TxcServices — both paths resolve
+            // from the same container. Existing TxcServices.Get<T>() calls still work.
+            if (TxcServices.Provider is not null)
+                Cli.Ext.SetServiceProvider(TxcServices.Provider);
+
+            // Initialize telemetry from user config (fire-and-forget, never blocks).
+            // When invoked as an MCP subprocess, TXC_ENTRY_POINT=mcp is set by the
+            // MCP server so all child spans correctly report the MCP entry point.
+            var entryPoint = Environment.GetEnvironmentVariable("TXC_ENTRY_POINT") ?? "cli";
+            TxcTelemetryBootstrap.Initialize(entryPoint: entryPoint);
+
+            // Wire support escalation info into CLI error output
+            TALXIS.CLI.Core.TxcLeafCommand.SupportInfoFormatter = Logging.TxcSupportInfo.FormatEscalation;
+            TALXIS.CLI.Core.OutputFormatter.SupportInfoSessionId =
+                Logging.TxcTelemetrySetup.SessionResolver?.SessionId;
+
+            try
+            {
+                return await Cli.RunAsync<TALXIS.CLI.TxcCliCommand>(args, new CliSettings { EnableDefaultExceptionHandler = true });
+            }
+            finally
+            {
+                TxcTelemetrySetup.Shutdown();
+            }
         }
 
         public static async Task<int> RunCli(string[] args)

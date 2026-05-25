@@ -49,8 +49,9 @@ public class DataTransformationServer
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "Transform request failed");
             context.Response.StatusCode = 500;
-            await context.Response.OutputStream.WriteAsync(System.Text.Encoding.UTF8.GetBytes($"Error: {ex.Message}"));
+            await context.Response.OutputStream.WriteAsync(System.Text.Encoding.UTF8.GetBytes($"Error: {LogRedactionFilter.Redact(ex.Message)}"));
             context.Response.Close();
         }
     }

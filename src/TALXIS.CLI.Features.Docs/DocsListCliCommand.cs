@@ -15,7 +15,7 @@ namespace TALXIS.CLI.Features.Docs;
 [CliReadOnly]
 public class DocsListCliCommand : TxcLeafCommand
 {
-    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger<DocsListCliCommand>();
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(DocsListCliCommand));
 
     protected override Task<int> ExecuteAsync()
     {

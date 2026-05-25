@@ -25,10 +25,12 @@ namespace TALXIS.CLI.Core.Vault;
 /// </remarks>
 public sealed class MsalBackedCredentialVault : ICredentialVault
 {
+#pragma warning disable RS0030 // Internal serialization options — not exposed to command output
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         WriteIndented = false,
     };
+#pragma warning restore RS0030
 
     private readonly MsalCacheHelper _helper;
     private readonly ILogger<MsalBackedCredentialVault> _logger;

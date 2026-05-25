@@ -344,6 +344,12 @@ The same process applies to [tools-devkit-templates](https://github.com/TALXIS/t
 
 ---
 
+## Telemetry
+
+`txc` collects anonymous usage data and authenticated user context to help improve the tool. See [TELEMETRY.md](TELEMETRY.md) for details.
+
+---
+
 ## Collaboration
 
 We welcome collaboration! For feedback, suggestions, or contributions, please submit issues or pull requests.

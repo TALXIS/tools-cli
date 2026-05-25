@@ -5,17 +5,15 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
-  <!-- Infrastructure project: legitimate Console.Error usage for log sinks -->
   <ItemGroup>
-    <AdditionalFiles Remove="$(MSBuildThisFileDirectory)..\BannedSymbols.txt" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\TALXIS.CLI.Core\TALXIS.CLI.Core.csproj" />
+    <ProjectReference Include="..\TALXIS.CLI.Abstractions\TALXIS.CLI.Abstractions.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.5" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.5" />
+    <!-- OTel + Azure Monitor exporter for telemetry (only active in Release builds) -->
+    <PackageReference Include="Azure.Monitor.OpenTelemetry.Exporter" Version="1.8.0" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.15.1" />
   </ItemGroup>
 </Project>

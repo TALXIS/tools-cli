@@ -37,7 +37,9 @@ public static class TxcLoggerFactory
         // redirected (e.g. piped into an MCP stdio transport). This prevents
         // the SimpleConsole provider from writing to stdout and corrupting the
         // JSON-RPC stream.
+#pragma warning disable RS0030 // Approved infrastructure — detecting stdout redirection for log routing
         bool jsonMode = logFormat == "json" || System.Console.IsOutputRedirected;
+#pragma warning restore RS0030
 
         LogLevel minimumLogLevel = Enum.TryParse<LogLevel>(configuredLogLevel, ignoreCase: true, out LogLevel parsed)
             ? parsed
@@ -45,6 +47,21 @@ public static class TxcLoggerFactory
 
         builder.ClearProviders();
         builder.SetMinimumLevel(minimumLogLevel);
+
+        // Bridge ILogger events to the current OTel Activity span so that
+        // error tags, exception recordings, and status all flow through ILogger
+        // as the single source of truth — command code never touches Activity.
+        builder.AddProvider(new TxcTelemetryLogProvider());
+
+        // Persistent session log file — written alongside console/stderr output.
+        // Uses the session ID from the telemetry resolver (set before loggers are created).
+        var sessionId = TxcTelemetrySetup.SessionResolver?.SessionId;
+        if (sessionId != null)
+        {
+            var fileProvider = new JsonFileLoggerProvider(sessionId);
+            builder.AddProvider(fileProvider);
+            TxcSupportInfo.SetLogFilePath(fileProvider.FilePath);
+        }
 
         if (jsonMode)
         {

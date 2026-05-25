@@ -49,6 +49,16 @@ public sealed class McpTestClient : IAsyncDisposable
         return await _client.ListToolsAsync();
     }
 
+    public async Task<IList<McpClientResource>> ListResourcesAsync()
+    {
+        return await _client.ListResourcesAsync();
+    }
+
+    public async Task<ReadResourceResult> ReadResourceAsync(string uri)
+    {
+        return await _client.ReadResourceAsync(uri);
+    }
+
     public async ValueTask DisposeAsync()
     {
         await _client.DisposeAsync();

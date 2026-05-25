@@ -1,5 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 
 namespace TALXIS.CLI.Core.Changeset;
@@ -12,21 +14,25 @@ namespace TALXIS.CLI.Core.Changeset;
 /// </summary>
 public sealed class InMemoryChangesetStore : IChangesetStore
 {
+    private readonly ILogger _logger;
     private readonly List<StagedOperation> _operations = new();
     private readonly object _lock = new();
     private int _nextIndex = 1;
     private readonly string _changesetDir;
     private readonly string _changesetFile;
 
+#pragma warning disable RS0030 // Internal serialization options with custom converter — not exposed to command output
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         WriteIndented = true,
         // Ensure Dictionary<string, object?> values round-trip correctly
         Converters = { new ObjectToInferredTypesConverter() }
     };
+#pragma warning restore RS0030
 
-    public InMemoryChangesetStore()
+    public InMemoryChangesetStore(ILogger<InMemoryChangesetStore>? logger = null)
     {
+        _logger = logger ?? NullLogger<InMemoryChangesetStore>.Instance;
         _changesetDir = Path.Combine(Environment.CurrentDirectory, ".txc");
         _changesetFile = Path.Combine(_changesetDir, "changeset.json");
         LoadFromDisk();
@@ -96,8 +102,7 @@ public sealed class InMemoryChangesetStore : IChangesetStore
         catch (Exception ex)
         {
             // Log warning so user knows persistence failed
-            Console.Error.WriteLine($"Warning: Failed to persist changeset to disk: {ex.Message}");
-            Console.Error.WriteLine("Staged operations are in memory only and will be lost when the process exits.");
+            _logger.LogWarning(ex, "Failed to persist changeset to disk: {Error}. Staged operations are in memory only and will be lost when the process exits.", ex.Message);
         }
     }
 

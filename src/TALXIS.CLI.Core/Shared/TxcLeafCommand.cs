@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using System.Reflection;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
+using TALXIS.CLI.Abstractions;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.DependencyInjection;
 
@@ -60,68 +62,102 @@ public abstract class TxcLeafCommand
     /// </summary>
     public async Task<int> RunAsync()
     {
-        var formatError = ApplyOutputFormat();
-        if (formatError.HasValue)
-            return formatError.Value;
+        var commandName = GetType().Name;
+        var traceparent = Environment.GetEnvironmentVariable("TXC_TRACEPARENT");
+        // When the CLI runs as an MCP subprocess, TXC_ENTRY_POINT=mcp is set by the
+        // MCP server. Use it so all child spans consistently report the MCP entry point.
+        var entryPoint = Environment.GetEnvironmentVariable("TXC_ENTRY_POINT")
+            ?? Telemetry.TxcTelemetryTags.EntryPointCli;
 
-        // Production guard runs first so users aren't prompted with --yes
-        // only to be immediately blocked for missing --allow-production.
-        try
-        {
-            var guardResult = await PreExecuteAsync().ConfigureAwait(false);
-            if (guardResult.HasValue)
-                return guardResult.Value;
-        }
-        catch (Exception ex) when (ex is Abstractions.ConfigurationResolutionException)
-        {
-            // If profile resolution fails in the guard, fall through — ExecuteAsync
-            // will produce a better error message.
-        }
-
-        var confirmError = await CheckDestructiveConfirmationAsync().ConfigureAwait(false);
-        if (confirmError.HasValue)
-            return confirmError.Value;
+        using var scope = new Telemetry.CommandActivityScope(
+            commandName, entryPoint, traceparent);
+        var exitCode = ExitError;
 
         try
         {
-            return await ExecuteAsync().ConfigureAwait(false);
+            // Best-effort: tag span with identity from the active profile so ALL
+            // commands (not just ProfiledCliCommand) are attributable to a user.
+            // ProfiledCliCommand.PreExecuteAsync overrides with the resolved profile.
+            await TagActiveProfileIdentityAsync(scope.Activity).ConfigureAwait(false);
+
+            var formatError = ApplyOutputFormat();
+            if (formatError.HasValue)
+                return exitCode = formatError.Value;
+
+            // Production guard runs first so users aren't prompted with --yes
+            // only to be immediately blocked for missing --allow-production.
+            try
+            {
+                var guardResult = await PreExecuteAsync().ConfigureAwait(false);
+                if (guardResult.HasValue)
+                    return exitCode = guardResult.Value;
+            }
+            catch (Exception ex) when (ex is Abstractions.ConfigurationResolutionException)
+            {
+                // If profile resolution fails in the guard, fall through — ExecuteAsync
+                // will produce a better error message.
+            }
+
+            var confirmError = await CheckDestructiveConfirmationAsync().ConfigureAwait(false);
+            if (confirmError.HasValue)
+                return exitCode = confirmError.Value;
+
+            exitCode = await ExecuteAsync().ConfigureAwait(false);
+            return exitCode;
         }
         catch (Exception ex) when (ex is Abstractions.ConfigurationResolutionException or ArgumentException)
         {
-            Logger.LogError("{Error}", ex.Message);
-            return ExitValidationError;
+            exitCode = ExitValidationError;
+            scope.SetError(exitCode, "validation");
+            var root = ExceptionHelpers.GetInnermostException(ex);
+            var message = root != ex && !string.Equals(root.Message, ex.Message, StringComparison.Ordinal)
+                ? root.Message : ex.Message;
+            Logger.LogError(ex, "{Error}", message);
+            LogSupportInfo();
+            return exitCode;
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
-            Logger.LogWarning("Operation was cancelled.");
-            return ExitError;
+            exitCode = ExitError;
+            scope.SetError(exitCode, "cancelled");
+            Logger.LogWarning(ex, "Operation was cancelled.");
+            return exitCode;
         }
         catch (Exception ex)
         {
-            // Surface the innermost exception message — it typically contains the
-            // actionable root cause (e.g. "Run 'txc config auth login' and retry.").
-            var root = GetInnermostException(ex);
-            var hasDistinctCause = root != ex && !string.Equals(root.Message, ex.Message, StringComparison.Ordinal);
-            var errorMessage = hasDistinctCause ? root.Message : ex.Message;
+            exitCode = ExitError;
+            scope.SetError(exitCode, "internal");
 
-            // Write structured error to stdout so scripts, pipes, and MCP get
-            // a machine-readable error envelope instead of empty stdout.
-            OutputFormatter.WriteResult("failed", errorMessage);
+            var root = ExceptionHelpers.GetInnermostException(ex);
+            var message = root != ex && !string.Equals(root.Message, ex.Message, StringComparison.Ordinal)
+                ? root.Message : ex.Message;
 
-            // Also log to stderr for diagnostic visibility (log lines are always
-            // forwarded as MCP notifications and are visible with --verbose).
-            if (hasDistinctCause)
-            {
-                Logger.LogError("Command failed: {Error}", ex.Message);
-                Logger.LogError("Cause: {RootCause}", root.Message);
-            }
-            else
-            {
-                Logger.LogError("Command failed: {Error}", ex.Message);
-            }
-            Logger.LogDebug(ex, "Full exception details:");
-            return ExitError;
+            OutputFormatter.WriteResult("failed", message, exitCode: exitCode);
+            Logger.LogError(ex, "Command failed: {Error}", message);
+            LogSupportInfo();
+            return exitCode;
         }
+        finally
+        {
+            scope.SetExitCode(exitCode);
+        }
+    }
+
+    /// <summary>
+    /// Delegate that formats support escalation info (session ID, operation ID, GitHub link).
+    /// Set once at startup by the entry-point layer (CLI/MCP) to avoid a Core → Logging dependency.
+    /// When null, no support info is emitted.
+    /// </summary>
+    public static Func<string>? SupportInfoFormatter { get; set; }
+
+    /// <summary>
+    /// Logs support escalation info to stderr after an error.
+    /// </summary>
+    private void LogSupportInfo()
+    {
+        var info = SupportInfoFormatter?.Invoke();
+        if (!string.IsNullOrEmpty(info))
+            Logger.LogInformation("{SupportInfo}", info);
     }
 
     /// <summary>
@@ -188,15 +224,14 @@ public abstract class TxcLeafCommand
     }
 
     /// <summary>
-    /// Walks the <see cref="Exception.InnerException"/> chain and returns the
-    /// deepest (innermost) exception. This is the one that usually contains the
-    /// actionable root-cause message.
+    /// Tags the Activity with identity from the globally active profile.
+    /// Delegates to <see cref="Telemetry.ActivityIdentityTagger"/> resolved from DI.
     /// </summary>
-    private static Exception GetInnermostException(Exception ex)
+    private static async Task TagActiveProfileIdentityAsync(Activity? activity)
     {
-        while (ex.InnerException is not null)
-            ex = ex.InnerException;
-        return ex;
+        var tagger = DependencyInjection.TxcServices.GetOptional<Telemetry.ActivityIdentityTagger>();
+        if (tagger != null)
+            await tagger.TagFromActiveProfileAsync(activity).ConfigureAwait(false);
     }
 
     /// <summary>

@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 
 namespace TALXIS.CLI.MCP;
 
@@ -31,8 +32,10 @@ public class PublicSkillLoader
         using var stream = docsAssembly.GetManifestResourceStream(indexResourceName);
         if (stream is null) return;
 
+#pragma warning disable RS0030 // Deserialization options for embedded skill index — requires camelCase policy
         _index = JsonSerializer.Deserialize<List<PublicSkillIndexEntry>>(stream,
             new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+#pragma warning restore RS0030
 
         if (_index is null) return;
 
@@ -110,8 +113,10 @@ public class PublicSkillLoader
         {
             return Assembly.Load("TALXIS.CLI.Features.Docs");
         }
-        catch
+        catch (Exception ex)
         {
+            var logger = TALXIS.CLI.Logging.TxcLoggerFactory.CreateLogger(nameof(PublicSkillLoader));
+            logger.LogDebug(ex, "Failed to load TALXIS.CLI.Features.Docs assembly");
             return null;
         }
     }

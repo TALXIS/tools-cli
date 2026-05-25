@@ -16,8 +16,15 @@ var mcpToolRegistry = new McpToolRegistry();
 RootsService? rootsService = null;
 IHostApplicationLifetime? appLifetime = null;
 
-// In-memory store for tool execution logs, exposed as MCP resources
-var toolLogStore = new ToolLogStore();
+// Session ID accessor — resolved lazily because telemetry may not be initialized yet at this point.
+// Avoids static coupling: ToolLogStore and McpToolResultFactory receive this delegate
+// instead of reaching into TxcTelemetrySetup.SessionResolver directly.
+Func<string?> sessionIdAccessor = () => TALXIS.CLI.Logging.TxcTelemetrySetup.SessionResolver?.SessionId;
+
+// In-memory store for structured tool execution diagnostics (exit code, logs, errors), exposed as MCP resources
+var toolLogStore = new ToolLogStore(sessionIdAccessor);
+var toolResultFactory = new McpToolResultFactory(toolLogStore, sessionIdAccessor);
+var executionLogService = new ExecutionLogService(toolLogStore);
 
 // Per-output-path lock for workspace_component_create to prevent concurrent writes to the same project
 var workspaceOutputLocks = new System.Collections.Concurrent.ConcurrentDictionary<string, SemaphoreSlim>(StringComparer.OrdinalIgnoreCase);
@@ -42,6 +49,9 @@ var taskStore = new CancellableTaskStore(new InMemoryMcpTaskStore(
     defaultTtl: TimeSpan.FromHours(4),
     pollInterval: TimeSpan.FromSeconds(2)
 ));
+
+// Initialize telemetry for the MCP server (fire-and-forget, never blocks startup)
+InitializeMcpTelemetry();
 
 try
 {
@@ -102,7 +112,9 @@ PREFER LOCAL OPERATIONS: Workspace operations are instant and reversible. Enviro
 }
 catch (Exception ex)
 {
+#pragma warning disable RS0030 // Bootstrap error path — logger not yet initialized
     Console.Error.WriteLine($"Fatal error starting MCP server: {LogRedactionFilter.Redact(ex.ToString())}");
+#pragma warning restore RS0030
     return 1;
 }
 
@@ -117,6 +129,12 @@ async ValueTask<CallToolResult> CallToolAsync(RequestContext<CallToolRequestPara
     var toolName = p?.Name ?? string.Empty;
     if (string.IsNullOrEmpty(toolName))
         throw new McpException("Tool name is required.");
+
+    // Server span — MCP tool call is an incoming request → App Insights 'requests' table
+    using var activity = TxcTelemetry.Source.StartActivity(toolName, System.Diagnostics.ActivityKind.Server);
+    activity?.SetTag(TALXIS.CLI.Core.Telemetry.TxcTelemetryTags.Tool, toolName);
+    activity?.SetTag(TALXIS.CLI.Core.Telemetry.TxcTelemetryTags.EntryPoint, TALXIS.CLI.Core.Telemetry.TxcTelemetryTags.EntryPointMcp);
+    activity?.SetTag(TALXIS.CLI.Core.Telemetry.TxcTelemetryTags.Version, typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "unknown");
 
     // --- Route: Guide tools ---
     if (IsGuideTool(toolName))
@@ -134,6 +152,12 @@ async ValueTask<CallToolResult> CallToolAsync(RequestContext<CallToolRequestPara
     if (toolName == "get_skill_details")
     {
         return HandleGetSkillDetails(p?.Arguments);
+    }
+
+    // --- Route: get_execution_log ---
+    if (toolName == "get_execution_log")
+    {
+        return HandleGetExecutionLog(p?.Arguments);
     }
 
     // --- Route: MCP-specific tools (copilot-instructions) ---
@@ -198,8 +222,10 @@ async ValueTask<CallToolResult> HandleGuideToolAsync(
                 "environment-mutation", query, top, server, ct, guideName);
             await Task.WhenAll(inspectionTask, mutationTask);
 
+#pragma warning disable RS0030 // Tasks already completed after WhenAll — .Result is non-blocking
             var inspectionResult = inspectionTask.Result;
             var mutationResult = mutationTask.Result;
+#pragma warning restore RS0030
 
             // Merge text from both results
             var parts = new List<string>();
@@ -336,11 +362,46 @@ async Task<CallToolResult> ExecuteCliToolAsync(
             ? await rootsService.GetWorkingDirectoryAsync(ct)
             : null;
 
-        CliSubprocessResult result = await CliSubprocessRunner.RunAsync(cliArgs, logForwarder, ct, workingDirectory);
+        // Capture the MCP Server span before creating the Client span —
+        // Activity.Current will change once the dispatch span starts.
+        var mcpActivity = System.Diagnostics.Activity.Current;
 
-        mcpLogger.LogInformation("Tool completed: {ToolName} (exit code {ExitCode})", toolName, result.ExitCode);
+        CliSubprocessResult result;
+        // Client span for the subprocess dispatch — shows as a dependency in App Insights,
+        // creating the MCP Server → CLI Server parent-child relationship across the process boundary.
+        // Using explicit scope so the Client span is stopped before we tag the Server span.
+        using (var dispatchActivity = TxcTelemetry.Source.StartActivity(
+            $"subprocess:{toolName}", System.Diagnostics.ActivityKind.Client))
+        {
+            // Set peer.service so App Insights shows "talxis-cli" instead of "OTHER"
+            // in the dependency type and Application Map
+            dispatchActivity?.SetTag("peer.service", "talxis-cli");
+            dispatchActivity?.SetTag(TALXIS.CLI.Core.Telemetry.TxcTelemetryTags.Tool, toolName);
+            result = await CliSubprocessRunner.RunAsync(cliArgs, logForwarder, ct, workingDirectory);
 
-        return BuildToolResult(toolName, result);
+            dispatchActivity?.SetTag(TALXIS.CLI.Core.Telemetry.TxcTelemetryTags.SubprocessExitCode, result.ExitCode);
+            if (result.ExitCode != 0)
+                dispatchActivity?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, $"Exit code {result.ExitCode}");
+        }
+
+        // Propagate subprocess result to the MCP Server span so the request
+        // row in App Insights shows the correct exit code and failure status.
+        mcpActivity?.SetTag(TALXIS.CLI.Core.Telemetry.TxcTelemetryTags.ExitCode, result.ExitCode);
+        if (result.ExitCode != 0)
+        {
+            mcpActivity?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, $"Exit code {result.ExitCode}");
+            // Log the failure so TxcTelemetryLogProvider records it as an exception
+            // on the MCP Server span (Activity.Current is now the Server span again).
+            if (!string.IsNullOrWhiteSpace(result.LastErrors))
+                mcpLogger.LogError("Tool failed: {ToolName} (exit code {ExitCode}): {Error}",
+                    toolName, result.ExitCode, result.LastErrors.Split('\n')[0]);
+        }
+        else
+        {
+            mcpLogger.LogInformation("Tool completed: {ToolName} (exit code {ExitCode})", toolName, result.ExitCode);
+        }
+
+        return toolResultFactory.Build(toolName, result);
     }
     catch (OperationCanceledException) when (ct.IsCancellationRequested)
     {
@@ -348,7 +409,11 @@ async Task<CallToolResult> ExecuteCliToolAsync(
     }
     catch (Exception ex)
     {
-        return new CallToolResult { Content = [new TextContentBlock { Text = LogRedactionFilter.Redact(ex.ToString()) }], IsError = true };
+        // Log through ILogger so TxcTelemetryLogProvider bridges the exception
+        // to the Activity span (→ App Insights exceptions table with redaction).
+        TxcLoggerFactory.CreateLogger($"txc.{toolName}")
+            .LogError(ex, "Tool dispatch failed: {ToolName}", toolName);
+        return toolResultFactory.BuildExceptionResult(toolName, ex);
     }
     finally
     {
@@ -423,7 +488,7 @@ async ValueTask<CallToolResult> ExecuteAsTaskAsync(
 
             mcpLogger.LogInformation("Task completed: {ToolName} (exit code {ExitCode}, taskId: {TaskId})", toolName, result.ExitCode, mcpTask.TaskId);
 
-            var callToolResult = BuildToolResult(toolName, result);
+            var callToolResult = toolResultFactory.Build(toolName, result);
 
             var finalStatus = result.ExitCode != 0 ? McpTaskStatus.Failed : McpTaskStatus.Completed;
             var resultElement = System.Text.Json.JsonSerializer.SerializeToElement(callToolResult);
@@ -446,11 +511,7 @@ async ValueTask<CallToolResult> ExecuteAsTaskAsync(
         {
             try
             {
-                var errorResult = new CallToolResult
-                {
-                    IsError = true,
-                    Content = [new TextContentBlock { Text = $"Task execution failed: {LogRedactionFilter.Redact(ex.ToString())}" }]
-                };
+                var errorResult = toolResultFactory.BuildExceptionResult(toolName, ex);
                 var errorElement = System.Text.Json.JsonSerializer.SerializeToElement(errorResult);
                 var failedTask = await taskStore.StoreTaskResultAsync(
                     mcpTask.TaskId, McpTaskStatus.Failed, errorElement, sessionId, CancellationToken.None);
@@ -506,6 +567,38 @@ CallToolResult HandleGetSkillDetails(IDictionary<string, JsonElement>? arguments
     {
         Content = [new TextContentBlock { Text = content }]
     };
+}
+
+// Handler: get_execution_log — returns stored execution log for a previous tool call
+CallToolResult HandleGetExecutionLog(IDictionary<string, JsonElement>? arguments)
+{
+    if (arguments is null || !arguments.TryGetValue("uri", out var uriElement))
+    {
+        return new CallToolResult
+        {
+            Content = [new TextContentBlock { Text = "'uri' parameter is required. Pass the diagnostics URI from the tool response." }],
+            IsError = true
+        };
+    }
+
+    var uri = uriElement.GetString();
+    if (string.IsNullOrWhiteSpace(uri))
+    {
+        return new CallToolResult
+        {
+            Content = [new TextContentBlock { Text = "'uri' parameter must be a non-empty diagnostics URI." }],
+            IsError = true
+        };
+    }
+
+    // Extract optional filter/paging parameters
+    var level = arguments.TryGetValue("level", out var lvl) ? lvl.GetString() : null;
+    var category = arguments.TryGetValue("category", out var cat) ? cat.GetString() : null;
+    var search = arguments.TryGetValue("search", out var srch) ? srch.GetString() : null;
+    var skip = arguments.TryGetValue("skip", out var sk) && sk.TryGetInt32(out var skipVal) ? Math.Max(0, skipVal) : 0;
+    var take = arguments.TryGetValue("take", out var tk) && tk.TryGetInt32(out var takeVal) ? Math.Clamp(takeVal, 1, 500) : 50;
+
+    return executionLogService.BuildExecutionLogResult(uri, level, category, search, skip, take);
 }
 
 // Registers the always-on tools in the ActiveToolSet
@@ -590,6 +683,14 @@ For team-specific naming conventions and coding standards, use native Agent Skil
         Annotations = new ToolAnnotations { ReadOnlyHint = true }
     });
 
+    toolSet.AddAlwaysOn(new Tool
+    {
+        Name = "get_execution_log",
+        Description = "Fetch detailed diagnostics for a previous tool call. Pass the diagnostics URI from the tool response to retrieve summary, stderr log, and full error details. Supports filtering by log level, category, text search, and pagination.",
+        InputSchema = BuildGetExecutionLogInputSchema(),
+        Annotations = new ToolAnnotations { ReadOnlyHint = true }
+    });
+
     // copilot-instructions — existing MCP-specific tool (registered via catalog too, but needs always-on)
     var copilotEntry = registry.Catalog.GetEntry("copilot-instructions");
     if (copilotEntry is not null)
@@ -669,6 +770,50 @@ JsonElement BuildGetSkillDetailsInputSchema()
     return JsonSerializer.Deserialize<JsonElement>(JsonSerializer.Serialize(schema));
 }
 
+JsonElement BuildGetExecutionLogInputSchema()
+{
+    var schema = new Dictionary<string, object?>
+    {
+        ["type"] = "object",
+        ["properties"] = new Dictionary<string, object?>
+        {
+            ["uri"] = new Dictionary<string, object?>
+            {
+                ["type"] = "string",
+                ["description"] = "Diagnostics URI returned by a tool call (e.g. 'txc://logs/48c92ef8cab808755681d0981be837ec')."
+            },
+            ["level"] = new Dictionary<string, object?>
+            {
+                ["type"] = "string",
+                ["description"] = "Minimum log level filter. Only entries at this level or above are returned.",
+                ["enum"] = new List<string> { "Trace", "Debug", "Information", "Warning", "Error", "Critical" }
+            },
+            ["category"] = new Dictionary<string, object?>
+            {
+                ["type"] = "string",
+                ["description"] = "Filter log entries by category substring (e.g. 'WorkspaceValidateCliCommand')."
+            },
+            ["search"] = new Dictionary<string, object?>
+            {
+                ["type"] = "string",
+                ["description"] = "Full-text search across log entry messages and data values (case-insensitive)."
+            },
+            ["skip"] = new Dictionary<string, object?>
+            {
+                ["type"] = "integer",
+                ["description"] = "Number of matching entries to skip for pagination (default: 0)."
+            },
+            ["take"] = new Dictionary<string, object?>
+            {
+                ["type"] = "integer",
+                ["description"] = "Maximum entries to return per call (default: 50)."
+            }
+        },
+        ["required"] = new List<string> { "uri" }
+    };
+    return JsonSerializer.Deserialize<JsonElement>(JsonSerializer.Serialize(schema));
+}
+
 // Helper method to execute MCP-specific tools directly
 async Task<int> ExecuteMcpSpecificToolAsync(Type commandType, IDictionary<string, System.Text.Json.JsonElement>? arguments, CancellationToken ct)
 {
@@ -726,8 +871,9 @@ async Task<int> ExecuteMcpSpecificToolAsync(Type commandType, IDictionary<string
     }
     catch (Exception ex)
     {
-        Console.Error.WriteLine($"Error executing MCP-specific tool: {LogRedactionFilter.Redact(ex.Message)}");
-        return 1;
+        // Re-throw so the caller (ExecuteMcpSpecificToolWithCapturedOutputAsync)
+        // can handle it with BuildExceptionResult and proper diagnostics.
+        throw;
     }
 }
 
@@ -752,83 +898,23 @@ async Task<CallToolResult> ExecuteMcpSpecificToolWithCapturedOutputAsync(Type co
     }
     catch (Exception ex)
     {
-        return new CallToolResult
-        {
-            Content = [new TextContentBlock { Text = LogRedactionFilter.Redact(ex.ToString()) }],
-            IsError = true
-        };
+        return toolResultFactory.BuildExceptionResult(
+            commandType.Name, ex);
     }
 }
 
-// Build a CallToolResult, including a resource_link to the full log on failure
-CallToolResult BuildToolResult(string toolName, CliSubprocessResult result)
-{
-    var content = new List<ContentBlock>();
-
-    if (result.ExitCode == 0)
-    {
-        // Success: return stdout content
-        content.Add(new TextContentBlock { Text = result.Output });
-    }
-    else
-    {
-        // Failure: prefer stdout (contains structured error envelope from
-        // OutputFormatter.WriteResult), fall back to stderr error lines.
-        var errorText = !string.IsNullOrWhiteSpace(result.Output)
-            ? result.Output
-            : !string.IsNullOrWhiteSpace(result.LastErrors)
-                ? result.LastErrors
-                : $"Tool '{toolName}' failed with exit code {result.ExitCode}.";
-        content.Add(new TextContentBlock { Text = errorText });
-
-        // Store the full execution log and add a resource_link so the client can fetch details
-        if (!string.IsNullOrWhiteSpace(result.FullLog))
-        {
-            var logUri = toolLogStore.Store(toolName, result.FullLog, result.LastErrors, isError: true);
-            content.Add(new ResourceLinkBlock
-            {
-                Uri = logUri,
-                Name = $"Full execution log for {toolName}",
-                Description = "Complete stderr log from the subprocess. Use resources/read to retrieve.",
-                MimeType = "text/plain"
-            });
-        }
-    }
-
-    return new CallToolResult
-    {
-        Content = content,
-        IsError = result.ExitCode != 0
-    };
-}
-
-// MCP resource listing — exposes stored tool execution logs
+// MCP resource listing — exposes stored execution-log resources
 ValueTask<ListResourcesResult> ListResourcesAsync(RequestContext<ListResourcesRequestParams> ctx, CancellationToken ct)
 {
-    var entries = toolLogStore.ListAll();
-    var resources = entries.Select(e => new Resource
-    {
-        Uri = e.Uri,
-        Name = $"Execution log: {e.Entry.ToolName}",
-        Description = $"Full stderr log from {e.Entry.ToolName} at {e.Entry.Timestamp:u}",
-        MimeType = "text/plain"
-    }).ToList();
-
-    return ValueTask.FromResult(new ListResourcesResult { Resources = resources });
+    return ValueTask.FromResult(new ListResourcesResult { Resources = executionLogService.ListResources() });
 }
 
-// MCP resource read — returns the full execution log for a given URI
+// MCP resource read — returns structured execution log for a given URI
 ValueTask<ReadResourceResult> ReadResourceAsync(RequestContext<ReadResourceRequestParams> ctx, CancellationToken ct)
 {
     var uri = ctx.Params?.Uri ?? throw new McpException("Resource URI is required.");
 
-    if (!toolLogStore.TryGet(uri, out var entry) || entry is null)
-        throw new McpException($"Resource not found: {uri}");
-
-    return ValueTask.FromResult(new ReadResourceResult
-    {
-        Contents = [new TextResourceContents { Uri = uri, MimeType = "text/plain", Text = entry.FullLog }]
-    });
+    return ValueTask.FromResult(executionLogService.ReadResource(uri));
 }
 
 // Helper method to convert JsonElement to the target property type
@@ -851,4 +937,9 @@ object? ConvertJsonElementToPropertyType(System.Text.Json.JsonElement jsonElemen
     
     // For more complex types, try deserializing from JSON
     return System.Text.Json.JsonSerializer.Deserialize(jsonElement.GetRawText(), targetType);
+}
+
+void InitializeMcpTelemetry()
+{
+    TALXIS.CLI.TxcTelemetryBootstrap.Initialize(entryPoint: "mcp", ensureServices: true);
 }
