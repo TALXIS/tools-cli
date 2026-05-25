@@ -105,7 +105,7 @@ internal static class CliSubprocessRunner
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             CreateNoWindow = true,
-            WorkingDirectory = workingDirectory ?? System.Environment.CurrentDirectory
+            WorkingDirectory = McpPathNormalizer.NormalizeOperationalPath(workingDirectory ?? System.Environment.CurrentDirectory)
         };
 
         // Enable structured JSON logging for MCP consumption
@@ -171,11 +171,12 @@ internal static class CliSubprocessRunner
             throw new InvalidOperationException("Could not resolve the TALXIS CLI assembly path.");
         }
 
+        cliAssemblyPath = McpPathNormalizer.NormalizeOperationalPath(cliAssemblyPath);
         string cliDirectory = Path.GetDirectoryName(cliAssemblyPath)
             ?? throw new InvalidOperationException("Could not resolve the TALXIS CLI directory.");
 
         string cliExecutableName = OperatingSystem.IsWindows() ? "TALXIS.CLI.exe" : "TALXIS.CLI";
-        string cliExecutablePath = Path.Combine(cliDirectory, cliExecutableName);
+        string cliExecutablePath = McpPathNormalizer.NormalizeOperationalPath(Path.Combine(cliDirectory, cliExecutableName));
         if (File.Exists(cliExecutablePath))
         {
             return (cliExecutablePath, null);

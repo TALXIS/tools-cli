@@ -67,6 +67,19 @@ public class RootsServiceTests
     }
 
     [Fact]
+    public void ConvertFileUri_HomeRelativePath_ResolvesAgainstUserProfile()
+    {
+        var home = System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile);
+        var result = RootsService.ConvertFileUriToPath("file:///~/Sources/project");
+
+        Assert.NotNull(result);
+        var expected = string.IsNullOrWhiteSpace(home)
+            ? Path.GetFullPath("/~/Sources/project")
+            : Path.GetFullPath(Path.Combine(home, "Sources", "project"));
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
     public void ConvertFileUri_ResultIsFullPath()
     {
         // Path.GetFullPath always returns an absolute path
