@@ -107,6 +107,12 @@ PREFER LOCAL OPERATIONS: Workspace operations are instant and reversible. Enviro
     rootsService = new RootsService(mcpServer, loggerFactory?.CreateLogger<RootsService>());
     var lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
     appLifetime = lifetime;
+
+    // Flush pending telemetry spans when the MCP server shuts down.
+    // Without this, short-lived sessions or abrupt exits would silently lose spans
+    // because the OTel batch exporter fires on a timer (default 5s).
+    lifetime.ApplicationStopping.Register(() => TALXIS.CLI.Logging.TxcTelemetrySetup.Shutdown());
+
     await host.RunAsync();
     return 0;
 }

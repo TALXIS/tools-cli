@@ -68,6 +68,22 @@ internal sealed class McpToolResultFactory
             return callResult;
         }
 
+        // When CLI outputs a CommandResultEnvelope JSON (status/message/exitCode/support),
+        // extract the human-readable message and reuse the parsed fields so both MCP
+        // surfaces (content for humans, structuredContent for machines) carry the same
+        // information without double-nesting raw JSON.
+        var envelope = TryParseCliEnvelope(result.Output?.Trim());
+        if (envelope != null)
+        {
+            return BuildFailureResult(
+                toolName,
+                summary: envelope.Message ?? $"Tool '{toolName}' failed with exit code {result.ExitCode}.",
+                diagnosticsUri,
+                envelope.ExitCode ?? result.ExitCode,
+                operationId,
+                cliSupport: envelope.Support);
+        }
+
         string summary = BuildFailureSummary(toolName, result.Output, result.LastErrors, result.ExitCode);
         return BuildFailureResult(toolName, summary, diagnosticsUri, result.ExitCode, operationId);
     }
@@ -116,14 +132,64 @@ internal sealed class McpToolResultFactory
         }
     }
 
-    private CallToolResult BuildFailureResult(string toolName, string summary,
-        string diagnosticsUri, int exitCode = -1, string? operationId = null)
+    /// <summary>
+    /// Tries to parse CLI stdout as a <c>CommandResultEnvelope</c> JSON
+    /// (<c>{"status":"failed","message":"...","exitCode":1,"support":{...}}</c>).
+    /// Returns null if the output is not valid JSON or does not match the envelope shape.
+    /// </summary>
+    private static CliEnvelopeFields? TryParseCliEnvelope(string? text)
     {
-        var support = new SupportContext
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        try
         {
-            SessionId = _sessionIdAccessor() ?? "unknown",
-            OperationId = operationId ?? "unknown",
-        };
+            using var doc = JsonDocument.Parse(text);
+            var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Object) return null;
+
+            // Must have "status" and "message" to be recognized as an envelope
+            if (!root.TryGetProperty("status", out var statusProp) || statusProp.ValueKind != JsonValueKind.String)
+                return null;
+            if (!root.TryGetProperty("message", out var messageProp) || messageProp.ValueKind != JsonValueKind.String)
+                return null;
+
+            int? exitCode = root.TryGetProperty("exitCode", out var ecProp) && ecProp.ValueKind == JsonValueKind.Number
+                ? ecProp.GetInt32() : null;
+
+            SupportContext? support = null;
+            if (root.TryGetProperty("support", out var supportProp) && supportProp.ValueKind == JsonValueKind.Object)
+            {
+                support = JsonSerializer.Deserialize<SupportContext>(supportProp.GetRawText(), TxcOutputJsonOptions.Default);
+            }
+
+            return new CliEnvelopeFields(messageProp.GetString(), exitCode, support);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private sealed record CliEnvelopeFields(string? Message, int? ExitCode, SupportContext? Support);
+
+    private CallToolResult BuildFailureResult(string toolName, string summary,
+        string diagnosticsUri, int exitCode = -1, string? operationId = null,
+        SupportContext? cliSupport = null)
+    {
+        // Prefer support context from the CLI subprocess envelope (it carries the actual
+        // operation ID from the child process). Fall back to MCP-level context.
+        var sessionId = _sessionIdAccessor() ?? "unknown";
+        var opId = operationId ?? "unknown";
+        var support = cliSupport != null
+            ? new SupportContext
+            {
+                SessionId = !string.IsNullOrEmpty(cliSupport.SessionId) ? cliSupport.SessionId : sessionId,
+                OperationId = !string.IsNullOrEmpty(cliSupport.OperationId) ? cliSupport.OperationId : opId,
+            }
+            : new SupportContext
+            {
+                SessionId = sessionId,
+                OperationId = opId,
+            };
         var supportText = support.FormatAsText();
         var supportBlock = string.IsNullOrEmpty(supportText) ? "" : $"{Environment.NewLine}{supportText}";
 
