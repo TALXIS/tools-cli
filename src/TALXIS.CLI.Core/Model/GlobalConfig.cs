@@ -46,4 +46,16 @@ public sealed class TelemetrySettings
     /// When null, the built-in default (embedded at Release build time) is used.
     /// </summary>
     public string? ConnectionString { get; set; }
+
+    /// <summary>
+    /// When true, telemetry collection is disabled entirely. No data is sent.
+    /// Can also be set via the <c>TXC_TELEMETRY_OPTOUT</c> environment variable.
+    /// </summary>
+    public bool OptOut { get; set; }
+
+    /// <summary>
+    /// Tracks whether the first-run telemetry notice has been shown.
+    /// Set automatically after the notice is displayed; not user-facing.
+    /// </summary>
+    public bool NoticeShown { get; set; }
 }

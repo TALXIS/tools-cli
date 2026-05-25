@@ -12,4 +12,10 @@ public static class TxcConstants
     /// and <c>McpToolResultFactory</c> (MCP) to produce consistent error output.
     /// </summary>
     public const string RepositoryIssuesUrl = "https://github.com/TALXIS/tools-cli/issues";
+
+    /// <summary>
+    /// URL to the telemetry disclosure document (TELEMETRY.md) on GitHub.
+    /// Referenced by the first-run notice shown to CLI users.
+    /// </summary>
+    public const string TelemetryDocUrl = "https://github.com/TALXIS/tools-cli/blob/main/TELEMETRY.md";
 }

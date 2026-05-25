@@ -25,6 +25,12 @@ internal static class SettingRegistry
             new[] { "plain", "json" },
             g => g.Log.Format,
             (g, v) => g.Log.Format = v),
+        new(
+            "telemetry.optOut",
+            "Disable telemetry collection. See TELEMETRY.md for details.",
+            new[] { "true", "false" },
+            g => g.Telemetry.OptOut.ToString().ToLowerInvariant(),
+            (g, v) => g.Telemetry.OptOut = string.Equals(v, "true", StringComparison.OrdinalIgnoreCase)),
     };
 
     public static SettingDescriptor? Find(string key)

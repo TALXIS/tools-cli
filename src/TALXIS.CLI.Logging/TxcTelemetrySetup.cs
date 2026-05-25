@@ -36,16 +36,17 @@ public static class TxcTelemetrySetup
     public static SessionIdResolver? SessionResolver => _sessionIdResolver;
 
     /// <summary>
-    /// Initializes telemetry. Always on in Release builds — the only gate is
-    /// whether a connection string is available (embedded at build time or
-    /// set via environment variable).
+    /// Initializes telemetry. On by default for Release builds — gated by
+    /// connection string availability and opt-out flag.
     /// Safe to call multiple times — subsequent calls are no-ops.
     /// </summary>
     /// <param name="configConnectionString">Optional connection string from the user's config file
     /// (<c>telemetry.connectionString</c>). Falls back to build-time embedded value if null.</param>
     /// <param name="entryPoint">Identifies the host: <c>"cli"</c> or <c>"mcp"</c>.
     /// Used to set the OTel service name (<c>talxis-cli</c> vs <c>talxis-mcp</c>).</param>
-    public static void Initialize(string? configConnectionString = null, string entryPoint = "cli")
+    /// <param name="configOptOut">Opt-out flag from the user's config file
+    /// (<c>telemetry.optOut</c>). Environment variable <c>TXC_TELEMETRY_OPTOUT</c> takes priority.</param>
+    public static void Initialize(string? configConnectionString = null, string entryPoint = "cli", bool configOptOut = false)
     {
         if (_initialized) return;
         _initialized = true;
@@ -61,6 +62,9 @@ public static class TxcTelemetrySetup
         // Debug/local builds — no telemetry, no exporter loaded
         return;
 #else
+        if (TxcTelemetry.IsOptedOut(configOptOut))
+            return;
+
         var connectionString = TxcTelemetry.ResolveConnectionString(configConnectionString);
         if (string.IsNullOrWhiteSpace(connectionString))
             return;

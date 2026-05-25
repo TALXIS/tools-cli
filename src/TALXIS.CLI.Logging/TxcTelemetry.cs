@@ -10,10 +10,10 @@ namespace TALXIS.CLI.Logging;
 /// The canonical <see cref="ActivitySource"/> lives in <see cref="TxcActivitySource"/>
 /// (Abstractions) so both Core and Logging share a single instance.
 ///
-/// <para><b>Opt-in model:</b> Telemetry is always on for published (Release) builds.
-/// The only gate is whether a connection string is available (embedded at build time
-/// or set via environment variable). Debug/local builds skip initialization entirely
-/// via <c>#if TELEMETRY_ENABLED</c>.</para>
+/// <para>Telemetry is on by default for published (Release) builds. Users can
+/// opt out via <c>TXC_TELEMETRY_OPTOUT=1</c> environment variable or the
+/// <c>telemetry.optOut</c> config setting. Debug/local builds skip initialization
+/// entirely via <c>#if TELEMETRY_ENABLED</c>. See TELEMETRY.md for full details.</para>
 ///
 /// <para>Connection string resolution (highest priority wins):</para>
 /// <list type="number">
@@ -44,6 +44,13 @@ public static class TxcTelemetry
     public const string ConnectionStringEnvVar = "APPLICATIONINSIGHTS_CONNECTION_STRING";
 
     /// <summary>
+    /// Environment variable to opt out of telemetry collection.
+    /// Any truthy value (<c>1</c>, <c>true</c>, <c>yes</c>) disables telemetry.
+    /// Takes priority over the config file setting.
+    /// </summary>
+    public const string OptOutEnvVar = "TXC_TELEMETRY_OPTOUT";
+
+    /// <summary>
     /// Resolves the effective App Insights connection string.
     /// Returns null if no connection string is available (telemetry cannot be initialized).
     /// </summary>
@@ -61,6 +68,23 @@ public static class TxcTelemetry
 
         // 3. Built-in default (embedded at Release build time)
         return GetBuiltInConnectionString();
+    }
+
+    /// <summary>
+    /// Returns true if the user has opted out of telemetry via the
+    /// <c>TXC_TELEMETRY_OPTOUT</c> environment variable or the config file flag.
+    /// Environment variable takes priority over config.
+    /// </summary>
+    public static bool IsOptedOut(bool configOptOut = false)
+    {
+        var envValue = Environment.GetEnvironmentVariable(OptOutEnvVar);
+        if (!string.IsNullOrWhiteSpace(envValue))
+        {
+            return envValue == "1"
+                || string.Equals(envValue, "true", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(envValue, "yes", StringComparison.OrdinalIgnoreCase);
+        }
+        return configOptOut;
     }
 
     /// <summary>

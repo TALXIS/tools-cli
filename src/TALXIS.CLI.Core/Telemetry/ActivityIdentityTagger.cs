@@ -5,14 +5,13 @@ using TALXIS.CLI.Core.Model;
 namespace TALXIS.CLI.Core.Telemetry;
 
 /// <summary>
-/// Tags Activity spans with user/tenant/environment identity.
+/// Tags Activity spans with user/tenant/environment identity for telemetry enrichment.
 /// Constructor-injected via DI — host-agnostic, works for CLI (active profile),
 /// MCP (subprocess context), and future REST API (auth context from HTTP headers).
 ///
-/// <para><b>PII note:</b> Identity tags (UPN, object ID, tenant ID) are intentionally
-/// included for enterprise-internal App Insights diagnostics. This data is first-party
-/// (the user's own tenant) and flows only to the operator-controlled App Insights instance.
-/// If anonymous telemetry is required in the future, gate these tags behind a config flag.</para>
+/// <para>Identity tags (UPN, object ID, tenant ID) are included to correlate
+/// telemetry with the authenticated user and organization. See TELEMETRY.md
+/// for the full data-collection disclosure and opt-out instructions.</para>
 /// </summary>
 public sealed class ActivityIdentityTagger
 {
