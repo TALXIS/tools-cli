@@ -18,3 +18,11 @@ TXC013 | TALXIS.CLI.Design | Warning | Command with ambiguous name should declar
 TXC014 | TALXIS.CLI.Design | Warning | Use message templates instead of string interpolation in logger calls
 TXC016 | TALXIS.CLI.Design | Warning | CreateLogger must use nameof() for the category name
 TXC015 | TALXIS.CLI.Design | Warning | Catch blocks must not silently swallow exceptions
+TXC017 | TALXIS.CLI.Design | Warning | Do not create new ActivitySource instances
+TXC018 | TALXIS.CLI.Design | Info | Command classes should not read environment variables directly
+TXC019 | TALXIS.CLI.Design | Info | Avoid DateTime.Now / DateTimeOffset.Now
+TXC020 | TALXIS.CLI.Design | Warning | Use TxcConstants instead of hardcoded repository URLs
+TXC021 | TALXIS.CLI.Design | Warning | Use TxcActivitySource.CurrentOperationId instead of Activity.Current.Id
+TXC022 | TALXIS.CLI.Design | Warning | GetInnermostException must only be in ExceptionHelpers
+TXC023 | TALXIS.CLI.Design | Info | Prefer named interfaces over Func/Action in constructors
+TXC024 | TALXIS.CLI.Design | Info | DI-injected classes should not access static singletons

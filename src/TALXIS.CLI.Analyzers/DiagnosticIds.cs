@@ -52,4 +52,28 @@ internal static class DiagnosticIds
 
     /// <summary>CreateLogger calls must use nameof() for consistent category names.</summary>
     public const string LoggerMustUseNameof = "TXC016";
+
+    /// <summary>Do not create new ActivitySource instances — use TxcActivitySource.Instance.</summary>
+    public const string NoNewActivitySource = "TXC017";
+
+    /// <summary>Command classes should not call Environment.GetEnvironmentVariable — use DI/config.</summary>
+    public const string NoEnvVarInCommands = "TXC018";
+
+    /// <summary>Avoid DateTime.Now / DateTimeOffset.Now — prefer UTC or an injected clock.</summary>
+    public const string NoRawDateTimeNow = "TXC019";
+
+    /// <summary>Use TxcConstants instead of hardcoded repository URLs.</summary>
+    public const string NoHardcodedRepoUrl = "TXC020";
+
+    /// <summary>Use TxcActivitySource.CurrentOperationId instead of Activity.Current?.Id.</summary>
+    public const string NoActivityCurrentId = "TXC021";
+
+    /// <summary>GetInnermostException must only be defined in ExceptionHelpers.</summary>
+    public const string NoDuplicateExceptionHelper = "TXC022";
+
+    /// <summary>Prefer named interfaces over Func&lt;&gt;/Action&lt;&gt; in constructors.</summary>
+    public const string NoFuncInConstructor = "TXC023";
+
+    /// <summary>DI-injected classes should not access static singletons — inject them instead.</summary>
+    public const string NoStaticSingletonInDiServices = "TXC024";
 }
