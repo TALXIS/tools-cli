@@ -162,11 +162,16 @@ public static class TxcTelemetrySetup
         return (OpenTelemetry.Trace.TracerProvider)builder.Build()!;
     }
 
+#endif
+
+    /// <summary>
+    /// Resolves the OTel service name suffix. Defaults to <paramref name="entryPoint"/>
+    /// unless overridden by <c>TXC_SERVICE_SUFFIX</c> (set by the MCP subprocess runner
+    /// so child CLI processes identify as <c>talxis-cli</c> instead of <c>talxis-mcp</c>).
+    /// </summary>
     internal static string ResolveServiceSuffix(string entryPoint)
     {
         var overrideSuffix = Environment.GetEnvironmentVariable("TXC_SERVICE_SUFFIX");
         return string.IsNullOrWhiteSpace(overrideSuffix) ? entryPoint : overrideSuffix;
     }
-
-#endif
 }

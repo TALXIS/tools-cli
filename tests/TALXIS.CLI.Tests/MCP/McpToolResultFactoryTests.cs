@@ -188,9 +188,13 @@ public class McpToolResultFactoryTests
 
         Assert.True(toolResult.IsError != true);
 
-        // content should be human-readable message, NOT raw JSON
+        // content[0] should be human-readable message with diagnostics URI, NOT raw JSON
         var text = Assert.IsType<TextContentBlock>(toolResult.Content[0]);
-        Assert.Equal("Record deleted successfully.", text.Text);
+        Assert.StartsWith("Record deleted successfully.", text.Text);
+        Assert.Contains("Diagnostics URI:", text.Text);
+
+        // content[1] should be a ResourceLinkBlock for the execution log
+        var resourceLink = Assert.IsType<ResourceLinkBlock>(toolResult.Content[1]);
 
         // structuredContent should have clean envelope fields
         Assert.NotNull(toolResult.StructuredContent);

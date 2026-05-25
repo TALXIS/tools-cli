@@ -226,9 +226,18 @@ internal sealed class McpToolResultFactory
     {
         var message = envelope.Message ?? "Operation completed successfully.";
 
+        // Both surfaces carry the same information:
+        // content = human-readable text with diagnostics URI appended
+        // structuredContent = typed JSON with the same fields
+        var contentText = $"{message}\n\nDiagnostics URI: {diagnosticsUri}";
+
         return new CallToolResult
         {
-            Content = [new TextContentBlock { Text = message }],
+            Content =
+            [
+                new TextContentBlock { Text = contentText },
+                new ResourceLinkBlock { Name = "Execution log", Uri = diagnosticsUri, Title = "Execution log", MimeType = "application/json" }
+            ],
             StructuredContent = JsonSerializer.SerializeToElement(new
             {
                 status = "succeeded",
