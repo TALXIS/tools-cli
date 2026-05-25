@@ -87,7 +87,7 @@ internal sealed class RootsService
         // Windows, converting '/' → '\\', etc.).
         try
         {
-            return Path.GetFullPath(parsed.LocalPath);
+            return McpPathNormalizer.NormalizeOperationalPath(parsed.LocalPath, allowFileUriLocalPathHome: true);
         }
         catch (Exception)
         {
