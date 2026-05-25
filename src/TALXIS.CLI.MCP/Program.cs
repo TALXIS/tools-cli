@@ -214,10 +214,8 @@ async ValueTask<CallToolResult> HandleGuideToolAsync(
             // Return compact listing (no schemas) to avoid token bloat
             var tools = allEnvEntries.Select(McpToolRegistry.BuildToolDefinition).ToList();
             activeToolSet.InjectTools(tools);
-            result = new CallToolResult
-            {
-                Content = [new TextContentBlock { Text = GuideHandler.BuildCompactListingResponse(allEnvEntries, "environment") }]
-            };
+            result = McpToolResultFactory.BuildTextResult(
+                GuideHandler.BuildCompactListingResponse(allEnvEntries, "environment"));
         }
         else
         {
@@ -240,10 +238,7 @@ async ValueTask<CallToolResult> HandleGuideToolAsync(
             if (!string.IsNullOrEmpty(inspText)) parts.Add(inspText);
             if (!string.IsNullOrEmpty(mutText)) parts.Add(mutText);
 
-            result = new CallToolResult
-            {
-                Content = [new TextContentBlock { Text = string.Join("\n\n", parts) }]
-            };
+            result = McpToolResultFactory.BuildTextResult(string.Join("\n\n", parts));
         }
     }
     else if (workflowScope is not null)
@@ -396,18 +391,21 @@ async Task<CallToolResult> ExecuteCliToolAsync(
         if (result.ExitCode != 0)
         {
             mcpActivity?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, $"Exit code {result.ExitCode}");
-            // Log the failure so TxcTelemetryLogProvider records it as an exception
-            // on the MCP Server span (Activity.Current is now the Server span again).
+            // Set error message on MCP server span for at-a-glance context in App Insights
             if (!string.IsNullOrWhiteSpace(result.LastErrors))
+            {
+                var firstError = result.LastErrors.Split('\n')[0];
+                mcpActivity?.SetTag(TALXIS.CLI.Core.Telemetry.TxcTelemetryTags.ErrorMessage, firstError);
                 mcpLogger.LogError("Tool failed: {ToolName} (exit code {ExitCode}): {Error}",
-                    toolName, result.ExitCode, result.LastErrors.Split('\n')[0]);
+                    toolName, result.ExitCode, firstError);
+            }
         }
         else
         {
             mcpLogger.LogInformation("Tool completed: {ToolName} (exit code {ExitCode})", toolName, result.ExitCode);
         }
 
-        return toolResultFactory.Build(toolName, result);
+        return toolResultFactory.BuildDataResult(toolName, result);
     }
     catch (OperationCanceledException) when (ct.IsCancellationRequested)
     {
@@ -494,7 +492,7 @@ async ValueTask<CallToolResult> ExecuteAsTaskAsync(
 
             mcpLogger.LogInformation("Task completed: {ToolName} (exit code {ExitCode}, taskId: {TaskId})", toolName, result.ExitCode, mcpTask.TaskId);
 
-            var callToolResult = toolResultFactory.Build(toolName, result);
+            var callToolResult = toolResultFactory.BuildDataResult(toolName, result);
 
             var finalStatus = result.ExitCode != 0 ? McpTaskStatus.Failed : McpTaskStatus.Completed;
             var resultElement = System.Text.Json.JsonSerializer.SerializeToElement(callToolResult);
@@ -532,8 +530,11 @@ async ValueTask<CallToolResult> ExecuteAsTaskAsync(
         }
     }, CancellationToken.None);
 
-    // Return immediately with task handle
+    // Return immediately with task handle — the actual result is built via
+    // McpToolResultFactory.BuildDataResult when the background task completes.
+#pragma warning disable TXC029 // Task handle is an MCP protocol construct, not a tool result
     return new CallToolResult { Task = mcpTask };
+#pragma warning restore TXC029
 }
 
 // Helper: checks if a tool name is a guide tool
@@ -553,26 +554,17 @@ bool IsMcpSpecificTool(string toolName)
 CallToolResult HandleGetSkillDetails(IDictionary<string, JsonElement>? arguments)
 {
     if (arguments is null || !arguments.TryGetValue("skill_id", out var skillIdEl))
-        return new CallToolResult
-        {
-            Content = [new TextContentBlock { Text = $"'skill_id' parameter is required.\n\n{publicSkillLoader.GetSkillsIndexPrompt()}" }],
-            IsError = true
-        };
+        return McpToolResultFactory.BuildErrorResult(
+            $"'skill_id' parameter is required.\n\n{publicSkillLoader.GetSkillsIndexPrompt()}");
 
     var skillId = skillIdEl.GetString() ?? "";
     var content = publicSkillLoader.GetSkillContent(skillId);
 
     if (content is null)
-        return new CallToolResult
-        {
-            Content = [new TextContentBlock { Text = $"Skill '{skillId}' not found.\n\n{publicSkillLoader.GetSkillsIndexPrompt()}" }],
-            IsError = true
-        };
+        return McpToolResultFactory.BuildErrorResult(
+            $"Skill '{skillId}' not found.\n\n{publicSkillLoader.GetSkillsIndexPrompt()}");
 
-    return new CallToolResult
-    {
-        Content = [new TextContentBlock { Text = content }]
-    };
+    return McpToolResultFactory.BuildTextResult(content);
 }
 
 // Handler: get_execution_log — returns stored execution log for a previous tool call
@@ -580,21 +572,15 @@ CallToolResult HandleGetExecutionLog(IDictionary<string, JsonElement>? arguments
 {
     if (arguments is null || !arguments.TryGetValue("uri", out var uriElement))
     {
-        return new CallToolResult
-        {
-            Content = [new TextContentBlock { Text = "'uri' parameter is required. Pass the diagnostics URI from the tool response." }],
-            IsError = true
-        };
+        return McpToolResultFactory.BuildErrorResult(
+            "'uri' parameter is required. Pass the diagnostics URI from the tool response.");
     }
 
     var uri = uriElement.GetString();
     if (string.IsNullOrWhiteSpace(uri))
     {
-        return new CallToolResult
-        {
-            Content = [new TextContentBlock { Text = "'uri' parameter must be a non-empty diagnostics URI." }],
-            IsError = true
-        };
+        return McpToolResultFactory.BuildErrorResult(
+            "'uri' parameter must be a non-empty diagnostics URI.");
     }
 
     // Extract optional filter/paging parameters
@@ -604,7 +590,7 @@ CallToolResult HandleGetExecutionLog(IDictionary<string, JsonElement>? arguments
     var skip = arguments.TryGetValue("skip", out var sk) && sk.TryGetInt32(out var skipVal) ? Math.Max(0, skipVal) : 0;
     var take = arguments.TryGetValue("take", out var tk) && tk.TryGetInt32(out var takeVal) ? Math.Clamp(takeVal, 1, 500) : 50;
 
-    return executionLogService.BuildExecutionLogResult(uri, level, category, search, skip, take);
+    return toolResultFactory.BuildExecutionLogResult(uri, level, category, search, skip, take);
 }
 
 // Registers the always-on tools in the ActiveToolSet
@@ -895,12 +881,17 @@ async Task<CallToolResult> ExecuteMcpSpecificToolWithCapturedOutputAsync(Type co
     {
         var exitCode = await ExecuteMcpSpecificToolAsync(commandType, arguments, ct);
         output.Flush();
+        var captured = output.ToString();
 
-        return new CallToolResult
-        {
-            Content = [new TextContentBlock { Text = output.ToString() }],
-            IsError = exitCode != 0
-        };
+        // Route through the factory for consistent content/structuredContent
+        // and execution log storage. Build a CliSubprocessResult from the
+        // captured in-process output.
+        var subprocessResult = new CliSubprocessResult(
+            exitCode: exitCode,
+            output: captured,
+            lastErrors: string.Empty,
+            structuredEntries: []);
+        return toolResultFactory.BuildDataResult(commandType.Name, subprocessResult);
     }
     catch (Exception ex)
     {

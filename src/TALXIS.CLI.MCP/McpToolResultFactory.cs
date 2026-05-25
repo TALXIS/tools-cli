@@ -7,8 +7,13 @@ using TALXIS.CLI.Logging;
 namespace TALXIS.CLI.MCP;
 
 /// <summary>
-/// Builds MCP <see cref="CallToolResult"/> responses from CLI subprocess outcomes.
-/// Log query and resource operations are handled by <see cref="ExecutionLogService"/>.
+/// Single builder for all MCP <see cref="CallToolResult"/> responses.
+/// Enforces the content/structuredContent contract: both surfaces always carry
+/// the same information — <c>content</c> for humans, <c>structuredContent</c> for machines/AI.
+/// <para>
+/// All MCP tool handlers should use this factory instead of constructing
+/// <see cref="CallToolResult"/> directly. See TXC029 analyzer.
+/// </para>
 /// </summary>
 internal sealed class McpToolResultFactory
 {
@@ -24,7 +29,14 @@ internal sealed class McpToolResultFactory
         _sessionIdAccessor = sessionIdAccessor;
     }
 
-    public CallToolResult Build(string toolName, CliSubprocessResult result)
+    // ── CLI subprocess results (data commands, mutative commands) ──────────
+
+    /// <summary>
+    /// Builds a result from a CLI subprocess execution. Handles both success
+    /// and failure, detecting <c>CommandResultEnvelope</c> JSON to produce
+    /// clean human-readable <c>content</c> and typed <c>structuredContent</c>.
+    /// </summary>
+    public CallToolResult BuildDataResult(string toolName, CliSubprocessResult result)
     {
         // Capture operation ID while Activity is still active — by the time
         // BuildFailureResult runs the Activity scope may have ended.
@@ -32,8 +44,6 @@ internal sealed class McpToolResultFactory
 
         // Store execution log for every run — clients may need to troubleshoot
         // unexpected output even from successful executions.
-        // Use the root trace id as execution identity so diagnostics URI, telemetry,
-        // and App Insights operation_Id all share one canonical id.
         string diagnosticsUri = _toolLogStore.Store(
             toolName,
             result.ExitCode,
@@ -42,8 +52,18 @@ internal sealed class McpToolResultFactory
             result.StructuredEntries,
             operationId);
 
+        // ── Success path ──
         if (result.ExitCode == 0)
         {
+            // Detect CommandResultEnvelope on success (mutative commands like create/delete/update).
+            // Extract the human-readable message instead of showing raw JSON in content.
+            var successEnvelope = TryParseCliEnvelope(result.Output?.Trim());
+            if (successEnvelope != null)
+            {
+                return BuildSuccessEnvelopeResult(successEnvelope, diagnosticsUri);
+            }
+
+            // Non-envelope output: data tables, JSON objects, plain text
             string successText = result.Output;
             if (result.StructuredEntries.Count > 0)
             {
@@ -51,7 +71,6 @@ internal sealed class McpToolResultFactory
                     $"Diagnostics URI: {diagnosticsUri}";
             }
 
-            // Try to parse CLI output as JSON for structuredContent
             JsonElement? structuredData = TryParseJson(result.Output?.Trim());
             var callResult = new CallToolResult
             {
@@ -68,10 +87,10 @@ internal sealed class McpToolResultFactory
             return callResult;
         }
 
+        // ── Failure path ──
         // When CLI outputs a CommandResultEnvelope JSON (status/message/exitCode/support),
         // extract the human-readable message and reuse the parsed fields so both MCP
-        // surfaces (content for humans, structuredContent for machines) carry the same
-        // information without double-nesting raw JSON.
+        // surfaces carry the same information without double-nesting raw JSON.
         var envelope = TryParseCliEnvelope(result.Output?.Trim());
         if (envelope != null)
         {
@@ -88,9 +107,11 @@ internal sealed class McpToolResultFactory
         return BuildFailureResult(toolName, summary, diagnosticsUri, result.ExitCode, operationId);
     }
 
+    /// <summary>
+    /// Builds a result from an exception that occurred before or during CLI execution.
+    /// </summary>
     public CallToolResult BuildExceptionResult(string toolName, Exception exception)
     {
-        // Capture operation ID while Activity is still active.
         var operationId = TxcActivitySource.CurrentOperationId;
 
         // Surface the innermost exception message — for wrapped exceptions
@@ -118,6 +139,106 @@ internal sealed class McpToolResultFactory
         return BuildFailureResult(toolName, summary, diagnosticsUri, exitCode: -1, operationId);
     }
 
+    // ── Text-only results (guides, skill content, prose) ──────────────────
+
+    /// <summary>
+    /// Builds a text-only result for prose responses (guide tools, skill content).
+    /// No <c>structuredContent</c> is set — intentionally text-only since
+    /// there is no structured data to represent.
+    /// </summary>
+    public static CallToolResult BuildTextResult(string text)
+    {
+        return new CallToolResult
+        {
+            Content = [new TextContentBlock { Text = text }]
+        };
+    }
+
+    // ── Error results (parameter validation, not-found) ───────────────────
+
+    /// <summary>
+    /// Builds an error result for parameter validation, not-found, or other
+    /// non-CLI errors. Both <c>content</c> and <c>structuredContent</c> carry
+    /// the same error message.
+    /// </summary>
+    public static CallToolResult BuildErrorResult(string message)
+    {
+        return new CallToolResult
+        {
+            IsError = true,
+            Content = [new TextContentBlock { Text = message }],
+            StructuredContent = JsonSerializer.SerializeToElement(new
+            {
+                status = "failed",
+                error = new { message }
+            }, TxcOutputJsonOptions.Default)
+        };
+    }
+
+    // ── Execution log results ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Builds a filtered, paginated execution log result.
+    /// Both <c>content</c> (JSON text) and <c>structuredContent</c> carry the same data.
+    /// </summary>
+    public CallToolResult BuildExecutionLogResult(string uri, string? level = null,
+        string? category = null, string? search = null, int skip = 0, int take = 50)
+    {
+        if (!_toolLogStore.TryGet(uri, out var entry) || entry is null)
+        {
+            return BuildErrorResult($"Execution log not found for '{uri}'.");
+        }
+
+        var allEntries = entry.LogEntries;
+        var filtered = ExecutionLogService.FilterLogEntries(allEntries, level, category, search);
+        var paged = filtered.Skip(skip).Take(take).ToList();
+
+        var resultData = new
+        {
+            entry.ToolName,
+            entry.ExitCode,
+            entry.Summary,
+            TotalEntries = allEntries.Count,
+            FilteredCount = filtered.Count,
+            Skip = skip,
+            Take = take,
+            LogEntries = paged
+        };
+
+        return new CallToolResult
+        {
+            Content = [new TextContentBlock
+            {
+                Text = JsonSerializer.Serialize(resultData, TxcOutputJsonOptions.Default)
+            }],
+            StructuredContent = JsonSerializer.SerializeToElement(resultData, TxcOutputJsonOptions.Default)
+        };
+    }
+
+    // ── Private helpers ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// Builds a success result from a parsed <c>CommandResultEnvelope</c>.
+    /// Extracts the human-readable message for <c>content</c> and uses the
+    /// envelope fields for <c>structuredContent</c> — no double-nesting.
+    /// </summary>
+    private static CallToolResult BuildSuccessEnvelopeResult(CliEnvelopeFields envelope, string diagnosticsUri)
+    {
+        var message = envelope.Message ?? "Operation completed successfully.";
+
+        return new CallToolResult
+        {
+            Content = [new TextContentBlock { Text = message }],
+            StructuredContent = JsonSerializer.SerializeToElement(new
+            {
+                status = "succeeded",
+                message,
+                id = envelope.Id,
+                diagnosticsUri
+            }, TxcOutputJsonOptions.Default)
+        };
+    }
+
     private static JsonElement? TryParseJson(string? text)
     {
         if (string.IsNullOrWhiteSpace(text)) return null;
@@ -134,7 +255,7 @@ internal sealed class McpToolResultFactory
 
     /// <summary>
     /// Tries to parse CLI stdout as a <c>CommandResultEnvelope</c> JSON
-    /// (<c>{"status":"failed","message":"...","exitCode":1,"support":{...}}</c>).
+    /// (<c>{"status":"...","message":"...","exitCode":1,"support":{...}}</c>).
     /// Returns null if the output is not valid JSON or does not match the envelope shape.
     /// </summary>
     private static CliEnvelopeFields? TryParseCliEnvelope(string? text)
@@ -155,13 +276,16 @@ internal sealed class McpToolResultFactory
             int? exitCode = root.TryGetProperty("exitCode", out var ecProp) && ecProp.ValueKind == JsonValueKind.Number
                 ? ecProp.GetInt32() : null;
 
+            string? id = root.TryGetProperty("id", out var idProp) && idProp.ValueKind == JsonValueKind.String
+                ? idProp.GetString() : null;
+
             SupportContext? support = null;
             if (root.TryGetProperty("support", out var supportProp) && supportProp.ValueKind == JsonValueKind.Object)
             {
                 support = JsonSerializer.Deserialize<SupportContext>(supportProp.GetRawText(), TxcOutputJsonOptions.Default);
             }
 
-            return new CliEnvelopeFields(messageProp.GetString(), exitCode, support);
+            return new CliEnvelopeFields(messageProp.GetString(), exitCode, id, support);
         }
         catch (JsonException)
         {
@@ -169,7 +293,7 @@ internal sealed class McpToolResultFactory
         }
     }
 
-    private sealed record CliEnvelopeFields(string? Message, int? ExitCode, SupportContext? Support);
+    private sealed record CliEnvelopeFields(string? Message, int? ExitCode, string? Id, SupportContext? Support);
 
     private CallToolResult BuildFailureResult(string toolName, string summary,
         string diagnosticsUri, int exitCode = -1, string? operationId = null,

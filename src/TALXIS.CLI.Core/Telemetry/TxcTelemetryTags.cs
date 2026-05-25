@@ -13,6 +13,7 @@ public static class TxcTelemetryTags
     public const string Version = "txc.version";
     public const string ExitCode = "txc.exit_code";
     public const string ErrorKind = "txc.error_kind";
+    public const string ErrorMessage = "txc.error_message";
 
     // MCP-specific
     public const string Tool = "txc.tool";

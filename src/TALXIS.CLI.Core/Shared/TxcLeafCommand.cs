@@ -108,10 +108,10 @@ public abstract class TxcLeafCommand
         catch (Exception ex) when (ex is Abstractions.ConfigurationResolutionException or ArgumentException)
         {
             exitCode = ExitValidationError;
-            scope.SetError(exitCode, "validation");
             var root = ExceptionHelpers.GetInnermostException(ex);
             var message = root != ex && !string.Equals(root.Message, ex.Message, StringComparison.Ordinal)
                 ? root.Message : ex.Message;
+            scope.SetError(exitCode, "validation", message);
             Logger.LogError(ex, "{Error}", message);
             LogSupportInfo();
             return exitCode;
@@ -119,18 +119,18 @@ public abstract class TxcLeafCommand
         catch (OperationCanceledException ex)
         {
             exitCode = ExitError;
-            scope.SetError(exitCode, "cancelled");
+            scope.SetError(exitCode, "cancelled", "Operation was cancelled.");
             Logger.LogWarning(ex, "Operation was cancelled.");
             return exitCode;
         }
         catch (Exception ex)
         {
             exitCode = ExitError;
-            scope.SetError(exitCode, "internal");
 
             var root = ExceptionHelpers.GetInnermostException(ex);
             var message = root != ex && !string.Equals(root.Message, ex.Message, StringComparison.Ordinal)
                 ? root.Message : ex.Message;
+            scope.SetError(exitCode, "internal", message);
 
             OutputFormatter.WriteResult("failed", message, exitCode: exitCode);
             Logger.LogError(ex, "Command failed: {Error}", message);

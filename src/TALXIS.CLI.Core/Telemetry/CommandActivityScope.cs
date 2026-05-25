@@ -48,14 +48,18 @@ public sealed class CommandActivityScope : IDisposable
     }
 
     /// <summary>
-    /// Records a classified error on the span (exit code + error kind).
-    /// Called from catch blocks via <see cref="TxcLeafCommand.LogCommandFailure"/>.
+    /// Records a classified error on the span (exit code + error kind + optional message).
+    /// Called from catch blocks in <see cref="TxcLeafCommand"/>.
+    /// The <paramref name="errorMessage"/> appears as <c>txc.error_message</c> in App Insights —
+    /// visible at a glance without drilling into exception events.
     /// </summary>
-    public void SetError(int exitCode, string errorKind)
+    public void SetError(int exitCode, string errorKind, string? errorMessage = null)
     {
         _exitCode = exitCode;
         Activity?.SetTag(TxcTelemetryTags.ExitCode, exitCode);
         Activity?.SetTag(TxcTelemetryTags.ErrorKind, errorKind);
+        if (!string.IsNullOrWhiteSpace(errorMessage))
+            Activity?.SetTag(TxcTelemetryTags.ErrorMessage, errorMessage);
     }
 
     public void Dispose() => Activity?.Dispose();
