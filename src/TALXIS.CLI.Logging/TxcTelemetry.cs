@@ -9,12 +9,13 @@ namespace TALXIS.CLI.Logging;
 /// Provides connection string resolution and CI detection.
 /// The canonical <see cref="ActivitySource"/> lives in <see cref="TxcActivitySource"/>
 /// (Abstractions) so both Core and Logging share a single instance.
-/// 
-/// Telemetry is always on for published (Release) builds. The only gate is whether
-/// a connection string is available (embedded at build time or set via environment variable).
-/// Debug/local builds skip initialization entirely via <c>#if TELEMETRY_ENABLED</c>.
-/// 
-/// Connection string resolution (highest priority wins):
+///
+/// <para><b>Opt-in model:</b> Telemetry is always on for published (Release) builds.
+/// The only gate is whether a connection string is available (embedded at build time
+/// or set via environment variable). Debug/local builds skip initialization entirely
+/// via <c>#if TELEMETRY_ENABLED</c>.</para>
+///
+/// <para>Connection string resolution (highest priority wins):</para>
 /// <list type="number">
 ///   <item>Environment variable <c>APPLICATIONINSIGHTS_CONNECTION_STRING</c></item>
 ///   <item>Config file <c>telemetry.connectionString</c></item>

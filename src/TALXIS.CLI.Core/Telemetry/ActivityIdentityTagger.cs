@@ -8,6 +8,11 @@ namespace TALXIS.CLI.Core.Telemetry;
 /// Tags Activity spans with user/tenant/environment identity.
 /// Constructor-injected via DI — host-agnostic, works for CLI (active profile),
 /// MCP (subprocess context), and future REST API (auth context from HTTP headers).
+///
+/// <para><b>PII note:</b> Identity tags (UPN, object ID, tenant ID) are intentionally
+/// included for enterprise-internal App Insights diagnostics. This data is first-party
+/// (the user's own tenant) and flows only to the operator-controlled App Insights instance.
+/// If anonymous telemetry is required in the future, gate these tags behind a config flag.</para>
 /// </summary>
 public sealed class ActivityIdentityTagger
 {
@@ -33,12 +38,13 @@ public sealed class ActivityIdentityTagger
             var config = await _configStore.LoadAsync(CancellationToken.None).ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(config.ActiveProfile)) return;
 
-            var context = await _resolver.ResolveAsync(null, CancellationToken.None).ConfigureAwait(false);
+            var context = await _resolver.ResolveAsync(config.ActiveProfile, CancellationToken.None).ConfigureAwait(false);
             TagFromResolvedProfile(activity, context.Credential, context.Connection);
         }
-        catch (Exception) when (true)
+        catch (Exception)
         {
             // Best-effort — never block command execution for telemetry
+            return;
         }
     }
 

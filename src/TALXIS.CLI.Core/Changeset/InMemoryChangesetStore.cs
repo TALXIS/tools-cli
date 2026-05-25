@@ -102,7 +102,7 @@ public sealed class InMemoryChangesetStore : IChangesetStore
         catch (Exception ex)
         {
             // Log warning so user knows persistence failed
-            _logger.LogWarning("Failed to persist changeset to disk: {Error}. Staged operations are in memory only and will be lost when the process exits.", ex.Message);
+            _logger.LogWarning(ex, "Failed to persist changeset to disk: {Error}. Staged operations are in memory only and will be lost when the process exits.", ex.Message);
         }
     }
 

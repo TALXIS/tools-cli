@@ -12,9 +12,13 @@ namespace TALXIS.CLI.Logging;
 /// <para>Behavior:</para>
 /// <list type="bullet">
 ///   <item><see cref="LogLevel.Error"/> and <see cref="LogLevel.Critical"/> events with
-///         an exception produce OTel exception events (→ App Insights <c>exceptions</c> table).</item>
+///         an exception produce OTel exception events (→ App Insights <c>exceptions</c> table)
+///         using semantic conventions (<c>exception.type</c>, <c>exception.message</c>,
+///         <c>exception.stacktrace</c>).</item>
 ///   <item>All text is redacted via <see cref="LogRedactionFilter"/> before reaching the Activity.</item>
 ///   <item>When no Activity is current, all operations are no-ops (zero overhead).</item>
+///   <item>Span error status is NOT set here — <c>CommandActivityScope.SetExitCode()</c>
+///         is the sole authority to avoid conflicting status overwrites.</item>
 /// </list>
 /// </summary>
 public sealed class TxcTelemetryLogProvider : ILoggerProvider

@@ -39,8 +39,10 @@ internal sealed class TxcConsoleFormatter : ConsoleFormatter
         // Redact before writing
         message = LogRedactionFilter.Redact(message) ?? string.Empty;
 
-        // Local time without offset — clean console output
-        textWriter.Write(DateTime.Now.ToString("HH:mm:ss"));
+        // Local time with UTC offset for cross-surface timestamp correlation
+#pragma warning disable TXC019 // Console formatter intentionally uses local time for human readability
+        textWriter.Write(DateTimeOffset.Now.ToString("HH:mm:sszzz"));
+#pragma warning restore TXC019
         textWriter.Write(' ');
 
         // Level prefix with ANSI color

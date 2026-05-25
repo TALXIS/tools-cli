@@ -16,7 +16,7 @@ namespace TALXIS.CLI.Features.Config.Setting;
 [CliIdempotent]
 [CliCommand(
     Name = "set",
-    Description = "Sets a LOCAL CLI preference key (e.g. log.level, log.format, telemetry.enabled). For LIVE Dataverse environment settings, use 'environment setting update' instead."
+    Description = "Sets a LOCAL CLI preference key (e.g. log.level, log.format, telemetry.connectionString). For LIVE Dataverse environment settings, use 'environment setting update' instead."
 )]
 public class SettingSetCliCommand : TxcLeafCommand
 {

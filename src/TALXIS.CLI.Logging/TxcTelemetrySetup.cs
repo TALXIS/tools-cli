@@ -41,8 +41,10 @@ public static class TxcTelemetrySetup
     /// set via environment variable).
     /// Safe to call multiple times — subsequent calls are no-ops.
     /// </summary>
-    /// <param name="configConnectionString">Optional connection string override from config file.</param>
-    /// <param name="entryPoint">Identifies the host: "cli" or "mcp".</param>
+    /// <param name="configConnectionString">Optional connection string from the user's config file
+    /// (<c>telemetry.connectionString</c>). Falls back to build-time embedded value if null.</param>
+    /// <param name="entryPoint">Identifies the host: <c>"cli"</c> or <c>"mcp"</c>.
+    /// Used to set the OTel service name (<c>talxis-cli</c> vs <c>talxis-mcp</c>).</param>
     public static void Initialize(string? configConnectionString = null, string entryPoint = "cli")
     {
         if (_initialized) return;
