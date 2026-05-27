@@ -38,7 +38,7 @@ Tests the full chain: profile → connection → auth → environment. Confirms 
 
 | Tool | Purpose |
 |---|---|
-| `config_profile_show` | Display current profile details (URL, auth method) |
+| `config_profile_get` | Display current profile details (URL, auth method) |
 | `config_profile_validate` | Test that the profile can connect |
 | `config_profile_list` | Show all configured profiles |
 
@@ -75,13 +75,13 @@ Profiles can be pinned to a workspace directory, so `txc` automatically uses the
 ### Switching Between Environments
 ```
 config_profile_list                          — see available profiles
-config_profile_show { profileName: "test" }  — verify target before switching
+config_profile_get { profileName: "test" }   — verify target before switching
 ```
 
 ## Troubleshooting Auth
 
 If `config_profile_validate` fails:
-1. Check the environment URL is correct (`config_profile_show`)
+1. Check the environment URL is correct (`config_profile_get`)
 2. Verify the service principal exists in the target environment's Azure AD
 3. Confirm the service principal has a Dataverse security role assigned
 4. Check if credentials (secret/certificate) have expired

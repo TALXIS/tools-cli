@@ -7,7 +7,7 @@ Scaffolding creates **local files** in your workspace — it does NOT create com
 ## Workflow Chain
 
 1. **`workspace_explain`** — understand what exists in the repo before creating anything
-2. **`workspace_component_type_list`** — discover available component types
+2. **`component_type_list`** — discover available component types
 3. **`workspace_component_parameter_list`** — get required parameters for a component type
 4. **`workspace_component_create`** — scaffold the component locally
 5. **Build locally** to validate: `dotnet build`
