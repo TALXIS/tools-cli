@@ -7,10 +7,6 @@ internal static class McpPathNormalizer
         if (string.IsNullOrWhiteSpace(path))
             throw new ArgumentException("Path must not be empty.", nameof(path));
 
-        var normalized = TryNormalizeWindowsFileUriDrivePath(path);
-        if (normalized != null)
-            return Path.GetFullPath(normalized);
-
         return Path.GetFullPath(ExpandHomeRelativePath(path, allowFileUriLocalPathHome));
     }
 
@@ -19,24 +15,24 @@ internal static class McpPathNormalizer
         if (string.IsNullOrWhiteSpace(path))
             return path;
 
+        // Normalize Windows file URI local drive paths like "/c:/project" early.
+        var normalizedPath = TryNormalizeWindowsFileUriDrivePath(path);
+        if (normalizedPath != null)
+            return normalizedPath;
+
         var suffixStart = GetHomeRelativeSuffixStart(path, allowFileUriLocalPathHome);
         if (suffixStart < 0)
             return path;
 
-        return TryExpandHomePath(path[suffixStart..]) ?? path;
-    }
-
-    private static string? TryExpandHomePath(string remainder)
-    {
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         if (string.IsNullOrWhiteSpace(home))
-            return null;
+            return path;
 
-        var trimmedRemainder = remainder.TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar, '\\', '/');
-        if (string.IsNullOrEmpty(trimmedRemainder))
+        var remainder = path[suffixStart..].TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar, '\\', '/');
+        if (string.IsNullOrEmpty(remainder))
             return home;
 
-        var segments = trimmedRemainder.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries);
+        var segments = remainder.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries);
         return segments.Length == 0 ? home : Path.Combine([home, .. segments]);
     }
 
