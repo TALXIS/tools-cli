@@ -43,7 +43,7 @@ When unsure where to start:
 2. `config_profile_get` — confirm correct environment
 3. `environment_deployment_get --latest` — check last deployment (or `--async-operation-id <id>` if a specific import is in flight)
 4. `environment_component_layer_list` — inspect component ownership
-5. `environment_component_dependency_required` or `_delete_check` — dependency issues
+5. `environment_component_dependency_required` or `environment_component_dependency_delete-check` — dependency issues
 
 → STOP as soon as you find the root cause — don't run all tools prophylactically
 
