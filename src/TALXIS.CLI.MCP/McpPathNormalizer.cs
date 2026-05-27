@@ -56,6 +56,7 @@ internal static class McpPathNormalizer
         return segments.Length == 0 ? home : Path.Combine([home, .. segments]);
     }
 
+    // Matches drive-qualified home paths like C:/~/project and C:\~\project.
     private static string? TryGetDriveQualifiedHomeRemainder(string path)
     {
         if (!OperatingSystem.IsWindows())
@@ -65,14 +66,23 @@ internal static class McpPathNormalizer
             return null;
 
         if (path[2] == '~')
-            return path[3..];
+            return path.Length == 3
+                ? string.Empty
+                : IsDirectorySeparator(path[3])
+                    ? path[4..]
+                    : null;
 
         if (path.Length >= 4 && IsDirectorySeparator(path[2]) && path[3] == '~')
-            return path[4..];
+            return path.Length == 4
+                ? string.Empty
+                : IsDirectorySeparator(path[4])
+                    ? path[4..]
+                    : null;
 
         return null;
     }
 
+    // Matches file URI local paths like /C:/~/project after Uri.LocalPath.
     private static string? TryGetFileUriDriveQualifiedHomeRemainder(string path)
     {
         if (!OperatingSystem.IsWindows())
@@ -81,9 +91,14 @@ internal static class McpPathNormalizer
         if (path.Length < 5 || path[0] != '/' || !char.IsLetter(path[1]) || path[2] != ':' || !IsDirectorySeparator(path[3]) || path[4] != '~')
             return null;
 
-        return path[5..];
+        return path.Length == 5
+            ? string.Empty
+            : IsDirectorySeparator(path[5])
+                ? path[5..]
+                : null;
     }
 
+    // Drops the leading slash from file URI local paths like /c:/project.
     private static string? TryNormalizeWindowsFileUriDrivePath(string path)
     {
         if (OperatingSystem.IsWindows() && path.Length >= 3
