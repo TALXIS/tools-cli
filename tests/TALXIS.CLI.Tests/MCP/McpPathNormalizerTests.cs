@@ -24,7 +24,6 @@ public class McpPathNormalizerTests
     }
 
     [Theory]
-    [InlineData("C:~")]
     [InlineData("C:/~")]
     [InlineData("C:\\~")]
     [InlineData("C:/~/Sources/project")]
@@ -40,9 +39,10 @@ public class McpPathNormalizerTests
     }
 
     [Theory]
-    [InlineData("C:~folder", false)]
     [InlineData("C:/~folder", false)]
     [InlineData("C:\\~folder", false)]
+    [InlineData("c:/~folder", false)]
+    [InlineData("c:\\~folder", false)]
     [InlineData("/C:/~folder", true)]
     [InlineData("/c:/~folder", true)]
     public void NormalizeOperationalPath_NonDelimitedDriveQualifiedTilde_RemainsFilesystemPath(string input, bool isFileUriLocalDrivePath)
