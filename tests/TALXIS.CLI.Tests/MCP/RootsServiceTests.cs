@@ -32,7 +32,25 @@ public class RootsServiceTests
         // VS Code on Windows sends lowercase drive letters
         var result = RootsService.ConvertFileUriToPath("file:///c:/Users/project");
         Assert.NotNull(result);
-        Assert.EndsWith("c:/Users/project", result.Replace('\\', '/'));
+        Assert.True(Path.IsPathFullyQualified(result), $"Expected fully-qualified path but got: {result}");
+
+        var normalised = result.Replace('\\', '/');
+        Assert.DoesNotContain("c:/c:/", normalised, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Users/project", normalised, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    public void ConvertFileUri_LowercaseDriveWorkspaceRoot_DoesNotDuplicateDrive()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        var result = RootsService.ConvertFileUriToPath("file:///c:/Users/example-user/Sources/my-agent-team");
+        Assert.NotNull(result);
+        Assert.True(Path.IsPathFullyQualified(result));
+        Assert.DoesNotContain(@"c:\c:", result, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith(Path.Combine("Users", "example-user", "Sources", "my-agent-team"), result,
+            StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -75,6 +93,21 @@ public class RootsServiceTests
         Assert.NotNull(result);
         var expected = string.IsNullOrWhiteSpace(home)
             ? Path.GetFullPath("/~/Sources/project")
+            : Path.GetFullPath(Path.Combine(home, "Sources", "project"));
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [InlineData("file:///C:/~/Sources/project")]
+    [InlineData("file:///c:/~/Sources/project")]
+    public void ConvertFileUri_DriveQualifiedHome_UsesUserProfile(string uri)
+    {
+        var home = System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile);
+        var result = RootsService.ConvertFileUriToPath(uri);
+
+        Assert.NotNull(result);
+        var expected = string.IsNullOrWhiteSpace(home)
+            ? Path.GetFullPath("/C:/~/Sources/project")
             : Path.GetFullPath(Path.Combine(home, "Sources", "project"));
         Assert.Equal(expected, result);
     }

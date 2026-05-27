@@ -7,6 +7,10 @@ internal static class McpPathNormalizer
         if (string.IsNullOrWhiteSpace(path))
             throw new ArgumentException("Path must not be empty.", nameof(path));
 
+        var expanded = ExpandDriveQualifiedHomePath(path);
+        if (expanded != null)
+            return Path.GetFullPath(expanded);
+
         return Path.GetFullPath(ExpandHomeRelativePath(path, allowFileUriLocalPathHome));
     }
 
@@ -19,16 +23,81 @@ internal static class McpPathNormalizer
         if (suffixStart < 0)
             return path;
 
+        return TryExpandHomePath(path[suffixStart..]) ?? path;
+    }
+
+    internal static string? ExpandDriveQualifiedHomePath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return null;
+
+        var driveQualifiedHomeRemainder = TryGetDriveQualifiedHomeRemainder(path);
+        if (driveQualifiedHomeRemainder != null)
+            return TryExpandHomePath(driveQualifiedHomeRemainder);
+
+        var fileUriDriveQualifiedHomeRemainder = TryGetFileUriDriveQualifiedHomeRemainder(path);
+        if (fileUriDriveQualifiedHomeRemainder != null)
+            return TryExpandHomePath(fileUriDriveQualifiedHomeRemainder);
+
+        return TryNormalizeWindowsFileUriDrivePath(path);
+    }
+
+    private static string? TryExpandHomePath(string remainder)
+    {
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         if (string.IsNullOrWhiteSpace(home))
-            return path;
+            return null;
 
-        var remainder = path[suffixStart..].TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar, '\\', '/');
-        if (string.IsNullOrEmpty(remainder))
+        var trimmedRemainder = remainder.TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar, '\\', '/');
+        if (string.IsNullOrEmpty(trimmedRemainder))
             return home;
 
-        var segments = remainder.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries);
+        var segments = trimmedRemainder.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries);
         return segments.Length == 0 ? home : Path.Combine([home, .. segments]);
+    }
+
+    private static string? TryGetDriveQualifiedHomeRemainder(string path)
+    {
+        if (!OperatingSystem.IsWindows())
+            return null;
+
+        if (!IsDriveQualifiedPath(path))
+            return null;
+
+        if (path[2] == '~')
+            return path[3..];
+
+        if (path.Length >= 4 && IsDirectorySeparator(path[2]) && path[3] == '~')
+            return path[4..];
+
+        return null;
+    }
+
+    private static string? TryGetFileUriDriveQualifiedHomeRemainder(string path)
+    {
+        if (!OperatingSystem.IsWindows())
+            return null;
+
+        if (path.Length < 5 || path[0] != '/' || !char.IsLetter(path[1]) || path[2] != ':' || !IsDirectorySeparator(path[3]) || path[4] != '~')
+            return null;
+
+        return path[5..];
+    }
+
+    private static string? TryNormalizeWindowsFileUriDrivePath(string path)
+    {
+        if (OperatingSystem.IsWindows() && path.Length >= 3
+            && path[0] == '/' && char.IsLetter(path[1]) && path[2] == ':')
+        {
+            return path[1..];
+        }
+
+        return null;
+    }
+
+    private static bool IsDriveQualifiedPath(string path)
+    {
+        return path.Length >= 3 && char.IsLetter(path[0]) && path[1] == ':';
     }
 
     private static int GetHomeRelativeSuffixStart(string path, bool allowFileUriLocalPathHome)
