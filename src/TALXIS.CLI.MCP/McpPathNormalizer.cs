@@ -7,9 +7,9 @@ internal static class McpPathNormalizer
         if (string.IsNullOrWhiteSpace(path))
             throw new ArgumentException("Path must not be empty.", nameof(path));
 
-        var expanded = ExpandDriveQualifiedHomePath(path);
-        if (expanded != null)
-            return Path.GetFullPath(expanded);
+        var normalized = TryNormalizeWindowsFileUriDrivePath(path);
+        if (normalized != null)
+            return Path.GetFullPath(normalized);
 
         return Path.GetFullPath(ExpandHomeRelativePath(path, allowFileUriLocalPathHome));
     }
@@ -26,22 +26,6 @@ internal static class McpPathNormalizer
         return TryExpandHomePath(path[suffixStart..]) ?? path;
     }
 
-    internal static string? ExpandDriveQualifiedHomePath(string path)
-    {
-        if (string.IsNullOrWhiteSpace(path))
-            return null;
-
-        var driveQualifiedHomeRemainder = TryGetDriveQualifiedHomeRemainder(path);
-        if (driveQualifiedHomeRemainder != null)
-            return TryExpandHomePath(driveQualifiedHomeRemainder);
-
-        var fileUriDriveQualifiedHomeRemainder = TryGetFileUriDriveQualifiedHomeRemainder(path);
-        if (fileUriDriveQualifiedHomeRemainder != null)
-            return TryExpandHomePath(fileUriDriveQualifiedHomeRemainder);
-
-        return TryNormalizeWindowsFileUriDrivePath(path);
-    }
-
     private static string? TryExpandHomePath(string remainder)
     {
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
@@ -56,49 +40,8 @@ internal static class McpPathNormalizer
         return segments.Length == 0 ? home : Path.Combine([home, .. segments]);
     }
 
-    // Matches drive-qualified home paths like C:/~/project and C:\~\project.
-    private static string? TryGetDriveQualifiedHomeRemainder(string path)
-    {
-        if (!OperatingSystem.IsWindows())
-            return null;
-
-        if (!IsDriveQualifiedPath(path))
-            return null;
-
-        if (path[2] == '~')
-            return path.Length == 3
-                ? string.Empty
-                : IsDirectorySeparator(path[3])
-                    ? path[4..]
-                    : null;
-
-        if (path.Length >= 4 && IsDirectorySeparator(path[2]) && path[3] == '~')
-            return path.Length == 4
-                ? string.Empty
-                : IsDirectorySeparator(path[4])
-                    ? path[4..]
-                    : null;
-
-        return null;
-    }
-
-    // Matches file URI local paths like /C:/~/project after Uri.LocalPath.
-    private static string? TryGetFileUriDriveQualifiedHomeRemainder(string path)
-    {
-        if (!OperatingSystem.IsWindows())
-            return null;
-
-        if (path.Length < 5 || path[0] != '/' || !char.IsLetter(path[1]) || path[2] != ':' || !IsDirectorySeparator(path[3]) || path[4] != '~')
-            return null;
-
-        return path.Length == 5
-            ? string.Empty
-            : IsDirectorySeparator(path[5])
-                ? path[5..]
-                : null;
-    }
-
     // Drops the leading slash from file URI local paths like /c:/project.
+    // This is a mechanical Uri.LocalPath normalization, not a semantic rewrite.
     private static string? TryNormalizeWindowsFileUriDrivePath(string path)
     {
         if (OperatingSystem.IsWindows() && path.Length >= 3
@@ -108,11 +51,6 @@ internal static class McpPathNormalizer
         }
 
         return null;
-    }
-
-    private static bool IsDriveQualifiedPath(string path)
-    {
-        return path.Length >= 3 && char.IsLetter(path[0]) && path[1] == ':';
     }
 
     private static int GetHomeRelativeSuffixStart(string path, bool allowFileUriLocalPathHome)

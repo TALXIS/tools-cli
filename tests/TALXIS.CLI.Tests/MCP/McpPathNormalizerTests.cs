@@ -24,24 +24,19 @@ public class McpPathNormalizerTests
     }
 
     [Theory]
-    [InlineData("C:~", null)]
-    [InlineData("C:/~", null)]
-    [InlineData("C:\\~", null)]
-    [InlineData("C:/~/Sources/project", "Sources/project")]
-    [InlineData("C:\\~\\Sources\\project", "Sources/project")]
-    [InlineData("c:/~", null)]
-    [InlineData("c:/~/Sources/project", "Sources/project")]
-    [InlineData("c:\\~\\Sources\\project", "Sources/project")]
-    [InlineData("/C:/~/Sources/project", "Sources/project")]
-    [InlineData("/c:/~/Sources/project", "Sources/project")]
-    public void NormalizeOperationalPath_DriveQualifiedHome_UsesUserProfile(string input, string? relativeToHome)
+    [InlineData("C:~")]
+    [InlineData("C:/~")]
+    [InlineData("C:\\~")]
+    [InlineData("C:/~/Sources/project")]
+    [InlineData("C:\\~\\Sources\\project")]
+    [InlineData("c:/~")]
+    [InlineData("c:/~/Sources/project")]
+    [InlineData("c:\\~\\Sources\\project")]
+    public void NormalizeOperationalPath_DriveQualifiedTilde_RemainsFilesystemPath(string input)
     {
-        var home = System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile);
         var result = McpPathNormalizer.NormalizeOperationalPath(input);
-        var expected = string.IsNullOrWhiteSpace(home)
-            ? Path.GetFullPath(input)
-            : Path.GetFullPath(relativeToHome is null ? home : Path.Combine(home, relativeToHome));
-        Assert.Equal(expected, result);
+
+        Assert.Equal(Path.GetFullPath(input), result);
     }
 
     [Theory]

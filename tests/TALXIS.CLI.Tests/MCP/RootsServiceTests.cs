@@ -100,15 +100,14 @@ public class RootsServiceTests
     [Theory]
     [InlineData("file:///C:/~/Sources/project")]
     [InlineData("file:///c:/~/Sources/project")]
-    public void ConvertFileUri_DriveQualifiedHome_UsesUserProfile(string uri)
+    public void ConvertFileUri_DriveQualifiedHome_RemainsFilesystemPath(string uri)
     {
-        var home = System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile);
         var result = RootsService.ConvertFileUriToPath(uri);
 
         Assert.NotNull(result);
-        var expected = string.IsNullOrWhiteSpace(home)
-            ? Path.GetFullPath("/C:/~/Sources/project")
-            : Path.GetFullPath(Path.Combine(home, "Sources", "project"));
+        var expected = OperatingSystem.IsWindows()
+            ? Path.GetFullPath(uri.Contains("/c:/", StringComparison.Ordinal) ? "c:/~/Sources/project" : "C:/~/Sources/project")
+            : Path.GetFullPath(uri.Contains("/c:/", StringComparison.Ordinal) ? "/c:/~/Sources/project" : "/C:/~/Sources/project");
         Assert.Equal(expected, result);
     }
 
