@@ -55,20 +55,20 @@ Separate concerns into dedicated solutions:
 | Tool | Purpose |
 |---|---|
 | `environment_solution_list` | List all solutions in the environment |
-| `environment_solution_show` | Details of a specific solution (version, publisher, etc.) |
+| `environment_solution_get` | Details of a specific solution (version, publisher, etc.) |
 | `environment_solution_component_list` | All components in a solution |
 | `environment_component_layer_list` | Layer stack for a specific component |
-| `environment_component_layer_show` | Details of a specific layer entry |
+| `environment_component_layer_get` | Details of a specific layer entry |
 
 ## Common Workflows
 
 ### "Which solution owns this component?"
 1. `environment_component_layer_list` with the component ID
 2. Review the layer stack — the topmost managed layer is the effective owner
-3. `environment_component_layer_show` for details on specific layers
+3. `environment_component_layer_get` for details on specific layers
 
 ### "What's in this solution?"
-1. `environment_solution_show` for solution metadata
+1. `environment_solution_get` for solution metadata
 2. `environment_solution_component_list` for the full component inventory
 
 ### Publisher Rules
@@ -80,7 +80,7 @@ Separate concerns into dedicated solutions:
 
 - ❌ Don't deploy unmanaged solutions to production — always use managed for proper lifecycle management
 - ❌ Don't put all components in a single solution — segment by concern for independent deployment cycles
-- ❌ Don't uninstall solutions without running `environment_solution_uninstall_check` — may cascade-delete data
+- ❌ Don't uninstall solutions without running `environment_solution_uninstall-check` — may cascade-delete data
 - ❌ Don't ignore layer conflicts — the topmost layer always wins, and unmanaged active layers override everything
 
 See also: [deployment-workflow](deployment-workflow.md), [troubleshooting](troubleshooting.md)

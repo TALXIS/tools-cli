@@ -10,7 +10,7 @@
 3. environment_solution_pack  — local operation, creates .zip
 4. environment_solution_import (--wait) — blocks until complete
 5. environment_solution_publish — required for UI changes to take effect
-6. environment_deployment_show --latest — verify success
+6. environment_deployment_get --latest — verify success
 ```
 
 ## Pre-Flight Decision Tree
@@ -21,7 +21,7 @@ Before deploying:
   │    └─ NO → fix build errors FIRST, never deploy broken builds
   ├─→ Is the profile validated?
   │    ├─ YES → proceed
-  │    └─ NO → config_profile_validate, then config_profile_show to confirm target
+  │    └─ NO → config_profile_validate, then config_profile_get to confirm target
   └─→ Dev or prod target?
        ├─ DEV → unmanaged import is fine
        └─ PROD/UAT → managed import ONLY, never unmanaged
@@ -30,7 +30,7 @@ Before deploying:
 ## Failure Recovery Sequence
 ```
 Import failed
-  └─→ environment_deployment_show --latest
+  └─→ environment_deployment_get --latest          (or --async-operation-id <id> from solution_import output)
        ├─→ Component error → environment_component_layer_list → resolve conflict
        ├─→ Missing dependency → environment_component_dependency_required → import dependency first
        ├─→ Version conflict → increment solution version → retry
@@ -51,4 +51,5 @@ Import failed
 - ❌ Deploying without building first → XML errors only caught at import (slow feedback)
 - ❌ Skipping `environment_solution_publish` → UI changes invisible to users
 - ❌ Deploying unmanaged to production → can't cleanly uninstall, no version tracking
-- ❌ Retrying failed imports without checking `environment_deployment_show` → repeating the same error
+- ❌ Retrying failed imports without checking `environment_deployment_get` → repeating the same error
+- ❌ Querying `asyncoperation` table directly via `environment_data_query_sql` to check import status → use `environment_deployment_get --async-operation-id <id>` instead — it returns structured findings, not raw status codes

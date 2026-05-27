@@ -46,7 +46,7 @@
 
 ## When to Use Workspace vs Environment Schema Tools
 → Creating/modifying schema for development: `workspace_component_create` (local)
-→ Inspecting what's deployed: `environment_entity_list`, `environment_entity_attribute_list` (live)
+→ Inspecting what's deployed: `environment_entity_list` (all entities), `environment_entity_describe <name>` (one entity with attributes) (live)
 → Emergency fix in non-prod: `environment_entity_attribute_create` (live, acceptable)
 → Prototyping before codifying: environment tools acceptable, but codify locally afterward
 

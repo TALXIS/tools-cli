@@ -2,7 +2,9 @@
 
 ## Deployment Failures
 
-**Start here:** `environment_deployment_show --latest`
+**Start here:** `environment_deployment_get --latest` (or `--async-operation-id <id>` from the `environment_solution_import` output)
+
+> Never query the `asyncoperation` table directly via `environment_data_query_sql` — it returns raw status codes and unparsed error XML. `environment_deployment_get` gives you structured findings with human-readable error messages.
 
 ```
 Import failed
@@ -27,7 +29,7 @@ Import failed
 When a component behaves unexpectedly or modifications don't take effect:
 
 1. **Inspect layers**: `environment_component_layer_list` — see all solutions that customize this component
-2. **Examine specific layer**: `environment_component_layer_show` — understand what each solution contributes
+2. **Examine specific layer**: `environment_component_layer_get` — understand what each solution contributes
 3. **Resolution**: The topmost layer wins. Either:
    - Update the topmost managed solution
    - Remove the unmanaged active layer
@@ -38,8 +40,8 @@ When a component behaves unexpectedly or modifications don't take effect:
 ```
 Commands fail with 401/403 or connection errors
   └─→ config_profile_validate
-       ├─→ "Invalid" → config_profile_show to check URL
-       │    └─→ config_connection_show to verify auth credentials
+       ├─→ "Invalid" → config_profile_get to check URL
+       │    └─→ config_connection_get to verify auth credentials
        │         └─→ Re-create auth: config_auth_add-service-principal
        │
        └─→ "Valid" but still failing
@@ -51,7 +53,7 @@ Commands fail with 401/403 or connection errors
 
 ### Can't Delete a Component
 ```
-Tool: environment_component_dependency_delete_check
+Tool: environment_component_dependency_delete-check
 ```
 Shows what depends on the component you're trying to delete. Remove or update those dependencies first.
 
@@ -64,7 +66,7 @@ Shows what components are required by a given component. Ensure all dependencies
 ## Wrong Environment
 
 If data or schema doesn't match expectations:
-1. `config_profile_show` — verify the environment URL
+1. `config_profile_get` — verify the environment URL
 2. Confirm you're connected to dev/test/prod as intended
 3. Switch profiles if needed
 
@@ -72,12 +74,12 @@ If data or schema doesn't match expectations:
 
 | Symptom | First Tool to Run |
 |---|---|
-| Import failed | `environment_deployment_show --latest` |
+| Import failed | `environment_deployment_get --latest` |
 | Component conflict | `environment_component_layer_list` |
-| Can't delete something | `environment_component_dependency_delete_check` |
+| Can't delete something | `environment_component_dependency_delete-check` |
 | Missing dependency | `environment_component_dependency_required` |
 | Auth errors | `config_profile_validate` |
-| Wrong data showing | `config_profile_show` |
+| Wrong data showing | `config_profile_get` |
 | Changes not visible | `environment_solution_publish` |
 
 ## Common Dataverse Error Codes

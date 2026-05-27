@@ -142,6 +142,14 @@ public class PackageImportCliCommand : ProfiledCliCommand
         {
             Logger.LogInformation("Package Deployer log: {LogPath}", Path.GetFullPath(LogFile));
         }
+        // Next-step hint — points agents at the structured deployment-get path instead of
+        // raw asyncoperation SQL when they want to inspect import findings. Only emitted
+        // for NuGet-resolved packages because local-file imports don't have a stable name
+        // to query packagehistory by.
+        if (!string.IsNullOrWhiteSpace(nugetPackageName))
+        {
+            Logger.LogInformation("Next: txc env deployment get --package-name {PackageName}", nugetPackageName);
+        }
         return ExitSuccess;
     }
 }
