@@ -71,7 +71,17 @@ internal sealed class McpTelemetryEnricher
             if (!string.IsNullOrWhiteSpace(profileName))
             {
                 if (_tagger != null)
+                {
                     await _tagger.TagFromProfileAsync(activity, profileName, ct).ConfigureAwait(false);
+                    return;
+                }
+
+                var explicitResolver = CreateResolver(workingDirectory);
+                if (explicitResolver != null)
+                {
+                    var explicitContext = await explicitResolver.ResolveAsync(profileName, ct).ConfigureAwait(false);
+                    ActivityIdentityTagger.TagFromResolvedProfile(activity, explicitContext.Credential, explicitContext.Connection);
+                }
                 return;
             }
 
@@ -86,13 +96,10 @@ internal sealed class McpTelemetryEnricher
                 || _globalConfig == null || _workspaceDiscovery == null)
                 return;
 
-            var resolver = new ConfigurationResolver(
-                _profiles,
-                _connections,
-                _credentials,
-                _globalConfig,
-                _workspaceDiscovery,
-                new FixedCurrentDirectoryEnvironmentReader(workingDirectory));
+            var resolver = CreateResolver(workingDirectory);
+            if (resolver == null)
+                return;
+
             var context = await resolver.ResolveAsync(profileName: null, ct).ConfigureAwait(false);
             ActivityIdentityTagger.TagFromResolvedProfile(activity, context.Credential, context.Connection);
         }
@@ -101,6 +108,25 @@ internal sealed class McpTelemetryEnricher
             // Best-effort — telemetry enrichment must never fail the request path.
             Logger.LogDebug("Skipping MCP telemetry identity enrichment.");
         }
+    }
+
+    private ConfigurationResolver? CreateResolver(string? workingDirectory)
+    {
+        if (_profiles == null || _connections == null || _credentials == null
+            || _globalConfig == null || _workspaceDiscovery == null)
+            return null;
+
+        IEnvironmentReader env = string.IsNullOrWhiteSpace(workingDirectory)
+            ? ProcessEnvironmentReader.Instance
+            : new FixedCurrentDirectoryEnvironmentReader(workingDirectory);
+
+        return new ConfigurationResolver(
+            _profiles,
+            _connections,
+            _credentials,
+            _globalConfig,
+            _workspaceDiscovery,
+            env);
     }
 
     private sealed class FixedCurrentDirectoryEnvironmentReader : IEnvironmentReader

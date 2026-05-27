@@ -493,7 +493,7 @@ async ValueTask<CallToolResult> ExecuteAsTaskAsync(
 
         try
         {
-            await mcpTelemetryEnricher.TagActivityAsync(taskActivity, arguments, workingDirectory, CancellationToken.None);
+            await mcpTelemetryEnricher.TagActivityAsync(taskActivity, arguments, workingDirectory, taskCts.Token);
 
             // Mark task as working
             var workingTask = await taskStore.UpdateTaskStatusAsync(
@@ -517,7 +517,7 @@ async ValueTask<CallToolResult> ExecuteAsTaskAsync(
             {
                 dispatchActivity?.SetTag("peer.service", "talxis-cli");
                 dispatchActivity?.SetTag(TALXIS.CLI.Core.Telemetry.TxcTelemetryTags.Tool, toolName);
-                await mcpTelemetryEnricher.TagActivityAsync(dispatchActivity, cliArguments, workingDirectory, CancellationToken.None);
+                await mcpTelemetryEnricher.TagActivityAsync(dispatchActivity, cliArguments, workingDirectory, taskCts.Token);
                 result = await CliSubprocessRunner.RunAsync(cliArgs, logForwarder, taskCts.Token, workingDirectory);
                 dispatchActivity?.SetTag(TALXIS.CLI.Core.Telemetry.TxcTelemetryTags.SubprocessExitCode, result.ExitCode);
                 if (result.ExitCode != 0)

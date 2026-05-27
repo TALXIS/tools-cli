@@ -32,6 +32,46 @@ public class McpTelemetryEnricherTests
     }
 
     [Fact]
+    public async Task TagActivityAsync_WithExplicitProfile_FallsBackToStoresWhenTaggerMissing()
+    {
+        using var listener = CreateListener();
+        using var activity = TxcActivitySource.Instance.StartActivity("execute_operation");
+
+        var profile = new Profile { Id = "custom-profile", ConnectionRef = "conn", CredentialRef = "cred" };
+        var connection = new Connection
+        {
+            Id = "conn",
+            Provider = ProviderKind.Dataverse,
+            EnvironmentUrl = "https://contoso.crm.dynamics.com",
+            DisplayName = "Contoso Sandbox",
+            TenantId = "tenant-123"
+        };
+        var credential = new Credential
+        {
+            Id = "cred",
+            Kind = CredentialKind.InteractiveBrowser,
+            InteractiveUpn = "user@example.com"
+        };
+
+        var enricher = new McpTelemetryEnricher(
+            tagger: null,
+            profiles: new FakeProfileStore(profile),
+            connections: new FakeConnectionStore(connection),
+            credentials: new FakeCredentialStore(credential),
+            globalConfig: new FakeGlobalConfigStore(new GlobalConfig()),
+            workspaceDiscovery: new FakeWorkspaceDiscovery("workspace-profile"));
+        var arguments = new Dictionary<string, JsonElement>
+        {
+            ["profile"] = JsonDocument.Parse("\"custom-profile\"").RootElement.Clone()
+        };
+
+        await enricher.TagActivityAsync(activity, arguments, workingDirectory: null, CancellationToken.None);
+
+        Assert.Equal("user@example.com", activity?.GetTagItem(TxcTelemetryTags.EndUserName));
+        Assert.Equal("tenant-123", activity?.GetTagItem(TxcTelemetryTags.EndUserScope));
+    }
+
+    [Fact]
     public async Task TagActivityAsync_WithoutExplicitProfile_UsesProvidedWorkingDirectoryForWorkspaceResolution()
     {
         using var listener = CreateListener();
