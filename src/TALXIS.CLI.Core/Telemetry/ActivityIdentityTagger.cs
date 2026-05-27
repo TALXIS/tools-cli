@@ -15,29 +15,26 @@ namespace TALXIS.CLI.Core.Telemetry;
 /// </summary>
 public sealed class ActivityIdentityTagger
 {
-    private readonly IGlobalConfigStore _configStore;
     private readonly IConfigurationResolver _resolver;
 
-    public ActivityIdentityTagger(IGlobalConfigStore configStore, IConfigurationResolver resolver)
+    public ActivityIdentityTagger(IConfigurationResolver resolver)
     {
-        _configStore = configStore;
         _resolver = resolver;
     }
 
     /// <summary>
-    /// Tags the Activity with identity from the globally active profile (if any).
+    /// Tags the Activity using the same profile resolution chain as the CLI:
+    /// explicit profile (when supplied), then ambient resolver fallbacks such as
+    /// TXC_PROFILE, workspace pin, and global active profile.
     /// Best-effort: resolution failures are silently ignored — telemetry never blocks execution.
     /// </summary>
-    public async Task TagFromActiveProfileAsync(Activity? activity)
+    public async Task TagFromProfileAsync(Activity? activity, string? profileName, CancellationToken ct)
     {
         if (activity == null) return;
 
         try
         {
-            var config = await _configStore.LoadAsync(CancellationToken.None).ConfigureAwait(false);
-            if (string.IsNullOrWhiteSpace(config.ActiveProfile)) return;
-
-            var context = await _resolver.ResolveAsync(config.ActiveProfile, CancellationToken.None).ConfigureAwait(false);
+            var context = await _resolver.ResolveAsync(profileName, ct).ConfigureAwait(false);
             TagFromResolvedProfile(activity, context.Credential, context.Connection);
         }
         catch (Exception)
@@ -46,6 +43,12 @@ public sealed class ActivityIdentityTagger
             return;
         }
     }
+
+    /// <summary>
+    /// Tags the Activity with identity from the ambient resolver fallback chain.
+    /// </summary>
+    public Task TagFromActiveProfileAsync(Activity? activity)
+        => TagFromProfileAsync(activity, profileName: null, CancellationToken.None);
 
     /// <summary>
     /// Tags the Activity with identity from an already-resolved profile.

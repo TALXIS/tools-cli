@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
+using TALXIS.CLI.Abstractions;
 
 namespace TALXIS.CLI.Logging;
 
@@ -30,6 +31,16 @@ public sealed class TxcTelemetryLogProvider : ILoggerProvider
 
 internal sealed class TxcTelemetryLogger : ILogger
 {
+    private static readonly string[] CopiedActivityTagKeys =
+    [
+        "enduser.id",
+        "enduser.name",
+        "enduser.scope",
+        "txc.environment_url",
+        "txc.environment_name",
+        "txc.error_message",
+    ];
+
     public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
 
     public bool IsEnabled(LogLevel logLevel) => logLevel != LogLevel.None && Activity.Current != null;
@@ -51,13 +62,19 @@ internal sealed class TxcTelemetryLogger : ILogger
         // in the App Insights 'exceptions' table with full stack traces.
         if (exception != null && logLevel >= LogLevel.Error)
         {
+            var root = ExceptionHelpers.GetInnermostException(exception);
+            var redactedErrorMessage = LogRedactionFilter.Redact(root.Message);
+            SetErrorMessageIfMissing(activity, redactedErrorMessage);
+
+            var eventTags = new ActivityTagsCollection
+            {
+                { "exception.type", exception.GetType().FullName },
+                { "exception.message", LogRedactionFilter.Redact(exception.Message) },
+                { "exception.stacktrace", LogRedactionFilter.Redact(exception.ToString()) },
+            };
+            CopySelectedActivityTags(activity, eventTags);
             activity.AddEvent(new ActivityEvent("exception",
-                tags: new ActivityTagsCollection
-                {
-                    { "exception.type", exception.GetType().FullName },
-                    { "exception.message", LogRedactionFilter.Redact(exception.Message) },
-                    { "exception.stacktrace", LogRedactionFilter.Redact(exception.ToString()) },
-                }));
+                tags: eventTags));
         }
 
         // For Error/Critical log calls WITHOUT an exception object (e.g.,
@@ -70,11 +87,32 @@ internal sealed class TxcTelemetryLogger : ILogger
         {
             var msg = formatter(state, null);
             if (!string.IsNullOrWhiteSpace(msg))
-                activity.SetTag("txc.error_message", LogRedactionFilter.Redact(msg));
+                SetErrorMessageIfMissing(activity, LogRedactionFilter.Redact(msg), overwrite: true);
         }
 
         // Note: span error status is NOT set here — CommandActivityScope.SetExitCode()
         // is the sole authority for span status. This avoids double-SetStatus where the
         // logger's descriptive message gets overwritten by the generic "Exit code N".
+    }
+
+    private static void CopySelectedActivityTags(Activity activity, ActivityTagsCollection target)
+    {
+        foreach (var tagKey in CopiedActivityTagKeys)
+        {
+            var value = activity.GetTagItem(tagKey);
+            if (value != null)
+                target.Add(tagKey, value);
+        }
+    }
+
+    private static void SetErrorMessageIfMissing(Activity activity, string errorMessage, bool overwrite = false)
+    {
+        if (string.IsNullOrWhiteSpace(errorMessage))
+            return;
+
+        if (!overwrite && activity.GetTagItem("txc.error_message") is not null)
+            return;
+
+        activity.SetTag("txc.error_message", errorMessage);
     }
 }
