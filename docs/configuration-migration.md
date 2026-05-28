@@ -20,6 +20,7 @@ The **Configuration Migration Tool (CMT)** is a Microsoft utility for migrating 
 | Safety-check override | ✅ `--override-safety-checks` | ❌ |
 | Prefetch tuning | ✅ `--prefetch-limit` | ❌ |
 | XLSX → CMT XML conversion | ✅ `txc data package convert` | ❌ |
+| Cleanup of records produced by a package | ✅ `txc data package cleanup` | ❌ |
 | Authentication | `txc` profiles | PAC auth profiles |
 
 ### When to Use CMT
@@ -29,6 +30,7 @@ Use CMT / `txc data package` when you need to:
 - Move **reference/configuration data** (currencies, business units, security roles, option-set seed data) between environments.
 - Preserve **record GUIDs** across environments so that lookups and relationships remain intact.
 - Automate data seeding in CI/CD pipelines.
+- Tear down test data inserted by a previous package import — see [`txc data package cleanup`](#cleanup---delete-records-produced-by-a-package).
 - Migrate **file columns** and **image columns** between environments.
 
 For **bulk transactional data** or **ETL workloads**, consider the Dataverse Import Data Wizard, Azure Data Factory, or SSIS instead.
@@ -153,6 +155,45 @@ txc data package import data.zip \
   --batch-mode \
   --batch-size 200 \
   --profile staging
+```
+
+### Cleanup — delete records produced by a package
+
+Tear down everything a previous import created. Useful in automated tests where you spin up a fixture before each suite and remove it after.
+
+```
+txc data package cleanup <path> [options]
+```
+
+| Argument / Option | Alias | Required | Default | Description |
+|---|---|---|---|---|
+| `<path>` *(argument)* | — | **Yes** | — | Path to the CMT data package (`.zip` file or folder containing `data.xml` and `data_schema.xml`). |
+| `--connection-count <N>` | — | No | `1` | Open N parallel `ServiceClient` connections; entities are sharded across them. Higher values speed up cleanup of many small entities at the cost of more concurrent throttle pressure. |
+| `--batch-size <N>` | — | No | `200` | How many `DeleteRequest` messages to send per `ExecuteMultiple` batch. Lower is safer, higher is faster. |
+| `--dry-run` | — | No | `false` | Parse the package and report what would be deleted without issuing any `DeleteRequest`. |
+| `--missing-action <value>` | — | No | `by-natural-key` | What to do when a record can't be deleted by its GUID: `by-natural-key` (look it up via `primarynamefield` + every `updateCompare="true"` field), `skip` (count as not-found), or `fail` (abort the run). |
+| `--continue-on-error` | — | No | `true` | Keep going after the first per-record failure. Set to `false` to abort on the first error. |
+| `--yes` | — | No | `false` | Required in non-interactive sessions because the command is destructive. |
+| `--allow-production` | — | No | `false` | Inherited; required when the target profile is detected as Production. |
+| `--profile <name>` | `-p` | No | *(active profile)* | Profile name to resolve. |
+| `--verbose` | — | No | `false` | Emit verbose logging for this invocation. |
+
+**How it works:**
+
+1. The package is parsed (folder or `.zip`) and entities are processed in the **reverse** of the schema's `<entityImportOrder>` so children come down before their parents.
+2. For each entity, `DeleteRequest` messages are batched through `ExecuteMultiple`. Records the server can't find by GUID fall through to a `QueryExpression` lookup against the schema's natural-key columns (the `primarynamefield` plus every field marked `updateCompare="true"`); an exact single match is then deleted.
+3. Any `<m2mrelationship>` blocks in `data.xml` are issued as `DisassociateRequest`s before the endpoint records are deleted, so cleanup also works when only one side of the N:N relationship lives in the package.
+
+**Example — clean up test data after an integration test:**
+
+```bash
+txc data pkg cleanup ./fixtures/seed-data --profile dev --yes
+```
+
+**Example — preview without touching the environment:**
+
+```bash
+txc data pkg cleanup ./data.zip --dry-run --profile dev --yes
 ```
 
 ### `txc data package convert`
@@ -839,7 +880,7 @@ This preserves the hour/minute/second component while shifting the date.
 
 ### `deleteBeforeAdd` is dead code
 
-The CMT API accepts a `deleteBeforeAdd` parameter that is supposed to delete all existing records before importing. **This parameter exists in the code but is never actually executed** — the delete logic is unreachable. Do not rely on it. If you need a clean slate, truncate the target entity manually before import.
+The CMT API accepts a `deleteBeforeAdd` parameter that is supposed to delete all existing records before importing. **This parameter exists in the code but is never actually executed** — the delete logic is unreachable. Do not rely on it. If you need a clean slate, use [`txc data package cleanup`](#cleanup---delete-records-produced-by-a-package) to tear down a previous import, or truncate the target entity manually.
 
 ### Image columns work despite documentation
 
