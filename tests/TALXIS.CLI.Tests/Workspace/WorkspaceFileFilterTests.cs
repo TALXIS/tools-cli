@@ -125,4 +125,46 @@ public class WorkspaceFileFilterTests : IDisposable
         Assert.True(filter.IsIgnored(Path.Combine(_root, "custom-junk", "x.xml")));    // gitignore
         Assert.False(filter.IsIgnored(Path.Combine(_root, "src", "x.xml")));
     }
+
+    [Fact]
+    public void NodeProject_TsConfigsAreSkipped()
+    {
+        var tsDir = Path.Combine(_root, "TS");
+        Directory.CreateDirectory(tsDir);
+        File.WriteAllText(Path.Combine(tsDir, "package.json"), "{}");
+
+        var filter = new WorkspaceFileFilter(_root, applyDefaults: false, readGitignore: false);
+
+        Assert.True(filter.IsIgnored(Path.Combine(tsDir, "package.json")));
+        Assert.True(filter.IsIgnored(Path.Combine(tsDir, "package-lock.json")));
+        Assert.True(filter.IsIgnored(Path.Combine(tsDir, "tsconfig.json")));
+        Assert.True(filter.IsIgnored(Path.Combine(tsDir, "src", "deep", "config.json")));
+    }
+
+    [Fact]
+    public void NodeProject_SiblingDirectoriesArentSkipped()
+    {
+        var tsDir = Path.Combine(_root, "TS");
+        Directory.CreateDirectory(tsDir);
+        File.WriteAllText(Path.Combine(tsDir, "package.json"), "{}");
+
+        var solutionsDir = Path.Combine(_root, "Solutions");
+        Directory.CreateDirectory(solutionsDir);
+
+        var filter = new WorkspaceFileFilter(_root, applyDefaults: false, readGitignore: false);
+
+        Assert.False(filter.IsIgnored(Path.Combine(solutionsDir, "MySolution", "Entities", "account.xml")));
+    }
+
+    [Fact]
+    public void NodeProject_SkipDisabled_TsConfigsValidated()
+    {
+        var tsDir = Path.Combine(_root, "TS");
+        Directory.CreateDirectory(tsDir);
+        File.WriteAllText(Path.Combine(tsDir, "package.json"), "{}");
+
+        var filter = new WorkspaceFileFilter(_root, applyDefaults: false, readGitignore: false, skipNodeProjects: false);
+
+        Assert.False(filter.IsIgnored(Path.Combine(tsDir, "tsconfig.json")));
+    }
 }

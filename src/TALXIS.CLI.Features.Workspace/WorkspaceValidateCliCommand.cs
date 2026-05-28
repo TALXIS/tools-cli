@@ -10,7 +10,7 @@ namespace TALXIS.CLI.Features.Workspace;
 [CliReadOnly]
 [CliCommand(
     Name = "validate",
-    Description = "Validates solution workspace files against XSD schemas, checks for structural issues, and loads the metadata model. Skips well-known throwaway directories (node_modules, bin, obj, ...) and honors the workspace .gitignore by default.")]
+    Description = "Validates solution workspace files against XSD schemas, checks for structural issues, and loads the metadata model. Skips well-known throwaway directories (node_modules, bin, obj, ...), files under any Node/TS project (anything next to a package.json), and honors the workspace .gitignore by default.")]
 public sealed class WorkspaceValidateCliCommand : TxcLeafCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(WorkspaceValidateCliCommand));

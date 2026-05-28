@@ -42,14 +42,18 @@ internal sealed class WorkspaceFileFilter
     private readonly string _workspaceRoot;
     private readonly HashSet<string> _ignoredDirNames;
     private readonly List<GitignoreRule> _gitignoreRules;
+    private readonly bool _skipNodeProjects;
+    private readonly Dictionary<string, bool> _nodeProjectCache;
 
-    public WorkspaceFileFilter(string workspaceRoot, bool applyDefaults, bool readGitignore)
+    public WorkspaceFileFilter(string workspaceRoot, bool applyDefaults, bool readGitignore, bool skipNodeProjects = true)
     {
         _workspaceRoot = NormalizeDirectory(workspaceRoot);
         _ignoredDirNames = applyDefaults
             ? new HashSet<string>(DefaultIgnoredDirectories, StringComparer.OrdinalIgnoreCase)
             : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         _gitignoreRules = new List<GitignoreRule>();
+        _skipNodeProjects = skipNodeProjects;
+        _nodeProjectCache = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
 
         if (readGitignore)
         {
@@ -95,6 +99,40 @@ internal sealed class WorkspaceFileFilter
             }
         }
 
+        // Node/TypeScript project trees: if any ancestor of the file
+        // contains a package.json, treat the whole subtree as not-our-stuff.
+        // Covers tsconfig.json, package-lock.json, .eslintrc.json, etc.
+        // without having to maintain a basename allowlist.
+        if (_skipNodeProjects && IsInsideNodeProject(absolutePath))
+            return true;
+
+        return false;
+    }
+
+    private bool IsInsideNodeProject(string absolutePath)
+    {
+        var dir = Path.GetDirectoryName(Path.GetFullPath(absolutePath));
+        var root = _workspaceRoot;
+
+        while (!string.IsNullOrEmpty(dir))
+        {
+            if (_nodeProjectCache.TryGetValue(dir, out var cached))
+                return cached;
+
+            bool isNodeProject = File.Exists(Path.Combine(dir, "package.json"));
+            _nodeProjectCache[dir] = isNodeProject;
+            if (isNodeProject)
+                return true;
+
+            // Stop at the workspace root — we don't want to walk above it.
+            if (string.Equals(dir, root, StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            var parent = Path.GetDirectoryName(dir);
+            if (string.IsNullOrEmpty(parent) || string.Equals(parent, dir, StringComparison.OrdinalIgnoreCase))
+                return false;
+            dir = parent;
+        }
         return false;
     }
 
