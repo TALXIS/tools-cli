@@ -34,6 +34,7 @@ internal sealed class TxcTelemetryLogger : ILogger
     private static readonly string[] CopiedActivityTagKeys =
     [
         "enduser.id",
+        "txc.end_user_id",
         "enduser.name",
         "enduser.scope",
         "txc.environment_url",

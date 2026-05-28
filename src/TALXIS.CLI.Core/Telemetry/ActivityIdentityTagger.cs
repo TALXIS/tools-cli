@@ -61,7 +61,10 @@ public sealed class ActivityIdentityTagger
         var objectId = ExtractObjectId(credential.InteractiveAccountId)
             ?? credential.ApplicationId;
         if (!string.IsNullOrWhiteSpace(objectId))
+        {
             activity.SetTag(TxcTelemetryTags.EndUserId, objectId);  // → user_AuthenticatedId + customDimensions
+            activity.SetTag(TxcTelemetryTags.EndUserIdDimension, objectId); // → stable customDimensions alias
+        }
 
         var upn = credential.InteractiveUpn ?? credential.Id;
         if (!string.IsNullOrWhiteSpace(upn))

@@ -33,6 +33,7 @@ public class TxcTelemetryLogProviderTests
         var logger = provider.CreateLogger("test");
 
         activity?.SetTag(TxcTelemetryTags.EndUserId, "user-123");
+        activity?.SetTag(TxcTelemetryTags.EndUserIdDimension, "user-123");
         activity?.SetTag(TxcTelemetryTags.EndUserName, "user@example.com");
         activity?.SetTag(TxcTelemetryTags.EndUserScope, "tenant-456");
         activity?.SetTag(TxcTelemetryTags.EnvironmentName, "Sandbox");
@@ -45,6 +46,7 @@ public class TxcTelemetryLogProviderTests
 
         var exceptionEvent = Assert.Single(activity!.Events, e => e.Name == "exception");
         Assert.Contains(exceptionEvent.Tags, tag => tag.Key == TxcTelemetryTags.EndUserId && Equals(tag.Value, "user-123"));
+        Assert.Contains(exceptionEvent.Tags, tag => tag.Key == TxcTelemetryTags.EndUserIdDimension && Equals(tag.Value, "user-123"));
         Assert.Contains(exceptionEvent.Tags, tag => tag.Key == TxcTelemetryTags.EndUserName && Equals(tag.Value, "user@example.com"));
         Assert.Contains(exceptionEvent.Tags, tag => tag.Key == TxcTelemetryTags.EndUserScope && Equals(tag.Value, "tenant-456"));
         Assert.Contains(exceptionEvent.Tags, tag => tag.Key == TxcTelemetryTags.EnvironmentName && Equals(tag.Value, "Sandbox"));

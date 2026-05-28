@@ -20,6 +20,7 @@ public class ActivityIdentityTaggerTests
         await tagger.TagFromProfileAsync(activity, "explicit-profile", CancellationToken.None);
 
         Assert.Equal("11111111-1111-1111-1111-111111111111", activity?.GetTagItem(TxcTelemetryTags.EndUserId));
+        Assert.Equal("11111111-1111-1111-1111-111111111111", activity?.GetTagItem(TxcTelemetryTags.EndUserIdDimension));
         Assert.Equal("user@example.com", activity?.GetTagItem(TxcTelemetryTags.EndUserName));
         Assert.Equal("tenant-123", activity?.GetTagItem(TxcTelemetryTags.EndUserScope));
         Assert.Equal("https://contoso.crm.dynamics.com", activity?.GetTagItem(TxcTelemetryTags.EnvironmentUrl));
@@ -54,6 +55,7 @@ public class ActivityIdentityTaggerTests
         await tagger.TagFromProfileAsync(activity, "missing-profile", CancellationToken.None);
 
         Assert.Null(activity?.GetTagItem(TxcTelemetryTags.EndUserId));
+        Assert.Null(activity?.GetTagItem(TxcTelemetryTags.EndUserIdDimension));
         Assert.Null(activity?.GetTagItem(TxcTelemetryTags.EndUserName));
         Assert.Null(activity?.GetTagItem(TxcTelemetryTags.EndUserScope));
     }
