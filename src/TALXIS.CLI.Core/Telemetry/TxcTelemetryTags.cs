@@ -27,6 +27,7 @@ public static class TxcTelemetryTags
     // fields (user_AuthenticatedId via enduser.id) and also appear in
     // customDimensions for Kusto queries.
     public const string EndUserId = "enduser.id";
+    public const string EndUserIdDimension = "txc.end_user_id";
     public const string EndUserName = "enduser.name";
     public const string EndUserScope = "enduser.scope";
 
