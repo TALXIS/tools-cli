@@ -92,6 +92,8 @@ The environment layer is organised into three planes:
 | **Application** | Solutions, packages, deployments, schema management | `txc env sln …`, `txc env pkg …`, `txc env deploy …`, `txc env entity …` |
 | **Data** | Records, queries, bulk operations, CMT import/export | `txc env data …`, `txc data …` |
 
+Read-only **diagnostics** cut across all three — read runtime logs straight from the terminal with `txc env log …` (plug-in traces, async jobs, workflow runs). See [Diagnostics — Environment Logs](#diagnostics--environment-logs).
+
 ### Workspace — Local-First Development
 
 The fastest way to build Dataverse components. Everything happens locally in your repo — no environment round-trips, no publish waits. Ideal for coding agents that need to scaffold dozens of components in a session.
@@ -170,6 +172,34 @@ txc env sln component list MySolution --type entity
 txc env component layer list --entity account --attribute revenue
 txc env component dep delete-check --entity tom_project
 ```
+
+### Diagnostics — Environment Logs
+
+Read runtime logs straight from the terminal instead of dropping into raw SQL or the maker portal.
+
+```sh
+# Unified recent feed across plug-in traces and async jobs
+txc env log list --since 24h
+
+# Plug-in execution traces (needs plug-in trace logging enabled in the environment)
+txc env log plugin-trace --since 1h --errors-only
+txc env log plugin-trace --plugin Acme.Plugins.Account --entity account
+
+# Background system jobs and classic workflow runs
+txc env log async-jobs --errors-only
+txc env log workflow --since 7d
+
+# Follow one operation across sources by its correlation id
+txc env log list --correlation-id 5f9c2e7a-1234-4abc-9def-0123456789ab
+```
+
+Shared flags: `--since` (`30m`/`24h`/`7d`/`2w`), `--entity`, `--errors-only`, `--correlation-id`, `--top`
+(`--plugin` applies to `plugin-trace` and `list`). Add `--format json` for machine-readable output.
+
+> [!NOTE]
+> `plugin-trace` is empty unless plug-in trace logging is enabled in the environment
+> (System Settings → Customization → plug-in trace log). Async-job rows are purged by Dataverse
+> retention after a few days, so very old runs may no longer be present.
 
 ### Data Plane
 
