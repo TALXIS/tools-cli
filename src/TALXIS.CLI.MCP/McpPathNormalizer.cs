@@ -7,6 +7,11 @@ internal static class McpPathNormalizer
         if (string.IsNullOrWhiteSpace(path))
             throw new ArgumentException("Path must not be empty.", nameof(path));
 
+        // Strip the spurious leading '/' that Uri.LocalPath prepends to Windows
+        // drive-letter paths (e.g. /c:/path → c:/path). Path.GetFullPath would
+        // otherwise treat it as current-drive-relative and produce c:\c:\path.
+        path = StripWindowsFileUriLeadingSlash(path);
+
         return Path.GetFullPath(ExpandHomeRelativePath(path, allowFileUriLocalPathHome));
     }
 
@@ -29,6 +34,18 @@ internal static class McpPathNormalizer
 
         var segments = remainder.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries);
         return segments.Length == 0 ? home : Path.Combine([home, .. segments]);
+    }
+
+    // Strips the leading '/' from Windows file URI drive paths (e.g. /c:/path → c:/path).
+    // Uri.LocalPath always prepends a slash on Windows; Path.GetFullPath would otherwise
+    // treat it as current-drive-relative and produce a duplicate c:\c:\ prefix.
+    private static string StripWindowsFileUriLeadingSlash(string path)
+    {
+        if (!OperatingSystem.IsWindows())
+            return path;
+        if (path.Length >= 3 && path[0] == '/' && char.IsLetter(path[1]) && path[2] == ':')
+            return path[1..];
+        return path;
     }
 
     private static int GetHomeRelativeSuffixStart(string path, bool allowFileUriLocalPathHome)
