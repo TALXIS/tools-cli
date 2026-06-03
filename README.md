@@ -189,6 +189,10 @@ txc env log plugin-trace --plugin Acme.Plugins.Account --entity account
 txc env log async-jobs --errors-only
 txc env log workflow --since 7d
 
+# Live tail — keep watching new async jobs as they appear (Ctrl+C to stop)
+txc env log async-jobs --follow
+txc env log async-jobs --follow --errors-only --interval 10
+
 # Follow one operation across sources by its correlation id
 txc env log list --correlation-id 5f9c2e7a-1234-4abc-9def-0123456789ab
 ```

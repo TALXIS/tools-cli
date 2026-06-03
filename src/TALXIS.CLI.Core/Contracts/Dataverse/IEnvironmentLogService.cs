@@ -89,4 +89,23 @@ public interface IEnvironmentLogService
         string? profileName,
         EnvironmentLogFilter filter,
         CancellationToken ct);
+
+    /// <summary>
+    /// Resolves the profile and opens the environment connection once, returning a
+    /// reader bound to that connection. Use this for a <c>--follow</c> poll loop so
+    /// each tick doesn't re-resolve the profile and re-open a connection.
+    /// </summary>
+    Task<IAsyncJobLogReader> CreateAsyncJobReaderAsync(
+        string? profileName,
+        int? operationTypeFilter,
+        CancellationToken ct);
+}
+
+/// <summary>
+/// An async-job reader bound to an already-open environment connection. Dispose
+/// to close the connection.
+/// </summary>
+public interface IAsyncJobLogReader : IDisposable
+{
+    Task<IReadOnlyList<AsyncJobRecord>> ReadAsync(EnvironmentLogFilter filter, CancellationToken ct);
 }
