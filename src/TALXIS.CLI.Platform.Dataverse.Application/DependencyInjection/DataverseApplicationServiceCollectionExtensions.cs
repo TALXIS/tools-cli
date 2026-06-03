@@ -18,6 +18,7 @@ public static class DataverseApplicationServiceCollectionExtensions
         services.AddSingleton<ISolutionUninstallService, DataverseSolutionUninstallService>();
         services.AddSingleton<ISolutionImportService, DataverseSolutionImportService>();
         services.AddSingleton<IDeploymentHistoryService, DataverseDeploymentHistoryService>();
+        services.AddSingleton<IEnvironmentLogService, DataverseEnvironmentLogService>();
         services.AddSingleton<IDeploymentDetailService, DataverseDeploymentDetailService>();
         services.AddSingleton<IPackageImportService, DataversePackageImportService>();
         services.AddSingleton<IPackageUninstallService, DataversePackageUninstallService>();
