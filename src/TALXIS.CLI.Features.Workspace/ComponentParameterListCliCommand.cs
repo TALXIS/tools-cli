@@ -23,6 +23,9 @@ public class ComponentParameterListCliCommand : TxcLeafCommand
     [CliArgument(Description = "Component type name, alias, template short name, or integer code (e.g. 'Entity', 'Table', 'pp-entity', '1').")]
     public required string ShortName { get; set; }
 
+    [CliOption(Description = "Known parameter values in key=value form (repeatable). When given, only parameters whose isEnabled condition holds are listed (e.g. --param AttributeType=Text hides number/date/boolean-only parameters).")]
+    public List<string> Param { get; set; } = new();
+
     protected override async Task<int> ExecuteAsync()
     {
         using var scaffolder = new TemplateInvoker();
@@ -33,6 +36,15 @@ public class ComponentParameterListCliCommand : TxcLeafCommand
         var resolvedShortName = resolved?.ShortNameList.FirstOrDefault() ?? ShortName;
 
         var parameters = await scaffolder.ListParametersForTemplateAsync(resolvedShortName);
+
+        // When the caller supplies known values, drop parameters whose isEnabled condition
+        // evaluates to false for those values — keeps the listing relevant to the chosen type.
+        var providedValues = ParseParamValues(Param);
+        if (parameters != null && providedValues.Count > 0)
+        {
+            parameters = TemplateEngine.TemplateParameterConditionEvaluator
+                .FilterEnabled(parameters, providedValues);
+        }
         if (parameters == null || parameters.Count == 0)
         {
             OutputFormatter.WriteList(Array.Empty<object>(), _ =>
@@ -122,5 +134,18 @@ public class ComponentParameterListCliCommand : TxcLeafCommand
         });
 
         return ExitSuccess;
+    }
+
+    private static Dictionary<string, string> ParseParamValues(IEnumerable<string> pairs)
+    {
+        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in pairs)
+        {
+            var idx = pair.IndexOf('=');
+            if (idx <= 0 || idx == pair.Length - 1)
+                throw new ArgumentException($"Invalid parameter format: '{pair}'. Use key=value.");
+            values[pair[..idx]] = pair[(idx + 1)..];
+        }
+        return values;
     }
 }
