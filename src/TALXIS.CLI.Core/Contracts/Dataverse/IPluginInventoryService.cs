@@ -56,6 +56,13 @@ public sealed record PluginStepRecord(
     string AssemblyName,
     string? AssemblyVersion);
 
+public sealed record PluginStepImageRecord(
+    Guid Id,
+    Guid StepId,
+    string ImageType,
+    string? EntityAlias,
+    string? Attributes);
+
 public interface IPluginInventoryService
 {
     Task<IReadOnlyList<PluginAssemblyRecord>> ListAssembliesAsync(
@@ -72,5 +79,22 @@ public interface IPluginInventoryService
     Task<IReadOnlyList<PluginStepRecord>> ListStepsAsync(
         string? profileName,
         string? assemblyContains,
+        CancellationToken ct);
+
+    Task<IReadOnlyList<PluginStepImageRecord>> ListStepImagesAsync(
+        string? profileName,
+        string? assemblyContains,
+        CancellationToken ct);
+
+    Task SetStepStateAsync(
+        string? profileName,
+        Guid stepId,
+        bool enabled,
+        CancellationToken ct);
+
+    Task<int> SetStepsStateAsync(
+        string? profileName,
+        IReadOnlyCollection<Guid> stepIds,
+        bool enabled,
         CancellationToken ct);
 }

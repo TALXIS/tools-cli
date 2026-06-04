@@ -4,8 +4,12 @@ namespace TALXIS.CLI.Features.Environment.Plugin.Assemblies;
 
 [CliCommand(
     Name = "assembly",
-    Description = "List plugin assemblies registered in the connected environment.",
-    Children = new[] { typeof(PluginAssemblyListCliCommand) },
+    Description = "List and inspect plugin assemblies registered in the connected environment.",
+    Children = new[]
+    {
+        typeof(PluginAssemblyListCliCommand),
+        typeof(PluginAssemblyShowCliCommand),
+    },
     ShortFormAutoGenerate = CliNameAutoGenerate.None
 )]
 public class PluginAssemblyCliCommand

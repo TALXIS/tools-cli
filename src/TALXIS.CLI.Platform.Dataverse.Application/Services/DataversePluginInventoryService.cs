@@ -26,4 +26,25 @@ internal sealed class DataversePluginInventoryService : IPluginInventoryService
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
         return await PluginInventoryManager.ListStepsAsync(conn.Client, assemblyContains, ct).ConfigureAwait(false);
     }
+
+    public async Task<IReadOnlyList<PluginStepImageRecord>> ListStepImagesAsync(
+        string? profileName, string? assemblyContains, CancellationToken ct)
+    {
+        using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+        return await PluginInventoryManager.ListStepImagesAsync(conn.Client, assemblyContains, ct).ConfigureAwait(false);
+    }
+
+    public async Task SetStepStateAsync(
+        string? profileName, Guid stepId, bool enabled, CancellationToken ct)
+    {
+        using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+        await PluginInventoryManager.SetStepStateAsync(conn.Client, stepId, enabled, ct).ConfigureAwait(false);
+    }
+
+    public async Task<int> SetStepsStateAsync(
+        string? profileName, IReadOnlyCollection<Guid> stepIds, bool enabled, CancellationToken ct)
+    {
+        using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+        return await PluginInventoryManager.SetStepsStateAsync(conn.Client, stepIds, enabled, ct).ConfigureAwait(false);
+    }
 }

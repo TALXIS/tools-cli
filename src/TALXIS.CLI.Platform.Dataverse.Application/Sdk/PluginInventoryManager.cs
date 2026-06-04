@@ -95,6 +95,74 @@ internal static class PluginInventoryManager
         return rows.Select(MapStep).ToList();
     }
 
+    public static async Task<IReadOnlyList<PluginStepImageRecord>> ListStepImagesAsync(
+        IOrganizationServiceAsync2 service,
+        string? assemblyContains,
+        CancellationToken ct)
+    {
+        var query = new QueryExpression("sdkmessageprocessingstepimage")
+        {
+            ColumnSet = new ColumnSet(
+                "sdkmessageprocessingstepimageid", "sdkmessageprocessingstepid",
+                "imagetype", "entityalias", "attributes"),
+        };
+
+        var stepLink = query.AddLink("sdkmessageprocessingstep", "sdkmessageprocessingstepid", "sdkmessageprocessingstepid", JoinOperator.Inner);
+        stepLink.EntityAlias = "step";
+        var typeLink = stepLink.AddLink("plugintype", "plugintypeid", "plugintypeid", JoinOperator.Inner);
+        var assemblyLink = typeLink.AddLink("pluginassembly", "pluginassemblyid", "pluginassemblyid", JoinOperator.Inner);
+        if (!string.IsNullOrWhiteSpace(assemblyContains))
+            assemblyLink.LinkCriteria.AddCondition("name", ConditionOperator.Like, $"%{assemblyContains}%");
+
+        var rows = await RetrieveAllAsync(service, query, ct).ConfigureAwait(false);
+        return rows.Select(MapImage).ToList();
+    }
+
+    private static PluginStepImageRecord MapImage(Entity e)
+    {
+        var stepRef = e.GetAttributeValue<EntityReference>("sdkmessageprocessingstepid");
+        var imageType = e.GetAttributeValue<OptionSetValue>("imagetype")?.Value ?? 0;
+        return new PluginStepImageRecord(
+            Id: e.Id,
+            StepId: stepRef?.Id ?? Guid.Empty,
+            ImageType: imageType switch { 0 => "PreImage", 1 => "PostImage", 2 => "Both", _ => imageType.ToString() },
+            EntityAlias: e.GetAttributeValue<string>("entityalias"),
+            Attributes: e.GetAttributeValue<string>("attributes"));
+    }
+
+    /// <summary>
+    /// Maps a desired enabled/disabled state to the Dataverse
+    /// <c>statecode</c>/<c>statuscode</c> pair for a SdkMessageProcessingStep.
+    /// Enabled = (0, 1); Disabled = (1, 2).
+    /// </summary>
+    public static (int StateCode, int StatusCode) StepStateCodes(bool enabled)
+        => enabled ? (0, 1) : (1, 2);
+
+    public static async Task SetStepStateAsync(
+        IOrganizationServiceAsync2 service, Guid stepId, bool enabled, CancellationToken ct)
+    {
+        var (state, status) = StepStateCodes(enabled);
+        var entity = new Entity("sdkmessageprocessingstep", stepId)
+        {
+            ["statecode"] = new OptionSetValue(state),
+            ["statuscode"] = new OptionSetValue(status),
+        };
+        await service.UpdateAsync(entity, ct).ConfigureAwait(false);
+    }
+
+    public static async Task<int> SetStepsStateAsync(
+        IOrganizationServiceAsync2 service, IReadOnlyCollection<Guid> stepIds, bool enabled, CancellationToken ct)
+    {
+        var count = 0;
+        foreach (var id in stepIds)
+        {
+            ct.ThrowIfCancellationRequested();
+            await SetStepStateAsync(service, id, enabled, ct).ConfigureAwait(false);
+            count++;
+        }
+        return count;
+    }
+
     private static async Task<List<Entity>> RetrieveAllAsync(
         IOrganizationServiceAsync2 service, QueryExpression query, CancellationToken ct)
     {

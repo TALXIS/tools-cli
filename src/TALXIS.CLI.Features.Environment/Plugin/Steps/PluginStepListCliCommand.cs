@@ -19,12 +19,29 @@ public class PluginStepListCliCommand : ProfiledCliCommand
     [CliOption(Name = "--assembly", Description = "Filter to steps whose owning assembly name contains this substring.", Required = false)]
     public string? Assembly { get; set; }
 
+    [CliOption(Name = "--entity", Description = "Filter to steps whose primary entity name contains this substring.", Required = false)]
+    public string? Entity { get; set; }
+
+    [CliOption(Name = "--stage", Description = "Filter by execution stage: pre, post, prevalidation, preoperation, or postoperation.", Required = false)]
+    public string? Stage { get; set; }
+
+    [CliOption(Name = "--disabled", Description = "Show only disabled steps.", Required = false)]
+    public bool DisabledOnly { get; set; }
+
     protected override async Task<int> ExecuteAsync()
     {
+        if (!PluginStepQuery.TryParseStageFilter(Stage, out var stages, out var stageError))
+        {
+            Logger.LogError("{Error}", stageError);
+            return ExitValidationError;
+        }
+
         var service = TxcServices.Get<IPluginInventoryService>();
         var rows = await service.ListStepsAsync(Profile, Assembly, CancellationToken.None).ConfigureAwait(false);
 
-        OutputFormatter.WriteList(rows, PrintTable);
+        var filtered = PluginStepQuery.Filter(rows, Entity, stages, DisabledOnly);
+
+        OutputFormatter.WriteList(filtered, PrintTable);
         return ExitSuccess;
     }
 
