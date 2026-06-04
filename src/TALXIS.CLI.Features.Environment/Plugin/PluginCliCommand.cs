@@ -10,6 +10,7 @@ namespace TALXIS.CLI.Features.Environment.Plugin;
         typeof(Assemblies.PluginAssemblyCliCommand),
         typeof(Types.PluginTypeCliCommand),
         typeof(Steps.PluginStepCliCommand),
+        typeof(Profile.PluginProfileCliCommand),
     },
     ShortFormAutoGenerate = CliNameAutoGenerate.None
 )]
