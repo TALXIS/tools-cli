@@ -82,4 +82,9 @@ public sealed record CreateAttributeOptions
     public bool IsAuditable { get; init; }
     public bool IsSearchable { get; init; } = true;
     public bool IsSecured { get; init; }
+
+    // === Formula ===
+
+    /// <summary>Power Fx formula expression. When set, SourceType is set to 3 (Formula). Supported base types: string, number, decimal, float, money, bool, datetime, choice, multichoice.</summary>
+    public string? FormulaDefinition { get; init; }
 }
