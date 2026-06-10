@@ -36,6 +36,7 @@ public static class DataverseApplicationServiceCollectionExtensions
         services.AddSingleton<ISolutionLayerMutationService, DataverseSolutionLayerMutationService>();
         services.AddSingleton<ISolutionPackagerService, Sdk.SolutionPackagerServiceImpl>();
         services.AddSingleton<ISolutionExportService, DataverseSolutionExportService>();
+        services.AddSingleton<ISolutionSyncService, DataverseSolutionSyncService>();
         return services;
     }
 }
