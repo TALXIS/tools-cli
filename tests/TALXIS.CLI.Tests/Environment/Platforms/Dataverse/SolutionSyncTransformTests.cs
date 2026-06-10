@@ -127,4 +127,45 @@ public class SolutionSyncTransformTests : IDisposable
         Assert.Empty(excluded);
         Assert.True(File.Exists(Path.Combine(_root, "PluginAssemblies", "MyPlugin.dll")));
     }
+
+    private void WriteWebResource(string name)
+    {
+        var dir = Path.Combine(_root, "WebResources");
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, name), "content");
+        File.WriteAllText(Path.Combine(dir, name + ".data.xml"), $"<WebResource><Name>{name}</Name></WebResource>");
+    }
+
+    [Fact]
+    public void ExcludeWebResource_DeletesContent_KeepsDataXml_WhenMatched()
+    {
+        WriteWebResource("udpp_main.js");
+        var dir = Path.Combine(_root, "WebResources");
+
+        var excluded = SolutionSyncTransform.ExcludeScriptLibraryWebResources(_root, new[] { "udpp_main.js" });
+
+        Assert.Equal(new[] { "udpp_main.js" }, excluded);
+        Assert.False(File.Exists(Path.Combine(dir, "udpp_main.js")));
+        Assert.True(File.Exists(Path.Combine(dir, "udpp_main.js.data.xml")));
+    }
+
+    [Fact]
+    public void ExcludeWebResource_KeepsContent_WhenNotMatched()
+    {
+        WriteWebResource("udpp_static.svg");
+        var dir = Path.Combine(_root, "WebResources");
+
+        var excluded = SolutionSyncTransform.ExcludeScriptLibraryWebResources(_root, new[] { "udpp_main.js" });
+
+        Assert.Empty(excluded);
+        Assert.True(File.Exists(Path.Combine(dir, "udpp_static.svg")));
+        Assert.True(File.Exists(Path.Combine(dir, "udpp_static.svg.data.xml")));
+    }
+
+    [Fact]
+    public void ExcludeWebResource_NoOp_WhenNoWebResourcesFolder()
+    {
+        var excluded = SolutionSyncTransform.ExcludeScriptLibraryWebResources(_root, new[] { "udpp_main.js" });
+        Assert.Empty(excluded);
+    }
 }

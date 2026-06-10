@@ -5,6 +5,7 @@ namespace TALXIS.CLI.Core.Resolution;
 public static class SolutionSyncTransform
 {
     private const string PluginAssembliesDir = "PluginAssemblies";
+    private const string WebResourcesDir = "WebResources";
     private const string DataXmlSuffix = ".data.xml";
 
     public static IReadOnlyList<string> NormalizePluginAssemblyPaths(string unpackedRoot)
@@ -61,6 +62,32 @@ public static class SolutionSyncTransform
             {
                 File.Delete(dllPath);
                 excluded.Add(dllName);
+            }
+        }
+
+        return excluded;
+    }
+
+    public static IReadOnlyList<string> ExcludeScriptLibraryWebResources(
+        string unpackedRoot,
+        IReadOnlyCollection<string> webResourceNames)
+    {
+        var excluded = new List<string>();
+        var webResDir = Path.Combine(unpackedRoot, WebResourcesDir);
+        if (!Directory.Exists(webResDir) || webResourceNames.Count == 0)
+            return excluded;
+
+        foreach (var dataXml in Directory.GetFiles(webResDir, "*" + DataXmlSuffix))
+        {
+            var resourceName = Path.GetFileName(dataXml)[..^DataXmlSuffix.Length];
+            if (!webResourceNames.Contains(resourceName))
+                continue;
+
+            var contentPath = Path.Combine(webResDir, resourceName);
+            if (File.Exists(contentPath))
+            {
+                File.Delete(contentPath);
+                excluded.Add(resourceName);
             }
         }
 

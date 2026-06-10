@@ -45,6 +45,7 @@ public class SolutionSyncCliCommand : ProfiledCliCommand
             path = result.SolutionRootPath,
             normalizedAssemblies = result.NormalizedAssemblies,
             excludedBinaries = result.ExcludedBinaries,
+            excludedWebResources = result.ExcludedWebResources,
             removedFiles = result.RemovedFiles,
         };
 
@@ -54,6 +55,7 @@ public class SolutionSyncCliCommand : ProfiledCliCommand
             OutputWriter.WriteLine($"Synced solution '{solutionName}' → {result.SolutionRootPath}");
             WriteList("Normalized plugin assembly path(s)", result.NormalizedAssemblies);
             WriteList("Excluded project-reference binary(ies)", result.ExcludedBinaries);
+            WriteList("Excluded script-library web resource(s)", result.ExcludedWebResources);
             WriteList("Removed stale solution file(s)", result.RemovedFiles);
 
             static void WriteList(string label, IReadOnlyList<string> items)
@@ -111,7 +113,6 @@ public class SolutionSyncCliCommand : ProfiledCliCommand
         return (uniqueName, resolvedRoot, projectFile);
     }
 
-    // No --output and no declared SolutionRootPath → the solution lives next to the project file.
     private string? ResolveSolutionRoot(string dirPath, string projectFile)
     {
         if (Output is not null)

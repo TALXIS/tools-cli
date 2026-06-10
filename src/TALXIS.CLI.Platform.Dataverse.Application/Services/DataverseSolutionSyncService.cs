@@ -30,24 +30,26 @@ internal sealed class DataverseSolutionSyncService : ISolutionSyncService
         {
             await File.WriteAllBytesAsync(tempZip, zipBytes, ct).ConfigureAwait(false);
 
-            // Unpack into staging, not the solution root — the packager would delete the sibling
-            // project file / bin / obj otherwise.
             Directory.CreateDirectory(stagingRoot);
             _packager.Unpack(tempZip, stagingRoot, managed: false);
 
             var normalized = SolutionSyncTransform.NormalizePluginAssemblyPaths(stagingRoot);
 
             IReadOnlyList<string> excluded = [];
+            IReadOnlyList<string> excludedWebResources = [];
             if (options.ProjectFilePath is not null)
             {
                 var referencedAssemblies = ProjectReferenceReader.ReadPluginAssemblyNames(options.ProjectFilePath);
                 excluded = SolutionSyncTransform.ExcludeProjectReferenceBinaries(stagingRoot, referencedAssemblies);
+
+                var scriptLibraryWebResources = ProjectReferenceReader.ReadScriptLibraryWebResourceNames(options.ProjectFilePath);
+                excludedWebResources = SolutionSyncTransform.ExcludeScriptLibraryWebResources(stagingRoot, scriptLibraryWebResources);
             }
 
             Directory.CreateDirectory(options.SolutionRootPath);
             var removed = SolutionSyncMerge.Merge(stagingRoot, options.SolutionRootPath);
 
-            return new SolutionSyncResult(options.SolutionRootPath, normalized, excluded, removed);
+            return new SolutionSyncResult(options.SolutionRootPath, normalized, excluded, excludedWebResources, removed);
         }
         finally
         {

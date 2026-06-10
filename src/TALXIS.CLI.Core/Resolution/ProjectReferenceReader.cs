@@ -10,8 +10,36 @@ public static class ProjectReferenceReader
     public static IReadOnlyCollection<string> ReadPluginAssemblyNames(string projectFilePath)
     {
         var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (!File.Exists(projectFilePath))
+        foreach (var referenced in EnumerateReferencedProjects(projectFilePath))
+        {
+            var info = ReadProjectInfo(referenced);
+            if (info.ProjectType is not null && PluginProjectTypes.Contains(info.ProjectType))
+                result.Add(info.AssemblyName);
+        }
+        return result;
+    }
+
+    public static IReadOnlyCollection<string> ReadScriptLibraryWebResourceNames(string solutionProjectFilePath)
+    {
+        var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var publisherPrefix = ReadProperty(solutionProjectFilePath, "PublisherPrefix");
+        if (string.IsNullOrWhiteSpace(publisherPrefix))
             return result;
+
+        foreach (var referenced in EnumerateReferencedProjects(solutionProjectFilePath))
+        {
+            var info = ReadProjectInfo(referenced);
+            if (string.Equals(info.ProjectType, "ScriptLibrary", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(info.ScriptLibraryName))
+                result.Add(info.ScriptLibraryName.StartsWith(publisherPrefix) ? $"{info.ScriptLibraryName}.js" : $"{publisherPrefix}_{info.ScriptLibraryName}.js");
+        }
+        return result;
+    }
+
+    private static IEnumerable<string> EnumerateReferencedProjects(string projectFilePath)
+    {
+        if (!File.Exists(projectFilePath))
+            yield break;
 
         var projectDir = Path.GetDirectoryName(Path.GetFullPath(projectFilePath))!;
         var doc = XDocument.Load(projectFilePath);
@@ -25,18 +53,12 @@ public static class ProjectReferenceReader
 
             var relative = include.Replace('\\', Path.DirectorySeparatorChar);
             var referencedPath = Path.GetFullPath(Path.Combine(projectDir, relative));
-            if (!File.Exists(referencedPath))
-                continue;
-
-            var (projectType, assemblyName) = ReadProjectInfo(referencedPath);
-            if (projectType is not null && PluginProjectTypes.Contains(projectType))
-                result.Add(assemblyName);
+            if (File.Exists(referencedPath))
+                yield return referencedPath;
         }
-
-        return result;
     }
 
-    private static (string? ProjectType, string AssemblyName) ReadProjectInfo(string referencedProjectPath)
+    private static (string? ProjectType, string AssemblyName, string? ScriptLibraryName) ReadProjectInfo(string referencedProjectPath)
     {
         var fallbackName = Path.GetFileNameWithoutExtension(referencedProjectPath);
         try
@@ -45,11 +67,28 @@ public static class ProjectReferenceReader
             var ns = doc.Root?.Name.Namespace ?? XNamespace.None;
             var projectType = doc.Descendants(ns + "ProjectType").FirstOrDefault()?.Value?.Trim();
             var assemblyName = doc.Descendants(ns + "AssemblyName").FirstOrDefault()?.Value?.Trim();
-            return (projectType, string.IsNullOrWhiteSpace(assemblyName) ? fallbackName : assemblyName);
+            var scriptLibraryName = doc.Descendants(ns + "ScriptLibraryName").FirstOrDefault()?.Value?.Trim();
+            return (projectType, string.IsNullOrWhiteSpace(assemblyName) ? fallbackName : assemblyName, scriptLibraryName);
         }
         catch (System.Xml.XmlException)
         {
-            return (null, fallbackName);
+            return (null, fallbackName, null);
+        }
+    }
+
+    private static string? ReadProperty(string projectFilePath, string propertyName)
+    {
+        if (!File.Exists(projectFilePath))
+            return null;
+        try
+        {
+            var doc = XDocument.Load(projectFilePath);
+            var ns = doc.Root?.Name.Namespace ?? XNamespace.None;
+            return doc.Descendants(ns + propertyName).FirstOrDefault()?.Value?.Trim();
+        }
+        catch (System.Xml.XmlException)
+        {
+            return null;
         }
     }
 }

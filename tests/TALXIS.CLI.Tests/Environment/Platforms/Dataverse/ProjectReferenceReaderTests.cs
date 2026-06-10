@@ -36,6 +36,14 @@ public class ProjectReferenceReaderTests : IDisposable
         return path;
     }
 
+    private string WriteSolutionWithPrefix(string publisherPrefix, params string[] includes)
+    {
+        var refs = string.Concat(includes.Select(i => $"<ProjectReference Include=\"{i}\" />"));
+        var path = Path.Combine(_root, "Solution.cdsproj");
+        File.WriteAllText(path, $"<Project Sdk=\"TALXIS.DevKit.Build.Sdk/1.0.0\"><PropertyGroup><PublisherPrefix>{publisherPrefix}</PublisherPrefix></PropertyGroup><ItemGroup>{refs}</ItemGroup></Project>");
+        return path;
+    }
+
     [Fact]
     public void Reads_AssemblyName_ForPluginProject()
     {
@@ -96,6 +104,39 @@ public class ProjectReferenceReaderTests : IDisposable
     public void Returns_Empty_WhenProjectMissing()
     {
         var names = ProjectReferenceReader.ReadPluginAssemblyNames(Path.Combine(_root, "nope.cdsproj"));
+        Assert.Empty(names);
+    }
+
+    [Fact]
+    public void ScriptLibrary_BuildsWebResourceName_FromSolutionPrefixAndScriptLibraryName()
+    {
+        WriteReferencedProject("Scripts", "Scripts.csproj", "<ProjectType>ScriptLibrary</ProjectType><ScriptLibraryName>main</ScriptLibraryName>");
+        var cdsproj = WriteSolutionWithPrefix("udpp", "Scripts\\Scripts.csproj");
+
+        var names = ProjectReferenceReader.ReadScriptLibraryWebResourceNames(cdsproj);
+
+        Assert.Contains("udpp_main.js", names);
+    }
+
+    [Fact]
+    public void ScriptLibrary_Ignores_NonScriptLibraryProjects()
+    {
+        WriteReferencedProject("Logic", "Logic.csproj", "<ProjectType>Plugin</ProjectType><AssemblyName>Logic</AssemblyName>");
+        var cdsproj = WriteSolutionWithPrefix("udpp", "Logic\\Logic.csproj");
+
+        var names = ProjectReferenceReader.ReadScriptLibraryWebResourceNames(cdsproj);
+
+        Assert.Empty(names);
+    }
+
+    [Fact]
+    public void ScriptLibrary_Empty_WhenSolutionHasNoPublisherPrefix()
+    {
+        WriteReferencedProject("Scripts", "Scripts.csproj", "<ProjectType>ScriptLibrary</ProjectType><ScriptLibraryName>main</ScriptLibraryName>");
+        var cdsproj = WriteSolution("Scripts\\Scripts.csproj");
+
+        var names = ProjectReferenceReader.ReadScriptLibraryWebResourceNames(cdsproj);
+
         Assert.Empty(names);
     }
 }
