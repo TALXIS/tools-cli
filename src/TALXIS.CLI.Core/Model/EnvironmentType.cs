@@ -18,4 +18,8 @@ public enum EnvironmentType
     Developer = 3,
     /// <summary>Default environment — auto-provisioned per tenant; treated as Production for safety.</summary>
     Default = 4,
+    /// <summary>Microsoft Teams-linked environment — backs a Teams team; not destructive by default.</summary>
+    Teams = 5,
+    /// <summary>Subscription-based trial environment — time-limited, convertible to production; no destructive guard.</summary>
+    SubscriptionBasedTrial = 6,
 }
