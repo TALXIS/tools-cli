@@ -7,6 +7,7 @@ using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Core.Resolution;
 using TALXIS.CLI.Logging;
+using TALXIS.Platform.Metadata.Packaging;
 
 namespace TALXIS.CLI.Features.Environment.Solution;
 
