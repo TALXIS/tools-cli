@@ -79,6 +79,32 @@ public sealed class EnvironmentManagementService : IEnvironmentManagementService
             result.OperationLocation);
     }
 
+    public async Task<EnvironmentUpdateOutcome> UpdateAsync(
+        string? profileName,
+        EnvironmentUpdateOptions options,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        var ctx = await _resolver.ResolveAsync(profileName, ct).ConfigureAwait(false);
+
+        var request = new EnvironmentUpdateRequest
+        {
+            EnvironmentId = options.EnvironmentId,
+            DisplayName = options.DisplayName,
+            EnvironmentType = options.EnvironmentType,
+            SecurityGroupId = options.SecurityGroupId,
+        };
+
+        var result = await _provisioner.UpdateAsync(ctx.Connection, ctx.Credential, request, ct).ConfigureAwait(false);
+
+        return new EnvironmentUpdateOutcome(
+            result.EnvironmentId,
+            result.DisplayName,
+            result.EnvironmentType,
+            result.Status);
+    }
+
     public async Task<EnvironmentDeleteOutcome> DeleteAsync(
         string? profileName,
         Guid environmentId,

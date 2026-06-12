@@ -98,6 +98,68 @@ public sealed class PowerPlatformEnvironmentProvisioner : IPowerPlatformEnvironm
         return await PollUntilCompleteAsync(operationLocation, connection, credential, request, parsed, ct).ConfigureAwait(false);
     }
 
+    public async Task<EnvironmentUpdateResult> UpdateAsync(
+        Connection connection,
+        Credential credential,
+        EnvironmentUpdateRequest request,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(credential);
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (request.EnvironmentId == Guid.Empty)
+            throw new ArgumentException("Environment id must not be empty.");
+
+        if (request.EnvironmentType == EnvironmentType.Default)
+            throw new ArgumentException("Cannot convert an environment to type 'Default'.");
+
+        // Build a sparse PATCH body — only include the properties the caller wants to change.
+        var properties = new Dictionary<string, object?>();
+
+        if (request.DisplayName is not null)
+            properties["displayName"] = request.DisplayName;
+
+        if (request.EnvironmentType is { } newType)
+            properties["environmentSku"] = newType.ToString();
+
+        if (request.SecurityGroupId is { } sg)
+        {
+            // Guid.Empty means "clear the security group restriction".
+            properties["linkedEnvironmentMetadata"] = new Dictionary<string, object?>
+            {
+                ["securityGroupId"] = sg == Guid.Empty ? null : sg,
+            };
+        }
+
+        if (properties.Count == 0)
+            throw new ArgumentException("At least one property to update must be specified (--name, --type, or --security-group-id).");
+
+        var body = new Dictionary<string, object?> { ["properties"] = properties };
+
+        var baseUri = _bap.GetBaseUri(connection);
+        var token = await _bap.AcquireTokenAsync(connection, credential, ct).ConfigureAwait(false);
+
+        var patchUri = new Uri(
+            baseUri,
+            $"/providers/Microsoft.BusinessAppPlatform/scopes/admin/environments/{request.EnvironmentId}?api-version={BapEndpointProvider.CreateApiVersion}");
+
+        var response = await _bap.SendAsync(new HttpMethod("PATCH"), patchUri, token, body, ct).ConfigureAwait(false);
+        if (!response.IsSuccess)
+        {
+            throw new InvalidOperationException(
+                $"Environment update failed ({(int)response.StatusCode} {response.StatusCode}): {BapAdminApiClient.Truncate(response.Body, 500)}");
+        }
+
+        // Parse the response to return the current state after the update.
+        var parsed = ParseEnvironmentEnvelope(response.Body);
+        return new EnvironmentUpdateResult(
+            request.EnvironmentId,
+            parsed.DisplayName ?? request.DisplayName,
+            parsed.Type ?? request.EnvironmentType,
+            parsed.State ?? "Succeeded");
+    }
+
     /// <summary>
     /// Validates the cross-field rules the BAP API enforces, surfaced here as
     /// <see cref="ArgumentException"/> so the CLI returns a validation exit code.

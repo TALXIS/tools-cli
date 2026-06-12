@@ -70,7 +70,38 @@ public sealed record EnvironmentDeleteResult(
     Uri? OperationLocation);
 
 /// <summary>
-/// Creates and deletes Power Platform environments through the BAP admin API,
+/// User-supplied inputs for updating an existing Power Platform environment.
+/// Only non-null properties are patched — omitted fields are left unchanged.
+/// </summary>
+public sealed record EnvironmentUpdateRequest
+{
+    /// <summary>Environment id to update.</summary>
+    public required Guid EnvironmentId { get; init; }
+
+    /// <summary>New display name, or <c>null</c> to leave unchanged.</summary>
+    public string? DisplayName { get; init; }
+
+    /// <summary>New lifecycle type (SKU conversion, e.g. Sandbox→Production), or <c>null</c> to leave unchanged.</summary>
+    public EnvironmentType? EnvironmentType { get; init; }
+
+    /// <summary>
+    /// New security group id, or <see cref="Guid.Empty"/> to clear the
+    /// restriction, or <c>null</c> to leave unchanged.
+    /// </summary>
+    public Guid? SecurityGroupId { get; init; }
+}
+
+/// <summary>
+/// Outcome of an environment update request.
+/// </summary>
+public sealed record EnvironmentUpdateResult(
+    Guid EnvironmentId,
+    string? DisplayName,
+    EnvironmentType? EnvironmentType,
+    string Status);
+
+/// <summary>
+/// Creates, updates, and deletes Power Platform environments through the BAP admin API,
 /// including the per-region currency/language/template validation lookups and
 /// async provisioning/deletion polling.
 /// </summary>
@@ -80,6 +111,12 @@ public interface IPowerPlatformEnvironmentProvisioner
         Connection connection,
         Credential credential,
         EnvironmentCreateRequest request,
+        CancellationToken ct);
+
+    Task<EnvironmentUpdateResult> UpdateAsync(
+        Connection connection,
+        Credential credential,
+        EnvironmentUpdateRequest request,
         CancellationToken ct);
 
     Task<EnvironmentDeleteResult> DeleteAsync(

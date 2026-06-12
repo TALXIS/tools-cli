@@ -83,6 +83,40 @@ txc env create --type Trial --name "Sales Demo" --templates D365_Sales
 - **No `--description` option.** The BAP create API does not accept a description field, so a CLI flag would be a silent no-op.
 - **Currency, language, and template validation is region-specific.** The CLI fetches the per-region catalog and fails fast with the valid values when a mismatch is detected.
 
+## Updating environments
+
+```sh
+txc env update <id> [--name <name>] [--type <type>] [--security-group-id <guid>]
+```
+
+Updates properties of an existing environment. Only the supplied options are changed — omitted properties are left as-is.
+
+| Option | Alias | Description |
+|--------|-------|-------------|
+| `<id>` | — | Environment id (GUID) to update. **Required.** |
+| `--name` | `-n` | New display name. |
+| `--type` | `-t` | Convert to a different type (e.g. `Sandbox` → `Production`). |
+| `--security-group-id` | `-sg` | Entra security group that gates access. Pass `00000000-0000-0000-0000-000000000000` to remove the restriction. |
+| `--profile` | `-p` | Profile supplying the admin identity and cloud. |
+
+### Examples
+
+```sh
+# Rename an environment
+txc env update 11111111-1111-1111-1111-111111111111 --name "Production - Contoso"
+
+# Promote a sandbox to production
+txc env update 11111111-1111-1111-1111-111111111111 --type Production
+
+# Restrict access to a security group
+txc env update 11111111-1111-1111-1111-111111111111 \
+  --security-group-id 22222222-2222-2222-2222-222222222222
+
+# Remove the security group restriction
+txc env update 11111111-1111-1111-1111-111111111111 \
+  --security-group-id 00000000-0000-0000-0000-000000000000
+```
+
 ## Deleting environments
 
 ```sh
@@ -127,6 +161,7 @@ Both commands are automatically exposed as MCP tools:
 |-------------|--------------|-------------|
 | `txc env list` | `environment_list` | `ReadOnlyHint` |
 | `txc env create` | `environment_create` | `IdempotentHint` |
+| `txc env update` | `environment_update` | `IdempotentHint` |
 | `txc env delete` | `environment_delete` | `DestructiveHint` |
 
 No special MCP configuration is needed — tool registration is reflection-driven from the CLI command tree.

@@ -50,6 +50,27 @@ public sealed record EnvironmentCreateOutcome(
     Uri? OperationLocation);
 
 /// <summary>
+/// User-supplied inputs for <c>txc env update</c>. Only non-null properties
+/// are patched — omitted fields are left unchanged on the environment.
+/// </summary>
+public sealed record EnvironmentUpdateOptions
+{
+    public required Guid EnvironmentId { get; init; }
+    public string? DisplayName { get; init; }
+    public EnvironmentType? EnvironmentType { get; init; }
+    public Guid? SecurityGroupId { get; init; }
+}
+
+/// <summary>
+/// Result of an environment update.
+/// </summary>
+public sealed record EnvironmentUpdateOutcome(
+    Guid EnvironmentId,
+    string? DisplayName,
+    EnvironmentType? EnvironmentType,
+    string Status);
+
+/// <summary>
 /// Result of an environment deletion. When the caller does not wait,
 /// <see cref="Completed"/> is <c>false</c> and <see cref="OperationLocation"/>
 /// carries the URL that reports deletion progress.
@@ -84,6 +105,15 @@ public interface IEnvironmentManagementService
     Task<EnvironmentCreateOutcome> CreateAsync(
         string? profileName,
         EnvironmentCreateOptions options,
+        CancellationToken ct);
+
+    /// <summary>
+    /// Updates properties of an existing environment. Only the non-null fields
+    /// in <paramref name="options"/> are changed.
+    /// </summary>
+    Task<EnvironmentUpdateOutcome> UpdateAsync(
+        string? profileName,
+        EnvironmentUpdateOptions options,
         CancellationToken ct);
 
     /// <summary>
