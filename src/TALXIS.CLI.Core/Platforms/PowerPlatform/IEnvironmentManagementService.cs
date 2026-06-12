@@ -50,11 +50,22 @@ public sealed record EnvironmentCreateOutcome(
     Uri? OperationLocation);
 
 /// <summary>
+/// Result of an environment deletion. When the caller does not wait,
+/// <see cref="Completed"/> is <c>false</c> and <see cref="OperationLocation"/>
+/// carries the URL that reports deletion progress.
+/// </summary>
+public sealed record EnvironmentDeleteOutcome(
+    Guid EnvironmentId,
+    string Status,
+    bool Completed,
+    Uri? OperationLocation);
+
+/// <summary>
 /// Tenant-level environment administration: listing the environments visible
-/// to the active profile's identity and creating new ones. Resolves the
-/// (Profile, Connection, Credential) triple internally — the credential and
-/// cloud supply the admin authority, independent of any single target
-/// environment URL.
+/// to the active profile's identity, creating new ones, and deleting existing
+/// ones. Resolves the (Profile, Connection, Credential) triple internally —
+/// the credential and cloud supply the admin authority, independent of any
+/// single target environment URL.
 /// </summary>
 public interface IEnvironmentManagementService
 {
@@ -73,5 +84,18 @@ public interface IEnvironmentManagementService
     Task<EnvironmentCreateOutcome> CreateAsync(
         string? profileName,
         EnvironmentCreateOptions options,
+        CancellationToken ct);
+
+    /// <summary>
+    /// Permanently deletes an environment from the tenant. The BAP admin API
+    /// validates that the environment can be deleted before initiating the
+    /// operation. By default returns immediately; pass <paramref name="wait"/>
+    /// to block until deletion completes.
+    /// </summary>
+    Task<EnvironmentDeleteOutcome> DeleteAsync(
+        string? profileName,
+        Guid environmentId,
+        bool wait,
+        TimeSpan maxWait,
         CancellationToken ct);
 }

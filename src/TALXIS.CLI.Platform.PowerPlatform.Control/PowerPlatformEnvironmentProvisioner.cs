@@ -396,6 +396,118 @@ public sealed class PowerPlatformEnvironmentProvisioner : IPowerPlatformEnvironm
         }
     }
 
+    public async Task<EnvironmentDeleteResult> DeleteAsync(
+        Connection connection,
+        Credential credential,
+        Guid environmentId,
+        bool wait,
+        TimeSpan maxWait,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(credential);
+
+        if (environmentId == Guid.Empty)
+            throw new ArgumentException("Environment id must not be empty.", nameof(environmentId));
+
+        var baseUri = _bap.GetBaseUri(connection);
+        var token = await _bap.AcquireTokenAsync(connection, credential, ct).ConfigureAwait(false);
+
+        // Pre-flight: ask the BAP API whether this environment can be deleted.
+        // The response contains a "canInitiateDelete" flag and, on false, the
+        // reasons the delete would be blocked (e.g. managed environments, D365 apps).
+        await ValidateDeleteAsync(baseUri, token, environmentId, ct).ConfigureAwait(false);
+
+        var deleteUri = new Uri(
+            baseUri,
+            $"/providers/Microsoft.BusinessAppPlatform/scopes/admin/environments/{environmentId}?api-version={BapEndpointProvider.CreateApiVersion}");
+
+        var response = await _bap.SendAsync(HttpMethod.Delete, deleteUri, token, jsonBody: null, ct).ConfigureAwait(false);
+        if (!response.IsSuccess && response.StatusCode != HttpStatusCode.Accepted)
+        {
+            throw new InvalidOperationException(
+                $"Environment deletion failed ({(int)response.StatusCode} {response.StatusCode}): {BapAdminApiClient.Truncate(response.Body, 500)}");
+        }
+
+        var operationLocation = response.Location;
+
+        if (!wait)
+        {
+            return new EnvironmentDeleteResult(
+                environmentId, "Deleting", Completed: false, OperationLocation: operationLocation);
+        }
+
+        // Already complete (synchronous 200) — no polling needed.
+        if (response.StatusCode != HttpStatusCode.Accepted || operationLocation is null)
+        {
+            return new EnvironmentDeleteResult(
+                environmentId, "Deleted", Completed: true, OperationLocation: null);
+        }
+
+        return await PollDeleteUntilCompleteAsync(operationLocation, connection, credential, environmentId, maxWait, ct).ConfigureAwait(false);
+    }
+
+    private async Task ValidateDeleteAsync(Uri baseUri, string token, Guid environmentId, CancellationToken ct)
+    {
+        var validateUri = new Uri(
+            baseUri,
+            $"/providers/Microsoft.BusinessAppPlatform/scopes/admin/environments/{environmentId}/validateDelete?api-version={BapEndpointProvider.CreateApiVersion}");
+
+        var response = await _bap.SendAsync(HttpMethod.Post, validateUri, token, jsonBody: null, ct).ConfigureAwait(false);
+        if (!response.IsSuccess)
+        {
+            throw new InvalidOperationException(
+                $"Delete validation failed ({(int)response.StatusCode} {response.StatusCode}): {BapAdminApiClient.Truncate(response.Body, 500)}");
+        }
+
+        using var doc = JsonDocument.Parse(response.Body);
+        if (doc.RootElement.TryGetProperty("canInitiateDelete", out var canDelete)
+            && canDelete.ValueKind == JsonValueKind.False)
+        {
+            throw new InvalidOperationException(
+                $"Environment {environmentId} cannot be deleted: {BapAdminApiClient.Truncate(response.Body, 500)}");
+        }
+    }
+
+    private async Task<EnvironmentDeleteResult> PollDeleteUntilCompleteAsync(
+        Uri operationLocation,
+        Connection connection,
+        Credential credential,
+        Guid environmentId,
+        TimeSpan maxWait,
+        CancellationToken ct)
+    {
+        var started = DateTimeOffset.UtcNow;
+        var interval = InitialPollInterval;
+
+        while (true)
+        {
+            var token = await _bap.AcquireTokenAsync(connection, credential, ct).ConfigureAwait(false);
+            var poll = await _bap.SendAsync(HttpMethod.Get, operationLocation, token, jsonBody: null, ct).ConfigureAwait(false);
+
+            if (poll.StatusCode != HttpStatusCode.Accepted)
+            {
+                if (!poll.IsSuccess)
+                {
+                    throw new InvalidOperationException(
+                        $"Environment deletion failed ({(int)poll.StatusCode} {poll.StatusCode}): {BapAdminApiClient.Truncate(poll.Body, 500)}");
+                }
+
+                return new EnvironmentDeleteResult(environmentId, "Deleted", Completed: true, OperationLocation: null);
+            }
+
+            if (DateTimeOffset.UtcNow - started >= maxWait)
+            {
+                return new EnvironmentDeleteResult(
+                    environmentId, "Deleting", Completed: false, OperationLocation: operationLocation);
+            }
+
+            await Task.Delay(interval, ct).ConfigureAwait(false);
+            if (DateTimeOffset.UtcNow - started >= BackoffAfter)
+                interval = SteadyPollInterval;
+        }
+    }
+
     private static IEnumerable<JsonElement> EnumerateValue(JsonElement root)
         => root.TryGetProperty("value", out var value) && value.ValueKind == JsonValueKind.Array
             ? value.EnumerateArray()

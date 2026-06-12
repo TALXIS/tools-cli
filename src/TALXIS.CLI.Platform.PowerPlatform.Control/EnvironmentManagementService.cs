@@ -78,4 +78,21 @@ public sealed class EnvironmentManagementService : IEnvironmentManagementService
             result.Completed,
             result.OperationLocation);
     }
+
+    public async Task<EnvironmentDeleteOutcome> DeleteAsync(
+        string? profileName,
+        Guid environmentId,
+        bool wait,
+        TimeSpan maxWait,
+        CancellationToken ct)
+    {
+        var ctx = await _resolver.ResolveAsync(profileName, ct).ConfigureAwait(false);
+        var result = await _provisioner.DeleteAsync(ctx.Connection, ctx.Credential, environmentId, wait, maxWait, ct).ConfigureAwait(false);
+
+        return new EnvironmentDeleteOutcome(
+            result.EnvironmentId,
+            result.Status,
+            result.Completed,
+            result.OperationLocation);
+    }
 }

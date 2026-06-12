@@ -59,9 +59,20 @@ public sealed record EnvironmentCreateResult(
     Uri? OperationLocation);
 
 /// <summary>
-/// Creates Power Platform environments through the BAP admin API, including
-/// the per-region currency/language/template validation lookups and async
-/// provisioning polling.
+/// Outcome of an environment deletion request. When the caller does not wait,
+/// <see cref="Completed"/> is <c>false</c> and <see cref="OperationLocation"/>
+/// carries the URL that reports deletion progress.
+/// </summary>
+public sealed record EnvironmentDeleteResult(
+    Guid EnvironmentId,
+    string Status,
+    bool Completed,
+    Uri? OperationLocation);
+
+/// <summary>
+/// Creates and deletes Power Platform environments through the BAP admin API,
+/// including the per-region currency/language/template validation lookups and
+/// async provisioning/deletion polling.
 /// </summary>
 public interface IPowerPlatformEnvironmentProvisioner
 {
@@ -69,5 +80,13 @@ public interface IPowerPlatformEnvironmentProvisioner
         Connection connection,
         Credential credential,
         EnvironmentCreateRequest request,
+        CancellationToken ct);
+
+    Task<EnvironmentDeleteResult> DeleteAsync(
+        Connection connection,
+        Credential credential,
+        Guid environmentId,
+        bool wait,
+        TimeSpan maxWait,
         CancellationToken ct);
 }

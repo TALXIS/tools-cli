@@ -83,6 +83,36 @@ txc env create --type Trial --name "Sales Demo" --templates D365_Sales
 - **No `--description` option.** The BAP create API does not accept a description field, so a CLI flag would be a silent no-op.
 - **Currency, language, and template validation is region-specific.** The CLI fetches the per-region catalog and fails fast with the valid values when a mismatch is detected.
 
+## Deleting environments
+
+```sh
+txc env delete <id> [--yes] [--wait] [--max-wait-minutes <minutes>]
+```
+
+**This action is irreversible.** Permanently deletes a Power Platform environment and all its data. The BAP admin API validates that the environment can be deleted before initiating the operation (e.g. environments with active D365 apps or managed-environment policies may be blocked).
+
+| Option | Required | Default | Description |
+|--------|----------|---------|-------------|
+| `<id>` | **Yes** | — | Environment id (GUID) to delete. |
+| `--yes` | No | — | Skip interactive confirmation prompt. Required in non-interactive (CI) environments. |
+| `--wait` | No | `false` | Block until deletion completes. |
+| `--max-wait-minutes` | No | `60` | Timeout in minutes when `--wait` is set. |
+| `--profile`, `-p` | No | active | Profile supplying the admin identity and cloud. |
+| `--allow-production` | No | — | Required when targeting Production or Default environments (safety guard). |
+
+### Examples
+
+```sh
+# Interactive delete with confirmation prompt
+txc env delete 11111111-1111-1111-1111-111111111111
+
+# CI/scripting — skip prompt, wait for completion
+txc env delete 11111111-1111-1111-1111-111111111111 --yes --wait
+
+# Delete a production environment (requires explicit opt-in)
+txc env delete 11111111-1111-1111-1111-111111111111 --yes --allow-production
+```
+
 ## Authentication
 
 Both commands use the active profile (or `--profile`) to resolve a credential and cloud instance. The credential acquires a BAP admin token scoped to `https://service.powerapps.com/`. No target environment URL is needed — these are tenant-level operations.
@@ -97,5 +127,6 @@ Both commands are automatically exposed as MCP tools:
 |-------------|--------------|-------------|
 | `txc env list` | `environment_list` | `ReadOnlyHint` |
 | `txc env create` | `environment_create` | `IdempotentHint` |
+| `txc env delete` | `environment_delete` | `DestructiveHint` |
 
 No special MCP configuration is needed — tool registration is reflection-driven from the CLI command tree.
