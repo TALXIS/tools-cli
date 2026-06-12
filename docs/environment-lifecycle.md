@@ -1,6 +1,6 @@
 # Environment Lifecycle
 
-`txc env list` and `txc env create` manage Power Platform environments at the **tenant level** — they use the active profile's credential and cloud for admin authority, not a target environment URL.
+`txc env list`, `txc env create`, `txc env update`, and `txc env delete` manage Power Platform environments at the **tenant level** — they use the active profile's credential and cloud for admin authority, not a target environment URL.
 
 ## Listing environments
 
@@ -36,7 +36,7 @@ txc env list --filter "contoso"
 txc env create --type <type> [options]
 ```
 
-Provisions a new environment via the Power Platform BAP admin API. By default the command returns immediately after the create request is accepted (fire-and-forget); pass `--wait` to block until provisioning completes.
+Provisions a new Power Platform environment. By default the command returns immediately after the request is accepted (fire-and-forget); pass `--wait` to block until provisioning completes.
 
 | Option | Alias | Required | Default | Description |
 |--------|-------|----------|---------|-------------|
@@ -79,7 +79,7 @@ txc env create --type Trial --name "Sales Demo" --templates D365_Sales
 ### Known limitations
 
 - **`--user` accepts only Entra object ids (GUIDs).** UPN-to-objectId resolution (which PAC CLI supports via Microsoft Graph) is not implemented. Use `az ad user show --id user@contoso.com --query id -o tsv` to look up the id.
-- **No `--description` option.** The BAP create API does not accept a description field, so a CLI flag would be a silent no-op.
+- **No `--description` option.** The platform does not support setting a description during creation.
 - **Currency, language, and template validation is region-specific.** The CLI fetches the per-region catalog and fails fast with the valid values when a mismatch is detected.
 
 ## Updating environments
@@ -122,7 +122,7 @@ txc env update 11111111-1111-1111-1111-111111111111 \
 txc env delete <id> [--yes] [--wait]
 ```
 
-**This action is irreversible.** Permanently deletes a Power Platform environment and all its data. The BAP admin API validates that the environment can be deleted before initiating the operation (e.g. environments with active D365 apps or managed-environment policies may be blocked).
+**This action is irreversible.** Permanently deletes a Power Platform environment and all its data. The platform validates that the environment can be deleted before initiating the operation (e.g. environments with active D365 apps or managed-environment policies may be blocked).
 
 | Option | Required | Default | Description |
 |--------|----------|---------|-------------|
@@ -147,13 +147,13 @@ txc env delete 11111111-1111-1111-1111-111111111111 --yes --allow-production
 
 ## Authentication
 
-Both commands use the active profile (or `--profile`) to resolve a credential and cloud instance. The credential acquires a BAP admin token scoped to `https://service.powerapps.com/`. No target environment URL is needed — these are tenant-level operations.
+All environment lifecycle commands use the active profile (or `--profile`) to resolve a credential and cloud instance. The credential acquires an admin token — no target environment URL is needed, since these are tenant-level operations.
 
 See [profiles-and-authentication.md](profiles-and-authentication.md) for how profiles work.
 
 ## MCP integration
 
-Both commands are automatically exposed as MCP tools:
+All environment lifecycle commands are automatically exposed as MCP tools:
 
 | CLI command | MCP tool name | Access hint |
 |-------------|--------------|-------------|
