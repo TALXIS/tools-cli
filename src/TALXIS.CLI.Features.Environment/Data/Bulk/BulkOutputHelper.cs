@@ -16,7 +16,14 @@ internal static class BulkOutputHelper
             operation = operationName,
             succeeded = result.SucceededCount,
             failed = result.FailedCount,
-            createdIds = result.CreatedIds.Select(id => id.ToString()).ToList()
+            createdIds = result.CreatedIds.Select(id => id.ToString()).ToList(),
+            failures = (result.Failures ?? Array.Empty<BulkOperationFailure>())
+                .Select(f => new
+                {
+                    recordId = f.RecordId?.ToString(),
+                    error = f.ErrorMessage
+                })
+                .ToList()
         };
 
         OutputFormatter.WriteData(payload, _ =>
@@ -28,6 +35,18 @@ internal static class BulkOutputHelper
                 foreach (var id in result.CreatedIds)
                 {
                     OutputWriter.WriteLine($"  {id}");
+                }
+            }
+
+            if (result.Failures is { Count: > 0 })
+            {
+                OutputWriter.WriteLine("Failures:");
+                foreach (var failure in result.Failures)
+                {
+                    OutputWriter.WriteLine(
+                        failure.RecordId.HasValue
+                            ? $"  {failure.RecordId}: {failure.ErrorMessage}"
+                            : $"  {failure.ErrorMessage}");
                 }
             }
         });
