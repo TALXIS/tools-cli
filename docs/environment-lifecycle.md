@@ -50,7 +50,6 @@ Provisions a new environment via the Power Platform BAP admin API. By default th
 | `--security-group-id` | `-sg` | Teams: yes | — | Entra security group id. Required for `Teams` environments. |
 | `--user` | `-u` | No | — | Owning user's Entra object id. Only valid for `Developer` environments. |
 | `--wait` | — | No | `false` | Block until provisioning completes. |
-| `--max-wait-minutes` | — | No | `60` | Timeout in minutes when `--wait` is set. |
 | `--profile` | `-p` | No | active | Profile supplying the admin identity and cloud. |
 
 > \* `--name` is ignored for `Teams` environments (the name derives from the linked group).
@@ -120,7 +119,7 @@ txc env update 11111111-1111-1111-1111-111111111111 \
 ## Deleting environments
 
 ```sh
-txc env delete <id> [--yes] [--wait] [--max-wait-minutes <minutes>]
+txc env delete <id> [--yes] [--wait]
 ```
 
 **This action is irreversible.** Permanently deletes a Power Platform environment and all its data. The BAP admin API validates that the environment can be deleted before initiating the operation (e.g. environments with active D365 apps or managed-environment policies may be blocked).
@@ -130,7 +129,6 @@ txc env delete <id> [--yes] [--wait] [--max-wait-minutes <minutes>]
 | `<id>` | **Yes** | — | Environment id (GUID) to delete. |
 | `--yes` | No | — | Skip interactive confirmation prompt. Required in non-interactive (CI) environments. |
 | `--wait` | No | `false` | Block until deletion completes. |
-| `--max-wait-minutes` | No | `60` | Timeout in minutes when `--wait` is set. |
 | `--profile`, `-p` | No | active | Profile supplying the admin identity and cloud. |
 | `--allow-production` | No | — | Required when targeting Production or Default environments (safety guard). |
 

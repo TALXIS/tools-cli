@@ -60,9 +60,6 @@ public class EnvironmentCreateCliCommand : ProfiledCliCommand
     [CliOption(Name = "--wait", Description = "Wait for provisioning to complete. By default the command returns after queueing.", Required = false)]
     public bool Wait { get; set; }
 
-    [CliOption(Name = "--max-wait-minutes", Description = "Maximum minutes to wait when --wait is set (default 60).", Required = false)]
-    public int MaxWaitMinutes { get; set; } = 60;
-
     protected override async Task<int> ExecuteAsync()
     {
         var templates = string.IsNullOrWhiteSpace(Templates)
@@ -81,7 +78,6 @@ public class EnvironmentCreateCliCommand : ProfiledCliCommand
             SecurityGroupId = SecurityGroupId,
             UserObjectId = User,
             Wait = Wait,
-            MaxWait = TimeSpan.FromMinutes(Math.Max(1, MaxWaitMinutes)),
         };
 
         var service = TxcServices.Get<IEnvironmentManagementService>();

@@ -35,8 +35,45 @@ public class EnvironmentDeleteCliCommand : ProfiledCliCommand, IDestructiveComma
     [CliOption(Name = "--wait", Description = "Wait for deletion to complete. By default the command returns after queueing.", Required = false)]
     public bool Wait { get; set; }
 
-    [CliOption(Name = "--max-wait-minutes", Description = "Maximum minutes to wait when --wait is set (default 60).", Required = false)]
-    public int MaxWaitMinutes { get; set; } = 60;
+    /// <summary>
+    /// Overrides the base production guard because this is a tenant-level
+    /// command: the profile supplies admin credentials, but the *target*
+    /// environment is identified by <see cref="EnvironmentId"/>, which is
+    /// independent of the profile's connection. The base guard would check
+    /// the wrong environment. Instead we resolve the target environment's
+    /// type from the tenant catalog and apply the same check.
+    /// </summary>
+    protected override async Task<int?> PreExecuteAsync()
+    {
+        if (AllowProduction)
+            return null;
+
+        try
+        {
+            var service = TxcServices.Get<IEnvironmentManagementService>();
+            var environments = await service.ListAsync(Profile, CancellationToken.None).ConfigureAwait(false);
+            var target = environments.FirstOrDefault(e => e.EnvironmentId == EnvironmentId);
+
+            if (target is null)
+                return null; // Not found — let ExecuteAsync handle the 404 from the API.
+
+            if (!IsProductionLike(target.EnvironmentType, target.DisplayName, target.EnvironmentUrl?.ToString()))
+                return null;
+
+            Logger.LogError(
+                "Blocked: this is a destructive operation targeting {EnvType} environment '{EnvLabel}'. " +
+                "Pass --allow-production to confirm.",
+                target.EnvironmentType?.ToString() ?? "Unknown",
+                target.DisplayName ?? EnvironmentId.ToString());
+            return ExitValidationError;
+        }
+        catch (Exception)
+        {
+            // If we can't resolve the target, don't block — let the API call
+            // proceed and fail with its own error if needed.
+            return null;
+        }
+    }
 
     protected override async Task<int> ExecuteAsync()
     {
@@ -45,7 +82,7 @@ public class EnvironmentDeleteCliCommand : ProfiledCliCommand, IDestructiveComma
             Profile,
             EnvironmentId,
             Wait,
-            TimeSpan.FromMinutes(Math.Max(1, MaxWaitMinutes)),
+            TimeSpan.FromMinutes(60),
             CancellationToken.None).ConfigureAwait(false);
 
         if (result.Completed)
