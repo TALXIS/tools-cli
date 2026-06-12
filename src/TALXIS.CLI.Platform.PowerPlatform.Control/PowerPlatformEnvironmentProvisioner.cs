@@ -95,7 +95,7 @@ public sealed class PowerPlatformEnvironmentProvisioner : IPowerPlatformEnvironm
                 Completed: true, OperationLocation: null);
         }
 
-        return await PollUntilCompleteAsync(operationLocation, token, request, parsed, ct).ConfigureAwait(false);
+        return await PollUntilCompleteAsync(operationLocation, connection, credential, request, parsed, ct).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -126,7 +126,8 @@ public sealed class PowerPlatformEnvironmentProvisioner : IPowerPlatformEnvironm
 
     private async Task<EnvironmentCreateResult> PollUntilCompleteAsync(
         Uri operationLocation,
-        string token,
+        Connection connection,
+        Credential credential,
         EnvironmentCreateRequest request,
         EnvironmentEnvelope initial,
         CancellationToken ct)
@@ -137,6 +138,10 @@ public sealed class PowerPlatformEnvironmentProvisioner : IPowerPlatformEnvironm
 
         while (true)
         {
+            // Re-acquire on every iteration so the token stays fresh across
+            // long-running polls (up to MaxWait, default 60 min). MSAL's
+            // in-memory cache makes this a no-op when the token is still valid.
+            var token = await _bap.AcquireTokenAsync(connection, credential, ct).ConfigureAwait(false);
             var poll = await _bap.SendAsync(HttpMethod.Get, operationLocation, token, jsonBody: null, ct).ConfigureAwait(false);
 
             // 202 = still provisioning; anything else terminal (success body parsed below).

@@ -15,6 +15,11 @@ namespace TALXIS.CLI.Features.Environment;
 /// environment. By default the command returns once provisioning is queued;
 /// pass <c>--wait</c> to block until the environment is ready.
 /// </summary>
+// NOTE: Environment creation is not truly idempotent (each call creates a new
+// environment), but [CliIdempotent] is used here to match the convention of all
+// other create commands (SolutionCreate, PublisherCreate, etc.) and to avoid the
+// [CliDestructive] + IDestructiveCommand + --yes ceremony which is wrong UX for
+// a create operation. MCP clients should still confirm with users before calling.
 [CliIdempotent]
 [CliLongRunning]
 [CliCommand(
