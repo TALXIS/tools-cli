@@ -25,7 +25,7 @@ src/
   TALXIS.CLI.Logging                            # Structured logging infrastructure
 
   TALXIS.CLI.Features.Config                    # txc config: profiles, auth, connections, settings
-  TALXIS.CLI.Features.Environment               # txc environment: solution/package/deployment commands
+  TALXIS.CLI.Features.Environment               # txc environment: env list/create, solution/package/deployment commands
   TALXIS.CLI.Features.Data                      # txc data: model conversion, data packages, transforms
   TALXIS.CLI.Features.Docs                      # txc docs (placeholder)
   TALXIS.CLI.Features.Workspace                 # txc workspace: scaffolding, templates, validation
