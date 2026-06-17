@@ -1,4 +1,4 @@
-namespace TALXIS.CLI.Features.Environment.Component.Browse;
+namespace TALXIS.CLI.Core.Component.Browse;
 
 /// <summary>
 /// URL builders for the Power Apps canvas app player (<c>apps.powerapps.com/play</c>).
@@ -11,8 +11,13 @@ public static class CanvasAppUrls
     /// <summary>
     /// Open a canvas app in the Power Apps player.
     /// </summary>
-    public static Uri Play(Guid environmentId, Guid appId, string? tenantId,
-        string? screenName = null, IDictionary<string, string>? customParams = null, bool hideNavbar = false)
+    public static Uri Play(
+        Guid environmentId,
+        Guid appId,
+        string? tenantId,
+        string? screenName = null,
+        IDictionary<string, string>? customParams = null,
+        bool hideNavbar = false)
     {
         var qs = new List<string>();
         if (!string.IsNullOrWhiteSpace(tenantId))
@@ -22,10 +27,12 @@ public static class CanvasAppUrls
         if (hideNavbar)
             qs.Add("hidenavbar=true");
         if (customParams != null)
+        {
             foreach (var (key, value) in customParams)
                 qs.Add($"{Uri.EscapeDataString(key)}={Uri.EscapeDataString(value)}");
+        }
 
-        var query = qs.Count > 0 ? "?" + string.Join("&", qs) : "";
+        var query = qs.Count > 0 ? "?" + string.Join("&", qs) : string.Empty;
         return new Uri($"{Base}/e/{environmentId}/a/{appId}{query}");
     }
 }

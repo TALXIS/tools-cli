@@ -21,6 +21,8 @@ txc
 
 These five groups are deliberately small. Adding a sixth top-level group requires a strong justification — if a new piece of functionality fits under an existing noun, put it there.
 
+`ui` is the current justified exception. Browser-session automation for model-driven apps is not configuration, workspace authoring, environment deployment, data migration, or documentation. It is an interactive runtime surface that spans auth reuse, navigation, inspection, and recovery inside a live browser, so it would be misleading to hide it under one of the existing nouns.
+
 ### `config` sub-nouns
 
 The `config` group has four sub-nouns, each owning one aspect of the resolution pipeline:

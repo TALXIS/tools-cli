@@ -27,6 +27,8 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="TALXIS.CLI.Tests" />
+    <InternalsVisibleTo Include="TALXIS.CLI.Features.Ui.Tests" />
+    <InternalsVisibleTo Include="TALXIS.CLI.Platform.Playwright.Tests" />
     <InternalsVisibleTo Include="TALXIS.CLI.Platform.Dataverse.Runtime" />
   </ItemGroup>
 

@@ -17,6 +17,7 @@
     <ProjectReference Include="..\TALXIS.CLI.Logging\TALXIS.CLI.Logging.csproj" />
     <ProjectReference Include="..\TALXIS.CLI.Platform.Dataverse.Data\TALXIS.CLI.Platform.Dataverse.Data.csproj" />
     <ProjectReference Include="..\TALXIS.CLI.Platform.Dataverse.Runtime\TALXIS.CLI.Platform.Dataverse.Runtime.csproj" />
+    <ProjectReference Include="..\TALXIS.CLI.Platform.Playwright\TALXIS.CLI.Platform.Playwright.csproj" />
     <ProjectReference Include="..\TALXIS.CLI.Platform.Xrm\TALXIS.CLI.Platform.Xrm.csproj" />
   </ItemGroup>
 
