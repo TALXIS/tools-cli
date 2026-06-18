@@ -183,6 +183,8 @@ public sealed class SolutionImporter
                 $"Solution staging failed ({stageResults.StageSolutionStatus}). {messages}");
         }
 
+        EntityCollection? componentParameters = BuildComponentParameters(stageResults, options);
+
         DateTime startedAtUtc = DateTime.UtcNow;
         Guid importJobId = Guid.NewGuid();
         Guid? asyncOperationId = null;
@@ -198,6 +200,9 @@ public sealed class SolutionImporter
                 SkipProductUpdateDependencies = options.SkipDependencyCheck,
                 ImportJobId = importJobId
             };
+
+            if (componentParameters is not null)
+                stageAndUpgrade.ComponentParameters = componentParameters;
 
             var response = (StageAndUpgradeAsyncResponse)await _service
                 .ExecuteAsync(stageAndUpgrade, cancellationToken)
@@ -218,6 +223,9 @@ public sealed class SolutionImporter
                 SkipProductUpdateDependencies = options.SkipDependencyCheck,
                 ImportJobId = importJobId
             };
+
+            if (componentParameters is not null)
+                import.ComponentParameters = componentParameters;
 
             var response = (ImportSolutionAsyncResponse)await _service
                 .ExecuteAsync(import, cancellationToken)
@@ -241,6 +249,94 @@ public sealed class SolutionImporter
             completedAtUtc,
             smartDiffExpected,
             status);
+    }
+
+    /// <summary>Builds the ComponentParameters from the settings file, or null if there's nothing to apply.</summary>
+    private EntityCollection? BuildComponentParameters(
+        StageSolutionResults stageResults,
+        SolutionImportOptions options)
+    {
+        if (options.Settings is not { IsEmpty: false } settings)
+            return null;
+
+        var (connectionReferences, environmentVariables) = ExtractSolutionComponents(stageResults);
+        var plan = ComponentParameterPlanner.Plan(settings, connectionReferences, environmentVariables);
+
+        foreach (var warning in plan.Warnings)
+            _logger?.LogWarning("{Warning}", warning);
+
+        if (plan.IsEmpty)
+            return null;
+
+        _logger?.LogInformation(
+            "Applying deployment settings: {ConnectionCount} connection reference(s), {VariableCount} environment variable(s).",
+            plan.ConnectionReferences.Count,
+            plan.EnvironmentVariables.Count);
+
+        return MaterializeComponentParameters(plan);
+    }
+
+    /// <summary>Reads the connection references and environment variables a staged solution declares.</summary>
+    internal static (List<SolutionConnectionReference> ConnectionReferences, List<SolutionEnvironmentVariable> EnvironmentVariables)
+        ExtractSolutionComponents(StageSolutionResults stageResults)
+    {
+        var connectionReferences = new List<SolutionConnectionReference>();
+        var environmentVariables = new List<SolutionEnvironmentVariable>();
+
+        foreach (var component in stageResults.SolutionComponentsDetails ?? new List<SolutionComponentDetails>())
+        {
+            var attributes = component.Attributes ?? new Dictionary<string, string>();
+
+            if (string.Equals(component.ComponentTypeName, "connectionreference", StringComparison.OrdinalIgnoreCase))
+            {
+                attributes.TryGetValue("connectionreferencelogicalname", out var logicalName);
+                attributes.TryGetValue("connectorid", out var connectorId);
+                if (!string.IsNullOrWhiteSpace(logicalName))
+                    connectionReferences.Add(new SolutionConnectionReference(logicalName, connectorId));
+            }
+            else if (string.Equals(component.ComponentTypeName, "environmentvariabledefinition", StringComparison.OrdinalIgnoreCase)
+                  || string.Equals(component.ComponentTypeName, "environmentvariablevalue", StringComparison.OrdinalIgnoreCase))
+            {
+                attributes.TryGetValue("schemaname", out var schemaName);
+                attributes.TryGetValue("environmentvariablevalueid", out var valueId);
+                if (!string.IsNullOrWhiteSpace(schemaName))
+                    environmentVariables.Add(new SolutionEnvironmentVariable(schemaName, string.IsNullOrWhiteSpace(valueId) ? null : valueId));
+            }
+        }
+
+        return (connectionReferences, environmentVariables);
+    }
+
+    /// <summary>Turns the plan into the EntityCollection passed as ComponentParameters.</summary>
+    private static EntityCollection MaterializeComponentParameters(ComponentParameterPlan plan)
+    {
+        var collection = new EntityCollection();
+
+        foreach (var reference in plan.ConnectionReferences)
+        {
+            var entity = new Entity("connectionreference")
+            {
+                ["connectionreferencelogicalname"] = reference.LogicalName,
+                ["connectionid"] = reference.ConnectionId
+            };
+            if (!string.IsNullOrWhiteSpace(reference.ConnectorId))
+                entity["connectorid"] = reference.ConnectorId;
+            collection.Entities.Add(entity);
+        }
+
+        foreach (var variable in plan.EnvironmentVariables)
+        {
+            var entity = new Entity("environmentvariablevalue")
+            {
+                ["schemaname"] = variable.SchemaName,
+                ["value"] = variable.Value
+            };
+            if (!string.IsNullOrWhiteSpace(variable.ValueId))
+                entity["environmentvariablevalueid"] = variable.ValueId;
+            collection.Entities.Add(entity);
+        }
+
+        return collection;
     }
 
     private async Task<string> PollAsyncOperationAsync(Guid asyncOperationId, CancellationToken cancellationToken)

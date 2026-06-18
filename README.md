@@ -154,6 +154,10 @@ txc env pkg uninstall TALXIS.Controls.FileExplorer.Package --yes
 # Import from a folder or .cdsproj project — auto-packs via SolutionPackager
 txc env sln import ./src/MySolution/
 
+# Import and pre-populate connection references + environment variables for the
+# target environment from a pac-style deployment settings file
+txc env sln import ./out/MySolution_managed.zip --settings-file ./DEV-deployment-settings.json
+
 # Publish customizations after import (makes forms, views, sitemaps visible)
 txc env sln publish
 

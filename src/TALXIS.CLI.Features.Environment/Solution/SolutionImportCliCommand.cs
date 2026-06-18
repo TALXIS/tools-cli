@@ -4,7 +4,9 @@ using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Contracts.Dataverse;
+using TALXIS.CLI.Core.Deployment;
 using TALXIS.CLI.Core.DependencyInjection;
+using TALXIS.CLI.Core.Platforms.PowerPlatform;
 using TALXIS.CLI.Core.Resolution;
 using TALXIS.CLI.Logging;
 using TALXIS.Platform.Metadata.Packaging;
@@ -47,8 +49,46 @@ public class SolutionImportCliCommand : ProfiledCliCommand
     [CliOption(Name = "--managed", Description = "When importing from a folder, pack as managed solution.", Required = false)]
     public bool Managed { get; set; }
 
+    [CliOption(Name = "--settings-file", Description = "Path to a deployment settings JSON file (pac / Power Platform Build Tools format) used to pre-populate connection references and environment variable values during import.", Required = false)]
+    public string? SettingsFile { get; set; }
+
+    [CliOption(Name = "--skip-settings-validation", Description = "Skip the pre-flight check that connections referenced by --settings-file exist in the target environment.", Required = false)]
+    public bool SkipSettingsValidation { get; set; }
+
     protected override async Task<int> ExecuteAsync()
     {
+        DeploymentSettings? deploymentSettings = null;
+        if (!string.IsNullOrWhiteSpace(SettingsFile))
+        {
+            var settingsPath = Path.GetFullPath(SettingsFile);
+            
+            if (!DeploymentSettingsFile.TryLoad(settingsPath, out deploymentSettings, out var settingsError))
+            {
+                Logger.LogError("Could not read deployment settings file: {Message}", settingsError);
+
+                return ExitValidationError;
+            }
+
+            Logger.LogInformation(
+                "Loaded deployment settings: {ConnectionCount} connection reference(s), {VariableCount} environment variable(s).",
+                deploymentSettings!.ConnectionReferences.Count,
+                deploymentSettings.EnvironmentVariables.Count);
+
+            if (!SkipSettingsValidation && deploymentSettings.ConnectionReferences.Count > 0)
+            {
+                var validator = TxcServices.Get<IConnectionValidator>();
+                var validation = await validator.ValidateAsync(Profile, deploymentSettings, CancellationToken.None).ConfigureAwait(false);
+                if (validation.MissingConnections.Count > 0)
+                {
+                    Logger.LogError(
+                        "Deployment settings reference connections that do not exist in the target environment: {Missing}. Create or share these connections first, or re-run with --skip-settings-validation.",
+                        string.Join("; ", validation.MissingConnections));
+
+                    return ExitValidationError;
+                }
+            }
+        }
+
         string solutionPath = Path.GetFullPath(SolutionZip);
         string? tempZipPath = null;
 
@@ -122,7 +162,8 @@ public class SolutionImportCliCommand : ProfiledCliCommand
             PublishWorkflows: PublishWorkflows,
             SkipDependencyCheck: SkipDependencyCheck,
             SkipLowerVersion: SkipLowerVersion,
-            Async: !Wait);
+            Async: !Wait,
+            Settings: deploymentSettings);
 
         var service = TxcServices.Get<ISolutionImportService>();
         var result = await service.ImportAsync(Profile, solutionPath, options, CancellationToken.None).ConfigureAwait(false);
