@@ -1,3 +1,5 @@
+using TALXIS.CLI.Core.Deployment;
+
 namespace TALXIS.CLI.Core.Contracts.Dataverse;
 
 /// <summary>
@@ -22,7 +24,8 @@ public sealed record SolutionImportOptions(
     bool PublishWorkflows,
     bool SkipDependencyCheck,
     bool SkipLowerVersion,
-    bool Async);
+    bool Async,
+    DeploymentSettings? Settings = null);
 
 public sealed record SolutionImportResult(
     SolutionImportPath Path,

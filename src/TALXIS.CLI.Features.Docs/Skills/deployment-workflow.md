@@ -28,6 +28,8 @@ Tool: environment_solution_import
 ```
 Uploads the solution package to the target Dataverse environment. By default returns immediately with an `asyncOperationId`. **Do NOT use `--wait`** — solution imports take minutes and will time out the MCP request. Instead, monitor progress with `environment_deployment_show --solution-name <name>` until status is `Completed` or `Failed`.
 
+For solutions with connection references or environment variables, pass `--settings-file <path>` (a pac / Power Platform Build Tools deployment settings JSON file) to pre-populate them on import. Entries are reconciled against the staged solution — anything not present in the solution, or missing a value, is reported as a warning and skipped. Before importing, the referenced connections are checked against the target environment via the Power Platform connections API; a connection id that doesn't exist there fails the command with a clear message. Use `--skip-settings-validation` to bypass that pre-flight check.
+
 ### 5. Publish
 ```
 Tool: environment_solution_publish
