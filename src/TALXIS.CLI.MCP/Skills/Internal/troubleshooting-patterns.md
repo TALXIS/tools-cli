@@ -11,6 +11,7 @@ Match the user's symptom to the correct FIRST tool to run:
 "import failed" / "deployment error"   → environment_deployment_show --latest
 "component won't update" / "conflict"  → environment_component_layer_list
 "can't delete"                         → environment_component_dependency_delete_check
+"leftover object blocks import"        → environment_component_dependency_delete_check → environment_component_delete
 "missing dependency"                   → environment_component_dependency_required
 "auth error" / "401" / "403"           → config_profile_validate
 "wrong data" / "stale"                 → config_profile_show (verify target env)
@@ -25,6 +26,7 @@ Match the user's symptom to the correct FIRST tool to run:
 ```
 environment_deployment_show → findings?
   ├─ Component error → environment_component_layer_list → environment_component_layer_show
+  ├─ Conflicting object (e.g. duplicate role) → environment_component_dependency_delete_check → environment_component_delete → retry
   ├─ Missing dependency → environment_component_dependency_required → import missing solution
   ├─ Version conflict → increment version locally → rebuild → retry
   └─ Generic/timeout → retry once with --wait → if still fails, check env health

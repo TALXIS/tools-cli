@@ -11,6 +11,7 @@ namespace TALXIS.CLI.Features.Environment.Component;
         typeof(Url.UrlCliCommand),
         typeof(Layer.ComponentLayerCliCommand),
         typeof(Dependency.ComponentDependencyCliCommand),
+        typeof(ComponentDeleteCliCommand),
     },
     ShortFormAutoGenerate = CliNameAutoGenerate.None
 )]
