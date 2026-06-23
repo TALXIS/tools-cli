@@ -11,6 +11,10 @@ Import failed
   │         └─→ Identify which solution owns the conflicting component
   │              └─→ Update that solution first, or remove the conflict
   │
+  ├─→ Error: Conflicting object blocks import (e.g. duplicate security role)
+  │    └─→ environment_component_dependency_delete_check (confirm nothing depends on it)
+  │         └─→ environment_component_delete (remove the leftover object, then retry)
+  │
   ├─→ Error: Missing dependency
   │    └─→ environment_component_dependency_required
   │         └─→ Import the solution containing the required component first
@@ -55,6 +59,8 @@ Tool: environment_component_dependency_delete_check
 ```
 Shows what depends on the component you're trying to delete. Remove or update those dependencies first.
 
+Once nothing depends on it, `environment_component_delete` removes the object from the environment (a leftover security role, plugin step, or assembly blocking an import). It runs the same dependency check and refuses if anything still depends on the component. This is different from `environment_solution_component_remove`, which only unlinks a component from a solution without deleting it.
+
 ### Missing Required Dependencies
 ```
 Tool: environment_component_dependency_required
@@ -75,6 +81,7 @@ If data or schema doesn't match expectations:
 | Import failed | `environment_deployment_show --latest` |
 | Component conflict | `environment_component_layer_list` |
 | Can't delete something | `environment_component_dependency_delete_check` |
+| Leftover object blocks import | `environment_component_delete` (after delete-check) |
 | Missing dependency | `environment_component_dependency_required` |
 | Auth errors | `config_profile_validate` |
 | Wrong data showing | `config_profile_show` |

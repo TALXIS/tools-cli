@@ -169,7 +169,28 @@ txc env sln component list MySolution --type entity
 # Drill into component layers and dependencies by name — no GUIDs needed
 txc env component layer list --entity account --attribute revenue
 txc env component dep delete-check --entity tom_project
+
+# Delete a component from the environment>
+# Checks dependencies first and refuses if anything still depends on it.
+txc env component delete --type Role --id <guid>
 ```
+
+`component delete` supports these record-backed component types (pass the name or the numeric code to `--type`):
+
+| Type | Code | Deletes |
+|------|------|---------|
+| `Role` | 20 | security role |
+| `SavedQuery` | 26 | view |
+| `Workflow` | 29 | workflow / business rule / flow |
+| `SystemForm` | 60 | form / dashboard |
+| `WebResource` | 61 | web resource |
+| `FieldSecurityProfile` | 70 | field security profile |
+| `AppModule` | 80 | model-driven app |
+| `PluginAssembly` | 91 | plugin assembly |
+| `SdkMessageProcessingStep` | 92 | plugin step |
+| `EnvironmentVariableDefinition` | 380 | environment variable definition |
+
+Tables and columns are schema objects and aren't deletable through this command — use the workspace/schema tooling for those.
 
 ### Data Plane
 
