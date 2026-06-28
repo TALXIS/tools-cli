@@ -48,11 +48,12 @@ public class SolutionImporterPathSelectionTests
     }
 
     [Fact]
-    public void SmartDiffExpected_IsTrue_OnlyForUpgradeWithoutForceOverwrite()
+    public void SmartDiffExpected_IsTrue_ForUpgradeAndUpdateWithoutForceOverwrite()
     {
         Assert.True(SolutionImporter.SmartDiffExpected(SolutionImportPath.Upgrade, forceOverwrite: false));
         Assert.False(SolutionImporter.SmartDiffExpected(SolutionImportPath.Upgrade, forceOverwrite: true));
-        Assert.False(SolutionImporter.SmartDiffExpected(SolutionImportPath.Update, forceOverwrite: false));
+        Assert.True(SolutionImporter.SmartDiffExpected(SolutionImportPath.Update, forceOverwrite: false));
+        Assert.False(SolutionImporter.SmartDiffExpected(SolutionImportPath.Update, forceOverwrite: true));
         Assert.False(SolutionImporter.SmartDiffExpected(SolutionImportPath.Install, forceOverwrite: false));
     }
 
