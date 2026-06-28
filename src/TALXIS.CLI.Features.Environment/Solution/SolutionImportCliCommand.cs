@@ -32,8 +32,9 @@ public class SolutionImportCliCommand : ProfiledCliCommand
     [CliOption(Name = "--force-overwrite", Description = "Overwrite unmanaged customizations (disables SmartDiff).", Required = false)]
     public bool ForceOverwrite { get; set; }
 
-    [CliOption(Name = "--publish-workflows", Description = "Activate workflows after import.", Required = false)]
-    public bool PublishWorkflows { get; set; }
+    [CliOption(Name = "--publish-workflows", Description = "Activate plugin steps and classic workflows during import (PublishWorkflows). Defaults to true.", Required = false)]
+    [DefaultValue(true)]
+    public bool PublishWorkflows { get; set; } = true;
 
     [CliOption(Name = "--skip-dependency-check", Description = "Skip product-update dependency checks.", Required = false)]
     public bool SkipDependencyCheck { get; set; }

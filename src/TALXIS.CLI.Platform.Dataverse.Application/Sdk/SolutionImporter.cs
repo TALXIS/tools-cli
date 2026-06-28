@@ -99,11 +99,11 @@ public sealed class SolutionImporter
     }
 
     /// <summary>
-    /// Whether SmartDiff is expected to apply for the chosen path + options. SmartDiff only
-    /// applies on the upgrade path when force-overwrite is off.
+    /// Whether SmartDiff is expected to apply for the chosen path + options. SmartDiff applies
+    /// on both Update and single-step Upgrade paths when force-overwrite is off.
     /// </summary>
     public static bool SmartDiffExpected(SolutionImportPath path, bool forceOverwrite)
-        => path == SolutionImportPath.Upgrade && !forceOverwrite;
+        => (path == SolutionImportPath.Upgrade || path == SolutionImportPath.Update) && !forceOverwrite;
 
     public async Task<SolutionInfo?> GetExistingSolutionAsync(string uniqueName, CancellationToken cancellationToken = default)
     {
