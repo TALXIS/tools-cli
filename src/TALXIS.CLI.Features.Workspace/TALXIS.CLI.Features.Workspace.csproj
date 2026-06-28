@@ -22,4 +22,8 @@
     <PackageReference Include="TALXIS.Platform.Metadata.Serialization.Xml" Version="0.8.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="TALXIS.CLI.Tests" />
+  </ItemGroup>
+
 </Project>
