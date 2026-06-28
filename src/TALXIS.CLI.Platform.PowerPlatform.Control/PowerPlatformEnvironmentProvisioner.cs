@@ -72,12 +72,17 @@ public sealed class PowerPlatformEnvironmentProvisioner : IPowerPlatformEnvironm
         var parsed = ParseEnvironmentEnvelope(response.Body);
         var operationLocation = response.Location;
 
+        // The 202 response body may not contain the environment id at the root
+        // level. Extract it from the operation Location header as a fallback:
+        // .../environments/{envId}/operations/...
+        var envId = parsed.Id ?? TryExtractEnvironmentIdFromLocation(operationLocation);
+
         // Fire-and-forget: return the queued operation so the caller can report
         // the new environment id and where to track progress.
         if (!request.Wait)
         {
             return new EnvironmentCreateResult(
-                EnvironmentId: parsed.Id,
+                EnvironmentId: envId,
                 DisplayName: parsed.DisplayName ?? request.DisplayName,
                 EnvironmentUrl: parsed.Url,
                 EnvironmentType: parsed.Type ?? request.EnvironmentType,
@@ -90,12 +95,14 @@ public sealed class PowerPlatformEnvironmentProvisioner : IPowerPlatformEnvironm
         if (response.StatusCode != HttpStatusCode.Accepted || operationLocation is null)
         {
             return new EnvironmentCreateResult(
-                parsed.Id, parsed.DisplayName ?? request.DisplayName, parsed.Url,
+                envId, parsed.DisplayName ?? request.DisplayName, parsed.Url,
                 parsed.Type ?? request.EnvironmentType, parsed.State ?? "Succeeded",
                 Completed: true, OperationLocation: null);
         }
 
-        return await PollUntilCompleteAsync(operationLocation, connection, credential, request, parsed, ct).ConfigureAwait(false);
+        // Ensure the initial envelope carries the environment id for the poll loop fallback.
+        var initial = parsed with { Id = envId };
+        return await PollUntilCompleteAsync(operationLocation, connection, credential, request, initial, ct).ConfigureAwait(false);
     }
 
     public async Task<EnvironmentUpdateResult> UpdateAsync(
@@ -432,6 +439,9 @@ public sealed class PowerPlatformEnvironmentProvisioner : IPowerPlatformEnvironm
         using (doc)
         {
             var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+                return new EnvironmentEnvelope(null, null, null, null, null);
+
             Guid? id = Guid.TryParse(ReadString(root, "name"), out var parsed) ? parsed : null;
 
             string? displayName = null;
@@ -575,8 +585,32 @@ public sealed class PowerPlatformEnvironmentProvisioner : IPowerPlatformEnvironm
             ? value.EnumerateArray()
             : Enumerable.Empty<JsonElement>();
 
+    /// <summary>
+    /// Extracts the environment id from a BAP operation Location header URL.
+    /// Pattern: .../environments/{envId}/operations/{opId}?...
+    /// </summary>
+    private static Guid? TryExtractEnvironmentIdFromLocation(Uri? location)
+    {
+        if (location is null)
+            return null;
+
+        var segments = location.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        for (var i = 0; i < segments.Length - 1; i++)
+        {
+            if (string.Equals(segments[i], "environments", StringComparison.OrdinalIgnoreCase)
+                && Guid.TryParse(segments[i + 1], out var envId))
+            {
+                return envId;
+            }
+        }
+
+        return null;
+    }
+
     private static string? ReadString(JsonElement element, string property)
-        => element.TryGetProperty(property, out var prop) && prop.ValueKind == JsonValueKind.String
+        => element.ValueKind == JsonValueKind.Object
+            && element.TryGetProperty(property, out var prop)
+            && prop.ValueKind == JsonValueKind.String
             ? prop.GetString()?.Trim()
             : null;
 
