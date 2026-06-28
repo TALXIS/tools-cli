@@ -98,12 +98,20 @@ public sealed class DataverseInteractiveLoginService : IInteractiveLoginService
     {
         try
         {
+            System.Diagnostics.ProcessStartInfo psi;
             if (OperatingSystem.IsWindows())
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
-            else if (OperatingSystem.IsMacOS())
-                System.Diagnostics.Process.Start("open", url);
+            {
+                psi = new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true };
+            }
             else
-                System.Diagnostics.Process.Start("xdg-open", url);
+            {
+                // Pass the URL as a single element in ArgumentList so that spaces
+                // in query-string values (e.g. "scope=openid profile offline_access")
+                // are not split into separate arguments by the shell.
+                psi = new System.Diagnostics.ProcessStartInfo(OperatingSystem.IsMacOS() ? "open" : "xdg-open");
+                psi.ArgumentList.Add(url);
+            }
+            System.Diagnostics.Process.Start(psi);
         }
         catch (Exception ex)
         {
