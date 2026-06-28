@@ -13,11 +13,12 @@ namespace TALXIS.CLI.Core.Vault;
 internal static class MsalCacheHelperFactory
 {
     /// <summary>
-    /// Creates and verifies an <see cref="MsalCacheHelper"/>. On
-    /// <see cref="MsalCachePersistenceException"/> throws
-    /// <see cref="VaultUnavailableException"/> with a platform-specific remedy
-    /// hint. Set <c>TXC_PLAINTEXT_FALLBACK=1</c> on any platform to use an
-    /// unencrypted file fallback.
+    /// Creates and verifies an <see cref="MsalCacheHelper"/>. When the OS
+    /// credential vault is unavailable (e.g. no libsecret/D-Bus on Linux,
+    /// no DPAPI in a container), automatically falls back to a plaintext
+    /// file-based cache with a warning — matching the pac CLI behaviour.
+    /// Set <c>TXC_PLAINTEXT_FALLBACK=1</c> to skip the keyring attempt
+    /// entirely and go straight to plaintext.
     /// </summary>
     public static async Task<MsalCacheHelper> CreateAsync(
         VaultOptions options,
@@ -43,12 +44,20 @@ internal static class MsalCacheHelperFactory
         }
         catch (MsalCachePersistenceException ex)
         {
+            // OS vault is unavailable (missing libsecret, no D-Bus session,
+            // container without DPAPI, etc.). Auto-fallback to plaintext with
+            // a warning rather than hard-failing — the user can still work.
             string hint = GetPlatformHint();
             logger.LogWarning(ex,
-                "OS credential vault is unavailable. {Hint} " +
-                "Set {EnvVar}=1 to use a plaintext file fallback.",
+                "OS credential vault is unavailable — falling back to plaintext file cache. " +
+                "{Hint} To suppress this warning, set {EnvVar}=1 explicitly.",
                 hint, VaultOptions.PlaintextFallbackEnvVar);
-            throw new VaultUnavailableException(ex);
+
+            // Clone options with an explicit reason so the downstream plaintext
+            // warning log accurately reflects automatic fallback rather than
+            // an explicit opt-in.
+            var fallbackOptions = options with { UsePlaintextFallback = true, PlaintextReason = "auto-fallback (OS vault unavailable)" };
+            return await CreatePlaintextAsync(fallbackOptions, paths, logger).ConfigureAwait(false);
         }
     }
 
@@ -76,13 +85,19 @@ internal static class MsalCacheHelperFactory
             "Vault using PLAINTEXT file-based storage at {Path} (opt-in: {Reason}). {PermissionNote}",
             fallbackPath, options.PlaintextReason ?? "explicit", permissionNote);
 
+        // Pre-create the file and restrict permissions before MSAL registers its
+        // cache callbacks. MsalCacheHelper.CreateAsync does not create the file
+        // immediately — it only registers AfterAccess/BeforeAccess delegates that
+        // write on demand. If we call TrySetOwnerOnlyPermissions after CreateAsync
+        // the file doesn't exist yet, the chmod is skipped, and MSAL later creates
+        // the file with the process umask (typically 0644, group+world readable).
+        EnsureOwnerOnlyFile(fallbackPath, logger);
+
         var props = new StorageCreationPropertiesBuilder(options.FallbackCacheFileName, paths.AuthDirectory)
             .WithUnprotectedFile()
             .Build();
 
-        var helper = await MsalCacheHelper.CreateAsync(props).ConfigureAwait(false);
-        TrySetOwnerOnlyPermissions(fallbackPath, logger);
-        return helper;
+        return await MsalCacheHelper.CreateAsync(props).ConfigureAwait(false);
     }
 
     private static StorageCreationProperties BuildProtectedProperties(VaultOptions options, ConfigPaths paths)
@@ -98,19 +113,33 @@ internal static class MsalCacheHelperFactory
         return builder.Build();
     }
 
-    private static void TrySetOwnerOnlyPermissions(string path, ILogger logger)
+    /// <summary>
+    /// Creates the plaintext cache file (if absent) and immediately restricts
+    /// it to owner read/write. Must be called <em>before</em>
+    /// <see cref="MsalCacheHelper.CreateAsync"/> so that MSAL's first write
+    /// lands into an already-restricted file rather than creating it with the
+    /// process umask (typically 0644, group+world readable).
+    /// </summary>
+    private static void EnsureOwnerOnlyFile(string path, ILogger logger)
     {
-        if (OperatingSystem.IsWindows() || !File.Exists(path))
+        if (OperatingSystem.IsWindows())
             return;
 
         try
         {
+            // Open-or-create with exclusive owner permissions from the start.
+            using var fs = new FileStream(
+                path,
+                FileMode.OpenOrCreate,
+                FileAccess.ReadWrite,
+                FileShare.None);
+
             File.SetUnixFileMode(path,
                 UnixFileMode.UserRead | UnixFileMode.UserWrite);
         }
         catch (Exception ex)
         {
-            logger.LogDebug(ex, "Failed to chmod 600 plaintext vault at {Path}.", path);
+            logger.LogDebug(ex, "Failed to pre-create or chmod 600 plaintext vault at {Path}.", path);
         }
     }
 }
