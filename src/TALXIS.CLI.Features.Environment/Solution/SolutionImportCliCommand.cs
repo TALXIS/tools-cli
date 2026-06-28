@@ -154,6 +154,14 @@ public class SolutionImportCliCommand : ProfiledCliCommand
             OutputWriter.WriteLine($"Started (UTC): {result.StartedAtUtc:O}");
             if (result.CompletedAtUtc is { } completed)
                 OutputWriter.WriteLine($"Completed (UTC): {completed:O}");
+
+            // Next-step hint — keeps AI agents from inventing raw SQL queries against the
+            // asyncoperation table when they want to check import status. The structured
+            // deployment-get path returns parsed findings, the SQL path returns raw codes.
+            if (result.AsyncOperationId is { } hintAsyncId)
+                OutputWriter.WriteLine($"Next: txc env deployment get --async-operation-id {hintAsyncId}");
+            else
+                OutputWriter.WriteLine($"Next: txc env deployment get --solution-name {result.Source.UniqueName}");
 #pragma warning restore TXC003
         });
 

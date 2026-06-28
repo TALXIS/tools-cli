@@ -27,7 +27,7 @@ What is the user creating?
 ## Uninstall Safety Decision
 ```
 User wants to remove/uninstall a solution:
-  → ALWAYS: environment_solution_uninstall_check BEFORE uninstalling
+  → ALWAYS: environment_solution_uninstall-check BEFORE uninstalling
   → IF dependencies found: resolve dependencies first
   → IF data loss warning: confirm with user explicitly
   → NEVER uninstall in production without checking first
@@ -45,5 +45,5 @@ Component behaves unexpectedly:
 ## Anti-Patterns
 - ❌ Deploying unmanaged to production → can't track versions, can't cleanly uninstall
 - ❌ All components in one mega-solution → slow deployments, merge conflicts, unclear ownership
-- ❌ Uninstalling without `environment_solution_uninstall_check` → cascade failures or data loss
+- ❌ Uninstalling without `environment_solution_uninstall-check` → cascade failures or data loss
 - ❌ Moving unmanaged solutions between environments → use managed for transport

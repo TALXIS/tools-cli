@@ -14,7 +14,7 @@ Use `guide_environment` to discover environment schema tools and their parameter
 
 ## Key Rules
 
-- Always run `environment_component_dependency_delete_check` before deleting any component
+- Always run `environment_component_dependency_delete-check` before deleting any component
 - Always run `environment_solution_publish` after schema changes — they won't take effect without it
 - Environment schema changes are **not tracked in source control** — codify locally afterward
 - Changes in managed layers can't be undone — only overridden by a new managed import
@@ -24,12 +24,12 @@ Use `guide_environment` to discover environment schema tools and their parameter
 - **Routine development** → use `workspace_component_create` (local, source-controlled)
 - **Inspecting what's deployed** → use `environment_entity_*` tools
 - **Emergency non-production fix** → use environment tools, then codify locally
-- **Comparing deployed vs local** → use `environment_entity_attribute_list` against the table
+- **Comparing deployed vs local** → use `environment_entity_describe <name>` to see the entity's attributes in the live env
 
 ## What NOT to Do
 
 - ❌ Don't use these tools for routine development — changes bypass source control
-- ❌ Don't delete tables/columns without running `environment_component_dependency_delete_check` first
+- ❌ Don't delete tables/columns without running `environment_component_dependency_delete-check` first
 - ❌ Don't forget to `environment_solution_publish` after schema changes
 
 ## Metadata Propagation

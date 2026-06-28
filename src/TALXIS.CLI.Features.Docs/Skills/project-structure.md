@@ -87,7 +87,7 @@ All auto-generation happens during `dotnet build` — no manual registration ste
 | Tool | Purpose |
 |---|---|
 | `workspace_explain` | Understand the current repo structure, solutions, and components |
-| `workspace_component_type_list` | List available component types for scaffolding |
+| `component_type_list` | List available component types for scaffolding |
 | `workspace_component_create` | Scaffold new components into a solution project |
 
 ## Naming Conventions
