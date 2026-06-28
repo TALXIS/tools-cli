@@ -42,10 +42,10 @@ public class SolutionExportCliCommand : ProfiledCliCommand
             if (resolved is null)
                 return ExitValidationError;
             solutionName = resolved.Value.UniqueName;
-            // Note: we intentionally do NOT auto-set outputPath to resolved.Value.SolutionRootPath here.
-            // export is a low-level raw command; writing into an existing project folder without
-            // convention restoration or build-artifact exclusion is destructive.
-            // Use: txc environment solution pull — to safely integrate changes into an existing project.
+            // Respect SolutionRootPath from the csproj — that is the authoritative packager output location.
+            // The non-empty-dir guard below will catch the case where it already has solution files and
+            // redirect the user to 'pull' (which does convention restoration + build-artifact exclusion).
+            outputPath ??= resolved.Value.SolutionRootPath;
         }
 
         outputPath ??= Directory.GetCurrentDirectory();
