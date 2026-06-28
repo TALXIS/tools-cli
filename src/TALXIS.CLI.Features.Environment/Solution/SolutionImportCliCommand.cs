@@ -47,6 +47,9 @@ public class SolutionImportCliCommand : ProfiledCliCommand
     [CliOption(Name = "--managed", Description = "When importing from a folder, pack as managed solution.", Required = false)]
     public bool Managed { get; set; }
 
+    [CliOption(Name = "--publish", Description = "Publish all customizations after the import completes (implies waiting for the import to finish).", Required = false)]
+    public bool Publish { get; set; }
+
     protected override async Task<int> ExecuteAsync()
     {
         string solutionPath = Path.GetFullPath(SolutionZip);
@@ -116,13 +119,18 @@ public class SolutionImportCliCommand : ProfiledCliCommand
             solutionPath = tempZipPath;
         }
 
+        // Publishing requires a completed import — otherwise PublishAll fails with
+        // "Cannot start PublishAll because Import is running". So --publish forces a
+        // synchronous (waited) import regardless of --wait.
+        bool waitForCompletion = Wait || Publish;
+
         var options = new SolutionImportOptions(
             StageAndUpgrade: StageAndUpgrade,
             ForceOverwrite: ForceOverwrite,
             PublishWorkflows: PublishWorkflows,
             SkipDependencyCheck: SkipDependencyCheck,
             SkipLowerVersion: SkipLowerVersion,
-            Async: !Wait);
+            Async: !waitForCompletion);
 
         var service = TxcServices.Get<ISolutionImportService>();
         var result = await service.ImportAsync(Profile, solutionPath, options, CancellationToken.None).ConfigureAwait(false);
@@ -164,6 +172,21 @@ public class SolutionImportCliCommand : ProfiledCliCommand
                 OutputWriter.WriteLine($"Next: txc env deployment get --solution-name {result.Source.UniqueName}");
 #pragma warning restore TXC003
         });
+
+        if (Publish)
+        {
+            Logger.LogInformation("Publishing all customizations...");
+            var publishService = TxcServices.Get<ISolutionPublishService>();
+            await publishService.PublishAsync(Profile, null, CancellationToken.None).ConfigureAwait(false);
+#pragma warning disable TXC003
+            OutputWriter.WriteLine("Published all customizations.");
+#pragma warning restore TXC003
+        }
+        else if (!waitForCompletion)
+        {
+            Logger.LogInformation(
+                "Import queued — customizations are NOT published yet. Run `txc env solution publish` after it completes (or re-run import with --publish) to make changes visible.");
+        }
 
         return ExitSuccess;
         }
