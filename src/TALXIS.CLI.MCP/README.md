@@ -62,7 +62,15 @@ No install needed — [`dnx`](https://learn.microsoft.com/dotnet/core/tools/dotn
 
 ## Developing and Debugging Locally
 
-When developing the MCP server locally, you can run it directly from source and configure VS Code to use your local build. In your `.vscode/mcp.json`, set the server command to launch the project via `dotnet run`:
+When developing the MCP server locally, avoid plain `dotnet run` for stdio MCP sessions. `dotnet run` performs a build first, and build warnings can be written before the MCP transport is ready. MCP clients may then try to parse those warning lines as protocol messages.
+
+Build the project separately, then configure VS Code to start the already-built server with `--no-build`:
+
+```sh
+dotnet build src/TALXIS.CLI.MCP/TALXIS.CLI.MCP.csproj
+```
+
+In your `.vscode/mcp.json`, set the server command like this:
 
 ```json
 {
@@ -73,6 +81,7 @@ When developing the MCP server locally, you can run it directly from source and 
             "command": "dotnet",
             "args": [
                 "run",
+                "--no-build",
                 "--project",
                 "${workspaceFolder}/src/TALXIS.CLI.MCP/TALXIS.CLI.MCP.csproj"
             ]
@@ -82,7 +91,8 @@ When developing the MCP server locally, you can run it directly from source and 
 ```
 
 - Adjust the path in `args` to match your local project location if needed.
-- This setup allows you to test changes without reinstalling the global tool.
+- Rebuild after code changes before restarting the MCP server.
+- For non-local usage, prefer the packaged server via `dnx TALXIS.CLI.MCP --yes`.
 
 ## Testing and Debugging
 
@@ -91,18 +101,22 @@ When developing the MCP server locally, you can run it directly from source and 
 You can use the [Model Context Protocol Inspector](https://www.npmjs.com/package/@modelcontextprotocol/inspector) for interactive inspection:
 
 ```sh
-npx @modelcontextprotocol/inspector dotnet run --project src/TALXIS.CLI.MCP
+dotnet build src/TALXIS.CLI.MCP/TALXIS.CLI.MCP.csproj
+npx @modelcontextprotocol/inspector dotnet run --no-build --project src/TALXIS.CLI.MCP
 ```
 
 > **Note:** The Inspector is an interactive web browser application designed for manual testing and exploration. It is not suitable for automated testing scenarios.
 
 ### Command Line Debugging & Automated Testing
 
-For debugging or automated testing, you can interact with the MCP server using JSON-RPC messages over stdin/stdout:
+For debugging or automated testing, interact with the MCP server using JSON-RPC messages over stdin/stdout. Build first, then run with `--no-build` so stdout stays reserved for MCP traffic:
 
 ```sh
-# Start the server
-dotnet run --project src/TALXIS.CLI.MCP
+# Build once before starting the server
+dotnet build src/TALXIS.CLI.MCP/TALXIS.CLI.MCP.csproj
+
+# Start the server without rebuilding
+dotnet run --no-build --project src/TALXIS.CLI.MCP
 
 # Then send JSON-RPC messages via stdin (one per line):
 # 1. Initialize the connection (required by MCP protocol)
