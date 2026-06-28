@@ -13,11 +13,12 @@ namespace TALXIS.CLI.Core.Vault;
 internal static class MsalCacheHelperFactory
 {
     /// <summary>
-    /// Creates and verifies an <see cref="MsalCacheHelper"/>. On
-    /// <see cref="MsalCachePersistenceException"/> throws
-    /// <see cref="VaultUnavailableException"/> with a platform-specific remedy
-    /// hint. Set <c>TXC_PLAINTEXT_FALLBACK=1</c> on any platform to use an
-    /// unencrypted file fallback.
+    /// Creates and verifies an <see cref="MsalCacheHelper"/>. When the OS
+    /// credential vault is unavailable (e.g. no libsecret/D-Bus on Linux,
+    /// no DPAPI in a container), automatically falls back to a plaintext
+    /// file-based cache with a warning — matching the pac CLI behaviour.
+    /// Set <c>TXC_PLAINTEXT_FALLBACK=1</c> to skip the keyring attempt
+    /// entirely and go straight to plaintext.
     /// </summary>
     public static async Task<MsalCacheHelper> CreateAsync(
         VaultOptions options,
@@ -43,12 +44,16 @@ internal static class MsalCacheHelperFactory
         }
         catch (MsalCachePersistenceException ex)
         {
+            // OS vault is unavailable (missing libsecret, no D-Bus session,
+            // container without DPAPI, etc.). Auto-fallback to plaintext with
+            // a warning rather than hard-failing — the user can still work.
             string hint = GetPlatformHint();
             logger.LogWarning(ex,
-                "OS credential vault is unavailable. {Hint} " +
-                "Set {EnvVar}=1 to use a plaintext file fallback.",
+                "OS credential vault is unavailable — falling back to plaintext file cache. " +
+                "{Hint} To suppress this warning, set {EnvVar}=1 explicitly.",
                 hint, VaultOptions.PlaintextFallbackEnvVar);
-            throw new VaultUnavailableException(ex);
+
+            return await CreatePlaintextAsync(options, paths, logger).ConfigureAwait(false);
         }
     }
 

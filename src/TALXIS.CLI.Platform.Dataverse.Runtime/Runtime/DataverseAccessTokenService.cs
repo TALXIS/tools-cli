@@ -30,6 +30,7 @@ public sealed class DataverseAccessTokenService : IDataverseAccessTokenService
     private readonly ICredentialVault _vault;
     private readonly IEnvironmentReader _env;
     private readonly IHeadlessDetector _headless;
+    private readonly IBrowserAvailabilityProbe _browserProbe;
     private readonly ILogger<DataverseAccessTokenService> _logger;
     private readonly InMemoryTokenCache _tokenCache = new();
 
@@ -39,6 +40,7 @@ public sealed class DataverseAccessTokenService : IDataverseAccessTokenService
         ICredentialVault vault,
         IEnvironmentReader env,
         IHeadlessDetector headless,
+        IBrowserAvailabilityProbe browserProbe,
         ILogger<DataverseAccessTokenService>? logger = null)
     {
         _clientFactory = clientFactory ?? throw new ArgumentNullException(nameof(clientFactory));
@@ -46,6 +48,7 @@ public sealed class DataverseAccessTokenService : IDataverseAccessTokenService
         _vault = vault ?? throw new ArgumentNullException(nameof(vault));
         _env = env ?? throw new ArgumentNullException(nameof(env));
         _headless = headless ?? throw new ArgumentNullException(nameof(headless));
+        _browserProbe = browserProbe ?? throw new ArgumentNullException(nameof(browserProbe));
         _logger = logger ?? NullLogger<DataverseAccessTokenService>.Instance;
     }
 
@@ -99,14 +102,15 @@ public sealed class DataverseAccessTokenService : IDataverseAccessTokenService
 
             return credential.Kind switch
             {
-                CredentialKind.InteractiveBrowser => await AcquirePublicClientSilentAsync(connection, credential, scope, cacheKey, ct).ConfigureAwait(false),
+                CredentialKind.InteractiveBrowser or CredentialKind.DeviceCode =>
+                    await AcquirePublicClientSilentAsync(connection, credential, scope, cacheKey, ct).ConfigureAwait(false),
                 CredentialKind.ClientSecret => await AcquireClientSecretAsync(connection, credential, scope, cacheKey, ct).ConfigureAwait(false),
                 CredentialKind.ClientCertificate => await AcquireClientCertificateAsync(connection, credential, scope, cacheKey, ct).ConfigureAwait(false),
                 CredentialKind.WorkloadIdentityFederation => await AcquireFederatedAsync(connection, credential, scope, cacheKey, ct).ConfigureAwait(false),
-                CredentialKind.DeviceCode or CredentialKind.ManagedIdentity or CredentialKind.AzureCli or CredentialKind.Pat =>
+                CredentialKind.ManagedIdentity or CredentialKind.AzureCli or CredentialKind.Pat =>
                     throw new NotSupportedException(
                         $"Credential kind {credential.Kind} is reserved but not yet wired for Dataverse token acquisition in this release. " +
-                        "Use InteractiveBrowser, ClientSecret, ClientCertificate, or WorkloadIdentityFederation."),
+                        "Use InteractiveBrowser, DeviceCode, ClientSecret, ClientCertificate, or WorkloadIdentityFederation."),
                 _ => throw new NotSupportedException($"Unknown credential kind: {credential.Kind}"),
             };
         }
@@ -153,26 +157,50 @@ public sealed class DataverseAccessTokenService : IDataverseAccessTokenService
         }
         catch (MsalUiRequiredException ex)
         {
-            // In interactive sessions, attempt automatic re-authentication
-            // using AcquireTokenInteractive with the actual Dataverse scope
-            // that failed — not just identity scopes. This ensures consent
-            // is obtained for the correct resource.
+            // In interactive sessions, attempt automatic re-authentication.
+            // The strategy depends on whether a local browser is reachable:
+            // - Browser available: AcquireTokenInteractive with Dataverse scope
+            // - Browser isolated (Codespaces/SSH): device code flow
             if (!_headless.IsHeadless)
             {
                 _logger.LogWarning(
-                    "Token for credential '{CredentialId}' expired or requires consent — launching interactive re-authentication with Dataverse scope.",
+                    "Token for credential '{CredentialId}' expired or requires consent — attempting re-authentication.",
                     credential.Id);
 
                 try
                 {
-                    var interactiveResult = await app
-                        .AcquireTokenInteractive(new[] { scope })
-                        .WithAccount(account)
-                        .WithUseEmbeddedWebView(false)
-                        .ExecuteAsync(ct)
-                        .ConfigureAwait(false);
-                    _tokenCache.Set(cacheKey, interactiveResult);
-                    return interactiveResult.AccessToken;
+                    if (_browserProbe.IsBrowserAvailable)
+                    {
+                        // Browser is reachable — use interactive flow with the
+                        // actual Dataverse scope that needs consent.
+                        var interactiveResult = await app
+                            .AcquireTokenInteractive(new[] { scope })
+                            .WithAccount(account)
+                            .WithUseEmbeddedWebView(false)
+                            .ExecuteAsync(ct)
+                            .ConfigureAwait(false);
+                        _tokenCache.Set(cacheKey, interactiveResult);
+                        return interactiveResult.AccessToken;
+                    }
+                    else
+                    {
+                        // Browser-isolated environment (Codespaces, SSH, etc.)
+                        // — use device code flow for re-authentication.
+                        _logger.LogWarning(
+                            "No local browser available ({Reason}). Using device code for re-authentication.",
+                            _browserProbe.UnavailableReason);
+
+                        var deviceCodeResult = await app
+                            .AcquireTokenWithDeviceCode(new[] { scope }, dcr =>
+                            {
+                                _logger.LogWarning("{DeviceCodeMessage}", dcr.Message);
+                                return Task.CompletedTask;
+                            })
+                            .ExecuteAsync(ct)
+                            .ConfigureAwait(false);
+                        _tokenCache.Set(cacheKey, deviceCodeResult);
+                        return deviceCodeResult.AccessToken;
+                    }
                 }
                 catch (OperationCanceledException)
                 {
