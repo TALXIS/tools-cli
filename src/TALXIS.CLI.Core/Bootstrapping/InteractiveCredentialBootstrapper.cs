@@ -96,7 +96,7 @@ public static class InteractiveCredentialBootstrapper
 
         if (!string.IsNullOrWhiteSpace(result.AccountId))
         {
-            var exact = PickPreferredCandidate(
+            var exact = CredentialCandidatePicker.PickPreferred(
                 candidates.Where(c =>
                     string.Equals(c.InteractiveAccountId, result.AccountId, StringComparison.OrdinalIgnoreCase)),
                 explicitAlias,
@@ -107,34 +107,11 @@ public static class InteractiveCredentialBootstrapper
 
         // Backward compatibility for older credentials that predate persisted
         // account ids: prefer stored interactive UPN, then legacy "UPN as id".
-        return PickPreferredCandidate(
+        return CredentialCandidatePicker.PickPreferred(
             candidates.Where(c =>
                 string.Equals(c.InteractiveUpn, result.Upn, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(c.Id, result.Upn, StringComparison.OrdinalIgnoreCase)),
             explicitAlias,
             result.Upn);
-    }
-
-    private static Credential? PickPreferredCandidate(
-        IEnumerable<Credential> candidates,
-        string? explicitAlias,
-        string upn)
-    {
-        var list = candidates.ToList();
-        if (list.Count == 0)
-            return null;
-
-        if (!string.IsNullOrWhiteSpace(explicitAlias))
-        {
-            var explicitMatch = list.FirstOrDefault(c =>
-                string.Equals(c.Id, explicitAlias.Trim(), StringComparison.OrdinalIgnoreCase));
-            if (explicitMatch is not null)
-                return explicitMatch;
-        }
-
-        return list
-            .OrderBy(c => string.Equals(c.Id, upn, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
-            .ThenBy(c => c.Id, StringComparer.OrdinalIgnoreCase)
-            .First();
     }
 }

@@ -85,13 +85,19 @@ internal static class MsalCacheHelperFactory
             "Vault using PLAINTEXT file-based storage at {Path} (opt-in: {Reason}). {PermissionNote}",
             fallbackPath, options.PlaintextReason ?? "explicit", permissionNote);
 
+        // Pre-create the file and restrict permissions before MSAL registers its
+        // cache callbacks. MsalCacheHelper.CreateAsync does not create the file
+        // immediately — it only registers AfterAccess/BeforeAccess delegates that
+        // write on demand. If we call TrySetOwnerOnlyPermissions after CreateAsync
+        // the file doesn't exist yet, the chmod is skipped, and MSAL later creates
+        // the file with the process umask (typically 0644, group+world readable).
+        EnsureOwnerOnlyFile(fallbackPath, logger);
+
         var props = new StorageCreationPropertiesBuilder(options.FallbackCacheFileName, paths.AuthDirectory)
             .WithUnprotectedFile()
             .Build();
 
-        var helper = await MsalCacheHelper.CreateAsync(props).ConfigureAwait(false);
-        TrySetOwnerOnlyPermissions(fallbackPath, logger);
-        return helper;
+        return await MsalCacheHelper.CreateAsync(props).ConfigureAwait(false);
     }
 
     private static StorageCreationProperties BuildProtectedProperties(VaultOptions options, ConfigPaths paths)
@@ -107,19 +113,33 @@ internal static class MsalCacheHelperFactory
         return builder.Build();
     }
 
-    private static void TrySetOwnerOnlyPermissions(string path, ILogger logger)
+    /// <summary>
+    /// Creates the plaintext cache file (if absent) and immediately restricts
+    /// it to owner read/write. Must be called <em>before</em>
+    /// <see cref="MsalCacheHelper.CreateAsync"/> so that MSAL's first write
+    /// lands into an already-restricted file rather than creating it with the
+    /// process umask (typically 0644, group+world readable).
+    /// </summary>
+    private static void EnsureOwnerOnlyFile(string path, ILogger logger)
     {
-        if (OperatingSystem.IsWindows() || !File.Exists(path))
+        if (OperatingSystem.IsWindows())
             return;
 
         try
         {
+            // Open-or-create with exclusive owner permissions from the start.
+            using var fs = new FileStream(
+                path,
+                FileMode.OpenOrCreate,
+                FileAccess.ReadWrite,
+                FileShare.None);
+
             File.SetUnixFileMode(path,
                 UnixFileMode.UserRead | UnixFileMode.UserWrite);
         }
         catch (Exception ex)
         {
-            logger.LogDebug(ex, "Failed to chmod 600 plaintext vault at {Path}.", path);
+            logger.LogDebug(ex, "Failed to pre-create or chmod 600 plaintext vault at {Path}.", path);
         }
     }
 }

@@ -97,31 +97,25 @@ public static class DeviceCodeCredentialBootstrapper
 
         if (!string.IsNullOrWhiteSpace(result.AccountId))
         {
-            var exact = candidates.FirstOrDefault(c =>
-                string.Equals(c.InteractiveAccountId, result.AccountId, StringComparison.OrdinalIgnoreCase));
+            // Route through PickPreferredCandidate to honour --alias and apply
+            // deterministic ordering even when multiple credentials share the
+            // same InteractiveAccountId (e.g., a DeviceCode and an InteractiveBrowser
+            // credential from the same account).
+            var exact = CredentialCandidatePicker.PickPreferred(
+                candidates.Where(c =>
+                    string.Equals(c.InteractiveAccountId, result.AccountId, StringComparison.OrdinalIgnoreCase)),
+                explicitAlias,
+                result.Upn);
             if (exact is not null)
                 return exact;
         }
 
-        // Fall back to UPN or legacy id-based matching, using the same
-        // deterministic preference ordering as InteractiveCredentialBootstrapper:
-        // prefer the credential whose id matches the explicit alias, then the UPN,
-        // then fall back to alphabetical order.
-        var upnCandidates = candidates.Where(c =>
-            string.Equals(c.InteractiveUpn, result.Upn, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(c.Id, result.Upn, StringComparison.OrdinalIgnoreCase));
-
-        if (!string.IsNullOrWhiteSpace(explicitAlias))
-        {
-            var explicitMatch = upnCandidates.FirstOrDefault(c =>
-                string.Equals(c.Id, explicitAlias.Trim(), StringComparison.OrdinalIgnoreCase));
-            if (explicitMatch is not null)
-                return explicitMatch;
-        }
-
-        return upnCandidates
-            .OrderBy(c => string.Equals(c.Id, result.Upn, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
-            .ThenBy(c => c.Id, StringComparer.OrdinalIgnoreCase)
-            .FirstOrDefault();
+        // Fall back to UPN or legacy id-based matching with deterministic ordering.
+        return CredentialCandidatePicker.PickPreferred(
+            candidates.Where(c =>
+                string.Equals(c.InteractiveUpn, result.Upn, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(c.Id, result.Upn, StringComparison.OrdinalIgnoreCase)),
+            explicitAlias,
+            result.Upn);
     }
 }

@@ -190,6 +190,13 @@ public sealed class DataverseAccessTokenService : IDataverseAccessTokenService
                             "No local browser available ({Reason}). Using device code for re-authentication.",
                             _browserProbe.UnavailableReason);
 
+                        // Note: AcquireTokenWithDeviceCode does not support WithLoginHint
+                        // (no account pre-selection in device code flow). We log the expected
+                        // account so the user can verify they are signing in as the right identity.
+                        _logger.LogWarning(
+                            "Please sign in as {ExpectedUpn} when completing device code authentication.",
+                            account.Username);
+
                         var deviceCodeResult = await app
                             .AcquireTokenWithDeviceCode(new[] { scope }, dcr =>
                             {
