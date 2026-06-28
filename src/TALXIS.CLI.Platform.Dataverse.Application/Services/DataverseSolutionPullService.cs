@@ -6,20 +6,20 @@ using TALXIS.CLI.Platform.Dataverse.Runtime;
 
 namespace TALXIS.CLI.Platform.Dataverse.Application.Services;
 
-internal sealed class DataverseSolutionSyncService : ISolutionSyncService
+internal sealed class DataverseSolutionPullService : ISolutionPullService
 {
     private readonly ISolutionPackagerService _packager;
-    private readonly ILogger<DataverseSolutionSyncService> _logger;
+    private readonly ILogger<DataverseSolutionPullService> _logger;
 
-    public DataverseSolutionSyncService(ISolutionPackagerService packager, ILogger<DataverseSolutionSyncService> logger)
+    public DataverseSolutionPullService(ISolutionPackagerService packager, ILogger<DataverseSolutionPullService> logger)
     {
         _packager = packager;
         _logger = logger;
     }
 
-    public async Task<SolutionSyncResult> SyncAsync(
+    public async Task<SolutionPullResult> PullAsync(
         string? profileName,
-        SolutionSyncOptions options,
+        SolutionPullOptions options,
         CancellationToken ct)
     {
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
@@ -38,7 +38,7 @@ internal sealed class DataverseSolutionSyncService : ISolutionSyncService
 
             // Restore each assembly to the path convention already used in the destination
             // (matches by assembly simple name). New assemblies default to flat TALXIS SDK layout.
-            var normalized = SolutionSyncTransform.RestoreLocalFileNameConventions(
+            var normalized = SolutionPullTransform.RestoreLocalFileNameConventions(
                 stagingRoot, options.SolutionRootPath, _logger);
 
             IReadOnlyList<string> excluded = [];
@@ -47,20 +47,20 @@ internal sealed class DataverseSolutionSyncService : ISolutionSyncService
             if (options.ProjectFilePath is not null)
             {
                 var referencedAssemblies = ProjectReferenceReader.ReadPluginAssemblyNames(options.ProjectFilePath);
-                excluded = SolutionSyncTransform.ExcludeProjectReferenceBinaries(stagingRoot, referencedAssemblies);
+                excluded = SolutionPullTransform.ExcludeProjectReferenceBinaries(stagingRoot, referencedAssemblies);
 
                 var scriptLibraryWebResources = ProjectReferenceReader.ReadScriptLibraryWebResourceNames(
                     options.ProjectFilePath, _logger);
-                excludedWebResources = SolutionSyncTransform.ExcludeScriptLibraryWebResources(stagingRoot, scriptLibraryWebResources);
+                excludedWebResources = SolutionPullTransform.ExcludeScriptLibraryWebResources(stagingRoot, scriptLibraryWebResources);
 
                 var pcfControls = ProjectReferenceReader.ReadPcfControlNames(options.ProjectFilePath);
-                excludedPcfControls = SolutionSyncTransform.ExcludePcfControls(stagingRoot, pcfControls);
+                excludedPcfControls = SolutionPullTransform.ExcludePcfControls(stagingRoot, pcfControls);
             }
 
             Directory.CreateDirectory(options.SolutionRootPath);
-            var removed = SolutionSyncMerge.Merge(stagingRoot, options.SolutionRootPath);
+            var removed = SolutionPullMerge.Merge(stagingRoot, options.SolutionRootPath);
 
-            return new SolutionSyncResult(options.SolutionRootPath, normalized, excluded, excludedWebResources, excludedPcfControls, removed);
+            return new SolutionPullResult(options.SolutionRootPath, normalized, excluded, excludedWebResources, excludedPcfControls, removed);
         }
         finally
         {

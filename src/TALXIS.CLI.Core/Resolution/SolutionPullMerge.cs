@@ -1,6 +1,6 @@
 namespace TALXIS.CLI.Core.Resolution;
 
-public static class SolutionSyncMerge
+public static class SolutionPullMerge
 {
     // Mirrors each top-level folder of the export into the solution root. Top-level entries the
     // export doesn't contain (project file, bin, obj, ...) are left alone so they can't be deleted.

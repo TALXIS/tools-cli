@@ -3,12 +3,12 @@ using Xunit;
 
 namespace TALXIS.CLI.Tests.Environment.Platforms.Dataverse;
 
-public class SolutionSyncMergeTests : IDisposable
+public class SolutionPullMergeTests : IDisposable
 {
     private readonly string _from;
     private readonly string _into;
 
-    public SolutionSyncMergeTests()
+    public SolutionPullMergeTests()
     {
         var baseDir = Path.Combine(Path.GetTempPath(), "txc_merge_test_" + Guid.NewGuid().ToString("N"));
         _from = Path.Combine(baseDir, "from");
@@ -43,7 +43,7 @@ public class SolutionSyncMergeTests : IDisposable
         Write(_from, "Other/Solution.xml", "<new/>");
         Write(_from, "Entities/account/Entity.xml", "<entity/>");
 
-        SolutionSyncMerge.Merge(_from, _into);
+        SolutionPullMerge.Merge(_from, _into);
 
         Assert.True(File.Exists(Path.Combine(_into, "Solutions.Logic.csproj")));
         Assert.True(File.Exists(Path.Combine(_into, "bin", "Debug", "whatever.dll")));
@@ -60,7 +60,7 @@ public class SolutionSyncMergeTests : IDisposable
         Write(_into, "Entities/contact/Entity.xml", "<c/>");
         Write(_from, "Entities/account/Entity.xml", "<a/>");
 
-        var removed = SolutionSyncMerge.Merge(_from, _into);
+        var removed = SolutionPullMerge.Merge(_from, _into);
 
         Assert.True(File.Exists(Path.Combine(_into, "Entities", "account", "Entity.xml")));
         Assert.False(Directory.Exists(Path.Combine(_into, "Entities", "contact")));
@@ -73,7 +73,7 @@ public class SolutionSyncMergeTests : IDisposable
         Write(_into, "WebResources/udpp_main.js.data.xml", "<w/>");
         Write(_from, "Other/Solution.xml", "<s/>");
 
-        var removed = SolutionSyncMerge.Merge(_from, _into);
+        var removed = SolutionPullMerge.Merge(_from, _into);
 
         Assert.True(File.Exists(Path.Combine(_into, "WebResources", "udpp_main.js.data.xml")));
         Assert.Empty(removed);
@@ -88,7 +88,7 @@ public class SolutionSyncMergeTests : IDisposable
         // Export only has a different assembly.
         Write(_from, "PluginAssemblies/NewPlugin.dll.data.xml", "<p/>");
 
-        var removed = SolutionSyncMerge.Merge(_from, _into);
+        var removed = SolutionPullMerge.Merge(_from, _into);
 
         // OldPlugin folder must be gone.
         Assert.False(Directory.Exists(Path.Combine(_into, "PluginAssemblies", "OldPlugin")));

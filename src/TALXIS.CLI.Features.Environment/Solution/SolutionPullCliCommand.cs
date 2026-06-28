@@ -12,12 +12,12 @@ namespace TALXIS.CLI.Features.Environment.Solution;
 [CliIdempotent]
 [CliLongRunning]
 [CliCommand(
-    Name = "sync",
-    Description = "Sync a solution from the LIVE environment into the local source project, normalizing plugin-assembly paths and skipping binaries built from project references. Requires an active profile."
+    Name = "pull",
+    Description = "Pull a solution from the LIVE environment into the local source project: restores local file-name conventions, excludes binaries built from project references, and merges changes. Requires an active profile."
 )]
-public class SolutionSyncCliCommand : ProfiledCliCommand
+public class SolutionPullCliCommand : ProfiledCliCommand
 {
-    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(SolutionSyncCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(SolutionPullCliCommand));
 
     [CliArgument(Name = "project", Description = "Project directory (.cdsproj/.csproj) to sync into. Defaults to current directory. A bare solution unique name is also accepted, but project-reference binary exclusion then needs --output.")]
     [DefaultValue(".")]
@@ -34,13 +34,13 @@ public class SolutionSyncCliCommand : ProfiledCliCommand
 
         var (solutionName, solutionRoot, projectFile) = resolved.Value;
 
-        var options = new SolutionSyncOptions(solutionName, solutionRoot, projectFile);
-        var service = TxcServices.Get<ISolutionSyncService>();
-        var result = await service.SyncAsync(Profile, options, CancellationToken.None).ConfigureAwait(false);
+        var options = new SolutionPullOptions(solutionName, solutionRoot, projectFile);
+        var service = TxcServices.Get<ISolutionPullService>();
+        var result = await service.PullAsync(Profile, options, CancellationToken.None).ConfigureAwait(false);
 
         var payload = new
         {
-            status = "synced",
+            status = "pulled",
             solution = solutionName,
             path = result.SolutionRootPath,
             normalizedAssemblies = result.NormalizedAssemblies,
@@ -53,7 +53,7 @@ public class SolutionSyncCliCommand : ProfiledCliCommand
         OutputFormatter.WriteData(payload, _ =>
         {
 #pragma warning disable TXC003
-            OutputWriter.WriteLine($"Synced solution '{solutionName}' → {result.SolutionRootPath}");
+            OutputWriter.WriteLine($"Pulled solution '{solutionName}' → {result.SolutionRootPath}");
             WriteList("Normalized plugin assembly path(s)", result.NormalizedAssemblies);
             WriteList("Excluded project-reference binary(ies)", result.ExcludedBinaries);
             WriteList("Excluded script-library web resource(s)", result.ExcludedWebResources);
@@ -99,7 +99,12 @@ public class SolutionSyncCliCommand : ProfiledCliCommand
         var projectFile = SolutionProjectResolver.FindProjectFile(dirPath);
         if (projectFile is null)
         {
-            Logger.LogError("No .cdsproj or .csproj found in '{Dir}'.", dirPath);
+            Logger.LogError(
+                "No Dataverse solution project found at '{Path}'. To start a new project from an existing Dataverse solution, use: txc environment solution clone",
+                dirPath);
+#pragma warning disable TXC003
+            OutputWriter.WriteLine($"Error: no .cdsproj or .csproj found in '{dirPath}'. To create a new project from an existing Dataverse solution, use: txc environment solution clone");
+#pragma warning restore TXC003
             return null;
         }
 

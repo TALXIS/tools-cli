@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 
 namespace TALXIS.CLI.Core.Resolution;
 
-public static class SolutionSyncTransform
+public static class SolutionPullTransform
 {
     private const string PluginAssembliesDir = "PluginAssemblies";
     private const string WebResourcesDir = "WebResources";

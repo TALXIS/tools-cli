@@ -4,7 +4,7 @@ using Xunit;
 
 namespace TALXIS.CLI.Tests.Environment.Platforms.Dataverse;
 
-public class SolutionSyncTransformTests : IDisposable
+public class SolutionPullTransformTests : IDisposable
 {
     private readonly string _root;
 
@@ -12,7 +12,7 @@ public class SolutionSyncTransformTests : IDisposable
     // All assemblies are treated as new and default to the flat TALXIS SDK layout.
     private string NoLocalConvention => Path.Combine(Path.GetTempPath(), "no_dest_" + Guid.NewGuid().ToString("N"));
 
-    public SolutionSyncTransformTests()
+    public SolutionPullTransformTests()
     {
         _root = Path.Combine(Path.GetTempPath(), "txc_sync_test_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_root);
@@ -53,7 +53,7 @@ public class SolutionSyncTransformTests : IDisposable
             "Acme.MyPlugin, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
             "/PluginAssemblies/MyPlugin-38E8D392-49D6-4DE7-9FF7-F1338E8DD6EE/MyPlugin.dll");
 
-        var restored = SolutionSyncTransform.RestoreLocalFileNameConventions(_root, NoLocalConvention);
+        var restored = SolutionPullTransform.RestoreLocalFileNameConventions(_root, NoLocalConvention);
 
         var pluginsDir = Path.Combine(_root, "PluginAssemblies");
         Assert.Equal(new[] { "Acme.MyPlugin" }, restored);
@@ -75,7 +75,7 @@ public class SolutionSyncTransformTests : IDisposable
         File.WriteAllText(Path.Combine(pluginsDir, "Flat.dll.data.xml"),
             "<PluginAssembly FullName=\"Flat, Version=1.0.0.0\"><FileName>/PluginAssemblies/Flat.dll</FileName></PluginAssembly>");
 
-        var restored = SolutionSyncTransform.RestoreLocalFileNameConventions(_root, NoLocalConvention);
+        var restored = SolutionPullTransform.RestoreLocalFileNameConventions(_root, NoLocalConvention);
 
         Assert.Empty(restored);
         Assert.True(File.Exists(Path.Combine(pluginsDir, "Flat.dll")));
@@ -84,7 +84,7 @@ public class SolutionSyncTransformTests : IDisposable
     [Fact]
     public void Restore_NoOp_WhenNoPluginAssembliesFolder()
     {
-        var restored = SolutionSyncTransform.RestoreLocalFileNameConventions(_root, NoLocalConvention);
+        var restored = SolutionPullTransform.RestoreLocalFileNameConventions(_root, NoLocalConvention);
         Assert.Empty(restored);
     }
 
@@ -112,7 +112,7 @@ public class SolutionSyncTransformTests : IDisposable
 
         try
         {
-            var restored = SolutionSyncTransform.RestoreLocalFileNameConventions(_root, destRoot);
+            var restored = SolutionPullTransform.RestoreLocalFileNameConventions(_root, destRoot);
 
             var pluginsDir = Path.Combine(_root, "PluginAssemblies");
             // File should land in MyPlugin-CCCCDDDD (matching local convention), NOT flat.
@@ -152,7 +152,7 @@ public class SolutionSyncTransformTests : IDisposable
 
         try
         {
-            SolutionSyncTransform.RestoreLocalFileNameConventions(_root, destRoot);
+            SolutionPullTransform.RestoreLocalFileNameConventions(_root, destRoot);
 
             var pluginsDir = Path.Combine(_root, "PluginAssemblies");
             Assert.True(File.Exists(Path.Combine(pluginsDir, "FlatPlugin.dll")));
@@ -177,9 +177,9 @@ public class SolutionSyncTransformTests : IDisposable
     public void Exclude_DeletesDll_KeepsDataXml_ForExactMatch()
     {
         WriteAssembly("X", "MyPlugin", "MyPlugin, Version=1.0.0.0", "/PluginAssemblies/MyPlugin.dll");
-        SolutionSyncTransform.RestoreLocalFileNameConventions(_root, NoLocalConvention);
+        SolutionPullTransform.RestoreLocalFileNameConventions(_root, NoLocalConvention);
 
-        var excluded = SolutionSyncTransform.ExcludeProjectReferenceBinaries(_root, new[] { "MyPlugin" });
+        var excluded = SolutionPullTransform.ExcludeProjectReferenceBinaries(_root, new[] { "MyPlugin" });
 
         var pluginsDir = Path.Combine(_root, "PluginAssemblies");
         Assert.Equal(new[] { "MyPlugin.dll" }, excluded);
@@ -191,9 +191,9 @@ public class SolutionSyncTransformTests : IDisposable
     public void Exclude_MatchesDottedNamespaceExtension()
     {
         WriteAssembly("X", "MoveOrder.Logic", "Acme.Apps.MoveOrder.Logic, Version=1.0.0.0", "/PluginAssemblies/MoveOrder.Logic.dll");
-        SolutionSyncTransform.RestoreLocalFileNameConventions(_root, NoLocalConvention);
+        SolutionPullTransform.RestoreLocalFileNameConventions(_root, NoLocalConvention);
 
-        var excluded = SolutionSyncTransform.ExcludeProjectReferenceBinaries(_root, new[] { "MoveOrder.Logic" });
+        var excluded = SolutionPullTransform.ExcludeProjectReferenceBinaries(_root, new[] { "MoveOrder.Logic" });
 
         Assert.Equal(new[] { "MoveOrder.Logic.dll" }, excluded);
     }
@@ -205,10 +205,10 @@ public class SolutionSyncTransformTests : IDisposable
         // has AssemblyName "Acme.Apps.MoveOrder.Logic" (which ends with ".Logic").
         WriteAssembly("A", "Logic", "Logic, Version=1.0.0.0", "/PluginAssemblies/Logic.dll");
         WriteAssembly("B", "MoveOrder.Logic", "Acme.Apps.MoveOrder.Logic, Version=1.0.0.0", "/PluginAssemblies/MoveOrder.Logic.dll");
-        SolutionSyncTransform.RestoreLocalFileNameConventions(_root, NoLocalConvention);
+        SolutionPullTransform.RestoreLocalFileNameConventions(_root, NoLocalConvention);
 
         // Only MoveOrder.Logic is referenced; Logic is a third-party assembly.
-        var excluded = SolutionSyncTransform.ExcludeProjectReferenceBinaries(_root, new[] { "MoveOrder.Logic" });
+        var excluded = SolutionPullTransform.ExcludeProjectReferenceBinaries(_root, new[] { "MoveOrder.Logic" });
 
         var pluginsDir = Path.Combine(_root, "PluginAssemblies");
         Assert.Equal(new[] { "MoveOrder.Logic.dll" }, excluded);
@@ -221,9 +221,9 @@ public class SolutionSyncTransformTests : IDisposable
     public void Exclude_KeepsBinary_WhenNotReferenced()
     {
         WriteAssembly("X", "ThirdParty", "ThirdParty, Version=1.0.0.0", "/PluginAssemblies/ThirdParty.dll");
-        SolutionSyncTransform.RestoreLocalFileNameConventions(_root, NoLocalConvention);
+        SolutionPullTransform.RestoreLocalFileNameConventions(_root, NoLocalConvention);
 
-        var excluded = SolutionSyncTransform.ExcludeProjectReferenceBinaries(_root, new[] { "MyPlugin" });
+        var excluded = SolutionPullTransform.ExcludeProjectReferenceBinaries(_root, new[] { "MyPlugin" });
 
         var pluginsDir = Path.Combine(_root, "PluginAssemblies");
         Assert.Empty(excluded);
@@ -234,9 +234,9 @@ public class SolutionSyncTransformTests : IDisposable
     public void Exclude_NoOp_WhenNoReferences()
     {
         WriteAssembly("X", "MyPlugin", "MyPlugin, Version=1.0.0.0", "/PluginAssemblies/MyPlugin.dll");
-        SolutionSyncTransform.RestoreLocalFileNameConventions(_root, NoLocalConvention);
+        SolutionPullTransform.RestoreLocalFileNameConventions(_root, NoLocalConvention);
 
-        var excluded = SolutionSyncTransform.ExcludeProjectReferenceBinaries(_root, Array.Empty<string>());
+        var excluded = SolutionPullTransform.ExcludeProjectReferenceBinaries(_root, Array.Empty<string>());
 
         Assert.Empty(excluded);
         Assert.True(File.Exists(Path.Combine(_root, "PluginAssemblies", "MyPlugin.dll")));
@@ -260,7 +260,7 @@ public class SolutionSyncTransformTests : IDisposable
         WriteWebResource("udpp_main.js");
         var dir = Path.Combine(_root, "WebResources");
 
-        var excluded = SolutionSyncTransform.ExcludeScriptLibraryWebResources(_root, new[] { "udpp_main.js" });
+        var excluded = SolutionPullTransform.ExcludeScriptLibraryWebResources(_root, new[] { "udpp_main.js" });
 
         Assert.Equal(new[] { "udpp_main.js" }, excluded);
         Assert.False(File.Exists(Path.Combine(dir, "udpp_main.js")));
@@ -273,7 +273,7 @@ public class SolutionSyncTransformTests : IDisposable
         WriteWebResource("udpp_static.svg");
         var dir = Path.Combine(_root, "WebResources");
 
-        var excluded = SolutionSyncTransform.ExcludeScriptLibraryWebResources(_root, new[] { "udpp_main.js" });
+        var excluded = SolutionPullTransform.ExcludeScriptLibraryWebResources(_root, new[] { "udpp_main.js" });
 
         Assert.Empty(excluded);
         Assert.True(File.Exists(Path.Combine(dir, "udpp_static.svg")));
@@ -283,7 +283,7 @@ public class SolutionSyncTransformTests : IDisposable
     [Fact]
     public void ExcludeWebResource_NoOp_WhenNoWebResourcesFolder()
     {
-        var excluded = SolutionSyncTransform.ExcludeScriptLibraryWebResources(_root, new[] { "udpp_main.js" });
+        var excluded = SolutionPullTransform.ExcludeScriptLibraryWebResources(_root, new[] { "udpp_main.js" });
         Assert.Empty(excluded);
     }
 
@@ -312,7 +312,7 @@ public class SolutionSyncTransformTests : IDisposable
         Directory.CreateDirectory(Path.Combine(_root, "Controls", "udpp_ThirdParty_Widget"));
         File.WriteAllText(Path.Combine(_root, "Controls", "udpp_ThirdParty_Widget", "bundle.js"), "x");
 
-        var excluded = SolutionSyncTransform.ExcludePcfControls(_root,
+        var excluded = SolutionPullTransform.ExcludePcfControls(_root,
             new[] { "UdppControls.QuantityIndicator" });
 
         Assert.Equal(new[] { "udpp_UdppControls_QuantityIndicator" }, excluded);
@@ -330,7 +330,7 @@ public class SolutionSyncTransformTests : IDisposable
         File.WriteAllText(Path.Combine(otherDir, "Solution.xml"),
             "<ImportExportXml><SolutionManifest><Publisher><CustomizationPrefix>udpp</CustomizationPrefix></Publisher></SolutionManifest></ImportExportXml>");
 
-        var excluded = SolutionSyncTransform.ExcludePcfControls(_root, new[] { "UdppControls.QuantityIndicator" });
+        var excluded = SolutionPullTransform.ExcludePcfControls(_root, new[] { "UdppControls.QuantityIndicator" });
 
         Assert.Empty(excluded);
     }

@@ -3,11 +3,11 @@ using Xunit;
 
 namespace TALXIS.CLI.Tests.Environment.Platforms.Dataverse;
 
-public class SolutionSyncPipelineTests : IDisposable
+public class SolutionPullPipelineTests : IDisposable
 {
     private readonly string _base;
 
-    public SolutionSyncPipelineTests()
+    public SolutionPullPipelineTests()
     {
         _base = Path.Combine(Path.GetTempPath(), "txc_pipeline_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_base);
@@ -44,10 +44,10 @@ public class SolutionSyncPipelineTests : IDisposable
         WriteServerAssembly(staging, "PluginsWarehouse-38E8D392-49D6", "PluginsWarehouse", "PluginsWarehouse, Version=1.0.12605.27000, Culture=neutral, PublicKeyToken=73895ec8fc11dc14");
         WriteServerAssembly(staging, "ThirdParty-AAAABBBB-CCCC", "ThirdParty", "ThirdParty, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null");
 
-        SolutionSyncTransform.RestoreLocalFileNameConventions(staging, solDir);
+        SolutionPullTransform.RestoreLocalFileNameConventions(staging, solDir);
         var refs = ProjectReferenceReader.ReadPluginAssemblyNames(solProj);
-        var excluded = SolutionSyncTransform.ExcludeProjectReferenceBinaries(staging, refs);
-        SolutionSyncMerge.Merge(staging, solDir);
+        var excluded = SolutionPullTransform.ExcludeProjectReferenceBinaries(staging, refs);
+        SolutionPullMerge.Merge(staging, solDir);
 
         var pa = Path.Combine(solDir, "PluginAssemblies");
 

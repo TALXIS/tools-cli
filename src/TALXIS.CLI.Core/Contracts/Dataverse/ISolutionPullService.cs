@@ -1,11 +1,11 @@
 namespace TALXIS.CLI.Core.Contracts.Dataverse;
 
-public sealed record SolutionSyncOptions(
+public sealed record SolutionPullOptions(
     string SolutionUniqueName,
     string SolutionRootPath,
     string? ProjectFilePath);
 
-public sealed record SolutionSyncResult(
+public sealed record SolutionPullResult(
     string SolutionRootPath,
     IReadOnlyList<string> NormalizedAssemblies,
     IReadOnlyList<string> ExcludedBinaries,
@@ -13,7 +13,7 @@ public sealed record SolutionSyncResult(
     IReadOnlyList<string> ExcludedPcfControls,
     IReadOnlyList<string> RemovedFiles);
 
-public interface ISolutionSyncService
+public interface ISolutionPullService
 {
-    Task<SolutionSyncResult> SyncAsync(string? profileName, SolutionSyncOptions options, CancellationToken ct);
+    Task<SolutionPullResult> PullAsync(string? profileName, SolutionPullOptions options, CancellationToken ct);
 }
