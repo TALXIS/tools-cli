@@ -46,6 +46,7 @@ public class SolutionSyncCliCommand : ProfiledCliCommand
             normalizedAssemblies = result.NormalizedAssemblies,
             excludedBinaries = result.ExcludedBinaries,
             excludedWebResources = result.ExcludedWebResources,
+            excludedPcfControls = result.ExcludedPcfControls,
             removedFiles = result.RemovedFiles,
         };
 
@@ -56,6 +57,7 @@ public class SolutionSyncCliCommand : ProfiledCliCommand
             WriteList("Normalized plugin assembly path(s)", result.NormalizedAssemblies);
             WriteList("Excluded project-reference binary(ies)", result.ExcludedBinaries);
             WriteList("Excluded script-library web resource(s)", result.ExcludedWebResources);
+            WriteList("Excluded PCF control(s)", result.ExcludedPcfControls);
             WriteList("Removed stale solution file(s)", result.RemovedFiles);
 
             static void WriteList(string label, IReadOnlyList<string> items)
@@ -79,6 +81,9 @@ public class SolutionSyncCliCommand : ProfiledCliCommand
             if (string.IsNullOrWhiteSpace(Output))
             {
                 Logger.LogError("A bare solution name requires --output to specify the solution root folder.");
+#pragma warning disable TXC003
+                OutputWriter.WriteLine("Error: when passing a bare solution unique name, --output is required to specify the solution root folder.");
+#pragma warning restore TXC003
                 return null;
             }
             return (Project, Path.GetFullPath(Output), null);

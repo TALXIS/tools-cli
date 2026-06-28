@@ -78,4 +78,24 @@ public class SolutionSyncMergeTests : IDisposable
         Assert.True(File.Exists(Path.Combine(_into, "WebResources", "udpp_main.js.data.xml")));
         Assert.Empty(removed);
     }
+
+    [Fact]
+    public void Merge_RemovesStaleFolderAbsentFromExport_AndReportsInRemovedFiles()
+    {
+        // Local has a plugin assembly sub-folder that no longer exists in the Dataverse export.
+        Write(_into, "PluginAssemblies/OldPlugin/OldPlugin.dll", "binary");
+        Write(_into, "PluginAssemblies/OldPlugin/OldPlugin.dll.data.xml", "<p/>");
+        // Export only has a different assembly.
+        Write(_from, "PluginAssemblies/NewPlugin.dll.data.xml", "<p/>");
+
+        var removed = SolutionSyncMerge.Merge(_from, _into);
+
+        // OldPlugin folder must be gone.
+        Assert.False(Directory.Exists(Path.Combine(_into, "PluginAssemblies", "OldPlugin")));
+        // Both stale files should appear in RemovedFiles (relative paths).
+        Assert.Contains(removed, r => r.Contains("OldPlugin.dll"));
+        Assert.Contains(removed, r => r.Contains("OldPlugin.dll.data.xml"));
+        // New file must have landed.
+        Assert.True(File.Exists(Path.Combine(_into, "PluginAssemblies", "NewPlugin.dll.data.xml")));
+    }
 }

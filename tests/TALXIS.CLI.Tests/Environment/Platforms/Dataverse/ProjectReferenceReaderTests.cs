@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core.Resolution;
 using Xunit;
 
@@ -139,4 +140,72 @@ public class ProjectReferenceReaderTests : IDisposable
 
         Assert.Empty(names);
     }
+
+    [Fact]
+    public void ScriptLibrary_LogsWarning_WhenPublisherPrefixMissing()
+    {
+        WriteReferencedProject("Scripts", "Scripts.csproj", "<ProjectType>ScriptLibrary</ProjectType><ScriptLibraryName>main</ScriptLibraryName>");
+        var cdsproj = WriteSolution("Scripts\\Scripts.csproj");
+
+        var captured = new List<(LogLevel Level, string Message)>();
+        var logger = new CaptureLogger(captured);
+
+        var names = ProjectReferenceReader.ReadScriptLibraryWebResourceNames(cdsproj, logger);
+
+        Assert.Empty(names);
+        Assert.Contains(captured, e => e.Level == LogLevel.Warning && e.Message.Contains("PublisherPrefix"));
+    }
+
+    [Fact]
+    public void PcfControl_ReturnsNamespaceDotConstructor_FromPcfproj()
+    {
+        // Write a .pcfproj with a ControlManifest.Input.xml alongside it.
+        var pcfDir = Path.Combine(_root, "Controls.QuantityIndicator");
+        Directory.CreateDirectory(pcfDir);
+        var pcfProj = Path.Combine(pcfDir, "Controls.QuantityIndicator.pcfproj");
+        File.WriteAllText(pcfProj, "<Project Sdk=\"Microsoft.PowerApps.MSBuild.Pcf/1.0.0\"></Project>");
+        var manifestDir = Path.Combine(pcfDir, "QuantityIndicator");
+        Directory.CreateDirectory(manifestDir);
+        File.WriteAllText(Path.Combine(manifestDir, "ControlManifest.Input.xml"),
+            """
+            <?xml version="1.0" encoding="utf-8" ?>
+            <manifest>
+              <control namespace="UdppControls" constructor="QuantityIndicator" version="0.0.1"
+                       display-name-key="Qty Indicator" description-key="" control-type="standard">
+              </control>
+            </manifest>
+            """);
+
+        var cdsproj = WriteSolution($"Controls.QuantityIndicator\\Controls.QuantityIndicator.pcfproj");
+
+        var names = ProjectReferenceReader.ReadPcfControlNames(cdsproj);
+
+        Assert.Single(names);
+        Assert.Contains("UdppControls.QuantityIndicator", names);
+    }
+
+    [Fact]
+    public void PcfControl_Empty_WhenNoManifestFound()
+    {
+        var pcfDir = Path.Combine(_root, "Controls.Missing");
+        Directory.CreateDirectory(pcfDir);
+        var pcfProj = Path.Combine(pcfDir, "Controls.Missing.pcfproj");
+        File.WriteAllText(pcfProj, "<Project />");
+
+        var cdsproj = WriteSolution($"Controls.Missing\\Controls.Missing.pcfproj");
+
+        var names = ProjectReferenceReader.ReadPcfControlNames(cdsproj);
+
+        Assert.Empty(names);
+    }
+}
+
+/// <summary>Minimal <see cref="ILogger"/> that records log entries for assertions.</summary>
+file sealed class CaptureLogger(List<(LogLevel Level, string Message)> sink) : ILogger
+{
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+    public bool IsEnabled(LogLevel logLevel) => true;
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+        Func<TState, Exception?, string> formatter)
+        => sink.Add((logLevel, formatter(state, exception)));
 }

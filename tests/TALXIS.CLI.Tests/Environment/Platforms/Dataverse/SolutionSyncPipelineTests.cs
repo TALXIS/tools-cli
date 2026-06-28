@@ -44,7 +44,7 @@ public class SolutionSyncPipelineTests : IDisposable
         WriteServerAssembly(staging, "PluginsWarehouse-38E8D392-49D6", "PluginsWarehouse", "PluginsWarehouse, Version=1.0.12605.27000, Culture=neutral, PublicKeyToken=73895ec8fc11dc14");
         WriteServerAssembly(staging, "ThirdParty-AAAABBBB-CCCC", "ThirdParty", "ThirdParty, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null");
 
-        SolutionSyncTransform.NormalizePluginAssemblyPaths(staging);
+        SolutionSyncTransform.RestoreLocalFileNameConventions(staging, solDir);
         var refs = ProjectReferenceReader.ReadPluginAssemblyNames(solProj);
         var excluded = SolutionSyncTransform.ExcludeProjectReferenceBinaries(staging, refs);
         SolutionSyncMerge.Merge(staging, solDir);

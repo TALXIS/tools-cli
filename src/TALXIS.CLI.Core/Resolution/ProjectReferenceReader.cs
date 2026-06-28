@@ -1,7 +1,26 @@
 using System.Xml.Linq;
+using Microsoft.Extensions.Logging;
 
 namespace TALXIS.CLI.Core.Resolution;
 
+/// <summary>
+/// Reads plugin assembly names, script-library web resource names, and PCF control names
+/// from TALXIS SDK–style solution project files.
+/// </summary>
+/// <remarks>
+/// Component detection relies on the <c>&lt;ProjectType&gt;</c> MSBuild property, which is a
+/// TALXIS SDK convention. Repos initialized with <c>pac solution init</c> / <c>pac plugin init</c>
+/// do <b>not</b> include <c>&lt;ProjectType&gt;</c>.
+///
+/// TODO: Support pac-init repos. pac detects components by file extension:
+/// <list type="bullet">
+///   <item><c>.csproj</c> = plugin; read <c>&lt;PackageId&gt;</c> if <c>Sdk="Microsoft.NET.Sdk"</c>,
+///         otherwise <c>&lt;AssemblyName&gt;</c>; fallback = file name without extension.
+///         pac also recurses transitive <c>&lt;ProjectReference&gt;</c> chains.</item>
+///   <item><c>.pcfproj</c> = PCF control; find <c>ControlManifest.Input.xml</c> under the project
+///         directory and return <c>{namespace}.{constructor}</c>.</item>
+/// </list>
+/// </remarks>
 public static class ProjectReferenceReader
 {
     private static readonly HashSet<string> PluginProjectTypes =
@@ -19,12 +38,21 @@ public static class ProjectReferenceReader
         return result;
     }
 
-    public static IReadOnlyCollection<string> ReadScriptLibraryWebResourceNames(string solutionProjectFilePath)
+    public static IReadOnlyCollection<string> ReadScriptLibraryWebResourceNames(
+        string solutionProjectFilePath,
+        ILogger? logger = null)
     {
         var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var publisherPrefix = ReadProperty(solutionProjectFilePath, "PublisherPrefix");
         if (string.IsNullOrWhiteSpace(publisherPrefix))
+        {
+            logger?.LogWarning(
+                "<PublisherPrefix> is not set in '{ProjectFile}'. " +
+                "ScriptLibrary web resource binaries will not be excluded from the sync — " +
+                "they may appear as changed files in git. Add <PublisherPrefix> to the project to fix this.",
+                solutionProjectFilePath);
             return result;
+        }
 
         foreach (var referenced in EnumerateReferencedProjects(solutionProjectFilePath))
         {
@@ -73,6 +101,61 @@ public static class ProjectReferenceReader
         catch (System.Xml.XmlException)
         {
             return (null, fallbackName, null);
+        }
+    }
+
+    /// <summary>
+    /// Reads PCF control fully-qualified names (<c>{namespace}.{constructor}</c>) from
+    /// <c>.pcfproj</c> references in <paramref name="solutionProjectFilePath"/>.
+    /// </summary>
+    /// <remarks>
+    /// For each referenced <c>.pcfproj</c>, searches recursively under the project directory
+    /// for <c>ControlManifest.Input.xml</c> and returns the value of
+    /// <c>namespace + "." + constructor</c> attributes on the <c>&lt;control&gt;</c> element.
+    /// </remarks>
+    public static IReadOnlyCollection<string> ReadPcfControlNames(string solutionProjectFilePath)
+    {
+        var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var referenced in EnumerateReferencedProjects(solutionProjectFilePath))
+        {
+            if (!string.Equals(Path.GetExtension(referenced), ".pcfproj", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var manifestPath = FindControlManifest(Path.GetDirectoryName(referenced)!);
+            if (manifestPath is null)
+                continue;
+
+            var controlName = ReadPcfControlName(manifestPath);
+            if (!string.IsNullOrWhiteSpace(controlName))
+                result.Add(controlName);
+        }
+        return result;
+    }
+
+    private static string? FindControlManifest(string projectDirectory)
+    {
+        if (!Directory.Exists(projectDirectory))
+            return null;
+        return Directory.EnumerateFiles(projectDirectory, "ControlManifest.Input.xml", SearchOption.AllDirectories)
+            .FirstOrDefault();
+    }
+
+    private static string? ReadPcfControlName(string manifestPath)
+    {
+        try
+        {
+            var doc = XDocument.Load(manifestPath);
+            // <control namespace="Acme" constructor="MyControl" ...>
+            var control = doc.Descendants("control").FirstOrDefault();
+            var ns = control?.Attribute("namespace")?.Value?.Trim();
+            var name = control?.Attribute("constructor")?.Value?.Trim();
+            if (string.IsNullOrWhiteSpace(ns) || string.IsNullOrWhiteSpace(name))
+                return null;
+            return $"{ns}.{name}";
+        }
+        catch (System.Xml.XmlException)
+        {
+            return null;
         }
     }
 
