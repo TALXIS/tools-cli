@@ -231,7 +231,7 @@ public abstract class TxcLeafCommand
     {
         var tagger = DependencyInjection.TxcServices.GetOptional<Telemetry.ActivityIdentityTagger>();
         if (tagger != null)
-            await tagger.TagFromActiveProfileAsync(activity).ConfigureAwait(false);
+            await tagger.TagFromProfileAsync(activity, profileName: null, CancellationToken.None).ConfigureAwait(false);
     }
 
     /// <summary>
