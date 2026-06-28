@@ -53,15 +53,15 @@ public sealed class BrowserAvailabilityProbe : IBrowserAvailabilityProbe
             return "No DISPLAY or WAYLAND_DISPLAY set (no desktop session)";
 
         // Linux with a display: check xdg-open is on PATH.
-        if (!IsXdgOpenOnPath())
+        // Read PATH via the injected reader so tests can control it deterministically.
+        if (!IsXdgOpenOnPath(env.Get("PATH")))
             return "xdg-open not found on PATH";
 
         return null;
     }
 
-    private static bool IsXdgOpenOnPath()
+    private static bool IsXdgOpenOnPath(string? path)
     {
-        var path = Environment.GetEnvironmentVariable("PATH");
         if (string.IsNullOrWhiteSpace(path))
             return false;
 

@@ -53,7 +53,11 @@ internal static class MsalCacheHelperFactory
                 "{Hint} To suppress this warning, set {EnvVar}=1 explicitly.",
                 hint, VaultOptions.PlaintextFallbackEnvVar);
 
-            return await CreatePlaintextAsync(options, paths, logger).ConfigureAwait(false);
+            // Clone options with an explicit reason so the downstream plaintext
+            // warning log accurately reflects automatic fallback rather than
+            // an explicit opt-in.
+            var fallbackOptions = options with { UsePlaintextFallback = true, PlaintextReason = "auto-fallback (OS vault unavailable)" };
+            return await CreatePlaintextAsync(fallbackOptions, paths, logger).ConfigureAwait(false);
         }
     }
 

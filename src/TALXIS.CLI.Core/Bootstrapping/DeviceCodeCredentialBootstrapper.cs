@@ -103,17 +103,25 @@ public static class DeviceCodeCredentialBootstrapper
                 return exact;
         }
 
-        // Fall back to UPN or legacy id-based matching.
+        // Fall back to UPN or legacy id-based matching, using the same
+        // deterministic preference ordering as InteractiveCredentialBootstrapper:
+        // prefer the credential whose id matches the explicit alias, then the UPN,
+        // then fall back to alphabetical order.
+        var upnCandidates = candidates.Where(c =>
+            string.Equals(c.InteractiveUpn, result.Upn, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(c.Id, result.Upn, StringComparison.OrdinalIgnoreCase));
+
         if (!string.IsNullOrWhiteSpace(explicitAlias))
         {
-            var explicitMatch = candidates.FirstOrDefault(c =>
+            var explicitMatch = upnCandidates.FirstOrDefault(c =>
                 string.Equals(c.Id, explicitAlias.Trim(), StringComparison.OrdinalIgnoreCase));
             if (explicitMatch is not null)
                 return explicitMatch;
         }
 
-        return candidates.FirstOrDefault(c =>
-            string.Equals(c.InteractiveUpn, result.Upn, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(c.Id, result.Upn, StringComparison.OrdinalIgnoreCase));
+        return upnCandidates
+            .OrderBy(c => string.Equals(c.Id, result.Upn, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+            .ThenBy(c => c.Id, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
     }
 }
