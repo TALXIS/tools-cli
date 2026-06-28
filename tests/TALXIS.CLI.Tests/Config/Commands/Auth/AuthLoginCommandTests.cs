@@ -205,6 +205,54 @@ public sealed class AuthLoginCommandTests
     }
 
     [Fact]
+    public async Task Login_DeviceCode_PersistsCredential_WhenFlagExplicit()
+    {
+        using var host = new CommandTestHost(
+            browserAvailable: false,
+            loginResult: new InteractiveLoginResult(
+                "tomas@contoso.com",
+                "t-guid",
+                "account-guid",
+                MsalClientFactory.PublicClientId));
+        var store = (ICredentialStore)host.Provider.GetService(typeof(ICredentialStore))!;
+
+        var sw = new StringWriter();
+        int exit;
+        using (OutputWriter.RedirectTo(sw))
+            exit = await new AuthLoginCliCommand { DeviceCode = true }.RunAsync();
+
+        Assert.Equal(0, exit);
+        Assert.Equal(1, host.Login.Calls);
+
+        var creds = await store.ListAsync(default);
+        var cred = Assert.Single(creds);
+        Assert.Equal("tomas@contoso.com", cred.Id);
+        Assert.Equal(CredentialKind.DeviceCode, cred.Kind);
+
+        using var doc = JsonDocument.Parse(sw.ToString());
+        Assert.Equal("device-code", doc.RootElement.GetProperty("flow").GetString());
+    }
+
+    [Fact]
+    public async Task Login_DeviceCode_TriggeredAutomatically_WhenBrowserUnavailable()
+    {
+        using var host = new CommandTestHost(
+            browserAvailable: false,
+            loginResult: new InteractiveLoginResult("tomas@contoso.com", "t-guid"));
+        var store = (ICredentialStore)host.Provider.GetService(typeof(ICredentialStore))!;
+
+        // No --device-code flag; auto-detection via FakeBrowserProbe should trigger device code
+        var exit = await new AuthLoginCliCommand().RunAsync();
+
+        Assert.Equal(0, exit);
+        Assert.Equal(1, host.Login.Calls);
+
+        var creds = await store.ListAsync(default);
+        var cred = Assert.Single(creds);
+        Assert.Equal(CredentialKind.DeviceCode, cred.Kind);
+    }
+
+    [Fact]
     public async Task Login_FailsFast_InHeadlessEnvironment()
     {
         using var host = new CommandTestHost(headless: true);

@@ -28,6 +28,7 @@ internal sealed class CommandTestHost : IDisposable
 
     public CommandTestHost(
         bool headless = false,
+        bool? browserAvailable = null,
         InteractiveLoginResult? loginResult = null,
         string? currentDirectory = null,
         FakeConnectionProvider? dataverseProvider = null,
@@ -61,7 +62,7 @@ internal sealed class CommandTestHost : IDisposable
         services.AddSingleton<IWorkspaceDiscovery, WorkspaceDiscovery>();
         services.AddSingleton<IConfigurationResolver, ConfigurationResolver>();
         services.AddSingleton<IInteractiveLoginService>(Login);
-        services.AddSingleton<IBrowserAvailabilityProbe>(new FakeBrowserProbe(browserAvailable: !headless));
+        services.AddSingleton<IBrowserAvailabilityProbe>(new FakeBrowserProbe(browserAvailable: browserAvailable ?? !headless));
         services.AddSingleton<IDeviceCodeLoginService>(Login);
         services.AddSingleton<IPowerPlatformEnvironmentCatalog>(EnvironmentCatalog);
         services.AddSingleton(_ =>

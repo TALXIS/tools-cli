@@ -53,7 +53,7 @@ public class AuthLoginCliCommand : TxcLeafCommand
         var browserProbe = TxcServices.Get<IBrowserAvailabilityProbe>();
         var cloud = Cloud ?? CloudInstance.Public;
 
-        // Determine whether to use device code flow: explicit flag, env var,
+        // Determine whether to use device code flow: explicit flag or
         // or automatic detection of browser-isolated environments.
         var useDeviceCode = DeviceCode || !browserProbe.IsBrowserAvailable;
 
