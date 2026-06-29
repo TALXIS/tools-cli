@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using TALXIS.CLI.Core.Contracts.Dataverse;
+using TALXIS.CLI.Platform.Dataverse.Application.Pipeline;
 using TALXIS.CLI.Platform.Dataverse.Application.Services;
 
 namespace TALXIS.CLI.Platform.Dataverse.Application.DependencyInjection;
@@ -36,6 +37,7 @@ public static class DataverseApplicationServiceCollectionExtensions
         services.AddSingleton<ISolutionLayerMutationService, DataverseSolutionLayerMutationService>();
         services.AddSingleton<ISolutionPackagerService, Sdk.SolutionPackagerServiceImpl>();
         services.AddSingleton<ISolutionExportService, DataverseSolutionExportService>();
+        services.AddSingleton<IProjectReferenceMetadataReader, ProjectReferenceMetadataReader>();
         services.AddSingleton<ISolutionPullService, DataverseSolutionPullService>();
         return services;
     }

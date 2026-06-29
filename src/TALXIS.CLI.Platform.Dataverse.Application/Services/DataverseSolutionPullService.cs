@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core.Contracts.Dataverse;
-using TALXIS.CLI.Core.Resolution;
+using TALXIS.CLI.Platform.Dataverse.Application.Pipeline;
+using TALXIS.CLI.Platform.Dataverse.Application.Pipeline.Steps;
 using TALXIS.CLI.Platform.Dataverse.Application.Sdk;
 using TALXIS.CLI.Platform.Dataverse.Runtime;
 
@@ -9,11 +10,16 @@ namespace TALXIS.CLI.Platform.Dataverse.Application.Services;
 internal sealed class DataverseSolutionPullService : ISolutionPullService
 {
     private readonly ISolutionPackagerService _packager;
+    private readonly IProjectReferenceMetadataReader _projectReferenceReader;
     private readonly ILogger<DataverseSolutionPullService> _logger;
 
-    public DataverseSolutionPullService(ISolutionPackagerService packager, ILogger<DataverseSolutionPullService> logger)
+    public DataverseSolutionPullService(
+        ISolutionPackagerService packager,
+        IProjectReferenceMetadataReader projectReferenceReader,
+        ILogger<DataverseSolutionPullService> logger)
     {
         _packager = packager;
+        _projectReferenceReader = projectReferenceReader;
         _logger = logger;
     }
 
@@ -36,40 +42,37 @@ internal sealed class DataverseSolutionPullService : ISolutionPullService
             Directory.CreateDirectory(stagingRoot);
             _packager.Unpack(tempZip, stagingRoot, managed: false);
 
-            var excludedRelationships = SolutionPullTransform.ExcludeStandardSystemRelationships(stagingRoot);
-            SolutionPullTransform.NormalizeSolutionManifest(stagingRoot, options.SolutionRootPath);
-
-            // Restore each assembly to the path convention already used in the destination
-            // (matches by assembly simple name). New assemblies default to flat TALXIS SDK layout.
-            var normalized = SolutionPullTransform.RestoreLocalFileNameConventions(
-                stagingRoot, options.SolutionRootPath, _logger);
-
-            IReadOnlyList<string> excluded = [];
-            IReadOnlyList<string> excludedWebResources = [];
-            IReadOnlyList<string> excludedPcfControls = [];
-            if (options.ProjectFilePath is not null)
+            var context = new SolutionPullContext
             {
-                var referencedAssemblies = ProjectReferenceReader.ReadPluginAssemblyNames(options.ProjectFilePath);
-                excluded = SolutionPullTransform.ExcludeProjectReferenceBinaries(stagingRoot, referencedAssemblies);
+                StagingDirectory = stagingRoot,
+                DestinationDirectory = options.SolutionRootPath,
+                ProjectFilePath = options.ProjectFilePath,
+                ReferencedProjectDirectories = []
+            };
 
-                var scriptLibraryWebResources = ProjectReferenceReader.ReadScriptLibraryWebResourceNames(
-                    options.ProjectFilePath, _logger);
-                excludedWebResources = SolutionPullTransform.ExcludeScriptLibraryWebResources(stagingRoot, scriptLibraryWebResources);
+            var steps = new ISolutionPullStep[]
+            {
+                new SystemRelationshipExclusionStep(),
+                new SolutionManifestNormalizationStep(),
+                new PluginAssemblyNormalizationStep(_logger),
+                new ProjectReferenceBinaryExclusionStep(_projectReferenceReader),
+                new ScriptLibraryExclusionStep(_projectReferenceReader, _logger),
+                new PcfControlExclusionStep(_projectReferenceReader)
+            };
 
-                var pcfControls = ProjectReferenceReader.ReadPcfControlNames(options.ProjectFilePath);
-                excludedPcfControls = SolutionPullTransform.ExcludePcfControls(stagingRoot, pcfControls);
-            }
+            foreach (var step in steps)
+                step.Execute(context);
 
             Directory.CreateDirectory(options.SolutionRootPath);
-            var removed = SolutionPullMerge.Merge(stagingRoot, options.SolutionRootPath);
+            var removed = SolutionPullMerge.Merge(context.StagingDirectory, context.DestinationDirectory);
 
             return new SolutionPullResult(
                 options.SolutionRootPath,
-                normalized,
-                excludedRelationships,
-                excluded,
-                excludedWebResources,
-                excludedPcfControls,
+                context.NormalizedAssemblies,
+                context.ExcludedRelationships,
+                context.ExcludedBinaries,
+                context.ExcludedWebResources,
+                context.ExcludedPcfControls,
                 removed);
         }
         finally

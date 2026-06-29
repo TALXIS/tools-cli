@@ -1,12 +1,20 @@
 using System.Xml.Linq;
-using TALXIS.CLI.Core.Resolution;
+using Microsoft.Extensions.Logging.Abstractions;
+using TALXIS.CLI.Platform.Dataverse.Application.Pipeline;
+using TALXIS.CLI.Platform.Dataverse.Application.Pipeline.Steps;
 using Xunit;
 
 namespace TALXIS.CLI.Tests.Environment.Platforms.Dataverse;
 
 public class SolutionPullTransformTests : IDisposable
 {
+    private readonly ProjectReferenceBinaryExclusionStep _projectReferenceBinaryExclusionStep;
+    private readonly PluginAssemblyNormalizationStep _pluginAssemblyNormalizationStep;
+    private readonly PcfControlExclusionStep _pcfControlExclusionStep;
     private readonly string _root;
+    private readonly ScriptLibraryExclusionStep _scriptLibraryExclusionStep;
+    private readonly SolutionManifestNormalizationStep _solutionManifestNormalizationStep;
+    private readonly SystemRelationshipExclusionStep _systemRelationshipExclusionStep;
 
     // A non-existent path simulates a first-sync scenario: no local convention established yet.
     // All assemblies are treated as new and default to the flat TALXIS SDK layout.
@@ -16,6 +24,14 @@ public class SolutionPullTransformTests : IDisposable
     {
         _root = Path.Combine(Path.GetTempPath(), "txc_sync_test_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_root);
+
+        var projectReferenceReader = new ProjectReferenceMetadataReader();
+        _projectReferenceBinaryExclusionStep = new ProjectReferenceBinaryExclusionStep(projectReferenceReader);
+        _pluginAssemblyNormalizationStep = new PluginAssemblyNormalizationStep(NullLogger.Instance);
+        _pcfControlExclusionStep = new PcfControlExclusionStep(projectReferenceReader);
+        _scriptLibraryExclusionStep = new ScriptLibraryExclusionStep(projectReferenceReader, NullLogger.Instance);
+        _solutionManifestNormalizationStep = new SolutionManifestNormalizationStep();
+        _systemRelationshipExclusionStep = new SystemRelationshipExclusionStep();
     }
 
     public void Dispose()
@@ -23,6 +39,23 @@ public class SolutionPullTransformTests : IDisposable
         if (Directory.Exists(_root))
             Directory.Delete(_root, recursive: true);
     }
+
+    private SolutionPullContext CreateContext(
+        string destinationRoot,
+        IReadOnlyCollection<string>? referencedPluginAssemblyNames = null,
+        IReadOnlyCollection<string>? referencedScriptLibraryWebResources = null,
+        IReadOnlyCollection<string>? referencedPcfControlNames = null,
+        string? projectFilePath = null)
+        => new()
+        {
+            StagingDirectory = _root,
+            DestinationDirectory = destinationRoot,
+            ProjectFilePath = projectFilePath,
+            ReferencedProjectDirectories = [],
+            ReferencedPluginAssemblyNames = referencedPluginAssemblyNames,
+            ReferencedScriptLibraryWebResources = referencedScriptLibraryWebResources,
+            ReferencedPcfControlNames = referencedPcfControlNames
+        };
 
     private string WriteAssembly(string folderName, string fileBaseName, string fullName, string fileNameElement)
     {
@@ -53,10 +86,11 @@ public class SolutionPullTransformTests : IDisposable
             "Acme.MyPlugin, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
             "/PluginAssemblies/MyPlugin-38E8D392-49D6-4DE7-9FF7-F1338E8DD6EE/MyPlugin.dll");
 
-        var restored = SolutionPullTransform.RestoreLocalFileNameConventions(_root, NoLocalConvention);
+        var context = CreateContext(NoLocalConvention);
+        _pluginAssemblyNormalizationStep.Execute(context);
 
         var pluginsDir = Path.Combine(_root, "PluginAssemblies");
-        Assert.Equal(new[] { "Acme.MyPlugin" }, restored);
+        Assert.Equal(new[] { "Acme.MyPlugin" }, context.NormalizedAssemblies);
         Assert.True(File.Exists(Path.Combine(pluginsDir, "MyPlugin.dll")));
         Assert.True(File.Exists(Path.Combine(pluginsDir, "MyPlugin.dll.data.xml")));
         Assert.Empty(Directory.GetDirectories(pluginsDir));
@@ -75,17 +109,19 @@ public class SolutionPullTransformTests : IDisposable
         File.WriteAllText(Path.Combine(pluginsDir, "Flat.dll.data.xml"),
             "<PluginAssembly FullName=\"Flat, Version=1.0.0.0\"><FileName>/PluginAssemblies/Flat.dll</FileName></PluginAssembly>");
 
-        var restored = SolutionPullTransform.RestoreLocalFileNameConventions(_root, NoLocalConvention);
+        var context = CreateContext(NoLocalConvention);
+        _pluginAssemblyNormalizationStep.Execute(context);
 
-        Assert.Empty(restored);
+        Assert.Empty(context.NormalizedAssemblies);
         Assert.True(File.Exists(Path.Combine(pluginsDir, "Flat.dll")));
     }
 
     [Fact]
     public void Restore_NoOp_WhenNoPluginAssembliesFolder()
     {
-        var restored = SolutionPullTransform.RestoreLocalFileNameConventions(_root, NoLocalConvention);
-        Assert.Empty(restored);
+        var context = CreateContext(NoLocalConvention);
+        _pluginAssemblyNormalizationStep.Execute(context);
+        Assert.Empty(context.NormalizedAssemblies);
     }
 
     // ──────────────────────────────────────────────────────────────────────────────
@@ -112,7 +148,8 @@ public class SolutionPullTransformTests : IDisposable
 
         try
         {
-            var restored = SolutionPullTransform.RestoreLocalFileNameConventions(_root, destRoot);
+            var context = CreateContext(destRoot);
+            _pluginAssemblyNormalizationStep.Execute(context);
 
             var pluginsDir = Path.Combine(_root, "PluginAssemblies");
             // File should land in MyPlugin-CCCCDDDD (matching local convention), NOT flat.
@@ -152,7 +189,8 @@ public class SolutionPullTransformTests : IDisposable
 
         try
         {
-            SolutionPullTransform.RestoreLocalFileNameConventions(_root, destRoot);
+            var context = CreateContext(destRoot);
+            _pluginAssemblyNormalizationStep.Execute(context);
 
             var pluginsDir = Path.Combine(_root, "PluginAssemblies");
             Assert.True(File.Exists(Path.Combine(pluginsDir, "FlatPlugin.dll")));
@@ -177,12 +215,13 @@ public class SolutionPullTransformTests : IDisposable
     public void Exclude_DeletesDll_KeepsDataXml_ForExactMatch()
     {
         WriteAssembly("X", "MyPlugin", "MyPlugin, Version=1.0.0.0", "/PluginAssemblies/MyPlugin.dll");
-        SolutionPullTransform.RestoreLocalFileNameConventions(_root, NoLocalConvention);
 
-        var excluded = SolutionPullTransform.ExcludeProjectReferenceBinaries(_root, new[] { "MyPlugin" });
+        var context = CreateContext(NoLocalConvention, referencedPluginAssemblyNames: new[] { "MyPlugin" });
+        _pluginAssemblyNormalizationStep.Execute(context);
+        _projectReferenceBinaryExclusionStep.Execute(context);
 
         var pluginsDir = Path.Combine(_root, "PluginAssemblies");
-        Assert.Equal(new[] { "MyPlugin.dll" }, excluded);
+        Assert.Equal(new[] { "MyPlugin.dll" }, context.ExcludedBinaries);
         Assert.False(File.Exists(Path.Combine(pluginsDir, "MyPlugin.dll")));
         Assert.True(File.Exists(Path.Combine(pluginsDir, "MyPlugin.dll.data.xml")));
     }
@@ -191,11 +230,12 @@ public class SolutionPullTransformTests : IDisposable
     public void Exclude_MatchesDottedNamespaceExtension()
     {
         WriteAssembly("X", "MoveOrder.Logic", "Acme.Apps.MoveOrder.Logic, Version=1.0.0.0", "/PluginAssemblies/MoveOrder.Logic.dll");
-        SolutionPullTransform.RestoreLocalFileNameConventions(_root, NoLocalConvention);
 
-        var excluded = SolutionPullTransform.ExcludeProjectReferenceBinaries(_root, new[] { "MoveOrder.Logic" });
+        var context = CreateContext(NoLocalConvention, referencedPluginAssemblyNames: new[] { "MoveOrder.Logic" });
+        _pluginAssemblyNormalizationStep.Execute(context);
+        _projectReferenceBinaryExclusionStep.Execute(context);
 
-        Assert.Equal(new[] { "MoveOrder.Logic.dll" }, excluded);
+        Assert.Equal(new[] { "MoveOrder.Logic.dll" }, context.ExcludedBinaries);
     }
 
     [Fact]
@@ -205,13 +245,13 @@ public class SolutionPullTransformTests : IDisposable
         // has AssemblyName "Acme.Apps.MoveOrder.Logic" (which ends with ".Logic").
         WriteAssembly("A", "Logic", "Logic, Version=1.0.0.0", "/PluginAssemblies/Logic.dll");
         WriteAssembly("B", "MoveOrder.Logic", "Acme.Apps.MoveOrder.Logic, Version=1.0.0.0", "/PluginAssemblies/MoveOrder.Logic.dll");
-        SolutionPullTransform.RestoreLocalFileNameConventions(_root, NoLocalConvention);
 
-        // Only MoveOrder.Logic is referenced; Logic is a third-party assembly.
-        var excluded = SolutionPullTransform.ExcludeProjectReferenceBinaries(_root, new[] { "MoveOrder.Logic" });
+        var context = CreateContext(NoLocalConvention, referencedPluginAssemblyNames: new[] { "MoveOrder.Logic" });
+        _pluginAssemblyNormalizationStep.Execute(context);
+        _projectReferenceBinaryExclusionStep.Execute(context);
 
         var pluginsDir = Path.Combine(_root, "PluginAssemblies");
-        Assert.Equal(new[] { "MoveOrder.Logic.dll" }, excluded);
+        Assert.Equal(new[] { "MoveOrder.Logic.dll" }, context.ExcludedBinaries);
         // Third-party "Logic.dll" must survive.
         Assert.True(File.Exists(Path.Combine(pluginsDir, "Logic.dll")));
         Assert.True(File.Exists(Path.Combine(pluginsDir, "Logic.dll.data.xml")));
@@ -221,12 +261,13 @@ public class SolutionPullTransformTests : IDisposable
     public void Exclude_KeepsBinary_WhenNotReferenced()
     {
         WriteAssembly("X", "ThirdParty", "ThirdParty, Version=1.0.0.0", "/PluginAssemblies/ThirdParty.dll");
-        SolutionPullTransform.RestoreLocalFileNameConventions(_root, NoLocalConvention);
 
-        var excluded = SolutionPullTransform.ExcludeProjectReferenceBinaries(_root, new[] { "MyPlugin" });
+        var context = CreateContext(NoLocalConvention, referencedPluginAssemblyNames: new[] { "MyPlugin" });
+        _pluginAssemblyNormalizationStep.Execute(context);
+        _projectReferenceBinaryExclusionStep.Execute(context);
 
         var pluginsDir = Path.Combine(_root, "PluginAssemblies");
-        Assert.Empty(excluded);
+        Assert.Empty(context.ExcludedBinaries);
         Assert.True(File.Exists(Path.Combine(pluginsDir, "ThirdParty.dll")));
     }
 
@@ -234,11 +275,12 @@ public class SolutionPullTransformTests : IDisposable
     public void Exclude_NoOp_WhenNoReferences()
     {
         WriteAssembly("X", "MyPlugin", "MyPlugin, Version=1.0.0.0", "/PluginAssemblies/MyPlugin.dll");
-        SolutionPullTransform.RestoreLocalFileNameConventions(_root, NoLocalConvention);
 
-        var excluded = SolutionPullTransform.ExcludeProjectReferenceBinaries(_root, Array.Empty<string>());
+        var context = CreateContext(NoLocalConvention, referencedPluginAssemblyNames: Array.Empty<string>());
+        _pluginAssemblyNormalizationStep.Execute(context);
+        _projectReferenceBinaryExclusionStep.Execute(context);
 
-        Assert.Empty(excluded);
+        Assert.Empty(context.ExcludedBinaries);
         Assert.True(File.Exists(Path.Combine(_root, "PluginAssemblies", "MyPlugin.dll")));
     }
 
@@ -283,9 +325,10 @@ public class SolutionPullTransformTests : IDisposable
         WriteWebResource("udpp_main.js");
         var dir = Path.Combine(_root, "WebResources");
 
-        var excluded = SolutionPullTransform.ExcludeScriptLibraryWebResources(_root, new[] { "udpp_main.js" });
+        var context = CreateContext(NoLocalConvention, referencedScriptLibraryWebResources: new[] { "udpp_main.js" });
+        _scriptLibraryExclusionStep.Execute(context);
 
-        Assert.Equal(new[] { "udpp_main.js" }, excluded);
+        Assert.Equal(new[] { "udpp_main.js" }, context.ExcludedWebResources);
         Assert.False(File.Exists(Path.Combine(dir, "udpp_main.js")));
         Assert.True(File.Exists(Path.Combine(dir, "udpp_main.js.data.xml")));
     }
@@ -296,9 +339,10 @@ public class SolutionPullTransformTests : IDisposable
         WriteWebResource("udpp_static.svg");
         var dir = Path.Combine(_root, "WebResources");
 
-        var excluded = SolutionPullTransform.ExcludeScriptLibraryWebResources(_root, new[] { "udpp_main.js" });
+        var context = CreateContext(NoLocalConvention, referencedScriptLibraryWebResources: new[] { "udpp_main.js" });
+        _scriptLibraryExclusionStep.Execute(context);
 
-        Assert.Empty(excluded);
+        Assert.Empty(context.ExcludedWebResources);
         Assert.True(File.Exists(Path.Combine(dir, "udpp_static.svg")));
         Assert.True(File.Exists(Path.Combine(dir, "udpp_static.svg.data.xml")));
     }
@@ -306,8 +350,9 @@ public class SolutionPullTransformTests : IDisposable
     [Fact]
     public void ExcludeWebResource_NoOp_WhenNoWebResourcesFolder()
     {
-        var excluded = SolutionPullTransform.ExcludeScriptLibraryWebResources(_root, new[] { "udpp_main.js" });
-        Assert.Empty(excluded);
+        var context = CreateContext(NoLocalConvention, referencedScriptLibraryWebResources: new[] { "udpp_main.js" });
+        _scriptLibraryExclusionStep.Execute(context);
+        Assert.Empty(context.ExcludedWebResources);
     }
 
     // ──────────────────────────────────────────────────────────────────────────────
@@ -323,7 +368,8 @@ public class SolutionPullTransformTests : IDisposable
 
         try
         {
-            SolutionPullTransform.NormalizeSolutionManifest(_root, destinationRoot);
+            var context = CreateContext(destinationRoot);
+            _solutionManifestNormalizationStep.Execute(context);
 
             var document = XDocument.Load(Path.Combine(_root, "Other", "Solution.xml"));
             var manifest = document.Descendants("SolutionManifest").Single();
@@ -341,7 +387,8 @@ public class SolutionPullTransformTests : IDisposable
     {
         WriteSolutionManifest(_root, "1.0.12606.28000", "1");
 
-        SolutionPullTransform.NormalizeSolutionManifest(_root, Path.Combine(Path.GetTempPath(), "dest_" + Guid.NewGuid().ToString("N")));
+        var context = CreateContext(Path.Combine(Path.GetTempPath(), "dest_" + Guid.NewGuid().ToString("N")));
+        _solutionManifestNormalizationStep.Execute(context);
 
         var document = XDocument.Load(Path.Combine(_root, "Other", "Solution.xml"));
         var manifest = document.Descendants("SolutionManifest").Single();
@@ -354,7 +401,8 @@ public class SolutionPullTransformTests : IDisposable
     {
         WriteSolutionManifest(_root, "1.0.0.0", "0");
 
-        SolutionPullTransform.NormalizeSolutionManifest(_root, NoLocalConvention);
+        var context = CreateContext(NoLocalConvention);
+        _solutionManifestNormalizationStep.Execute(context);
 
         var document = XDocument.Load(Path.Combine(_root, "Other", "Solution.xml"));
         Assert.Equal("2", document.Descendants("Managed").Single().Value);
@@ -382,7 +430,8 @@ public class SolutionPullTransformTests : IDisposable
             </ImportExportXml>
             """);
 
-        SolutionPullTransform.ExcludeStandardSystemRelationships(_root);
+        var context = CreateContext(NoLocalConvention);
+        _systemRelationshipExclusionStep.Execute(context);
 
         var document = XDocument.Load(Path.Combine(_root, "Other", "Relationships.xml"));
         var remaining = document.Descendants("EntityRelationship")
@@ -405,14 +454,15 @@ public class SolutionPullTransformTests : IDisposable
             </ImportExportXml>
             """);
 
-        var removed = SolutionPullTransform.ExcludeStandardSystemRelationships(_root);
+        var context = CreateContext(NoLocalConvention);
+        _systemRelationshipExclusionStep.Execute(context);
 
         var document = XDocument.Load(Path.Combine(_root, "Other", "Relationships.xml"));
         var remaining = document.Descendants("EntityRelationship")
             .Select(element => element.Attribute("Name")?.Value)
             .Where(name => name is not null)
             .ToArray();
-        Assert.Empty(removed);
+        Assert.Empty(context.ExcludedRelationships);
         Assert.Equal(new[] { "tprt_testitem_tprt_custom", "custom_lookup_relationship" }, remaining);
     }
 
@@ -430,9 +480,10 @@ public class SolutionPullTransformTests : IDisposable
             </ImportExportXml>
             """);
 
-        var removed = SolutionPullTransform.ExcludeStandardSystemRelationships(_root);
+        var context = CreateContext(NoLocalConvention);
+        _systemRelationshipExclusionStep.Execute(context);
 
-        Assert.Equal(new[] { "business_unit_tprt_testitem", "owner_tprt_testitem" }, removed);
+        Assert.Equal(new[] { "business_unit_tprt_testitem", "owner_tprt_testitem" }, context.ExcludedRelationships);
     }
 
     [Fact]
@@ -440,9 +491,10 @@ public class SolutionPullTransformTests : IDisposable
     {
         WriteRelationshipsFile(string.Empty);
 
-        var removed = SolutionPullTransform.ExcludeStandardSystemRelationships(_root);
+        var context = CreateContext(NoLocalConvention);
+        _systemRelationshipExclusionStep.Execute(context);
 
-        Assert.Empty(removed);
+        Assert.Empty(context.ExcludedRelationships);
         Assert.Equal(string.Empty, File.ReadAllText(Path.Combine(_root, "Other", "Relationships.xml")));
     }
 
@@ -471,10 +523,10 @@ public class SolutionPullTransformTests : IDisposable
         Directory.CreateDirectory(Path.Combine(_root, "Controls", "udpp_ThirdParty_Widget"));
         File.WriteAllText(Path.Combine(_root, "Controls", "udpp_ThirdParty_Widget", "bundle.js"), "x");
 
-        var excluded = SolutionPullTransform.ExcludePcfControls(_root,
-            new[] { "UdppControls.QuantityIndicator" });
+        var context = CreateContext(NoLocalConvention, referencedPcfControlNames: new[] { "UdppControls.QuantityIndicator" });
+        _pcfControlExclusionStep.Execute(context);
 
-        Assert.Equal(new[] { "udpp_UdppControls_QuantityIndicator" }, excluded);
+        Assert.Equal(new[] { "udpp_UdppControls_QuantityIndicator" }, context.ExcludedPcfControls);
         Assert.False(Directory.Exists(Path.Combine(_root, "Controls", "udpp_UdppControls_QuantityIndicator")));
         // Non-matching control stays.
         Assert.True(Directory.Exists(Path.Combine(_root, "Controls", "udpp_ThirdParty_Widget")));
@@ -489,8 +541,9 @@ public class SolutionPullTransformTests : IDisposable
         File.WriteAllText(Path.Combine(otherDir, "Solution.xml"),
             "<ImportExportXml><SolutionManifest><Publisher><CustomizationPrefix>udpp</CustomizationPrefix></Publisher></SolutionManifest></ImportExportXml>");
 
-        var excluded = SolutionPullTransform.ExcludePcfControls(_root, new[] { "UdppControls.QuantityIndicator" });
+        var context = CreateContext(NoLocalConvention, referencedPcfControlNames: new[] { "UdppControls.QuantityIndicator" });
+        _pcfControlExclusionStep.Execute(context);
 
-        Assert.Empty(excluded);
+        Assert.Empty(context.ExcludedPcfControls);
     }
 }

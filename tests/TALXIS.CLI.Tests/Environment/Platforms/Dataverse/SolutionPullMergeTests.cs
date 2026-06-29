@@ -1,4 +1,4 @@
-using TALXIS.CLI.Core.Resolution;
+using TALXIS.CLI.Platform.Dataverse.Application.Pipeline;
 using Xunit;
 
 namespace TALXIS.CLI.Tests.Environment.Platforms.Dataverse;

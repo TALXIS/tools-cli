@@ -1,4 +1,6 @@
-using TALXIS.CLI.Core.Resolution;
+using Microsoft.Extensions.Logging.Abstractions;
+using TALXIS.CLI.Platform.Dataverse.Application.Pipeline;
+using TALXIS.CLI.Platform.Dataverse.Application.Pipeline.Steps;
 using Xunit;
 
 namespace TALXIS.CLI.Tests.Environment.Platforms.Dataverse;
@@ -6,11 +8,13 @@ namespace TALXIS.CLI.Tests.Environment.Platforms.Dataverse;
 public class SolutionPullPipelineTests : IDisposable
 {
     private readonly string _base;
+    private readonly IProjectReferenceMetadataReader _projectReferenceReader;
 
     public SolutionPullPipelineTests()
     {
         _base = Path.Combine(Path.GetTempPath(), "txc_pipeline_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_base);
+        _projectReferenceReader = new ProjectReferenceMetadataReader();
     }
 
     public void Dispose()
@@ -44,15 +48,32 @@ public class SolutionPullPipelineTests : IDisposable
         WriteServerAssembly(staging, "PluginsWarehouse-38E8D392-49D6", "PluginsWarehouse", "PluginsWarehouse, Version=1.0.12605.27000, Culture=neutral, PublicKeyToken=73895ec8fc11dc14");
         WriteServerAssembly(staging, "ThirdParty-AAAABBBB-CCCC", "ThirdParty", "ThirdParty, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null");
 
-        SolutionPullTransform.RestoreLocalFileNameConventions(staging, solDir);
-        var refs = ProjectReferenceReader.ReadPluginAssemblyNames(solProj);
-        var excluded = SolutionPullTransform.ExcludeProjectReferenceBinaries(staging, refs);
+        var context = new SolutionPullContext
+        {
+            StagingDirectory = staging,
+            DestinationDirectory = solDir,
+            ProjectFilePath = solProj,
+            ReferencedProjectDirectories = []
+        };
+
+        var steps = new ISolutionPullStep[]
+        {
+            new SystemRelationshipExclusionStep(),
+            new SolutionManifestNormalizationStep(),
+            new PluginAssemblyNormalizationStep(NullLogger.Instance),
+            new ProjectReferenceBinaryExclusionStep(_projectReferenceReader),
+            new ScriptLibraryExclusionStep(_projectReferenceReader, NullLogger.Instance),
+            new PcfControlExclusionStep(_projectReferenceReader)
+        };
+
+        foreach (var step in steps)
+            step.Execute(context);
+
         SolutionPullMerge.Merge(staging, solDir);
 
         var pa = Path.Combine(solDir, "PluginAssemblies");
 
-        Assert.Contains("PluginsWarehouse", refs);
-        Assert.Contains("PluginsWarehouse.dll", excluded);
+        Assert.Contains("PluginsWarehouse.dll", context.ExcludedBinaries);
 
         // Referenced plugin: data.xml lands, binary does not.
         Assert.True(File.Exists(Path.Combine(pa, "PluginsWarehouse.dll.data.xml")));
