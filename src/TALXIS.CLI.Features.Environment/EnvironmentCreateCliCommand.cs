@@ -24,11 +24,17 @@ namespace TALXIS.CLI.Features.Environment;
 [CliLongRunning]
 [CliCommand(
     Name = "create",
-    Description = "Create a new Power Platform environment in the tenant. Requires an active profile (used for admin identity and cloud). Returns after queueing unless --wait is passed."
+    Description = "Create a new Power Platform environment in the tenant using a selected profile or auth credential. Returns after queueing unless --wait is passed."
 )]
 public class EnvironmentCreateCliCommand : ProfiledCliCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EnvironmentCreateCliCommand));
+
+    [CliOption(Name = "--auth", Description = "Auth credential id to use directly when no target profile exists.", Required = false)]
+    public string? Auth { get; set; }
+
+    [CliOption(Name = "--cloud", Description = "Power Platform cloud to use with --auth or the default auth credential.", Required = false)]
+    public CloudInstance? Cloud { get; set; }
 
     [CliOption(Name = "--name", Aliases = ["-n"], Description = "Display name for the new environment. Required for every type except Teams.", Required = false)]
     public string? Name { get; set; }
@@ -68,6 +74,8 @@ public class EnvironmentCreateCliCommand : ProfiledCliCommand
 
         var options = new EnvironmentCreateOptions
         {
+            CredentialId = Auth,
+            Cloud = Cloud,
             DisplayName = Name,
             EnvironmentType = Type,
             Region = Region,

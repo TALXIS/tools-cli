@@ -22,6 +22,8 @@ public sealed record EnvironmentInfo(
 /// </summary>
 public sealed record EnvironmentCreateOptions
 {
+    public string? CredentialId { get; init; }
+    public CloudInstance? Cloud { get; init; }
     public string? DisplayName { get; init; }
     public required EnvironmentType EnvironmentType { get; init; }
     public string Region { get; init; } = "unitedstates";
@@ -91,16 +93,20 @@ public sealed record EnvironmentDeleteOutcome(
 public interface IEnvironmentManagementService
 {
     /// <summary>
-    /// Lists the Dataverse-backed environments in the tenant visible to the
-    /// resolved profile's identity.
+    /// Lists the Dataverse-backed environments visible to the resolved profile's
+    /// identity, or to a selected/stored auth credential during bootstrap when
+    /// no profile is available.
     /// </summary>
     Task<IReadOnlyList<EnvironmentInfo>> ListAsync(
         string? profileName,
+        string? credentialId,
+        CloudInstance? cloud,
         CancellationToken ct);
 
     /// <summary>
     /// Creates a new environment using the resolved profile's credential and
-    /// cloud for admin authority.
+    /// cloud for admin authority, or a selected/stored auth credential during
+    /// bootstrap when no profile is available.
     /// </summary>
     Task<EnvironmentCreateOutcome> CreateAsync(
         string? profileName,

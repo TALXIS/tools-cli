@@ -24,5 +24,17 @@ public sealed class ConfigurationResolutionException : Exception
 {
     public ConfigurationResolutionException(string message) : base(message) { }
     public ConfigurationResolutionException(string message, Exception inner) : base(message, inner) { }
+    public ConfigurationResolutionException(string message, ConfigurationResolutionFailureReason reason) : base(message)
+        => Reason = reason;
+    public ConfigurationResolutionException(string message, Exception inner, ConfigurationResolutionFailureReason reason) : base(message, inner)
+        => Reason = reason;
+
+    public ConfigurationResolutionFailureReason Reason { get; } = ConfigurationResolutionFailureReason.Unspecified;
 }
 #pragma warning restore RS0030
+
+public enum ConfigurationResolutionFailureReason
+{
+    Unspecified = 0,
+    NoProfile = 1,
+}

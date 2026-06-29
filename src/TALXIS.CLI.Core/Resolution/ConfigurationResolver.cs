@@ -51,7 +51,8 @@ public sealed class ConfigurationResolver : IConfigurationResolver
         {
             throw new ConfigurationResolutionException(
                 "No txc profile could be resolved. Pass --profile <name>, set TXC_PROFILE, "
-                + "pin a workspace default with 'txc config profile pin', or select a global default with 'txc config profile select'.");
+                + "pin a workspace default with 'txc config profile pin', or select a global default with 'txc config profile select'.",
+                ConfigurationResolutionFailureReason.NoProfile);
         }
 
         var profile = await _profiles.GetAsync(name, ct).ConfigureAwait(false)

@@ -1,6 +1,6 @@
 # Environment Lifecycle
 
-`txc env list`, `txc env create`, `txc env update`, and `txc env delete` manage Power Platform environments at the **tenant level** — they use the active profile's credential and cloud for admin authority, not a target environment URL.
+`txc env list`, `txc env create`, `txc env update`, and `txc env delete` manage Power Platform environments at the **tenant level** — they use the selected profile's credential and cloud for admin authority, not a target environment URL. `list` and `create` can also run before any environment/profile exists by using `--auth` (or the single stored auth credential) plus optional `--cloud`.
 
 ## Listing environments
 
@@ -15,6 +15,8 @@ Returns every Dataverse-backed environment visible to the caller. Results includ
 | `--filter` | Case-insensitive substring match against display name, unique name, or URL. |
 | `--type`, `-t` | Filter to a single lifecycle type: `Production`, `Sandbox`, `Trial`, `Developer`, `Default`, `Teams`, `SubscriptionBasedTrial`. |
 | `--profile`, `-p` | Profile supplying the admin identity and cloud. Falls back to the active profile. |
+| `--auth` | Auth credential id to use directly when no target profile exists. If omitted and no profile resolves, the only stored auth credential is used. |
+| `--cloud` | Power Platform cloud to use with `--auth` or the default auth credential. |
 | `--format`, `-f` | `json` or `text` (auto-detected when omitted). |
 
 ### Examples
@@ -22,6 +24,9 @@ Returns every Dataverse-backed environment visible to the caller. Results includ
 ```sh
 # List all environments
 txc env list
+
+# Bootstrap a tenant with no profiles/environments yet
+txc env list --auth admin@contoso.com
 
 # Only sandboxes, as JSON
 txc env list --type Sandbox -f json
@@ -51,6 +56,8 @@ Provisions a new Power Platform environment. By default the command returns imme
 | `--user` | `-u` | No | — | Owning user's Entra object id. Only valid for `Developer` environments. |
 | `--wait` | — | No | `false` | Block until provisioning completes. |
 | `--profile` | `-p` | No | active | Profile supplying the admin identity and cloud. |
+| `--auth` | — | No | single credential | Auth credential id to use directly when no target profile exists. |
+| `--cloud` | — | No | credential/public | Power Platform cloud to use with `--auth` or the default auth credential. |
 
 > \* `--name` is ignored for `Teams` environments (the name derives from the linked group).
 
@@ -59,6 +66,9 @@ Provisions a new Power Platform environment. By default the command returns imme
 ```sh
 # Quick sandbox — returns immediately
 txc env create --type Sandbox --name "Feature Branch 42" --region europe
+
+# Create the first environment in a tenant before any profile exists
+txc env create --auth admin@contoso.com --type Developer --name "First Dev"
 
 # Developer environment owned by a specific user, wait for completion
 txc env create --type Developer --name "Jan's Dev Box" --user 00000000-0000-0000-0000-000000000001 --wait
