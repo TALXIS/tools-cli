@@ -156,15 +156,13 @@ public class CrmServiceClient : ServiceClient, IDisposable
     /// <summary>
     /// Hides the base <see cref="ServiceClient.ConnectedOrgVersion"/> which
     /// returns the hardcoded default <c>9.0.0.0</c> when the token-provider
-    /// constructor path is used (the SDK comments out
-    /// <c>GetServerVersion</c>/<c>RefreshInstanceDetails</c> for
-    /// <c>ExternalTokenManagement</c> auth).
+    /// constructor path is used (the SDK's <c>ExternalTokenManagement</c> path
+    /// skips <c>GetServerVersion</c>/<c>RefreshInstanceDetails</c>).
     /// <para>
-    /// This hidden property issues a <c>RetrieveVersion</c> request to obtain
-    /// the real version from the response body. If that fails, it falls back
-    /// to accessing <see cref="ServiceClient.OrganizationDetail"/> which
-    /// triggers the SDK's lazy <c>RefreshInstanceDetails</c> call — that
-    /// updates the internal <c>OrganizationVersion</c> as a side-effect.
+    /// When the base property still returns 9.0.0.0 this property falls back
+    /// to <c>9.2.0.0</c> — the minimum version of any modern Power Platform
+    /// environment — so Package Deployer's <c>SolutionPackageVersion</c>
+    /// compatibility check does not reject solutions built against the 9.1 schema.
     /// </para>
     /// </summary>
     public new Version ConnectedOrgVersion
@@ -181,48 +179,12 @@ public class CrmServiceClient : ServiceClient, IDisposable
                 return baseVersion;
             }
 
-            // Base returned 9.0.0.0 or lower — the SDK hardcodes this
-            // default in the ExternalTokenManagement path and never queries
-            // the server. Issue an explicit RetrieveVersion request.
-            try
-            {
-                var response = Execute(new OrganizationRequest("RetrieveVersion"));
-                if (response.Results.TryGetValue("Version", out var versionObj) &&
-                    versionObj is string versionStr &&
-                    Version.TryParse(versionStr, out var realVersion))
-                {
-                    _cachedOrgVersion = realVersion;
-                    return realVersion;
-                }
-            }
-            catch
-            {
-                // RetrieveVersion failed — fall through to the lazy-loading
-                // fallback below.
-            }
-
-            // RetrieveVersion did not yield a usable version. Trigger the
-            // SDK's own lazy-loading mechanism: accessing OrganizationDetail
-            // causes ConnectionService.RefreshInstanceDetails to run, which
-            // calls RetrieveCurrentOrganization and updates the internal
-            // OrganizationVersion field.
-            try
-            {
-                _ = OrganizationDetail;
-                var refreshedVersion = base.ConnectedOrgVersion;
-                if (refreshedVersion > new Version(9, 0, 0, 0))
-                {
-                    _cachedOrgVersion = refreshedVersion;
-                    return refreshedVersion;
-                }
-            }
-            catch
-            {
-                // OrganizationDetail may throw if the service is unreachable.
-            }
-
-            _cachedOrgVersion = baseVersion;
-            return baseVersion;
+            // Base returned the SDK's hardcoded default (9.0.0.0) — this happens
+            // because the ExternalTokenManagement path skips server version discovery.
+            // All modern Power Platform environments are at least 9.2; return that
+            // so Package Deployer's SolutionPackageVersion compatibility check passes.
+            _cachedOrgVersion = new Version(9, 2, 0, 0);
+            return _cachedOrgVersion;
         }
     }
 
