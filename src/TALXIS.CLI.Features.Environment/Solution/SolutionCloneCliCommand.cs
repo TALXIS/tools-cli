@@ -109,7 +109,9 @@ public class SolutionCloneCliCommand : ProfiledCliCommand
 
         // Run the pull pipeline to populate the newly scaffolded project.
         var projectFile = SolutionProjectResolver.FindProjectFile(outputPath);
-        var solutionRoot = SolutionProjectResolver.ResolveSolutionRoot(projectFile ?? outputPath);
+        var solutionRoot = projectFile is not null
+            ? SolutionProjectResolver.ResolveSolutionRoot(projectFile)
+            : outputPath;
         solutionRoot ??= outputPath; // SolutionRootPath=. means project dir is the root
 
         var pullOptions = new SolutionPullOptions(Name, solutionRoot, projectFile);

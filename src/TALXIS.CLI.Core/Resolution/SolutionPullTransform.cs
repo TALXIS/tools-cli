@@ -107,7 +107,7 @@ public static class SolutionPullTransform
     /// <para>
     /// Assemblies that do not yet exist in the destination (first sync or genuinely new) are
     /// placed flat under <c>PluginAssemblies/</c> and get a default
-    /// <c>&lt;FileName&gt;/PluginAssemblies/{name}&lt;/FileName&gt;</c> written — the TALXIS SDK
+    /// <c>&lt;FileName&gt;/PluginAssemblies/{name}.dll&lt;/FileName&gt;</c> written — the TALXIS SDK
     /// convention. All empty sub-directories left behind are removed.
     /// </para>
     /// </remarks>
@@ -165,16 +165,19 @@ public static class SolutionPullTransform
                 var fileName = Path.GetFileName(file);
                 var destination = Path.Combine(targetDir, fileName);
 
-                if (File.Exists(destination))
+                if (!string.Equals(file, destination, StringComparison.Ordinal))
                 {
-                    logger?.LogWarning(
-                        "Staging file '{Destination}' already exists — overwriting. " +
-                        "This may indicate two assemblies with the same name in different folders.",
-                        destination);
-                    File.Delete(destination);
-                }
+                    if (File.Exists(destination))
+                    {
+                        logger?.LogWarning(
+                            "Staging file '{Destination}' already exists — overwriting. " +
+                            "This may indicate two assemblies with the same name in different folders.",
+                            destination);
+                        File.Delete(destination);
+                    }
 
-                File.Move(file, destination);
+                    File.Move(file, destination);
+                }
 
                 if (fileName.EndsWith(DataXmlSuffix, StringComparison.OrdinalIgnoreCase))
                 {

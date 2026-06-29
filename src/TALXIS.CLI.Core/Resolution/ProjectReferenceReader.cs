@@ -70,7 +70,15 @@ public static class ProjectReferenceReader
             yield break;
 
         var projectDir = Path.GetDirectoryName(Path.GetFullPath(projectFilePath))!;
-        var doc = XDocument.Load(projectFilePath);
+        XDocument doc;
+        try
+        {
+            doc = XDocument.Load(projectFilePath);
+        }
+        catch (System.Xml.XmlException)
+        {
+            yield break;
+        }
         var ns = doc.Root?.Name.Namespace ?? XNamespace.None;
 
         foreach (var reference in doc.Descendants(ns + "ProjectReference"))
