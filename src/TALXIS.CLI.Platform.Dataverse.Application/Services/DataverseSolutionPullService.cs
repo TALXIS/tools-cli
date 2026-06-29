@@ -4,6 +4,7 @@ using TALXIS.CLI.Platform.Dataverse.Application.Pipeline;
 using TALXIS.CLI.Platform.Dataverse.Application.Pipeline.Steps;
 using TALXIS.CLI.Platform.Dataverse.Application.Sdk;
 using TALXIS.CLI.Platform.Dataverse.Runtime;
+using TALXIS.Platform.Metadata.Packaging;
 
 namespace TALXIS.CLI.Platform.Dataverse.Application.Services;
 
