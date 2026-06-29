@@ -96,7 +96,16 @@ txc config profile select ci
 
 After that, all subsequent `txc` commands use `TXC_CONFIG_DIR` plus the selected profile.
 
-For workload identity federation, the Dataverse provider auto-detects the expected GitHub Actions and Azure DevOps token request environment variables at acquisition time.
+For workload identity federation, register the app without a secret:
+
+```sh
+txc config auth add-federated \
+  --tenant "$AZURE_TENANT_ID" \
+  --client-id "$AZURE_CLIENT_ID" \
+  --alias ci-wif
+```
+
+At token acquisition time, the Dataverse provider auto-detects the expected GitHub Actions and Azure DevOps token request environment variables (or `AZURE_FEDERATED_TOKEN_FILE`).
 
 ## Override the target for one command
 

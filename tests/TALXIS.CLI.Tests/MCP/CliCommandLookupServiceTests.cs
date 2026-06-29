@@ -97,6 +97,7 @@ public class CliCommandLookupServiceTests
         Assert.Contains("config_profile_create", tools);
         Assert.Contains("config_profile_select", tools);
         Assert.Contains("config_auth_add-service-principal", tools);
+        Assert.Contains("config_auth_add-federated", tools);
         Assert.Contains("workspace_explain", tools);
     }
 

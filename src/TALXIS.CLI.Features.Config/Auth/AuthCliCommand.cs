@@ -16,6 +16,7 @@ namespace TALXIS.CLI.Features.Config.Auth;
     {
         typeof(AuthLoginCliCommand),
         typeof(AuthAddServicePrincipalCliCommand),
+        typeof(AuthAddFederatedCliCommand),
         typeof(AuthListCliCommand),
         typeof(AuthGetCliCommand),
         typeof(AuthDeleteCliCommand),
