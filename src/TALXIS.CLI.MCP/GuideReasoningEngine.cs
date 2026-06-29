@@ -23,6 +23,7 @@ public class GuideReasoningEngine
         ["guide_deployment"] = ["deployment-sequence", "solution-management"],
         ["guide_data"] = ["data-migration-workflow"],
         ["guide_config"] = [],
+        ["guide_testing"] = ["testing-workflow"],
     };
 
     /// <summary>
