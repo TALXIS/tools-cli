@@ -60,6 +60,46 @@ public sealed class EnvironmentManagementServiceTests
     }
 
     [Fact]
+    public async Task List_WithProfileAndCloud_UsesResolvedProfile()
+    {
+        var profileCredential = new Credential { Id = "profile-credential", Kind = CredentialKind.DeviceCode };
+        var resolver = new CapturingResolver(new ResolvedProfileContext(
+            new Profile { Id = "profile", ConnectionRef = "profile-connection", CredentialRef = profileCredential.Id },
+            new ConnectionModel { Id = "profile-connection", Provider = ProviderKind.Dataverse, Cloud = CloudInstance.Public },
+            profileCredential,
+            ResolutionSource.CommandLine));
+        var credentials = new InMemoryCredentialStore(
+            profileCredential,
+            new Credential { Id = "admin", Kind = CredentialKind.DeviceCode, Cloud = CloudInstance.GccHigh });
+        var catalog = new CapturingCatalog();
+        var sut = new EnvironmentManagementService(
+            resolver, credentials, catalog, new CapturingProvisioner());
+
+        await sut.ListAsync("profile", credentialId: null, cloud: CloudInstance.GccHigh, CancellationToken.None);
+
+        Assert.Equal("profile", resolver.LastProfileName);
+        Assert.Equal("profile-credential", catalog.LastCredential!.Id);
+        Assert.Equal("profile-connection", catalog.LastConnection!.Id);
+        Assert.Equal(CloudInstance.Public, catalog.LastConnection.Cloud);
+    }
+
+    [Fact]
+    public async Task List_WithCloudFallsBackToMatchingCredential_WhenNoProfileResolves()
+    {
+        var credentials = new InMemoryCredentialStore(
+            new Credential { Id = "public", Kind = CredentialKind.DeviceCode, Cloud = CloudInstance.Public },
+            new Credential { Id = "gcc", Kind = CredentialKind.DeviceCode, Cloud = CloudInstance.GccHigh });
+        var catalog = new CapturingCatalog();
+        var sut = new EnvironmentManagementService(
+            new ThrowingResolver(), credentials, catalog, new CapturingProvisioner());
+
+        await sut.ListAsync(null, credentialId: null, cloud: CloudInstance.GccHigh, CancellationToken.None);
+
+        Assert.Equal("gcc", catalog.LastCredential!.Id);
+        Assert.Equal(CloudInstance.GccHigh, catalog.LastConnection!.Cloud);
+    }
+
+    [Fact]
     public async Task List_WhenNoProfileAndMultipleCredentials_RequiresAuthSelection()
     {
         var credentials = new InMemoryCredentialStore(
@@ -105,7 +145,20 @@ public sealed class EnvironmentManagementServiceTests
     private sealed class ThrowingResolver : IConfigurationResolver
     {
         public Task<ResolvedProfileContext> ResolveAsync(string? profileName, CancellationToken ct)
-            => throw new ConfigurationResolutionException("No txc profile could be resolved.");
+            => throw new ConfigurationResolutionException(
+                "No txc profile could be resolved.",
+                ConfigurationResolutionFailureReason.NoProfile);
+    }
+
+    private sealed class CapturingResolver(ResolvedProfileContext context) : IConfigurationResolver
+    {
+        public string? LastProfileName { get; private set; }
+
+        public Task<ResolvedProfileContext> ResolveAsync(string? profileName, CancellationToken ct)
+        {
+            LastProfileName = profileName;
+            return Task.FromResult(context);
+        }
     }
 
     private sealed class InMemoryCredentialStore : ICredentialStore

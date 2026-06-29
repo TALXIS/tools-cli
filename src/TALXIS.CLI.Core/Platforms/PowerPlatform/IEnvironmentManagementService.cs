@@ -93,8 +93,9 @@ public sealed record EnvironmentDeleteOutcome(
 public interface IEnvironmentManagementService
 {
     /// <summary>
-    /// Lists the Dataverse-backed environments in the tenant visible to the
-    /// resolved profile's identity.
+    /// Lists the Dataverse-backed environments visible to the resolved profile's
+    /// identity, or to a selected/stored auth credential during bootstrap when
+    /// no profile is available.
     /// </summary>
     Task<IReadOnlyList<EnvironmentInfo>> ListAsync(
         string? profileName,
@@ -104,7 +105,8 @@ public interface IEnvironmentManagementService
 
     /// <summary>
     /// Creates a new environment using the resolved profile's credential and
-    /// cloud for admin authority.
+    /// cloud for admin authority, or a selected/stored auth credential during
+    /// bootstrap when no profile is available.
     /// </summary>
     Task<EnvironmentCreateOutcome> CreateAsync(
         string? profileName,

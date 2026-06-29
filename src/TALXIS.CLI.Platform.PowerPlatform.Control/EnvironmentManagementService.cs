@@ -137,7 +137,7 @@ public sealed class EnvironmentManagementService : IEnvironmentManagementService
         CloudInstance? cloud,
         CancellationToken ct)
     {
-        if (!string.IsNullOrWhiteSpace(credentialId) || cloud is not null)
+        if (!string.IsNullOrWhiteSpace(credentialId))
         {
             var credential = await ResolveCredentialAsync(credentialId, cloud, ct).ConfigureAwait(false);
             return (CreateTenantConnection(credential, cloud), credential);
@@ -150,10 +150,10 @@ public sealed class EnvironmentManagementService : IEnvironmentManagementService
         }
         catch (ConfigurationResolutionException ex) when (
             string.IsNullOrWhiteSpace(profileName)
-            && ex.Message.StartsWith("No txc profile could be resolved", StringComparison.Ordinal))
+            && ex.Reason == ConfigurationResolutionFailureReason.NoProfile)
         {
-            var credential = await ResolveCredentialAsync(null, null, ct).ConfigureAwait(false);
-            return (CreateTenantConnection(credential, null), credential);
+            var credential = await ResolveCredentialAsync(null, cloud, ct).ConfigureAwait(false);
+            return (CreateTenantConnection(credential, cloud), credential);
         }
     }
 
