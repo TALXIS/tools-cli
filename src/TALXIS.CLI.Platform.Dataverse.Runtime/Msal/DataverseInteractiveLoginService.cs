@@ -65,8 +65,13 @@ public sealed class DataverseInteractiveLoginService : IInteractiveLoginService
             // and can click it (VS Code Desktop tunnels localhost back).
             OpenBrowserAsync = uri =>
             {
-                _logger.LogWarning("Open this URL in your browser to sign in:\n  {AuthUrl}", uri);
-                TryLaunchBrowser(uri.ToString());
+                // Use AbsoluteUri (fully percent-encoded) so the URL is valid when
+                // logged (copyable into a browser) and when passed to the OS launcher.
+                // Uri.ToString() decodes %20 to spaces, which makes the URL invalid;
+                // macOS open then re-encodes everything, double-encoding %3A → %253A.
+                var absoluteUrl = uri.AbsoluteUri;
+                _logger.LogWarning("Open this URL in your browser to sign in:\n  {AuthUrl}", absoluteUrl);
+                TryLaunchBrowser(absoluteUrl);
                 return Task.CompletedTask;
             }
         };
