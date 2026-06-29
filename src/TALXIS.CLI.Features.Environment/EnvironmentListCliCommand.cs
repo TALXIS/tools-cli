@@ -17,11 +17,17 @@ namespace TALXIS.CLI.Features.Environment;
 [CliReadOnly]
 [CliCommand(
     Name = "list",
-    Description = "List the Power Platform environments in the tenant visible to the active profile's credential. Requires an active profile (used only for identity and cloud, not as a target)."
+    Description = "List the Power Platform environments in the tenant visible to the selected profile or auth credential."
 )]
 public class EnvironmentListCliCommand : ProfiledCliCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EnvironmentListCliCommand));
+
+    [CliOption(Name = "--auth", Description = "Auth credential id to use directly when no target profile exists.", Required = false)]
+    public string? Auth { get; set; }
+
+    [CliOption(Name = "--cloud", Description = "Power Platform cloud to use with --auth or the default auth credential.", Required = false)]
+    public CloudInstance? Cloud { get; set; }
 
     [CliOption(Name = "--filter", Description = "Show only environments whose display name, unique name, or URL contains this substring.", Required = false)]
     public string? Filter { get; set; }
@@ -32,7 +38,7 @@ public class EnvironmentListCliCommand : ProfiledCliCommand
     protected override async Task<int> ExecuteAsync()
     {
         var service = TxcServices.Get<IEnvironmentManagementService>();
-        IReadOnlyList<EnvironmentInfo> environments = await service.ListAsync(Profile, CancellationToken.None)
+        IReadOnlyList<EnvironmentInfo> environments = await service.ListAsync(Profile, Auth, Cloud, CancellationToken.None)
             .ConfigureAwait(false);
 
         if (!string.IsNullOrWhiteSpace(Filter))

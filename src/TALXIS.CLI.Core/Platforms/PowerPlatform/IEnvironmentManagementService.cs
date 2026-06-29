@@ -22,6 +22,8 @@ public sealed record EnvironmentInfo(
 /// </summary>
 public sealed record EnvironmentCreateOptions
 {
+    public string? CredentialId { get; init; }
+    public CloudInstance? Cloud { get; init; }
     public string? DisplayName { get; init; }
     public required EnvironmentType EnvironmentType { get; init; }
     public string Region { get; init; } = "unitedstates";
@@ -96,6 +98,8 @@ public interface IEnvironmentManagementService
     /// </summary>
     Task<IReadOnlyList<EnvironmentInfo>> ListAsync(
         string? profileName,
+        string? credentialId,
+        CloudInstance? cloud,
         CancellationToken ct);
 
     /// <summary>

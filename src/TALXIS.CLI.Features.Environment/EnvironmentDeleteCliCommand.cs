@@ -51,7 +51,7 @@ public class EnvironmentDeleteCliCommand : ProfiledCliCommand, IDestructiveComma
         try
         {
             var service = TxcServices.Get<IEnvironmentManagementService>();
-            var environments = await service.ListAsync(Profile, CancellationToken.None).ConfigureAwait(false);
+            var environments = await service.ListAsync(Profile, credentialId: null, cloud: null, CancellationToken.None).ConfigureAwait(false);
             var target = environments.FirstOrDefault(e => e.EnvironmentId == EnvironmentId);
 
             if (target is null)
