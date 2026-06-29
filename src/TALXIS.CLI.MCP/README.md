@@ -171,8 +171,11 @@ Prerequisites, before invoking any tool that touches a Dataverse
 environment (or any other Connection-bound tool):
 
 1. On the human's machine, run `txc config auth login` (interactive
-   browser) or `txc config auth add-service-principal` once to register
-   a credential and prime the MSAL token cache.
+   browser), `txc config auth add-service-principal`, or
+   `txc config auth add-federated` once to register a credential entry.
+   Interactive login also primes the MSAL token cache; service-principal
+   and federated entries rely on their configured secret / OIDC
+   assertion source at token-acquisition time.
 2. Run `txc config connection create <name> --provider dataverse ...`
    to register the endpoint.
 3. Run `txc config profile create <name> --auth <alias> --connection <name>`
@@ -180,11 +183,15 @@ environment (or any other Connection-bound tool):
    workspace via `txc config profile pin`).
 
 After that, MCP tool calls resolve the active profile silently via the
-acquired token cache or stored SPN secret. If resolution fails (expired
-refresh token, missing credential, broken config), the subprocess exits
-non-zero and the MCP server surfaces the error through the tool-call
-result; the structured log line includes the fail-fast remedy string
-(`txc config profile validate <name>`).
+acquired token cache, stored SPN secret, or workload-identity
+federation assertion source (`AZURE_FEDERATED_TOKEN_FILE`,
+`ACTIONS_ID_TOKEN_REQUEST_URL` + `ACTIONS_ID_TOKEN_REQUEST_TOKEN`, or
+`TXC_ADO_ID_TOKEN_REQUEST_URL` + `TXC_ADO_ID_TOKEN_REQUEST_TOKEN`;
+legacy `PAC_ADO_*` is also honored). If resolution fails (expired
+refresh token, missing credential, missing assertion source, broken
+config), the subprocess exits non-zero and the MCP server surfaces the
+error through the tool-call result; the structured log line includes the
+fail-fast remedy string (`txc config profile validate <name>`).
 
 ### Per-call profile override
 
@@ -212,9 +219,11 @@ else is ignored:
 | `TXC_ADO_ID_TOKEN_REQUEST_URL`, `TXC_ADO_ID_TOKEN_REQUEST_TOKEN` | Azure DevOps pipelines workload-identity federation (legacy `PAC_ADO_*` also honored). |
 
 Secrets (client secrets, PATs, certificate passwords) are **never**
-accepted as plain MCP tool arguments — they are stored in the OS-level
-secret vault via `txc config auth add-service-principal` and referenced
-from config by `SecretRef` handle only.
+accepted as plain MCP tool arguments — when a secret is needed it is
+stored in the OS-level secret vault via
+`txc config auth add-service-principal` and referenced from config by
+`SecretRef` handle only. Federated credentials registered with
+`txc config auth add-federated` do not persist any secret.
 
 ### Log redaction
 
