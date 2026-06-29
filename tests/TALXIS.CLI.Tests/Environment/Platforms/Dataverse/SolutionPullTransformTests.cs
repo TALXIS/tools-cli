@@ -1,0 +1,549 @@
+using System.Xml.Linq;
+using Microsoft.Extensions.Logging.Abstractions;
+using TALXIS.CLI.Platform.Dataverse.Application.Pipeline;
+using TALXIS.CLI.Platform.Dataverse.Application.Pipeline.Steps;
+using Xunit;
+
+namespace TALXIS.CLI.Tests.Environment.Platforms.Dataverse;
+
+public class SolutionPullTransformTests : IDisposable
+{
+    private readonly ProjectReferenceBinaryExclusionStep _projectReferenceBinaryExclusionStep;
+    private readonly PluginAssemblyNormalizationStep _pluginAssemblyNormalizationStep;
+    private readonly PcfControlExclusionStep _pcfControlExclusionStep;
+    private readonly string _root;
+    private readonly ScriptLibraryExclusionStep _scriptLibraryExclusionStep;
+    private readonly SolutionManifestNormalizationStep _solutionManifestNormalizationStep;
+    private readonly SystemRelationshipExclusionStep _systemRelationshipExclusionStep;
+
+    // A non-existent path simulates a first-sync scenario: no local convention established yet.
+    // All assemblies are treated as new and default to the flat TALXIS SDK layout.
+    private string NoLocalConvention => Path.Combine(Path.GetTempPath(), "no_dest_" + Guid.NewGuid().ToString("N"));
+
+    public SolutionPullTransformTests()
+    {
+        _root = Path.Combine(Path.GetTempPath(), "txc_sync_test_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(_root);
+
+        var projectReferenceReader = new ProjectReferenceMetadataReader();
+        _projectReferenceBinaryExclusionStep = new ProjectReferenceBinaryExclusionStep(projectReferenceReader);
+        _pluginAssemblyNormalizationStep = new PluginAssemblyNormalizationStep(NullLogger.Instance);
+        _pcfControlExclusionStep = new PcfControlExclusionStep(projectReferenceReader);
+        _scriptLibraryExclusionStep = new ScriptLibraryExclusionStep(projectReferenceReader, NullLogger.Instance);
+        _solutionManifestNormalizationStep = new SolutionManifestNormalizationStep();
+        _systemRelationshipExclusionStep = new SystemRelationshipExclusionStep();
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_root))
+            Directory.Delete(_root, recursive: true);
+    }
+
+    private SolutionPullContext CreateContext(
+        string destinationRoot,
+        IReadOnlyCollection<string>? referencedPluginAssemblyNames = null,
+        IReadOnlyCollection<string>? referencedScriptLibraryWebResources = null,
+        IReadOnlyCollection<string>? referencedPcfControlNames = null,
+        string? projectFilePath = null)
+        => new()
+        {
+            StagingDirectory = _root,
+            DestinationDirectory = destinationRoot,
+            ProjectFilePath = projectFilePath,
+            ReferencedProjectDirectories = [],
+            ReferencedPluginAssemblyNames = referencedPluginAssemblyNames,
+            ReferencedScriptLibraryWebResources = referencedScriptLibraryWebResources,
+            ReferencedPcfControlNames = referencedPcfControlNames
+        };
+
+    private string WriteAssembly(string folderName, string fileBaseName, string fullName, string fileNameElement)
+    {
+        var dir = Path.Combine(_root, "PluginAssemblies", folderName);
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, fileBaseName + ".dll"), "binary");
+        var dataXml = $"""
+            <?xml version="1.0" encoding="utf-8"?>
+            <PluginAssembly FullName="{fullName}" PluginAssemblyId="d0333984-669b-4927-81ad-cadbf05ecb0c">
+              <SourceType>0</SourceType>
+              <FileName>{fileNameElement}</FileName>
+            </PluginAssembly>
+            """;
+        File.WriteAllText(Path.Combine(dir, fileBaseName + ".dll.data.xml"), dataXml);
+        return dir;
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────────
+    // RestoreLocalFileNameConventions — first-sync / no local convention (flat default)
+    // ──────────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Restore_NewAssembly_DefaultsToFlatLayoutAndRewritesFileName()
+    {
+        WriteAssembly(
+            "MyPlugin-38E8D392-49D6-4DE7-9FF7-F1338E8DD6EE",
+            "MyPlugin",
+            "Acme.MyPlugin, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+            "/PluginAssemblies/MyPlugin-38E8D392-49D6-4DE7-9FF7-F1338E8DD6EE/MyPlugin.dll");
+
+        var context = CreateContext(NoLocalConvention);
+        _pluginAssemblyNormalizationStep.Execute(context);
+
+        var pluginsDir = Path.Combine(_root, "PluginAssemblies");
+        Assert.Equal(new[] { "Acme.MyPlugin" }, context.NormalizedAssemblies);
+        Assert.True(File.Exists(Path.Combine(pluginsDir, "MyPlugin.dll")));
+        Assert.True(File.Exists(Path.Combine(pluginsDir, "MyPlugin.dll.data.xml")));
+        Assert.Empty(Directory.GetDirectories(pluginsDir));
+
+        var doc = XDocument.Load(Path.Combine(pluginsDir, "MyPlugin.dll.data.xml"));
+        Assert.Equal("/PluginAssemblies/MyPlugin.dll", doc.Descendants("FileName").Single().Value);
+    }
+
+    [Fact]
+    public void Restore_NoOp_WhenFilesAlreadyFlat()
+    {
+        // Files directly in PluginAssemblies/ (no sub-directories) → nothing to move.
+        var pluginsDir = Path.Combine(_root, "PluginAssemblies");
+        Directory.CreateDirectory(pluginsDir);
+        File.WriteAllText(Path.Combine(pluginsDir, "Flat.dll"), "binary");
+        File.WriteAllText(Path.Combine(pluginsDir, "Flat.dll.data.xml"),
+            "<PluginAssembly FullName=\"Flat, Version=1.0.0.0\"><FileName>/PluginAssemblies/Flat.dll</FileName></PluginAssembly>");
+
+        var context = CreateContext(NoLocalConvention);
+        _pluginAssemblyNormalizationStep.Execute(context);
+
+        Assert.Empty(context.NormalizedAssemblies);
+        Assert.True(File.Exists(Path.Combine(pluginsDir, "Flat.dll")));
+    }
+
+    [Fact]
+    public void Restore_NoOp_WhenNoPluginAssembliesFolder()
+    {
+        var context = CreateContext(NoLocalConvention);
+        _pluginAssemblyNormalizationStep.Execute(context);
+        Assert.Empty(context.NormalizedAssemblies);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────────
+    // RestoreLocalFileNameConventions — existing local convention respected
+    // ──────────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Restore_PreservesLocalNestedConvention()
+    {
+        // Staging: Dataverse-exported nested folder (Name-GUID)
+        WriteAssembly(
+            "MyPlugin-AAAABBBB",
+            "MyPlugin",
+            "Acme.MyPlugin, Version=2.0.0.0, Culture=neutral, PublicKeyToken=null",
+            "/PluginAssemblies/MyPlugin-AAAABBBB/MyPlugin.dll");
+
+        // Local destination: repo already uses a different nested folder name (from prior sync)
+        var destRoot = Path.Combine(Path.GetTempPath(), "dest_" + Guid.NewGuid().ToString("N"));
+        var destPlugins = Path.Combine(destRoot, "PluginAssemblies", "MyPlugin-CCCCDDDD");
+        Directory.CreateDirectory(destPlugins);
+        File.WriteAllText(Path.Combine(destPlugins, "MyPlugin.dll.data.xml"),
+            "<PluginAssembly FullName=\"Acme.MyPlugin, Version=1.0.0.0\">" +
+            "<FileName>/PluginAssemblies/MyPlugin-CCCCDDDD/MyPlugin.dll</FileName></PluginAssembly>");
+
+        try
+        {
+            var context = CreateContext(destRoot);
+            _pluginAssemblyNormalizationStep.Execute(context);
+
+            var pluginsDir = Path.Combine(_root, "PluginAssemblies");
+            // File should land in MyPlugin-CCCCDDDD (matching local convention), NOT flat.
+            Assert.True(File.Exists(Path.Combine(pluginsDir, "MyPlugin-CCCCDDDD", "MyPlugin.dll")));
+            Assert.True(File.Exists(Path.Combine(pluginsDir, "MyPlugin-CCCCDDDD", "MyPlugin.dll.data.xml")));
+            Assert.False(File.Exists(Path.Combine(pluginsDir, "MyPlugin.dll.data.xml")));
+
+            // <FileName> must NOT have been rewritten — local value is preserved.
+            var doc = XDocument.Load(Path.Combine(pluginsDir, "MyPlugin-CCCCDDDD", "MyPlugin.dll.data.xml"));
+            Assert.Equal(
+                "/PluginAssemblies/MyPlugin-CCCCDDDD/MyPlugin.dll",
+                doc.Descendants("FileName").Single().Value);
+        }
+        finally
+        {
+            Directory.Delete(destRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Restore_PreservesLocalFlatConvention()
+    {
+        // Staging: nested (as Dataverse exports it)
+        WriteAssembly(
+            "FlatPlugin-AAAABBBB",
+            "FlatPlugin",
+            "FlatPlugin, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+            "/PluginAssemblies/FlatPlugin-AAAABBBB/FlatPlugin.dll");
+
+        // Local destination: flat (TALXIS SDK style)
+        var destRoot = Path.Combine(Path.GetTempPath(), "dest_" + Guid.NewGuid().ToString("N"));
+        var destPlugins = Path.Combine(destRoot, "PluginAssemblies");
+        Directory.CreateDirectory(destPlugins);
+        File.WriteAllText(Path.Combine(destPlugins, "FlatPlugin.dll.data.xml"),
+            "<PluginAssembly FullName=\"FlatPlugin, Version=0.9.0.0\">" +
+            "<FileName>/PluginAssemblies/FlatPlugin.dll</FileName></PluginAssembly>");
+
+        try
+        {
+            var context = CreateContext(destRoot);
+            _pluginAssemblyNormalizationStep.Execute(context);
+
+            var pluginsDir = Path.Combine(_root, "PluginAssemblies");
+            Assert.True(File.Exists(Path.Combine(pluginsDir, "FlatPlugin.dll")));
+            Assert.True(File.Exists(Path.Combine(pluginsDir, "FlatPlugin.dll.data.xml")));
+            Assert.Empty(Directory.GetDirectories(pluginsDir));
+
+            // <FileName> should still be the local flat value (not rewritten to staging version).
+            var doc = XDocument.Load(Path.Combine(pluginsDir, "FlatPlugin.dll.data.xml"));
+            Assert.Equal("/PluginAssemblies/FlatPlugin.dll", doc.Descendants("FileName").Single().Value);
+        }
+        finally
+        {
+            Directory.Delete(destRoot, recursive: true);
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────────
+    // ExcludeProjectReferenceBinaries
+    // ──────────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Exclude_DeletesDll_KeepsDataXml_ForExactMatch()
+    {
+        WriteAssembly("X", "MyPlugin", "MyPlugin, Version=1.0.0.0", "/PluginAssemblies/MyPlugin.dll");
+
+        var context = CreateContext(NoLocalConvention, referencedPluginAssemblyNames: new[] { "MyPlugin" });
+        _pluginAssemblyNormalizationStep.Execute(context);
+        _projectReferenceBinaryExclusionStep.Execute(context);
+
+        var pluginsDir = Path.Combine(_root, "PluginAssemblies");
+        Assert.Equal(new[] { "MyPlugin.dll" }, context.ExcludedBinaries);
+        Assert.False(File.Exists(Path.Combine(pluginsDir, "MyPlugin.dll")));
+        Assert.True(File.Exists(Path.Combine(pluginsDir, "MyPlugin.dll.data.xml")));
+    }
+
+    [Fact]
+    public void Exclude_MatchesDottedNamespaceExtension()
+    {
+        WriteAssembly("X", "MoveOrder.Logic", "Acme.Apps.MoveOrder.Logic, Version=1.0.0.0", "/PluginAssemblies/MoveOrder.Logic.dll");
+
+        var context = CreateContext(NoLocalConvention, referencedPluginAssemblyNames: new[] { "MoveOrder.Logic" });
+        _pluginAssemblyNormalizationStep.Execute(context);
+        _projectReferenceBinaryExclusionStep.Execute(context);
+
+        Assert.Equal(new[] { "MoveOrder.Logic.dll" }, context.ExcludedBinaries);
+    }
+
+    [Fact]
+    public void Exclude_DoesNotFalsePositive_OnUnrelatedSuffixMatch()
+    {
+        // Third-party assembly "Logic" must NOT be deleted just because a referenced project
+        // has AssemblyName "Acme.Apps.MoveOrder.Logic" (which ends with ".Logic").
+        WriteAssembly("A", "Logic", "Logic, Version=1.0.0.0", "/PluginAssemblies/Logic.dll");
+        WriteAssembly("B", "MoveOrder.Logic", "Acme.Apps.MoveOrder.Logic, Version=1.0.0.0", "/PluginAssemblies/MoveOrder.Logic.dll");
+
+        var context = CreateContext(NoLocalConvention, referencedPluginAssemblyNames: new[] { "MoveOrder.Logic" });
+        _pluginAssemblyNormalizationStep.Execute(context);
+        _projectReferenceBinaryExclusionStep.Execute(context);
+
+        var pluginsDir = Path.Combine(_root, "PluginAssemblies");
+        Assert.Equal(new[] { "MoveOrder.Logic.dll" }, context.ExcludedBinaries);
+        // Third-party "Logic.dll" must survive.
+        Assert.True(File.Exists(Path.Combine(pluginsDir, "Logic.dll")));
+        Assert.True(File.Exists(Path.Combine(pluginsDir, "Logic.dll.data.xml")));
+    }
+
+    [Fact]
+    public void Exclude_KeepsBinary_WhenNotReferenced()
+    {
+        WriteAssembly("X", "ThirdParty", "ThirdParty, Version=1.0.0.0", "/PluginAssemblies/ThirdParty.dll");
+
+        var context = CreateContext(NoLocalConvention, referencedPluginAssemblyNames: new[] { "MyPlugin" });
+        _pluginAssemblyNormalizationStep.Execute(context);
+        _projectReferenceBinaryExclusionStep.Execute(context);
+
+        var pluginsDir = Path.Combine(_root, "PluginAssemblies");
+        Assert.Empty(context.ExcludedBinaries);
+        Assert.True(File.Exists(Path.Combine(pluginsDir, "ThirdParty.dll")));
+    }
+
+    [Fact]
+    public void Exclude_NoOp_WhenNoReferences()
+    {
+        WriteAssembly("X", "MyPlugin", "MyPlugin, Version=1.0.0.0", "/PluginAssemblies/MyPlugin.dll");
+
+        var context = CreateContext(NoLocalConvention, referencedPluginAssemblyNames: Array.Empty<string>());
+        _pluginAssemblyNormalizationStep.Execute(context);
+        _projectReferenceBinaryExclusionStep.Execute(context);
+
+        Assert.Empty(context.ExcludedBinaries);
+        Assert.True(File.Exists(Path.Combine(_root, "PluginAssemblies", "MyPlugin.dll")));
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────────
+    // ExcludeScriptLibraryWebResources
+    // ──────────────────────────────────────────────────────────────────────────────
+
+    private void WriteWebResource(string name)
+    {
+        var dir = Path.Combine(_root, "WebResources");
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, name), "content");
+        File.WriteAllText(Path.Combine(dir, name + ".data.xml"), $"<WebResource><Name>{name}</Name></WebResource>");
+    }
+
+    private void WriteSolutionManifest(string root, string version, string managed)
+    {
+        var otherDir = Path.Combine(root, "Other");
+        Directory.CreateDirectory(otherDir);
+        File.WriteAllText(
+            Path.Combine(otherDir, "Solution.xml"),
+            $"""
+             <ImportExportXml>
+               <SolutionManifest>
+                 <Version>{version}</Version>
+                 <Managed>{managed}</Managed>
+               </SolutionManifest>
+             </ImportExportXml>
+             """);
+    }
+
+    private void WriteRelationshipsFile(string contents)
+    {
+        var otherDir = Path.Combine(_root, "Other");
+        Directory.CreateDirectory(otherDir);
+        File.WriteAllText(Path.Combine(otherDir, "Relationships.xml"), contents);
+    }
+
+    [Fact]
+    public void ExcludeWebResource_DeletesContent_KeepsDataXml_WhenMatched()
+    {
+        WriteWebResource("udpp_main.js");
+        var dir = Path.Combine(_root, "WebResources");
+
+        var context = CreateContext(NoLocalConvention, referencedScriptLibraryWebResources: new[] { "udpp_main.js" });
+        _scriptLibraryExclusionStep.Execute(context);
+
+        Assert.Equal(new[] { "udpp_main.js" }, context.ExcludedWebResources);
+        Assert.False(File.Exists(Path.Combine(dir, "udpp_main.js")));
+        Assert.True(File.Exists(Path.Combine(dir, "udpp_main.js.data.xml")));
+    }
+
+    [Fact]
+    public void ExcludeWebResource_KeepsContent_WhenNotMatched()
+    {
+        WriteWebResource("udpp_static.svg");
+        var dir = Path.Combine(_root, "WebResources");
+
+        var context = CreateContext(NoLocalConvention, referencedScriptLibraryWebResources: new[] { "udpp_main.js" });
+        _scriptLibraryExclusionStep.Execute(context);
+
+        Assert.Empty(context.ExcludedWebResources);
+        Assert.True(File.Exists(Path.Combine(dir, "udpp_static.svg")));
+        Assert.True(File.Exists(Path.Combine(dir, "udpp_static.svg.data.xml")));
+    }
+
+    [Fact]
+    public void ExcludeWebResource_NoOp_WhenNoWebResourcesFolder()
+    {
+        var context = CreateContext(NoLocalConvention, referencedScriptLibraryWebResources: new[] { "udpp_main.js" });
+        _scriptLibraryExclusionStep.Execute(context);
+        Assert.Empty(context.ExcludedWebResources);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────────
+    // NormalizeSolutionManifest
+    // ──────────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void NormalizeSolutionManifest_PreservesLocalVersion_WhenLocalExists()
+    {
+        WriteSolutionManifest(_root, "1.0.12606.28000", "0");
+        var destinationRoot = Path.Combine(Path.GetTempPath(), "dest_" + Guid.NewGuid().ToString("N"));
+        WriteSolutionManifest(destinationRoot, "1.0.0.42", "1");
+
+        try
+        {
+            var context = CreateContext(destinationRoot);
+            _solutionManifestNormalizationStep.Execute(context);
+
+            var document = XDocument.Load(Path.Combine(_root, "Other", "Solution.xml"));
+            var manifest = document.Descendants("SolutionManifest").Single();
+            Assert.Equal("1.0.0.42", manifest.Element("Version")?.Value);
+            Assert.Equal("2", manifest.Element("Managed")?.Value);
+        }
+        finally
+        {
+            Directory.Delete(destinationRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void NormalizeSolutionManifest_UsesDataverseVersion_WhenNoLocalFile()
+    {
+        WriteSolutionManifest(_root, "1.0.12606.28000", "1");
+
+        var context = CreateContext(Path.Combine(Path.GetTempPath(), "dest_" + Guid.NewGuid().ToString("N")));
+        _solutionManifestNormalizationStep.Execute(context);
+
+        var document = XDocument.Load(Path.Combine(_root, "Other", "Solution.xml"));
+        var manifest = document.Descendants("SolutionManifest").Single();
+        Assert.Equal("1.0.12606.28000", manifest.Element("Version")?.Value);
+        Assert.Equal("2", manifest.Element("Managed")?.Value);
+    }
+
+    [Fact]
+    public void NormalizeSolutionManifest_ForcesManagedTwo_Regardless()
+    {
+        WriteSolutionManifest(_root, "1.0.0.0", "0");
+
+        var context = CreateContext(NoLocalConvention);
+        _solutionManifestNormalizationStep.Execute(context);
+
+        var document = XDocument.Load(Path.Combine(_root, "Other", "Solution.xml"));
+        Assert.Equal("2", document.Descendants("Managed").Single().Value);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────────
+    // ExcludeStandardSystemRelationships
+    // ──────────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void ExcludeStandardSystemRelationships_RemovesKnownPatterns()
+    {
+        WriteRelationshipsFile(
+            """
+            <ImportExportXml>
+              <Relationships>
+                <EntityRelationship Name="business_unit_tprt_testitem" />
+                <EntityRelationship Name="lk_tprt_testitem_createdby" />
+                <EntityRelationship Name="lk_tprt_testitem_modifiedby" />
+                <EntityRelationship Name="owner_tprt_testitem" />
+                <EntityRelationship Name="team_tprt_testitem" />
+                <EntityRelationship Name="user_tprt_testitem" />
+                <EntityRelationship Name="tprt_testitem_tprt_custom" />
+              </Relationships>
+            </ImportExportXml>
+            """);
+
+        var context = CreateContext(NoLocalConvention);
+        _systemRelationshipExclusionStep.Execute(context);
+
+        var document = XDocument.Load(Path.Combine(_root, "Other", "Relationships.xml"));
+        var remaining = document.Descendants("EntityRelationship")
+            .Select(element => element.Attribute("Name")?.Value)
+            .Where(name => name is not null)
+            .ToArray();
+        Assert.Equal(new[] { "tprt_testitem_tprt_custom" }, remaining);
+    }
+
+    [Fact]
+    public void ExcludeStandardSystemRelationships_KeepsCustomRelationships()
+    {
+        WriteRelationshipsFile(
+            """
+            <ImportExportXml>
+              <Relationships>
+                <EntityRelationship Name="tprt_testitem_tprt_custom" />
+                <EntityRelationship Name="custom_lookup_relationship" />
+              </Relationships>
+            </ImportExportXml>
+            """);
+
+        var context = CreateContext(NoLocalConvention);
+        _systemRelationshipExclusionStep.Execute(context);
+
+        var document = XDocument.Load(Path.Combine(_root, "Other", "Relationships.xml"));
+        var remaining = document.Descendants("EntityRelationship")
+            .Select(element => element.Attribute("Name")?.Value)
+            .Where(name => name is not null)
+            .ToArray();
+        Assert.Empty(context.ExcludedRelationships);
+        Assert.Equal(new[] { "tprt_testitem_tprt_custom", "custom_lookup_relationship" }, remaining);
+    }
+
+    [Fact]
+    public void ExcludeStandardSystemRelationships_ReturnsRemovedNames()
+    {
+        WriteRelationshipsFile(
+            """
+            <ImportExportXml>
+              <Relationships>
+                <EntityRelationship Name="business_unit_tprt_testitem" />
+                <EntityRelationship Name="owner_tprt_testitem" />
+                <EntityRelationship Name="custom_relationship" />
+              </Relationships>
+            </ImportExportXml>
+            """);
+
+        var context = CreateContext(NoLocalConvention);
+        _systemRelationshipExclusionStep.Execute(context);
+
+        Assert.Equal(new[] { "business_unit_tprt_testitem", "owner_tprt_testitem" }, context.ExcludedRelationships);
+    }
+
+    [Fact]
+    public void ExcludeStandardSystemRelationships_HandlesEmptyFile()
+    {
+        WriteRelationshipsFile(string.Empty);
+
+        var context = CreateContext(NoLocalConvention);
+        _systemRelationshipExclusionStep.Execute(context);
+
+        Assert.Empty(context.ExcludedRelationships);
+        Assert.Equal(string.Empty, File.ReadAllText(Path.Combine(_root, "Other", "Relationships.xml")));
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────────
+    // ExcludePcfControls
+    // ──────────────────────────────────────────────────────────────────────────────
+
+    private void WriteControlFolder(string stagingRoot, string publisherPrefix, string stagingFolderName)
+    {
+        // Simulate an unpacked Controls/ entry with a Solution.xml that has the publisher prefix.
+        var controlDir = Path.Combine(stagingRoot, "Controls", stagingFolderName);
+        Directory.CreateDirectory(controlDir);
+        File.WriteAllText(Path.Combine(controlDir, "bundle.js"), "bundle content");
+
+        var otherDir = Path.Combine(stagingRoot, "Other");
+        Directory.CreateDirectory(otherDir);
+        File.WriteAllText(Path.Combine(otherDir, "Solution.xml"),
+            $"<ImportExportXml><SolutionManifest><Publisher><CustomizationPrefix>{publisherPrefix}</CustomizationPrefix></Publisher></SolutionManifest></ImportExportXml>");
+    }
+
+    [Fact]
+    public void ExcludePcf_DeletesMatchingControlFolder()
+    {
+        WriteControlFolder(_root, "udpp", "udpp_UdppControls_QuantityIndicator");
+        // Also add a non-matching control
+        Directory.CreateDirectory(Path.Combine(_root, "Controls", "udpp_ThirdParty_Widget"));
+        File.WriteAllText(Path.Combine(_root, "Controls", "udpp_ThirdParty_Widget", "bundle.js"), "x");
+
+        var context = CreateContext(NoLocalConvention, referencedPcfControlNames: new[] { "UdppControls.QuantityIndicator" });
+        _pcfControlExclusionStep.Execute(context);
+
+        Assert.Equal(new[] { "udpp_UdppControls_QuantityIndicator" }, context.ExcludedPcfControls);
+        Assert.False(Directory.Exists(Path.Combine(_root, "Controls", "udpp_UdppControls_QuantityIndicator")));
+        // Non-matching control stays.
+        Assert.True(Directory.Exists(Path.Combine(_root, "Controls", "udpp_ThirdParty_Widget")));
+    }
+
+    [Fact]
+    public void ExcludePcf_NoOp_WhenNoControlsFolder()
+    {
+        // Write Solution.xml with prefix but no Controls/ dir.
+        var otherDir = Path.Combine(_root, "Other");
+        Directory.CreateDirectory(otherDir);
+        File.WriteAllText(Path.Combine(otherDir, "Solution.xml"),
+            "<ImportExportXml><SolutionManifest><Publisher><CustomizationPrefix>udpp</CustomizationPrefix></Publisher></SolutionManifest></ImportExportXml>");
+
+        var context = CreateContext(NoLocalConvention, referencedPcfControlNames: new[] { "UdppControls.QuantityIndicator" });
+        _pcfControlExclusionStep.Execute(context);
+
+        Assert.Empty(context.ExcludedPcfControls);
+    }
+}
