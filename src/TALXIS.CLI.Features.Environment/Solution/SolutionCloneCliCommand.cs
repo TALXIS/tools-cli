@@ -123,6 +123,7 @@ public class SolutionCloneCliCommand : ProfiledCliCommand
                 solution = Name,
                 path = outputPath,
                 normalizedAssemblies = result.NormalizedAssemblies,
+                excludedRelationships = result.ExcludedRelationships,
                 excludedBinaries = result.ExcludedBinaries,
                 excludedWebResources = result.ExcludedWebResources,
                 excludedPcfControls = result.ExcludedPcfControls,
@@ -134,6 +135,8 @@ public class SolutionCloneCliCommand : ProfiledCliCommand
                 OutputWriter.WriteLine($"Cloned solution '{Name}' → {outputPath}");
                 if (result.NormalizedAssemblies.Count > 0)
                     OutputWriter.WriteLine($"  Restored {result.NormalizedAssemblies.Count} plugin assembly path(s)");
+                if (result.ExcludedRelationships.Count > 0)
+                    OutputWriter.WriteLine($"  Excluded {result.ExcludedRelationships.Count} standard system relationship(s)");
                 if (result.ExcludedBinaries.Count > 0)
                     OutputWriter.WriteLine($"  Excluded {result.ExcludedBinaries.Count} project-reference binary(ies)");
                 if (result.ExcludedWebResources.Count > 0)

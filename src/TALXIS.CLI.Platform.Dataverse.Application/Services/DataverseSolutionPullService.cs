@@ -36,6 +36,9 @@ internal sealed class DataverseSolutionPullService : ISolutionPullService
             Directory.CreateDirectory(stagingRoot);
             _packager.Unpack(tempZip, stagingRoot, managed: false);
 
+            var excludedRelationships = SolutionPullTransform.ExcludeStandardSystemRelationships(stagingRoot);
+            SolutionPullTransform.NormalizeSolutionManifest(stagingRoot, options.SolutionRootPath);
+
             // Restore each assembly to the path convention already used in the destination
             // (matches by assembly simple name). New assemblies default to flat TALXIS SDK layout.
             var normalized = SolutionPullTransform.RestoreLocalFileNameConventions(
@@ -60,7 +63,14 @@ internal sealed class DataverseSolutionPullService : ISolutionPullService
             Directory.CreateDirectory(options.SolutionRootPath);
             var removed = SolutionPullMerge.Merge(stagingRoot, options.SolutionRootPath);
 
-            return new SolutionPullResult(options.SolutionRootPath, normalized, excluded, excludedWebResources, excludedPcfControls, removed);
+            return new SolutionPullResult(
+                options.SolutionRootPath,
+                normalized,
+                excludedRelationships,
+                excluded,
+                excludedWebResources,
+                excludedPcfControls,
+                removed);
         }
         finally
         {

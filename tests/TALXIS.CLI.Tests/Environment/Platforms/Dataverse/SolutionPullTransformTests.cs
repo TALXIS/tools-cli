@@ -254,6 +254,29 @@ public class SolutionPullTransformTests : IDisposable
         File.WriteAllText(Path.Combine(dir, name + ".data.xml"), $"<WebResource><Name>{name}</Name></WebResource>");
     }
 
+    private void WriteSolutionManifest(string root, string version, string managed)
+    {
+        var otherDir = Path.Combine(root, "Other");
+        Directory.CreateDirectory(otherDir);
+        File.WriteAllText(
+            Path.Combine(otherDir, "Solution.xml"),
+            $"""
+             <ImportExportXml>
+               <SolutionManifest>
+                 <Version>{version}</Version>
+                 <Managed>{managed}</Managed>
+               </SolutionManifest>
+             </ImportExportXml>
+             """);
+    }
+
+    private void WriteRelationshipsFile(string contents)
+    {
+        var otherDir = Path.Combine(_root, "Other");
+        Directory.CreateDirectory(otherDir);
+        File.WriteAllText(Path.Combine(otherDir, "Relationships.xml"), contents);
+    }
+
     [Fact]
     public void ExcludeWebResource_DeletesContent_KeepsDataXml_WhenMatched()
     {
@@ -285,6 +308,142 @@ public class SolutionPullTransformTests : IDisposable
     {
         var excluded = SolutionPullTransform.ExcludeScriptLibraryWebResources(_root, new[] { "udpp_main.js" });
         Assert.Empty(excluded);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────────
+    // NormalizeSolutionManifest
+    // ──────────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void NormalizeSolutionManifest_PreservesLocalVersion_WhenLocalExists()
+    {
+        WriteSolutionManifest(_root, "1.0.12606.28000", "0");
+        var destinationRoot = Path.Combine(Path.GetTempPath(), "dest_" + Guid.NewGuid().ToString("N"));
+        WriteSolutionManifest(destinationRoot, "1.0.0.42", "1");
+
+        try
+        {
+            SolutionPullTransform.NormalizeSolutionManifest(_root, destinationRoot);
+
+            var document = XDocument.Load(Path.Combine(_root, "Other", "Solution.xml"));
+            var manifest = document.Descendants("SolutionManifest").Single();
+            Assert.Equal("1.0.0.42", manifest.Element("Version")?.Value);
+            Assert.Equal("2", manifest.Element("Managed")?.Value);
+        }
+        finally
+        {
+            Directory.Delete(destinationRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void NormalizeSolutionManifest_UsesDataverseVersion_WhenNoLocalFile()
+    {
+        WriteSolutionManifest(_root, "1.0.12606.28000", "1");
+
+        SolutionPullTransform.NormalizeSolutionManifest(_root, Path.Combine(Path.GetTempPath(), "dest_" + Guid.NewGuid().ToString("N")));
+
+        var document = XDocument.Load(Path.Combine(_root, "Other", "Solution.xml"));
+        var manifest = document.Descendants("SolutionManifest").Single();
+        Assert.Equal("1.0.12606.28000", manifest.Element("Version")?.Value);
+        Assert.Equal("2", manifest.Element("Managed")?.Value);
+    }
+
+    [Fact]
+    public void NormalizeSolutionManifest_ForcesManagedTwo_Regardless()
+    {
+        WriteSolutionManifest(_root, "1.0.0.0", "0");
+
+        SolutionPullTransform.NormalizeSolutionManifest(_root, NoLocalConvention);
+
+        var document = XDocument.Load(Path.Combine(_root, "Other", "Solution.xml"));
+        Assert.Equal("2", document.Descendants("Managed").Single().Value);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────────
+    // ExcludeStandardSystemRelationships
+    // ──────────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void ExcludeStandardSystemRelationships_RemovesKnownPatterns()
+    {
+        WriteRelationshipsFile(
+            """
+            <ImportExportXml>
+              <Relationships>
+                <EntityRelationship Name="business_unit_tprt_testitem" />
+                <EntityRelationship Name="lk_tprt_testitem_createdby" />
+                <EntityRelationship Name="lk_tprt_testitem_modifiedby" />
+                <EntityRelationship Name="owner_tprt_testitem" />
+                <EntityRelationship Name="team_tprt_testitem" />
+                <EntityRelationship Name="user_tprt_testitem" />
+                <EntityRelationship Name="tprt_testitem_tprt_custom" />
+              </Relationships>
+            </ImportExportXml>
+            """);
+
+        SolutionPullTransform.ExcludeStandardSystemRelationships(_root);
+
+        var document = XDocument.Load(Path.Combine(_root, "Other", "Relationships.xml"));
+        var remaining = document.Descendants("EntityRelationship")
+            .Select(element => element.Attribute("Name")?.Value)
+            .Where(name => name is not null)
+            .ToArray();
+        Assert.Equal(new[] { "tprt_testitem_tprt_custom" }, remaining);
+    }
+
+    [Fact]
+    public void ExcludeStandardSystemRelationships_KeepsCustomRelationships()
+    {
+        WriteRelationshipsFile(
+            """
+            <ImportExportXml>
+              <Relationships>
+                <EntityRelationship Name="tprt_testitem_tprt_custom" />
+                <EntityRelationship Name="custom_lookup_relationship" />
+              </Relationships>
+            </ImportExportXml>
+            """);
+
+        var removed = SolutionPullTransform.ExcludeStandardSystemRelationships(_root);
+
+        var document = XDocument.Load(Path.Combine(_root, "Other", "Relationships.xml"));
+        var remaining = document.Descendants("EntityRelationship")
+            .Select(element => element.Attribute("Name")?.Value)
+            .Where(name => name is not null)
+            .ToArray();
+        Assert.Empty(removed);
+        Assert.Equal(new[] { "tprt_testitem_tprt_custom", "custom_lookup_relationship" }, remaining);
+    }
+
+    [Fact]
+    public void ExcludeStandardSystemRelationships_ReturnsRemovedNames()
+    {
+        WriteRelationshipsFile(
+            """
+            <ImportExportXml>
+              <Relationships>
+                <EntityRelationship Name="business_unit_tprt_testitem" />
+                <EntityRelationship Name="owner_tprt_testitem" />
+                <EntityRelationship Name="custom_relationship" />
+              </Relationships>
+            </ImportExportXml>
+            """);
+
+        var removed = SolutionPullTransform.ExcludeStandardSystemRelationships(_root);
+
+        Assert.Equal(new[] { "business_unit_tprt_testitem", "owner_tprt_testitem" }, removed);
+    }
+
+    [Fact]
+    public void ExcludeStandardSystemRelationships_HandlesEmptyFile()
+    {
+        WriteRelationshipsFile(string.Empty);
+
+        var removed = SolutionPullTransform.ExcludeStandardSystemRelationships(_root);
+
+        Assert.Empty(removed);
+        Assert.Equal(string.Empty, File.ReadAllText(Path.Combine(_root, "Other", "Relationships.xml")));
     }
 
     // ──────────────────────────────────────────────────────────────────────────────

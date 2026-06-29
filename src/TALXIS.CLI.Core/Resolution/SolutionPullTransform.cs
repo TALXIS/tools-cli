@@ -1,4 +1,5 @@
 using System.Xml.Linq;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 
 namespace TALXIS.CLI.Core.Resolution;
@@ -8,6 +9,87 @@ public static class SolutionPullTransform
     private const string PluginAssembliesDir = "PluginAssemblies";
     private const string WebResourcesDir = "WebResources";
     private const string DataXmlSuffix = ".data.xml";
+    private static readonly Regex StandardSystemRelationshipPattern = new(
+        "^(business_unit_.+|lk_.+_(createdby|modifiedby)|owner_.+|team_.+|user_.+)$",
+        RegexOptions.IgnoreCase);
+
+    public static void NormalizeSolutionManifest(string stagingRoot, string destinationRoot)
+    {
+        var stagingSolutionXml = Path.Combine(stagingRoot, "Other", "Solution.xml");
+        if (!File.Exists(stagingSolutionXml))
+            return;
+
+        XDocument stagingDocument;
+        try
+        {
+            stagingDocument = XDocument.Load(stagingSolutionXml);
+        }
+        catch (System.Xml.XmlException)
+        {
+            return;
+        }
+
+        var stagingManifest = FindSolutionManifest(stagingDocument);
+        if (stagingManifest is null)
+            return;
+
+        var namespaceName = stagingManifest.Name.Namespace;
+        var stagingVersion = stagingManifest.Element(namespaceName + "Version");
+        var localVersion = ReadSolutionManifestElementValue(destinationRoot, "Version");
+        if (stagingVersion is not null && !string.IsNullOrWhiteSpace(localVersion))
+            stagingVersion.Value = localVersion;
+
+        var managedElement = stagingManifest.Element(namespaceName + "Managed");
+        if (managedElement is null)
+        {
+            managedElement = new XElement(namespaceName + "Managed");
+            stagingManifest.Add(managedElement);
+        }
+
+        managedElement.Value = "2";
+        stagingDocument.Save(stagingSolutionXml);
+    }
+
+    public static IReadOnlyList<string> ExcludeStandardSystemRelationships(string stagingRoot)
+    {
+        var relationshipsXml = Path.Combine(stagingRoot, "Other", "Relationships.xml");
+        if (!File.Exists(relationshipsXml))
+            return [];
+
+        var fileContents = File.ReadAllText(relationshipsXml);
+        if (string.IsNullOrWhiteSpace(fileContents))
+            return [];
+
+        XDocument relationshipsDocument;
+        try
+        {
+            relationshipsDocument = XDocument.Parse(fileContents);
+        }
+        catch (System.Xml.XmlException)
+        {
+            return [];
+        }
+
+        var removed = relationshipsDocument
+            .Descendants()
+            .Where(element => element.Name.LocalName == "EntityRelationship")
+            .Select(element => new
+            {
+                Element = element,
+                Name = element.Attribute("Name")?.Value
+            })
+            .Where(item => !string.IsNullOrWhiteSpace(item.Name) && StandardSystemRelationshipPattern.IsMatch(item.Name))
+            .ToList();
+
+        if (removed.Count == 0)
+            return [];
+
+        foreach (var relationship in removed)
+            relationship.Element.Remove();
+
+        relationshipsDocument.Save(relationshipsXml);
+        return removed.Select(item => item.Name!).ToArray();
+    }
 
     /// <summary>
     /// Rearranges plugin assembly files in <paramref name="stagingRoot"/> to match the
@@ -203,6 +285,33 @@ public static class SolutionPullTransform
         {
             var doc = XDocument.Load(solutionXml);
             return doc.Descendants("CustomizationPrefix").FirstOrDefault()?.Value?.Trim();
+        }
+        catch (System.Xml.XmlException)
+        {
+            return null;
+        }
+    }
+
+    private static XElement? FindSolutionManifest(XDocument document)
+        => document
+            .Descendants()
+            .FirstOrDefault(element => element.Name.LocalName == "SolutionManifest");
+
+    private static string? ReadSolutionManifestElementValue(string root, string elementName)
+    {
+        var solutionXml = Path.Combine(root, "Other", "Solution.xml");
+        if (!File.Exists(solutionXml))
+            return null;
+
+        try
+        {
+            var document = XDocument.Load(solutionXml);
+            var manifest = FindSolutionManifest(document);
+            return manifest?
+                .Elements()
+                .FirstOrDefault(element => element.Name.LocalName == elementName)?
+                .Value
+                .Trim();
         }
         catch (System.Xml.XmlException)
         {

@@ -44,6 +44,7 @@ public class SolutionPullCliCommand : ProfiledCliCommand
             solution = solutionName,
             path = result.SolutionRootPath,
             normalizedAssemblies = result.NormalizedAssemblies,
+            excludedRelationships = result.ExcludedRelationships,
             excludedBinaries = result.ExcludedBinaries,
             excludedWebResources = result.ExcludedWebResources,
             excludedPcfControls = result.ExcludedPcfControls,
@@ -55,6 +56,7 @@ public class SolutionPullCliCommand : ProfiledCliCommand
 #pragma warning disable TXC003
             OutputWriter.WriteLine($"Pulled solution '{solutionName}' → {result.SolutionRootPath}");
             WriteList("Normalized plugin assembly path(s)", result.NormalizedAssemblies);
+            WriteList("Excluded standard system relationship(s)", result.ExcludedRelationships);
             WriteList("Excluded project-reference binary(ies)", result.ExcludedBinaries);
             WriteList("Excluded script-library web resource(s)", result.ExcludedWebResources);
             WriteList("Excluded PCF control(s)", result.ExcludedPcfControls);

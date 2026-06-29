@@ -8,6 +8,7 @@ public sealed record SolutionPullOptions(
 public sealed record SolutionPullResult(
     string SolutionRootPath,
     IReadOnlyList<string> NormalizedAssemblies,
+    IReadOnlyList<string> ExcludedRelationships,
     IReadOnlyList<string> ExcludedBinaries,
     IReadOnlyList<string> ExcludedWebResources,
     IReadOnlyList<string> ExcludedPcfControls,
