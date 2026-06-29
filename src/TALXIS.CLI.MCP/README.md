@@ -172,8 +172,10 @@ environment (or any other Connection-bound tool):
 
 1. On the human's machine, run `txc config auth login` (interactive
    browser), `txc config auth add-service-principal`, or
-   `txc config auth add-federated` once to register a credential and
-   prime the MSAL token cache.
+   `txc config auth add-federated` once to register a credential entry.
+   Interactive login also primes the MSAL token cache; service-principal
+   and federated entries rely on their configured secret / OIDC
+   assertion source at token-acquisition time.
 2. Run `txc config connection create <name> --provider dataverse ...`
    to register the endpoint.
 3. Run `txc config profile create <name> --auth <alias> --connection <name>`
@@ -181,11 +183,15 @@ environment (or any other Connection-bound tool):
    workspace via `txc config profile pin`).
 
 After that, MCP tool calls resolve the active profile silently via the
-acquired token cache or stored SPN secret. If resolution fails (expired
-refresh token, missing credential, broken config), the subprocess exits
-non-zero and the MCP server surfaces the error through the tool-call
-result; the structured log line includes the fail-fast remedy string
-(`txc config profile validate <name>`).
+acquired token cache, stored SPN secret, or workload-identity
+federation assertion source (`AZURE_FEDERATED_TOKEN_FILE`,
+`ACTIONS_ID_TOKEN_REQUEST_URL` + `ACTIONS_ID_TOKEN_REQUEST_TOKEN`, or
+`TXC_ADO_ID_TOKEN_REQUEST_URL` + `TXC_ADO_ID_TOKEN_REQUEST_TOKEN`;
+legacy `PAC_ADO_*` is also honored). If resolution fails (expired
+refresh token, missing credential, missing assertion source, broken
+config), the subprocess exits non-zero and the MCP server surfaces the
+error through the tool-call result; the structured log line includes the
+fail-fast remedy string (`txc config profile validate <name>`).
 
 ### Per-call profile override
 

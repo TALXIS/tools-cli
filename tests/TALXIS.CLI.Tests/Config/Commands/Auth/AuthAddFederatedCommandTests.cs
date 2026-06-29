@@ -66,4 +66,25 @@ public sealed class AuthAddFederatedCommandTests
         Assert.Equal(CredentialKind.WorkloadIdentityFederation, cred!.Kind);
         Assert.Empty(host.Vault.Contents);
     }
+
+    [Theory]
+    [InlineData("   ", "app-guid")]
+    [InlineData("tenant-guid", "   ")]
+    public async Task AddFederated_FailsWhenTenantOrApplicationIdIsBlank(string tenant, string applicationId)
+    {
+        using var host = new CommandTestHost();
+
+        var exit = await new AuthAddFederatedCliCommand
+        {
+            Alias = "ci-invalid",
+            Tenant = tenant,
+            ApplicationId = applicationId,
+        }.RunAsync();
+
+        Assert.Equal(1, exit);
+
+        var store = (ICredentialStore)host.Provider.GetService(typeof(ICredentialStore))!;
+        Assert.Null(await store.GetAsync("ci-invalid", default));
+        Assert.Empty(host.Vault.Contents);
+    }
 }

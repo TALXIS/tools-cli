@@ -12,15 +12,17 @@ namespace TALXIS.CLI.Features.Config.Auth;
 /// <c>txc config auth add-federated</c> — register a workload-identity
 /// federation credential (tenant + app id, no secret). At token
 /// acquisition time, txc auto-detects the OIDC assertion source from
-/// GitHub Actions (<c>ACTIONS_ID_TOKEN_REQUEST_URL</c> /
-/// <c>ACTIONS_ID_TOKEN_REQUEST_TOKEN</c>) or Azure DevOps
-/// System.AccessToken-backed environment variables.
+/// GitHub Actions (<c>ACTIONS_ID_TOKEN_REQUEST_URL</c> +
+/// <c>ACTIONS_ID_TOKEN_REQUEST_TOKEN</c>), Azure DevOps
+/// (<c>TXC_ADO_ID_TOKEN_REQUEST_URL</c> +
+/// <c>TXC_ADO_ID_TOKEN_REQUEST_TOKEN</c>; legacy <c>PAC_ADO_*</c> also
+/// honored), or <c>AZURE_FEDERATED_TOKEN_FILE</c>.
 /// </summary>
 [CliIdempotent]
 [CliCommand(
     Name = "add-federated",
     Aliases = ["add-workload-identity"],
-    Description = "Register a workload-identity federation credential. At token acquisition time, txc auto-detects the OIDC assertion from GitHub Actions (ACTIONS_ID_TOKEN_REQUEST_URL/TOKEN) or Azure DevOps (SYSTEM_ACCESSTOKEN-backed) environment variables."
+    Description = "Register a workload-identity federation credential. At token acquisition time, txc auto-detects the OIDC assertion from GitHub Actions (ACTIONS_ID_TOKEN_REQUEST_URL + ACTIONS_ID_TOKEN_REQUEST_TOKEN), Azure DevOps (TXC_ADO_ID_TOKEN_REQUEST_URL + TXC_ADO_ID_TOKEN_REQUEST_TOKEN; legacy PAC_ADO_* also honored), or AZURE_FEDERATED_TOKEN_FILE."
 )]
 public class AuthAddFederatedCliCommand : TxcLeafCommand
 {
@@ -53,12 +55,26 @@ public class AuthAddFederatedCliCommand : TxcLeafCommand
             return ExitError;
         }
 
+        var tenant = Tenant.Trim();
+        if (string.IsNullOrEmpty(tenant))
+        {
+            Logger.LogError("--tenant must not be empty.");
+            return ExitError;
+        }
+
+        var applicationId = ApplicationId.Trim();
+        if (string.IsNullOrEmpty(applicationId))
+        {
+            Logger.LogError("--application-id must not be empty.");
+            return ExitError;
+        }
+
         var credential = new Credential
         {
             Id = alias,
             Kind = CredentialKind.WorkloadIdentityFederation,
-            TenantId = Tenant.Trim(),
-            ApplicationId = ApplicationId.Trim(),
+            TenantId = tenant,
+            ApplicationId = applicationId,
             Cloud = Cloud ?? CloudInstance.Public,
             Description = Description,
         };
