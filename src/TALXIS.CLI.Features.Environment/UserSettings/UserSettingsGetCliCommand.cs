@@ -40,7 +40,7 @@ public class UserSettingsGetCliCommand : ProfiledCliCommand
             ? (userSettingsInfo.TimeZoneName is { } tzName ? $"{tzName} (code: {code})" : $"code {code}")
             : "(not set)";
         var locale = userSettingsInfo.LocaleId is { } localeId
-            ? (userSettingsInfo.LocaleName is { } localeName ? $"{localeName} (code:{localeId})" : $"code {localeId}")
+            ? (userSettingsInfo.LocaleName is { } localeName ? $"{localeName} (code: {localeId})" : $"code {localeId}")
             : "(not set)";
         var currency = userSettingsInfo.CurrencyCode is { } isoCode
             ? (userSettingsInfo.CurrencyName is { } currencyName ? $"{isoCode} ({currencyName})" : isoCode)
