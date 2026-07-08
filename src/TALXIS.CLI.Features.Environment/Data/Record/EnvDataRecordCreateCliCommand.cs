@@ -24,7 +24,7 @@ public class EnvDataRecordCreateCliCommand : StagedCliCommand
     [CliOption(Name = "--entity", Description = "Entity logical name (e.g. account).", Required = true)]
     public string Entity { get; set; } = null!;
 
-    [CliOption(Name = "--data", Description = "Inline JSON object with record attributes.", Required = false)]
+    [CliOption(Name = "--data", Description = "Inline JSON object with record attributes. Special column types: OptionSet as an integer (e.g. 375970000), Lookup as a GUID string or {Id,LogicalName} object, Money as a decimal (e.g. 1500.50), Boolean as true/false, DateTime as an ISO-8601 UTC string (e.g. 2026-05-01T00:00:00Z).", Required = false)]
     public string? Data { get; set; }
 
     [CliOption(Name = "--file", Description = "Path to a JSON file containing record attributes.", Required = false)]

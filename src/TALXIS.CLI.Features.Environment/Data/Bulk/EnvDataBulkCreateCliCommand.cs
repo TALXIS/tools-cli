@@ -26,7 +26,7 @@ public class EnvDataBulkCreateCliCommand : ProfiledCliCommand
     [CliOption(Name = "--file", Description = "Path to a JSON file containing an array of records.", Required = false)]
     public string? File { get; set; }
 
-    [CliOption(Name = "--data", Description = "Inline JSON array of records.", Required = false)]
+    [CliOption(Name = "--data", Description = "Inline JSON array of records. Special column types: OptionSet as an integer (e.g. 375970000), Lookup as a GUID string or {Id,LogicalName} object, Money as a decimal (e.g. 1500.50), Boolean as true/false, DateTime as an ISO-8601 UTC string (e.g. 2026-05-01T00:00:00Z).", Required = false)]
     public string? Data { get; set; }
 
     protected override async Task<int> ExecuteAsync()
