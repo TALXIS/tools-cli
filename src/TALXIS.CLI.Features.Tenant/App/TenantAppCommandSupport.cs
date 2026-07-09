@@ -227,10 +227,21 @@ internal static class TenantAppCommandSupport
         return $"startswith(displayName,'{EscapeODataString(filter.Trim())}')";
     }
 
+    // Microsoft Graph rejects an entire $filter expression with a 400 if any clause compares a
+    // Guid-typed property (id, appId) to a value that isn't a valid GUID literal - even when
+    // combined with "or" against a valid string clause. So the appId/id eq clauses must only be
+    // included when the supplied value actually parses as a GUID (mirrors
+    // TenantRoleResolver.BuildServicePrincipalFilter).
     private static string BuildExactAppFilter(string app)
     {
-        var escaped = EscapeODataString(app.Trim());
-        return $"appId eq '{escaped}' or id eq '{escaped}' or displayName eq '{escaped}'";
+        var trimmed = app.Trim();
+        var escaped = EscapeODataString(trimmed);
+        var displayNameClause = $"displayName eq '{escaped}'";
+
+        if (!Guid.TryParse(trimmed, out _))
+            return displayNameClause;
+
+        return $"appId eq '{escaped}' or id eq '{escaped}' or {displayNameClause}";
     }
 
     private static bool MatchesApplication(GraphServicePrincipal principal, string input)

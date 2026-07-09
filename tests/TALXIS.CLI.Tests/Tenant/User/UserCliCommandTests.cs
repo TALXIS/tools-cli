@@ -54,7 +54,7 @@ public sealed class UserCliCommandTests
         using var host = new TenantPrincipalCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
             request =>
             {
-                Assert.Contains("$filter=id eq 'missing@contoso.com' or userPrincipalName eq 'missing@contoso.com'", Uri.UnescapeDataString(request.RequestUri!.Query));
+                Assert.Contains("$filter=userPrincipalName eq 'missing@contoso.com'", Uri.UnescapeDataString(request.RequestUri!.Query));
                 return TenantPrincipalCommandTestHost.JsonResponse("""
                 {
                   "value": []
@@ -76,6 +76,44 @@ public sealed class UserCliCommandTests
 
         Assert.Equal(2, exit);
         Assert.Equal(string.Empty, output.ToString());
+    }
+
+    [Fact]
+    public async Task RunAsync_Get_ByObjectId_IncludesGuidTypedIdClause()
+    {
+        using var host = new TenantPrincipalCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
+            request =>
+            {
+                var query = Uri.UnescapeDataString(request.RequestUri!.Query);
+                Assert.Contains("$filter=id eq '11111111-1111-1111-1111-111111111111' or userPrincipalName eq '11111111-1111-1111-1111-111111111111'", query);
+                return TenantPrincipalCommandTestHost.JsonResponse("""
+                {
+                  "value": [
+                    {
+                      "id": "11111111-1111-1111-1111-111111111111",
+                      "displayName": "Alice Adams",
+                      "userPrincipalName": "alice@contoso.com"
+                    }
+                  ]
+                }
+                """);
+            }
+        ]));
+
+        var output = new StringWriter();
+        int exit;
+        using (OutputWriter.RedirectTo(output))
+        {
+            exit = await new UserGetCliCommand
+            {
+                Format = "json",
+                User = "11111111-1111-1111-1111-111111111111"
+            }.RunAsync();
+        }
+
+        Assert.Equal(0, exit);
+        var document = JsonDocument.Parse(output.ToString());
+        Assert.Equal("alice@contoso.com", document.RootElement.GetProperty("userPrincipalName").GetString());
     }
 
     [Fact]

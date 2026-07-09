@@ -151,10 +151,19 @@ internal static class UserCommandSupport
         return $"startswith(userPrincipalName,'{escaped}') or startswith(displayName,'{escaped}')";
     }
 
+    // Microsoft Graph rejects an entire $filter expression with a 400 if any clause compares a
+    // Guid-typed property (id) to a value that isn't a valid GUID literal - even when combined
+    // with "or" against a valid string clause. So the id eq clause must only be included when
+    // the supplied value actually parses as a GUID (mirrors TenantRoleResolver.BuildUserFilter).
     private static string BuildGetFilter(string user)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(user);
-        var escaped = TenantPrincipalCommandSupport.EscapeODataString(user.Trim());
+        var trimmed = user.Trim();
+        var escaped = TenantPrincipalCommandSupport.EscapeODataString(trimmed);
+
+        if (!Guid.TryParse(trimmed, out _))
+            return $"userPrincipalName eq '{escaped}'";
+
         return $"id eq '{escaped}' or userPrincipalName eq '{escaped}'";
     }
 
