@@ -25,7 +25,10 @@ src/
   TALXIS.CLI.Logging                            # Structured logging infrastructure
 
   TALXIS.CLI.Features.Config                    # txc config: profiles, auth, connections, settings
-  TALXIS.CLI.Features.Environment               # txc environment: env list/create, solution/package/deployment commands
+  TALXIS.CLI.Features.Environment               # txc environment: env list/create, solution/package/deployment,
+                                                 #   user/app/team/role (Dataverse security principals)
+  TALXIS.CLI.Features.Tenant                    # txc tenant: tenant-wide role catalog and role assignment for
+                                                 #   Entra applications/users/groups (no Entra ID mutation)
   TALXIS.CLI.Features.Data                      # txc data: model conversion, data packages, transforms
   TALXIS.CLI.Features.Docs                      # txc docs (placeholder)
   TALXIS.CLI.Features.Workspace                 # txc workspace: scaffolding, templates, validation
