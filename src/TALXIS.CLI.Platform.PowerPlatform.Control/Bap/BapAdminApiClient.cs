@@ -75,7 +75,7 @@ internal sealed class BapAdminApiClient
         var token = await AcquireTokenAsync(connection, credential, ct).ConfigureAwait(false);
         var requestUri = new Uri(
             GetBaseUri(connection),
-            "/providers/Microsoft.BusinessAppPlatform/scopes/admin/adminApplications?api-version=2020-10-01");
+            "/providers/Microsoft.BusinessAppPlatform/adminApplications?api-version=2021-04-01");
 
         var response = await SendAsync(HttpMethod.Get, requestUri, token, jsonBody: null, ct).ConfigureAwait(false);
         if (!response.IsSuccess)
@@ -85,11 +85,18 @@ internal sealed class BapAdminApiClient
         }
 
         using var document = JsonDocument.Parse(response.Body);
-        if (document.RootElement.ValueKind != JsonValueKind.Array)
-            throw new InvalidOperationException("BAP admin application list payload was not a JSON array.");
+
+        // The endpoint returns an OData-shaped payload (`{ "value": [...] }`),
+        // not a bare JSON array — unwrap the "value" property before enumerating.
+        var root = document.RootElement;
+        var items = root.ValueKind == JsonValueKind.Array
+            ? root
+            : root.TryGetProperty("value", out var valueElement) && valueElement.ValueKind == JsonValueKind.Array
+                ? valueElement
+                : throw new InvalidOperationException("BAP admin application list payload did not contain a \"value\" array.");
 
         var results = new List<BapAdminApplicationRegistration>();
-        foreach (var item in document.RootElement.EnumerateArray())
+        foreach (var item in items.EnumerateArray())
         {
             if (item.TryGetProperty("applicationId", out var applicationIdElement)
                 && applicationIdElement.ValueKind == JsonValueKind.String
@@ -142,7 +149,7 @@ internal sealed class BapAdminApiClient
         var token = await AcquireTokenAsync(connection, credential, ct).ConfigureAwait(false);
         var requestUri = new Uri(
             GetBaseUri(connection),
-            $"/providers/Microsoft.BusinessAppPlatform/scopes/admin/adminApplications/{clientId}?api-version=2020-10-01");
+            $"/providers/Microsoft.BusinessAppPlatform/adminApplications/{clientId}?api-version=2021-04-01");
 
         var response = await SendAsync(method, requestUri, token, jsonBody: null, ct).ConfigureAwait(false);
         if (!response.IsSuccess)

@@ -15,6 +15,23 @@ public sealed class BapAdminApiClientTests
             new FakeAccessTokenService(),
             new FakeHttpClientFactoryWrapper(_ => new HttpResponseMessage(HttpStatusCode.OK)
             {
+                // Real endpoint response is OData-shaped: { "value": [...] }.
+                Content = new StringContent("{\"value\":[{\"applicationId\":\"11111111-1111-1111-1111-111111111111\"}]}")
+            }));
+
+        var results = await sut.ListAdminApplicationsAsync(TestConnection(), TestCredential(), CancellationToken.None);
+
+        var registration = Assert.Single(results);
+        Assert.Equal(Guid.Parse("11111111-1111-1111-1111-111111111111"), registration.ApplicationId);
+    }
+
+    [Fact]
+    public async Task ListAdminApplicationsAsync_AcceptsBareArrayPayload()
+    {
+        var sut = new BapAdminApiClient(
+            new FakeAccessTokenService(),
+            new FakeHttpClientFactoryWrapper(_ => new HttpResponseMessage(HttpStatusCode.OK)
+            {
                 Content = new StringContent("[{\"applicationId\":\"11111111-1111-1111-1111-111111111111\"}]")
             }));
 
@@ -47,7 +64,7 @@ public sealed class BapAdminApiClientTests
 
         Assert.NotNull(captured);
         Assert.Equal(HttpMethod.Put, captured!.Method);
-        Assert.Contains("adminApplications/11111111-1111-1111-1111-111111111111?api-version=2020-10-01", captured.RequestUri!.AbsoluteUri);
+        Assert.Contains("adminApplications/11111111-1111-1111-1111-111111111111?api-version=2021-04-01", captured.RequestUri!.AbsoluteUri);
     }
 
     private static Connection TestConnection() => new()
