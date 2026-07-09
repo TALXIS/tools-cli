@@ -15,7 +15,7 @@ namespace TALXIS.CLI.Features.Environment.Team;
 [CliDestructive("Removes the security role assignment from the Dataverse team.")]
 [CliCommand(
     Name = "remove",
-    Description = "Remove a security role from a Dataverse team. Valid for all team types. This is destructive."
+    Description = "Remove a security role from a Dataverse team. Not supported for access teams (Dataverse restriction: access teams are used only for record sharing, not role-based security) — valid for owner, aad-security-group, and aad-office-group teams. This is destructive."
 )]
 public class TeamRoleRemoveCliCommand : ProfiledCliCommand, IDestructiveCommand
 {

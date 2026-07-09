@@ -14,7 +14,7 @@ namespace TALXIS.CLI.Features.Environment.Team;
 [CliIdempotent]
 [CliCommand(
     Name = "add",
-    Description = "Assign a security role to a Dataverse team. Valid for all team types."
+    Description = "Assign a security role to a Dataverse team. Not supported for access teams (Dataverse restriction: access teams are used only for record sharing, not role-based security) — valid for owner, aad-security-group, and aad-office-group teams."
 )]
 public class TeamRoleAddCliCommand : ProfiledCliCommand
 {

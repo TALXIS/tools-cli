@@ -260,7 +260,7 @@ internal static class DataverseSecurityPrincipalManager
         var entity = new Entity("team")
         {
             ["name"] = options.Name,
-            ["teamtype"] = ToTeamTypeValue(options.TeamType),
+            ["teamtype"] = new OptionSetValue(ToTeamTypeValue(options.TeamType)),
             ["businessunitid"] = new EntityReference("businessunit", businessUnitId),
         };
 
@@ -268,7 +268,7 @@ internal static class DataverseSecurityPrincipalManager
             entity["azureactivedirectoryobjectid"] = options.AadObjectId.Value;
 
         if (options.MembershipType.HasValue)
-            entity["membershiptype"] = ToMembershipTypeValue(options.MembershipType.Value);
+            entity["membershiptype"] = new OptionSetValue(ToMembershipTypeValue(options.MembershipType.Value));
 
         var id = await service.CreateAsync(entity, ct).ConfigureAwait(false);
         return await GetTeamByIdAsync(service, id, ct).ConfigureAwait(false)
