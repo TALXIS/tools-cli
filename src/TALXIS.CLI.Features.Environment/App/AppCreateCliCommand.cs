@@ -29,11 +29,16 @@ public class AppCreateCliCommand : ProfiledCliCommand
     [CliOption(Name = "--role", Description = "Comma-separated role names or GUIDs, for example \"System Administrator,Sales Manager\".", Required = false)]
     public string? Role { get; set; }
 
-    protected override async Task<int> ExecuteAsync()
+    protected override Task<int> ExecuteAsync()
     {
         if (!AppCommandSupport.TryParseRoleIdentifiers(Role, Logger, out var requestedRoles))
-            return ExitValidationError;
+            return Task.FromResult(ExitValidationError);
 
+        return ExecuteCreateAsync(requestedRoles);
+    }
+
+    private async Task<int> ExecuteCreateAsync(IReadOnlyList<string> requestedRoles)
+    {
         try
         {
             var service = TxcServices.Get<IDataverseAppUserService>();
@@ -52,21 +57,7 @@ public class AppCreateCliCommand : ProfiledCliCommand
             var failures = new List<AppRoleAssignmentFailure>();
 
             foreach (var role in requestedRoles)
-            {
-                try
-                {
-                    await service.AddRoleAsync(Profile, app.Id.ToString(), role, CancellationToken.None).ConfigureAwait(false);
-                    assignedRoles.Add(role);
-                }
-                catch (Exception ex) when (ex is DataverseAmbiguousMatchException or ArgumentException or InvalidOperationException)
-                {
-                    failures.Add(new AppRoleAssignmentFailure(role, ex.Message, isValidationError: true));
-                }
-                catch (Exception ex)
-                {
-                    failures.Add(new AppRoleAssignmentFailure(role, ex.Message, isValidationError: false));
-                }
-            }
+                await TryAssignRoleAsync(service, app, role, assignedRoles, failures).ConfigureAwait(false);
 
             AppCommandSupport.WriteCreateResult(app, assignedRoles, failures);
 
@@ -83,6 +74,28 @@ public class AppCreateCliCommand : ProfiledCliCommand
         catch (Exception ex) when (AppCommandSupport.TryHandleValidationException(Logger, ex, out var exitCode))
         {
             return exitCode;
+        }
+    }
+
+    private async Task TryAssignRoleAsync(
+        IDataverseAppUserService service,
+        DataverseAppUserRecord app,
+        string role,
+        ICollection<string> assignedRoles,
+        ICollection<AppRoleAssignmentFailure> failures)
+    {
+        try
+        {
+            await service.AddRoleAsync(Profile, app.Id.ToString(), role, CancellationToken.None).ConfigureAwait(false);
+            assignedRoles.Add(role);
+        }
+        catch (Exception ex) when (ex is DataverseAmbiguousMatchException or ArgumentException or InvalidOperationException)
+        {
+            failures.Add(new AppRoleAssignmentFailure(role, ex.Message, IsValidationError: true));
+        }
+        catch (Exception ex)
+        {
+            failures.Add(new AppRoleAssignmentFailure(role, ex.Message, IsValidationError: false));
         }
     }
 }

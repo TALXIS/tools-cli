@@ -26,7 +26,9 @@ public class TeamRoleAddCliCommand : ProfiledCliCommand
     [CliOption(Name = "--role", Description = "Exact role name or role GUID.", Required = true)]
     public string Role { get; set; } = null!;
 
-    protected override async Task<int> ExecuteAsync()
+    protected override Task<int> ExecuteAsync() => ExecuteAddRoleAsync();
+
+    private async Task<int> ExecuteAddRoleAsync()
     {
         var service = TxcServices.Get<IDataverseTeamService>();
 

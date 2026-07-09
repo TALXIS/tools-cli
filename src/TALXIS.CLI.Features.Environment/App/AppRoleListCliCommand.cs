@@ -23,7 +23,9 @@ public class AppRoleListCliCommand : ProfiledCliCommand
     [CliOption(Name = "--app", Description = "System-user GUID or application client ID GUID.", Required = true)]
     public string App { get; set; } = null!;
 
-    protected override async Task<int> ExecuteAsync()
+    protected override Task<int> ExecuteAsync() => ExecuteListRolesAsync();
+
+    private async Task<int> ExecuteListRolesAsync()
     {
         try
         {

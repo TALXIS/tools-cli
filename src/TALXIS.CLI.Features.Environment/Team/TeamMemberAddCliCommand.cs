@@ -26,7 +26,9 @@ public class TeamMemberAddCliCommand : ProfiledCliCommand
     [CliOption(Name = "--user", Description = "User principal name or user GUID.", Required = true)]
     public string User { get; set; } = null!;
 
-    protected override async Task<int> ExecuteAsync()
+    protected override Task<int> ExecuteAsync() => ExecuteAddMemberAsync();
+
+    private async Task<int> ExecuteAddMemberAsync()
     {
         var service = TxcServices.Get<IDataverseTeamService>();
 

@@ -25,15 +25,19 @@ public class RoleGetCliCommand : ProfiledCliCommand
     [CliOption(Name = "--role", Description = "Role name or GUID to resolve for use with other --role options.", Required = true)]
     public string Role { get; set; } = null!;
 
-    protected override async Task<int> ExecuteAsync()
+    protected override Task<int> ExecuteAsync()
     {
         if (string.IsNullOrWhiteSpace(Role))
         {
             Logger.LogError("Specify --role with a role name or GUID.");
-            return ExitValidationError;
+            return Task.FromResult(ExitValidationError);
         }
 
-        var role = Role.Trim();
+        return ExecuteGetRoleAsync(Role.Trim());
+    }
+
+    private async Task<int> ExecuteGetRoleAsync(string role)
+    {
         var service = TxcServices.Get<IDataverseRoleService>();
 
         try

@@ -27,7 +27,9 @@ public class TeamDeleteCliCommand : ProfiledCliCommand, IDestructiveCommand
     [CliOption(Name = "--yes", Description = "Skip interactive confirmation.", Required = false)]
     public bool Yes { get; set; }
 
-    protected override async Task<int> ExecuteAsync()
+    protected override Task<int> ExecuteAsync() => ExecuteDeleteAsync();
+
+    private async Task<int> ExecuteDeleteAsync()
     {
         var service = TxcServices.Get<IDataverseTeamService>();
 

@@ -29,11 +29,16 @@ public class AppUpdateCliCommand : ProfiledCliCommand
     [CliOption(Name = "--disable", Description = "Disable the application user.", Required = false)]
     public bool Disable { get; set; }
 
-    protected override async Task<int> ExecuteAsync()
+    protected override Task<int> ExecuteAsync()
     {
         if (!AppCommandSupport.TryResolveEnabledState(Enable, Disable, Logger, out var enabled))
-            return ExitValidationError;
+            return Task.FromResult(ExitValidationError);
 
+        return ExecuteUpdateAsync(enabled);
+    }
+
+    private async Task<int> ExecuteUpdateAsync(bool enabled)
+    {
         try
         {
             var service = TxcServices.Get<IDataverseAppUserService>();

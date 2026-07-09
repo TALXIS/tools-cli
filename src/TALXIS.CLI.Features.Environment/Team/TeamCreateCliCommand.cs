@@ -35,16 +35,16 @@ public class TeamCreateCliCommand : ProfiledCliCommand
     [CliOption(Name = "--business-unit", Description = "Business unit name or GUID. Defaults to the caller's business unit.", Required = false)]
     public string? BusinessUnit { get; set; }
 
-    protected override async Task<int> ExecuteAsync()
+    protected override Task<int> ExecuteAsync()
     {
         if (!TeamCommandSupport.TryParseTeamType(Type, Logger, out var teamType))
-            return ExitValidationError;
+            return Task.FromResult(ExitValidationError);
 
         Guid? aadObjectId = null;
         if (!string.IsNullOrWhiteSpace(AadObjectId))
         {
             if (!TeamCommandSupport.TryParseGuidOption(AadObjectId, "--aad-object-id", Logger, out var parsedAadObjectId))
-                return ExitValidationError;
+                return Task.FromResult(ExitValidationError);
 
             aadObjectId = parsedAadObjectId;
         }
@@ -53,7 +53,7 @@ public class TeamCreateCliCommand : ProfiledCliCommand
         if (!string.IsNullOrWhiteSpace(MembershipType))
         {
             if (!TeamCommandSupport.TryParseMembershipType(MembershipType, Logger, out var parsedMembershipType))
-                return ExitValidationError;
+                return Task.FromResult(ExitValidationError);
 
             membershipType = parsedMembershipType;
         }
@@ -62,23 +62,28 @@ public class TeamCreateCliCommand : ProfiledCliCommand
         if (isAadManaged && !aadObjectId.HasValue)
         {
             Logger.LogError("--aad-object-id is required when --type is '{TeamType}'.", TeamCommandSupport.ToCliValue(teamType));
-            return ExitValidationError;
+            return Task.FromResult(ExitValidationError);
         }
 
         if (!isAadManaged && aadObjectId.HasValue)
         {
             Logger.LogError("--aad-object-id is only valid when --type is aad-security-group or aad-office-group.");
-            return ExitValidationError;
+            return Task.FromResult(ExitValidationError);
         }
 
         if (!isAadManaged && membershipType.HasValue)
         {
             Logger.LogError("--membership-type is only valid when --type is aad-security-group or aad-office-group.");
-            return ExitValidationError;
+            return Task.FromResult(ExitValidationError);
         }
 
-        var service = TxcServices.Get<IDataverseTeamService>();
         var options = new DataverseTeamCreateOptions(Name, teamType, aadObjectId, membershipType, BusinessUnit);
+        return ExecuteCreateAsync(options);
+    }
+
+    private async Task<int> ExecuteCreateAsync(DataverseTeamCreateOptions options)
+    {
+        var service = TxcServices.Get<IDataverseTeamService>();
 
         try
         {

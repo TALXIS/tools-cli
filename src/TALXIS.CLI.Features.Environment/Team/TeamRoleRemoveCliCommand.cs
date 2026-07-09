@@ -30,7 +30,9 @@ public class TeamRoleRemoveCliCommand : ProfiledCliCommand, IDestructiveCommand
     [CliOption(Name = "--yes", Description = "Skip interactive confirmation.", Required = false)]
     public bool Yes { get; set; }
 
-    protected override async Task<int> ExecuteAsync()
+    protected override Task<int> ExecuteAsync() => ExecuteRemoveRoleAsync();
+
+    private async Task<int> ExecuteRemoveRoleAsync()
     {
         var service = TxcServices.Get<IDataverseTeamService>();
 

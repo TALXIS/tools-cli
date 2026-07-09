@@ -26,7 +26,9 @@ public class AppRoleAddCliCommand : ProfiledCliCommand
     [CliOption(Name = "--role", Description = "Role name or GUID.", Required = true)]
     public string Role { get; set; } = null!;
 
-    protected override async Task<int> ExecuteAsync()
+    protected override Task<int> ExecuteAsync() => ExecuteAddRoleAsync();
+
+    private async Task<int> ExecuteAddRoleAsync()
     {
         try
         {

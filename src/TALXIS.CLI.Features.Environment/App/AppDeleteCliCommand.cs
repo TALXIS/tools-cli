@@ -27,7 +27,9 @@ public class AppDeleteCliCommand : ProfiledCliCommand, IDestructiveCommand
     [CliOption(Name = "--app", Description = "System-user GUID or application client ID GUID.", Required = true)]
     public string App { get; set; } = null!;
 
-    protected override async Task<int> ExecuteAsync()
+    protected override Task<int> ExecuteAsync() => ExecuteDeleteAsync();
+
+    private async Task<int> ExecuteDeleteAsync()
     {
         try
         {

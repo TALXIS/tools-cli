@@ -30,7 +30,9 @@ public class AppRoleRemoveCliCommand : ProfiledCliCommand, IDestructiveCommand
     [CliOption(Name = "--role", Description = "Role name or GUID.", Required = true)]
     public string Role { get; set; } = null!;
 
-    protected override async Task<int> ExecuteAsync()
+    protected override Task<int> ExecuteAsync() => ExecuteRemoveRoleAsync();
+
+    private async Task<int> ExecuteRemoveRoleAsync()
     {
         try
         {

@@ -29,11 +29,16 @@ public class AppListCliCommand : ProfiledCliCommand
     [CliOption(Name = "--all", Description = "List both enabled and disabled application users.", Required = false)]
     public bool All { get; set; }
 
-    protected override async Task<int> ExecuteAsync()
+    protected override Task<int> ExecuteAsync()
     {
         if (!AppCommandSupport.TryResolveStateFilter(Enabled, Disabled, All, Logger, out var filter))
-            return ExitValidationError;
+            return Task.FromResult(ExitValidationError);
 
+        return ExecuteListAsync(filter);
+    }
+
+    private async Task<int> ExecuteListAsync(DataverseSecurityPrincipalStateFilter filter)
+    {
         try
         {
             var service = TxcServices.Get<IDataverseAppUserService>();

@@ -23,7 +23,9 @@ public class TeamGetCliCommand : ProfiledCliCommand
     [CliOption(Name = "--team", Description = "Exact team name or team GUID.", Required = true)]
     public string Team { get; set; } = null!;
 
-    protected override async Task<int> ExecuteAsync()
+    protected override Task<int> ExecuteAsync() => ExecuteGetAsync();
+
+    private async Task<int> ExecuteGetAsync()
     {
         var service = TxcServices.Get<IDataverseTeamService>();
 
