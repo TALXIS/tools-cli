@@ -88,44 +88,35 @@ public sealed class MicrosoftGraphClient
             .ConfigureAwait(false);
 
         using var http = _httpFactory.Create();
-        var items = new List<T>();
-        Uri? nextPage = initialRequestUri;
 
-        while (nextPage is not null)
-        {
-            using var request = new HttpRequestMessage(HttpMethod.Get, nextPage);
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
-            using var response = await http.SendAsync(request, HttpCompletionOption.ResponseContentRead, ct)
-                .ConfigureAwait(false);
-            var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-
-            if (response.StatusCode == HttpStatusCode.Forbidden)
-                throw CreateForbiddenException(credential, entityName, likelyMissingPermission, body);
-
-            if (!response.IsSuccessStatusCode)
+        var results = await ODataPagingSupport.FetchAllPagesAsync(
+            initialRequestUri,
+            async (requestUri, pageCt) =>
             {
-                throw new InvalidOperationException(
-                    $"Microsoft Graph {entityName} lookup failed ({(int)response.StatusCode} {response.ReasonPhrase}): {Truncate(body, 500)}");
-            }
+                using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
-            using var document = JsonDocument.Parse(body);
-            var root = document.RootElement;
-            if (!root.TryGetProperty("value", out var value) || value.ValueKind != JsonValueKind.Array)
-                throw new InvalidOperationException($"Microsoft Graph {entityName} payload did not contain a 'value' array.");
+                using var response = await http.SendAsync(request, HttpCompletionOption.ResponseContentRead, pageCt)
+                    .ConfigureAwait(false);
+                var body = await response.Content.ReadAsStringAsync(pageCt).ConfigureAwait(false);
 
-            foreach (var item in value.EnumerateArray())
-            {
-                var projected = projector(item);
-                if (projected is not null)
-                    items.Add(projected);
-            }
+                if (response.StatusCode == HttpStatusCode.Forbidden)
+                    throw CreateForbiddenException(credential, entityName, likelyMissingPermission, body);
 
-            nextPage = TryReadNextLink(root);
-        }
+                if (!response.IsSuccessStatusCode)
+                {
+                    throw new InvalidOperationException(
+                        $"Microsoft Graph {entityName} lookup failed ({(int)response.StatusCode} {response.ReasonPhrase}): {Truncate(body, 500)}");
+                }
 
-        return items;
+                return body;
+            },
+            projector,
+            $"Microsoft Graph {entityName} payload did not contain a 'value' array.",
+            ct).ConfigureAwait(false);
+
+        return results;
     }
 
     private static Uri BuildCollectionUri(string relativePath, string? filter, int? top, string select)
@@ -159,16 +150,6 @@ public sealed class MicrosoftGraphClient
             id,
             TryReadOptionalString(item, "displayName"),
             TryReadOptionalString(item, "userPrincipalName"));
-    }
-
-    private static Uri? TryReadNextLink(JsonElement root)
-    {
-        if (!root.TryGetProperty("@odata.nextLink", out var nextLinkElement)
-            || nextLinkElement.ValueKind != JsonValueKind.String)
-            return null;
-
-        var raw = nextLinkElement.GetString();
-        return Uri.TryCreate(raw, UriKind.Absolute, out var nextLink) ? nextLink : null;
     }
 
     private static bool TryReadGuid(JsonElement element, string propertyName, out Guid value)

@@ -44,29 +44,14 @@ public sealed class PowerPlatformRbacClient
         Credential credential,
         CancellationToken ct)
     {
-        var results = new List<PowerPlatformRoleDefinition>();
-        Uri? requestUri = BuildUri(connection, $"authorization/roleDefinitions?api-version={ApiVersion}");
+        var initialRequestUri = BuildUri(connection, $"authorization/roleDefinitions?api-version={ApiVersion}");
 
-        while (requestUri is not null)
-        {
-            var body = await SendForBodyAsync(connection, credential, HttpMethod.Get, requestUri, jsonBody: null, ct)
-                .ConfigureAwait(false);
-
-            using var document = JsonDocument.Parse(body);
-            var root = document.RootElement;
-            if (!root.TryGetProperty("value", out var items) || items.ValueKind != JsonValueKind.Array)
-                throw new InvalidOperationException("Power Platform RBAC role definition payload did not contain a 'value' array.");
-
-            foreach (var item in items.EnumerateArray())
-            {
-                if (TryParseRoleDefinition(item, out var role))
-                    results.Add(role);
-            }
-
-            requestUri = TryReadNextLink(root);
-        }
-
-        return results;
+        return await ODataPagingSupport.FetchAllPagesAsync(
+            initialRequestUri,
+            (requestUri, pageCt) => SendForBodyAsync(connection, credential, HttpMethod.Get, requestUri, jsonBody: null, pageCt),
+            item => TryParseRoleDefinition(item, out var role) ? role : null,
+            "Power Platform RBAC role definition payload did not contain a 'value' array.",
+            ct).ConfigureAwait(false);
     }
 
     internal async Task<IReadOnlyList<PowerPlatformRbacRoleAssignment>> ListTenantRoleAssignmentsAsync(
@@ -75,31 +60,16 @@ public sealed class PowerPlatformRbacClient
         CancellationToken ct)
     {
         var scope = BuildTenantScope(connection);
-        var results = new List<PowerPlatformRbacRoleAssignment>();
-        Uri? requestUri = BuildUri(
+        var initialRequestUri = BuildUri(
             connection,
             $"authorization/roleAssignments?api-version={ApiVersion}&scope={Uri.EscapeDataString(scope)}");
 
-        while (requestUri is not null)
-        {
-            var body = await SendForBodyAsync(connection, credential, HttpMethod.Get, requestUri, jsonBody: null, ct)
-                .ConfigureAwait(false);
-
-            using var document = JsonDocument.Parse(body);
-            var root = document.RootElement;
-            if (!root.TryGetProperty("value", out var items) || items.ValueKind != JsonValueKind.Array)
-                throw new InvalidOperationException("Power Platform RBAC role assignment payload did not contain a 'value' array.");
-
-            foreach (var item in items.EnumerateArray())
-            {
-                if (TryParseRoleAssignment(item, out var assignment))
-                    results.Add(assignment);
-            }
-
-            requestUri = TryReadNextLink(root);
-        }
-
-        return results;
+        return await ODataPagingSupport.FetchAllPagesAsync(
+            initialRequestUri,
+            (requestUri, pageCt) => SendForBodyAsync(connection, credential, HttpMethod.Get, requestUri, jsonBody: null, pageCt),
+            item => TryParseRoleAssignment(item, out var assignment) ? assignment : null,
+            "Power Platform RBAC role assignment payload did not contain a 'value' array.",
+            ct).ConfigureAwait(false);
     }
 
     internal async Task<PowerPlatformRbacRoleAssignment?> AddTenantRoleAssignmentAsync(
@@ -306,16 +276,6 @@ public sealed class PowerPlatformRbacClient
            && DateTimeOffset.TryParse(property.GetString(), out var value)
             ? value
             : null;
-
-    private static Uri? TryReadNextLink(JsonElement root)
-    {
-        if (!root.TryGetProperty("@odata.nextLink", out var nextLinkElement)
-            || nextLinkElement.ValueKind != JsonValueKind.String)
-            return null;
-
-        var raw = nextLinkElement.GetString();
-        return Uri.TryCreate(raw, UriKind.Absolute, out var nextLink) ? nextLink : null;
-    }
 
     private static bool TryReadPrincipalType(JsonElement element, string propertyName, out PowerPlatformPrincipalType principalType)
     {
