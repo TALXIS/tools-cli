@@ -18,17 +18,20 @@ public sealed class EnvironmentUserProvisioningService : IEnvironmentUserProvisi
     private readonly IPowerPlatformEnvironmentCatalog _catalog;
     private readonly MicrosoftGraphClient _graph;
     private readonly BapAdminApiClient _bap;
+    private readonly EnvironmentSettingsClient _settings;
 
     public EnvironmentUserProvisioningService(
         IConfigurationResolver resolver,
         IPowerPlatformEnvironmentCatalog catalog,
         MicrosoftGraphClient graph,
+        EnvironmentSettingsClient settings,
         IAccessTokenService tokens,
         IHttpClientFactoryWrapper? httpFactory = null)
     {
         _resolver = resolver ?? throw new ArgumentNullException(nameof(resolver));
         _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
         _graph = graph ?? throw new ArgumentNullException(nameof(graph));
+        _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _bap = new BapAdminApiClient(tokens ?? throw new ArgumentNullException(nameof(tokens)), httpFactory);
     }
 
@@ -96,4 +99,12 @@ public sealed class EnvironmentUserProvisioningService : IEnvironmentUserProvisi
     }
 
     private static string EscapeODataString(string value) => value.Replace("'", "''");
+
+    /// <inheritdoc />
+    public Task SelfElevateAsync(
+        Connection connection,
+        Credential credential,
+        Guid environmentId,
+        CancellationToken ct)
+        => _settings.SelfElevateAsync(connection, credential, environmentId, ct);
 }

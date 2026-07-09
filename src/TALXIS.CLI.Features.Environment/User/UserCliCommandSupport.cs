@@ -210,22 +210,13 @@ internal static class UserCliCommandSupport
                 $"Could not resolve Power Platform environment for URL '{context.Connection.EnvironmentUrl}'.");
     }
 
-    public static async Task SelfElevateAsync(ResolvedProfileContext context, Guid environmentId, CancellationToken ct)
-    {
-        var clientType = Type.GetType(
-            "TALXIS.CLI.Platform.PowerPlatform.Control.EnvironmentSettingsClient, TALXIS.CLI.Platform.PowerPlatform.Control",
-            throwOnError: true)!;
-        var client = TxcServices.Provider?.GetService(clientType)
-            ?? throw new InvalidOperationException("Environment self-elevation service is not registered.");
-        var method = clientType.GetMethod(
-            "SelfElevateAsync",
-            new[] { typeof(Connection), typeof(Credential), typeof(Guid), typeof(CancellationToken) })
-            ?? throw new InvalidOperationException("Environment self-elevation method is unavailable.");
-
-        var task = method.Invoke(client, new object[] { context.Connection, context.Credential, environmentId, ct }) as Task
-            ?? throw new InvalidOperationException("Environment self-elevation invocation did not return a task.");
-        await task.ConfigureAwait(false);
-    }
+    /// <summary>
+    /// Applies the environment admin role to the current authenticated
+    /// caller via <see cref="IEnvironmentUserProvisioningService"/>.
+    /// </summary>
+    public static Task SelfElevateAsync(ResolvedProfileContext context, Guid environmentId, CancellationToken ct)
+        => TxcServices.Get<IEnvironmentUserProvisioningService>()
+            .SelfElevateAsync(context.Connection, context.Credential, environmentId, ct);
 
     private static bool UrlEquals(Uri left, Uri right)
         => NormalizeEnvironmentUrl(left).AbsoluteUri.Equals(

@@ -61,6 +61,7 @@ public sealed class EnvironmentUserProvisioningServiceTests
             resolver,
             new CapturingCatalog(),
             new MicrosoftGraphClient(new FakeAccessTokenService(), http),
+            new EnvironmentSettingsClient(new FakeAccessTokenService(), http),
             new FakeAccessTokenService(),
             http);
 
@@ -104,6 +105,7 @@ public sealed class EnvironmentUserProvisioningServiceTests
             resolver,
             new CapturingCatalog(),
             new MicrosoftGraphClient(new FakeAccessTokenService(), http),
+            new EnvironmentSettingsClient(new FakeAccessTokenService(), http),
             new FakeAccessTokenService(),
             http);
 
@@ -146,6 +148,7 @@ public sealed class EnvironmentUserProvisioningServiceTests
             resolver,
             new CapturingCatalog(),
             new MicrosoftGraphClient(new FakeAccessTokenService(), http),
+            new EnvironmentSettingsClient(new FakeAccessTokenService(), http),
             new FakeAccessTokenService(),
             http);
 
@@ -153,6 +156,82 @@ public sealed class EnvironmentUserProvisioningServiceTests
             () => sut.ProvisionUserAsync("profile", "ambiguous", CancellationToken.None));
 
         Assert.Contains("Multiple Entra users matched", ex.Message);
+    }
+
+    [Fact]
+    public async Task SelfElevateAsync_PostsApplyAdminRole_ForResolvedEnvironment()
+    {
+        var connection = new ConnectionModel
+        {
+            Id = "conn",
+            Provider = ProviderKind.Dataverse,
+            Cloud = CloudInstance.Public,
+            EnvironmentId = Guid.NewGuid(),
+        };
+        var credential = new Credential { Id = "cred", Kind = CredentialKind.InteractiveBrowser };
+        var resolver = new CapturingResolver(new ResolvedProfileContext(
+            new Profile { Id = "profile", ConnectionRef = connection.Id, CredentialRef = credential.Id },
+            connection,
+            credential,
+            ResolutionSource.CommandLine));
+
+        var environmentId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+        HttpRequestMessage? capturedRequest = null;
+        var http = new FakeHttpClientFactoryWrapper(req =>
+        {
+            capturedRequest = req;
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(string.Empty) };
+        });
+
+        var sut = new EnvironmentUserProvisioningService(
+            resolver,
+            new CapturingCatalog(),
+            new MicrosoftGraphClient(new FakeAccessTokenService(), http),
+            new EnvironmentSettingsClient(new FakeAccessTokenService(), http),
+            new FakeAccessTokenService(),
+            http);
+
+        await sut.SelfElevateAsync(connection, credential, environmentId, CancellationToken.None);
+
+        Assert.NotNull(capturedRequest);
+        Assert.Equal(HttpMethod.Post, capturedRequest!.Method);
+        Assert.Contains($"usermanagement/environments/{environmentId}/user/applyAdminRole", capturedRequest.RequestUri!.AbsoluteUri);
+    }
+
+    [Fact]
+    public async Task SelfElevateAsync_ThrowsWhenApplyAdminRoleFails()
+    {
+        var connection = new ConnectionModel
+        {
+            Id = "conn",
+            Provider = ProviderKind.Dataverse,
+            Cloud = CloudInstance.Public,
+            EnvironmentId = Guid.NewGuid(),
+        };
+        var credential = new Credential { Id = "cred", Kind = CredentialKind.InteractiveBrowser };
+        var resolver = new CapturingResolver(new ResolvedProfileContext(
+            new Profile { Id = "profile", ConnectionRef = connection.Id, CredentialRef = credential.Id },
+            connection,
+            credential,
+            ResolutionSource.CommandLine));
+
+        var http = new FakeHttpClientFactoryWrapper(_ => new HttpResponseMessage(HttpStatusCode.Forbidden)
+        {
+            Content = new StringContent("{\"error\":\"insufficient privileges\"}")
+        });
+
+        var sut = new EnvironmentUserProvisioningService(
+            resolver,
+            new CapturingCatalog(),
+            new MicrosoftGraphClient(new FakeAccessTokenService(), http),
+            new EnvironmentSettingsClient(new FakeAccessTokenService(), http),
+            new FakeAccessTokenService(),
+            http);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => sut.SelfElevateAsync(connection, credential, Guid.NewGuid(), CancellationToken.None));
+
+        Assert.Contains("self-elevation failed", ex.Message);
     }
 
     private sealed class CapturingResolver(ResolvedProfileContext context) : IConfigurationResolver

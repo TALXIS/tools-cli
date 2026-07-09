@@ -1,3 +1,5 @@
+using TALXIS.CLI.Core.Model;
+
 namespace TALXIS.CLI.Core.Platforms.PowerPlatform;
 
 /// <summary>
@@ -26,5 +28,16 @@ public interface IEnvironmentUserProvisioningService
     Task<EnvironmentUserProvisionResult> ProvisionUserAsync(
         string? profileName,
         string userIdOrUpn,
+        CancellationToken ct);
+
+    /// <summary>
+    /// Applies the environment admin role to the current authenticated
+    /// caller (<paramref name="connection"/>/<paramref name="credential"/>)
+    /// in the given environment. Backs <c>txc environment user self-elevate</c>.
+    /// </summary>
+    Task SelfElevateAsync(
+        Connection connection,
+        Credential credential,
+        Guid environmentId,
         CancellationToken ct);
 }
