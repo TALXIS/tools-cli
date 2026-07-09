@@ -11,11 +11,11 @@ public sealed class AppGetCliCommandTests
     [Fact]
     public async Task RunAsync_ClientIdSelector_ReturnsServicePrincipal()
     {
-        using var host = new TenantAppCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
+        using var host = new TenantCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
             request =>
             {
                 Assert.Contains("appId eq 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'", Uri.UnescapeDataString(request.RequestUri!.Query), StringComparison.Ordinal);
-                return TenantAppCommandTestHost.JsonResponse("""
+                return TenantCommandTestHost.JsonResponse("""
                 {
                   "value": [
                     {
@@ -50,14 +50,14 @@ public sealed class AppGetCliCommandTests
     {
         // Microsoft Graph rejects the entire $filter with 400 if any clause compares a
         // GUID-typed property (id, appId) to a non-GUID literal, even combined with "or".
-        using var host = new TenantAppCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
+        using var host = new TenantCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
             request =>
             {
                 var query = Uri.UnescapeDataString(request.RequestUri!.Query);
                 Assert.DoesNotContain("appId eq", query, StringComparison.Ordinal);
                 Assert.DoesNotContain("id eq", query, StringComparison.Ordinal);
                 Assert.Contains("displayName eq 'Contoso CLI'", query, StringComparison.Ordinal);
-                return TenantAppCommandTestHost.JsonResponse("""
+                return TenantCommandTestHost.JsonResponse("""
                 {
                   "value": [
                     {
@@ -90,8 +90,8 @@ public sealed class AppGetCliCommandTests
     [Fact]
     public async Task RunAsync_AmbiguousDisplayName_ReturnsValidationErrorAndCandidates()
     {
-        using var host = new TenantAppCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
-            _ => TenantAppCommandTestHost.JsonResponse("""
+        using var host = new TenantCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
+            _ => TenantCommandTestHost.JsonResponse("""
             {
               "value": [
                 {

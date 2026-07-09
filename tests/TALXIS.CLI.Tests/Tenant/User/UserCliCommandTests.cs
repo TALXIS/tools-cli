@@ -11,12 +11,12 @@ public sealed class UserCliCommandTests
     [Fact]
     public async Task RunAsync_List_WithFilter_ReturnsUsers()
     {
-        using var host = new TenantPrincipalCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
+        using var host = new TenantCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
             request =>
             {
                 Assert.Equal(HttpMethod.Get, request.Method);
                 Assert.Contains("$filter=startswith(userPrincipalName,'alice') or startswith(displayName,'alice')", Uri.UnescapeDataString(request.RequestUri!.Query));
-                return TenantPrincipalCommandTestHost.JsonResponse("""
+                return TenantCommandTestHost.JsonResponse("""
                 {
                   "value": [
                     {
@@ -51,11 +51,11 @@ public sealed class UserCliCommandTests
     [Fact]
     public async Task RunAsync_Get_MissingUser_ReturnsValidationError()
     {
-        using var host = new TenantPrincipalCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
+        using var host = new TenantCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
             request =>
             {
                 Assert.Contains("$filter=userPrincipalName eq 'missing@contoso.com'", Uri.UnescapeDataString(request.RequestUri!.Query));
-                return TenantPrincipalCommandTestHost.JsonResponse("""
+                return TenantCommandTestHost.JsonResponse("""
                 {
                   "value": []
                 }
@@ -81,12 +81,12 @@ public sealed class UserCliCommandTests
     [Fact]
     public async Task RunAsync_Get_ByObjectId_IncludesGuidTypedIdClause()
     {
-        using var host = new TenantPrincipalCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
+        using var host = new TenantCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
             request =>
             {
                 var query = Uri.UnescapeDataString(request.RequestUri!.Query);
                 Assert.Contains("$filter=id eq '11111111-1111-1111-1111-111111111111' or userPrincipalName eq '11111111-1111-1111-1111-111111111111'", query);
-                return TenantPrincipalCommandTestHost.JsonResponse("""
+                return TenantCommandTestHost.JsonResponse("""
                 {
                   "value": [
                     {
@@ -119,8 +119,8 @@ public sealed class UserCliCommandTests
     [Fact]
     public async Task RunAsync_RoleAdd_AmbiguousRole_ReturnsValidationError()
     {
-        using var host = new TenantPrincipalCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
-            _ => TenantPrincipalCommandTestHost.JsonResponse("""
+        using var host = new TenantCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
+            _ => TenantCommandTestHost.JsonResponse("""
             {
               "value": [
                 {
@@ -131,7 +131,7 @@ public sealed class UserCliCommandTests
               ]
             }
             """),
-            _ => TenantPrincipalCommandTestHost.JsonResponse("""
+            _ => TenantCommandTestHost.JsonResponse("""
             {
               "value": [
                 {

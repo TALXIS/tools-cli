@@ -11,8 +11,8 @@ public sealed class RoleGetCliCommandTests
     [Fact]
     public async Task RunAsync_GuidSelector_ReturnsTenantRole()
     {
-        using var host = new TenantRoleCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
-            _ => TenantRoleCommandTestHost.JsonResponse("""
+        using var host = new TenantCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
+            _ => TenantCommandTestHost.JsonResponse("""
             {
               "value": [
                 {
@@ -51,8 +51,8 @@ public sealed class RoleGetCliCommandTests
     [Fact]
     public async Task RunAsync_NonTenantRoleSelector_ReturnsValidationError()
     {
-        using var host = new TenantRoleCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
-            _ => TenantRoleCommandTestHost.JsonResponse("""
+        using var host = new TenantCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
+            _ => TenantCommandTestHost.JsonResponse("""
             {
               "value": [
                 {

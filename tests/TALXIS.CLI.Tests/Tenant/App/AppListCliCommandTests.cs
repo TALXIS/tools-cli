@@ -11,11 +11,11 @@ public sealed class AppListCliCommandTests
     [Fact]
     public async Task RunAsync_FilteredList_ReturnsServicePrincipals()
     {
-        using var host = new TenantAppCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
+        using var host = new TenantCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
             request =>
             {
                 Assert.Contains("$filter=startswith(displayName,'Contoso')", Uri.UnescapeDataString(request.RequestUri!.Query), StringComparison.Ordinal);
-                return TenantAppCommandTestHost.JsonResponse("""
+                return TenantCommandTestHost.JsonResponse("""
                 {
                   "value": [
                     {

@@ -11,8 +11,8 @@ public sealed class AppRoleRemoveCliCommandTests
     [Fact]
     public async Task RunAsync_AdminApplicationRole_RemovesAssignment()
     {
-        using var host = new TenantAppCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
-            _ => TenantAppCommandTestHost.JsonResponse("""
+        using var host = new TenantCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
+            _ => TenantCommandTestHost.JsonResponse("""
             {
               "value": [
                 {
@@ -23,7 +23,7 @@ public sealed class AppRoleRemoveCliCommandTests
               ]
             }
             """),
-            _ => TenantAppCommandTestHost.JsonResponse("""
+            _ => TenantCommandTestHost.JsonResponse("""
             [
               {
                 "applicationId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"

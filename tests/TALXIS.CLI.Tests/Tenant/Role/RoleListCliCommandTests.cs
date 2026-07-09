@@ -11,8 +11,8 @@ public sealed class RoleListCliCommandTests
     [Fact]
     public async Task RunAsync_ListsOnlyTenantAssignableRoles()
     {
-        using var host = new TenantRoleCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
-            _ => TenantRoleCommandTestHost.JsonResponse("""
+        using var host = new TenantCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
+            _ => TenantCommandTestHost.JsonResponse("""
             {
               "value": [
                 {
@@ -49,8 +49,8 @@ public sealed class RoleListCliCommandTests
     [Fact]
     public async Task RunAsync_FilterFurtherNarrowsTenantRoles()
     {
-        using var host = new TenantRoleCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
-            _ => TenantRoleCommandTestHost.JsonResponse("""
+        using var host = new TenantCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
+            _ => TenantCommandTestHost.JsonResponse("""
             {
               "value": [
                 {

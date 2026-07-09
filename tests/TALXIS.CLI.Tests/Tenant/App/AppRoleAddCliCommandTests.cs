@@ -10,8 +10,8 @@ public sealed class AppRoleAddCliCommandTests
     [Fact]
     public async Task RunAsync_AmbiguousRole_ReturnsValidationErrorAndCandidates()
     {
-        using var host = new TenantAppCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
-            _ => TenantAppCommandTestHost.JsonResponse("""
+        using var host = new TenantCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
+            _ => TenantCommandTestHost.JsonResponse("""
             {
               "value": [
                 {
@@ -22,7 +22,7 @@ public sealed class AppRoleAddCliCommandTests
               ]
             }
             """),
-            _ => TenantAppCommandTestHost.JsonResponse("""
+            _ => TenantCommandTestHost.JsonResponse("""
             {
               "value": [
                 {

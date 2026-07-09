@@ -8,18 +8,26 @@ using TALXIS.CLI.Platform.PowerPlatform.Control.Graph;
 using TALXIS.CLI.Platform.PowerPlatform.Control.PowerPlatformRbac;
 using TALXIS.CLI.Platform.PowerPlatform.Control.Strategies;
 
-namespace TALXIS.CLI.Tests.Tenant.Role;
+namespace TALXIS.CLI.Tests.Tenant;
 
-internal sealed class TenantRoleCommandTestHost : IDisposable
+/// <summary>
+/// Shared HTTP-mocked test host for tenant-scope CLI command tests
+/// (<c>txc tenant user</c>/<c>group</c>/<c>app</c>/<c>role</c>). Registers a
+/// <see cref="MicrosoftGraphClient"/> and <see cref="TenantRoleResolver"/>
+/// backed by a queue of fake HTTP responses, so tests only need to supply
+/// the response bodies their command under test will request, in order.
+/// </summary>
+internal sealed class TenantCommandTestHost : IDisposable
 {
     private readonly ServiceProvider _provider;
 
-    public TenantRoleCommandTestHost(Queue<Func<HttpRequestMessage, HttpResponseMessage>> handlers)
+    public TenantCommandTestHost(Queue<Func<HttpRequestMessage, HttpResponseMessage>> handlers)
     {
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton<IConfigurationResolver>(new FixedResolver(TestContext()));
-        services.AddSingleton<TenantRoleResolver>(_ => CreateResolver(handlers));
+        services.AddSingleton(_ => CreateGraphClient(handlers));
+        services.AddSingleton(_ => CreateResolver(handlers));
 
         _provider = services.BuildServiceProvider();
         TxcServices.Initialize(_provider);
@@ -29,6 +37,16 @@ internal sealed class TenantRoleCommandTestHost : IDisposable
     {
         TxcServices.Reset();
         _provider.Dispose();
+    }
+
+    public static HttpResponseMessage JsonResponse(string json)
+        => new(System.Net.HttpStatusCode.OK) { Content = new StringContent(json) };
+
+    private static MicrosoftGraphClient CreateGraphClient(Queue<Func<HttpRequestMessage, HttpResponseMessage>> handlers)
+    {
+        var http = new FakeHttpClientFactoryWrapper(handlers);
+        var tokens = new FakeAccessTokenService();
+        return new MicrosoftGraphClient(tokens, http);
     }
 
     private static TenantRoleResolver CreateResolver(Queue<Func<HttpRequestMessage, HttpResponseMessage>> handlers)
@@ -43,12 +61,16 @@ internal sealed class TenantRoleCommandTestHost : IDisposable
 
     private static ResolvedProfileContext TestContext() => new(
         new Profile { Id = "test", ConnectionRef = "conn", CredentialRef = "cred" },
-        new Connection { Id = "conn", Provider = ProviderKind.Dataverse, Cloud = CloudInstance.Public, TenantId = "tenant-id" },
+        new Connection
+        {
+            Id = "conn",
+            Provider = ProviderKind.Dataverse,
+            Cloud = CloudInstance.Public,
+            TenantId = "tenant-id",
+            EnvironmentType = EnvironmentType.Sandbox
+        },
         new Credential { Id = "cred", Kind = CredentialKind.InteractiveBrowser },
         ResolutionSource.CommandLine);
-
-    public static HttpResponseMessage JsonResponse(string json)
-        => new(System.Net.HttpStatusCode.OK) { Content = new StringContent(json) };
 
     private sealed class FixedResolver(ResolvedProfileContext context) : IConfigurationResolver
     {

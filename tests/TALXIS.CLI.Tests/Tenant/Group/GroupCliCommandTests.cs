@@ -16,7 +16,7 @@ public sealed class GroupCliCommandTests
     [Fact]
     public async Task RunAsync_RoleList_NonGuidGroup_ReturnsValidationErrorWithoutAnyHttpCall()
     {
-        using var host = new TenantPrincipalCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>());
+        using var host = new TenantCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>());
 
         var output = new StringWriter();
         int exit;
@@ -36,11 +36,11 @@ public sealed class GroupCliCommandTests
     [Fact]
     public async Task RunAsync_RoleRemove_ByObjectId_RemovesAssignmentWithoutGraphCall()
     {
-        using var host = new TenantPrincipalCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
+        using var host = new TenantCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
             request =>
             {
                 Assert.Contains("roleDefinitions", request.RequestUri!.ToString());
-                return TenantPrincipalCommandTestHost.JsonResponse("""
+                return TenantCommandTestHost.JsonResponse("""
                 {
                   "value": [
                     {
@@ -53,7 +53,7 @@ public sealed class GroupCliCommandTests
                 }
                 """);
             },
-            _ => TenantPrincipalCommandTestHost.JsonResponse("""
+            _ => TenantCommandTestHost.JsonResponse("""
             {
               "value": [
                 {
@@ -70,7 +70,7 @@ public sealed class GroupCliCommandTests
             {
                 Assert.Equal(HttpMethod.Delete, request.Method);
                 Assert.Contains("authorization/roleAssignments/assignment-1", request.RequestUri!.ToString());
-                return TenantPrincipalCommandTestHost.JsonResponse(string.Empty);
+                return TenantCommandTestHost.JsonResponse(string.Empty);
             }
         ]));
 
