@@ -31,7 +31,9 @@ public class UserRoleRemoveCliCommand : ProfiledCliCommand, IDestructiveCommand
     [CliOption(Name = "--role", Description = "Security role name or role GUID.", Required = true)]
     public string Role { get; set; } = null!;
 
-    protected override async Task<int> ExecuteAsync()
+    protected override Task<int> ExecuteAsync() => ExecuteRemoveRoleAsync();
+
+    private async Task<int> ExecuteRemoveRoleAsync()
     {
         var userService = TxcServices.Get<IDataverseUserService>();
         var roleService = TxcServices.Get<IDataverseRoleService>();
@@ -70,7 +72,15 @@ public class UserRoleRemoveCliCommand : ProfiledCliCommand, IDestructiveCommand
             return ExitSuccess;
         }
 
-        await userService.RemoveRoleAsync(Profile, User, Role, CancellationToken.None).ConfigureAwait(false);
+        try
+        {
+            await userService.RemoveRoleAsync(Profile, User, Role, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (UserCliCommandSupport.TryHandleValidationException(Logger, ex, out var exitCode))
+        {
+            return exitCode;
+        }
+
         OutputFormatter.WriteData(
             new
             {

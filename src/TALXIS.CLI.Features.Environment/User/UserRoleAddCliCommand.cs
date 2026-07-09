@@ -27,7 +27,9 @@ public class UserRoleAddCliCommand : ProfiledCliCommand
     [CliOption(Name = "--role", Description = "Security role name or role GUID.", Required = true)]
     public string Role { get; set; } = null!;
 
-    protected override async Task<int> ExecuteAsync()
+    protected override Task<int> ExecuteAsync() => ExecuteAddRoleAsync();
+
+    private async Task<int> ExecuteAddRoleAsync()
     {
         var userService = TxcServices.Get<IDataverseUserService>();
         var roleService = TxcServices.Get<IDataverseRoleService>();
@@ -66,7 +68,15 @@ public class UserRoleAddCliCommand : ProfiledCliCommand
             return ExitSuccess;
         }
 
-        await userService.AddRoleAsync(Profile, User, Role, CancellationToken.None).ConfigureAwait(false);
+        try
+        {
+            await userService.AddRoleAsync(Profile, User, Role, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (UserCliCommandSupport.TryHandleValidationException(Logger, ex, out var exitCode))
+        {
+            return exitCode;
+        }
+
         OutputFormatter.WriteData(
             new
             {
