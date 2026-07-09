@@ -101,6 +101,56 @@ public sealed class BapAdminApiClientTests
         Assert.Contains("adminApplications/11111111-1111-1111-1111-111111111111?api-version=2021-04-01", captured.RequestUri!.AbsoluteUri);
     }
 
+    [Fact]
+    public async Task AddUserToEnvironmentAsync_PostsToAddUserEndpoint_WithObjectIdBody()
+    {
+        HttpRequestMessage? captured = null;
+        string? capturedBody = null;
+        var sut = new BapAdminApiClient(
+            new FakeAccessTokenService(),
+            new FakeHttpClientFactoryWrapper(req =>
+            {
+                captured = req;
+                capturedBody = req.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(string.Empty)
+                };
+            }));
+
+        var environmentId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+        var userAadObjectId = Guid.Parse("44444444-4444-4444-4444-444444444444");
+
+        await sut.AddUserToEnvironmentAsync(TestConnection(), TestCredential(), environmentId, userAadObjectId, CancellationToken.None);
+
+        Assert.NotNull(captured);
+        Assert.Equal(HttpMethod.Post, captured!.Method);
+        Assert.Contains(
+            $"scopes/admin/environments/{environmentId}/addUser?api-version=2021-04-01",
+            captured.RequestUri!.AbsoluteUri);
+        Assert.NotNull(capturedBody);
+        Assert.Contains(userAadObjectId.ToString(), capturedBody);
+        Assert.Contains("ObjectId", capturedBody);
+    }
+
+    [Fact]
+    public async Task AddUserToEnvironmentAsync_ThrowsOnFailureResponse()
+    {
+        var sut = new BapAdminApiClient(
+            new FakeAccessTokenService(),
+            new FakeHttpClientFactoryWrapper(_ => new HttpResponseMessage(HttpStatusCode.Forbidden)
+            {
+                Content = new StringContent("{\"error\":\"forbidden\"}")
+            }));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => sut.AddUserToEnvironmentAsync(
+            TestConnection(),
+            TestCredential(),
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            CancellationToken.None));
+    }
+
     private static Connection TestConnection() => new()
     {
         Id = "conn",

@@ -129,6 +129,37 @@ internal sealed class BapAdminApiClient
         return Uri.TryCreate(raw, UriKind.Absolute, out var nextLink) ? nextLink : null;
     }
 
+    /// <summary>
+    /// Provisions a Dataverse <c>systemuser</c> record for the given Entra
+    /// object ID in the target environment, without requiring the user to
+    /// have ever signed in (background JIT sync would otherwise be the only
+    /// way this record gets created). Safe to call again for a user who
+    /// already has access.
+    /// </summary>
+    public async Task AddUserToEnvironmentAsync(
+        Connection connection,
+        Credential credential,
+        Guid environmentId,
+        Guid userAadObjectId,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(credential);
+
+        var token = await AcquireTokenAsync(connection, credential, ct).ConfigureAwait(false);
+        var requestUri = new Uri(
+            GetBaseUri(connection),
+            $"/providers/Microsoft.BusinessAppPlatform/scopes/admin/environments/{environmentId}/addUser?api-version=2021-04-01");
+
+        var body = new Dictionary<string, object> { ["ObjectId"] = userAadObjectId };
+        var response = await SendAsync(HttpMethod.Post, requestUri, token, body, ct).ConfigureAwait(false);
+        if (!response.IsSuccess)
+        {
+            throw new InvalidOperationException(
+                $"Failed to add user '{userAadObjectId}' to environment '{environmentId}' ({(int)response.StatusCode} {response.StatusCode}): {Truncate(response.Body, 500)}");
+        }
+    }
+
     public async Task RegisterAdminApplicationAsync(
         Connection connection,
         Credential credential,

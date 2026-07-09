@@ -13,6 +13,7 @@ namespace TALXIS.CLI.Features.Environment.User;
     {
         typeof(UserListCliCommand),
         typeof(UserGetCliCommand),
+        typeof(UserAddCliCommand),
         typeof(UserUpdateCliCommand),
         typeof(UserRoleCliCommand),
         typeof(UserSelfElevateCliCommand),

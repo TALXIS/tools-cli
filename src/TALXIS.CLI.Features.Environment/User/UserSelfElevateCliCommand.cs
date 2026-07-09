@@ -13,7 +13,7 @@ namespace TALXIS.CLI.Features.Environment.User;
 [CliIdempotent]
 [CliCommand(
     Name = "self-elevate",
-    Description = "Grant the current authenticated caller the environment admin role in the selected environment."
+    Description = "Grant the current authenticated caller the environment admin role in the selected environment. To add other users to this environment, use 'environment user add' instead."
 )]
 #pragma warning disable TXC003
 public class UserSelfElevateCliCommand : ProfiledCliCommand

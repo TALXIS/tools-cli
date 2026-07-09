@@ -167,6 +167,53 @@ internal static class UserCliCommandSupport
         }
     }
 
+    public static bool TryParseRoleIdentifiers(
+        string? csv,
+        ILogger logger,
+        out IReadOnlyList<string> roles)
+    {
+        if (string.IsNullOrWhiteSpace(csv))
+        {
+            roles = Array.Empty<string>();
+            return true;
+        }
+
+        var parsed = csv
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (parsed.Length == 0)
+        {
+            logger.LogError("--role must contain at least one role name or GUID when specified.");
+            roles = Array.Empty<string>();
+            return false;
+        }
+
+        roles = parsed;
+        return true;
+    }
+
+    public static bool TryHandleValidationException(ILogger logger, Exception ex, out int exitCode)
+    {
+        if (ex is DataverseAmbiguousMatchException ambiguous)
+        {
+            LogAmbiguousMatch(logger, ambiguous);
+            exitCode = 2;
+            return true;
+        }
+
+        if (ex is ArgumentException or InvalidOperationException)
+        {
+            logger.LogError("{Error}", ex.Message);
+            exitCode = 2;
+            return true;
+        }
+
+        exitCode = 0;
+        return false;
+    }
+
     public static async Task<Guid> ResolveEnvironmentIdAsync(string? profileName, CancellationToken ct)
     {
         var resolver = TxcServices.Get<IConfigurationResolver>();

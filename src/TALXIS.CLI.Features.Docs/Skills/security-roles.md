@@ -59,8 +59,15 @@ roles.
    built-in roles) — accepts either the role name or its GUID everywhere `--role` is used below.
 2. **Find the principal:**
    - Regular (human) user: `txc environment user list [--enabled|--disabled|--all]` /
-     `txc environment user get --user <upn-or-guid>`. Regular users are provisioned by
-     background Entra sync — there is no `create`, only `list`/`get`/`update` (enable/disable).
+     `txc environment user get --user <upn-or-guid>`. Regular users are normally provisioned by
+     background Entra sync the first time they sign in, so `list`/`get`/`update` (enable/disable)
+     is usually all you need. If the user has never signed in to this environment yet and you
+     need to assign a role before that happens, use `txc environment user add --user
+     <upn-or-object-id> [--role <name-or-guid>[,<name-or-guid>,...]]` to provision access
+     immediately — safe to run again for a user who already has access. To grant *yourself*
+     admin access when you have none at all in this environment, use `txc environment user
+     self-elevate` instead (a different, tenant-admin-privileged bootstrap path — see its own
+     help text).
    - Application user (service principal): `txc environment app list [--enabled|--disabled|--all]`
      / `txc environment app get --app <client-id-or-guid>`. If the application user doesn't
      exist yet, create it directly (the Entra app registration itself must already exist):
