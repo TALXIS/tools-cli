@@ -1,0 +1,79 @@
+using TALXIS.CLI.Core.Model;
+
+namespace TALXIS.CLI.Core.Contracts.PowerPlatform;
+
+/// <summary>
+/// Tenant-scoped Power Platform RBAC principal kinds.
+/// </summary>
+public enum PowerPlatformPrincipalType
+{
+    User = 0,
+    Group = 1,
+    ApplicationUser = 2,
+}
+
+/// <summary>
+/// Resolved principal identifiers used by tenant-scoped role assignment flows.
+/// Application principals carry both the service principal object id (for
+/// Power Platform RBAC) and the application/client id (for the legacy BAP
+/// admin-application registration).
+/// </summary>
+public sealed record PowerPlatformRolePrincipalReference(
+    PowerPlatformPrincipalType PrincipalType,
+    Guid ObjectId,
+    Guid? ApplicationId = null,
+    string? DisplayName = null,
+    string? UserPrincipalName = null);
+
+/// <summary>
+/// Resolved Power Platform tenant role definition metadata.
+/// </summary>
+public sealed record PowerPlatformRoleDefinition(
+    Guid RoleDefinitionId,
+    string RoleDefinitionName,
+    string? Description,
+    IReadOnlyList<string> AssignableScopes);
+
+/// <summary>
+/// A tenant-scoped role assignment projected into a strategy-neutral shape so
+/// callers can merge native PP-RBAC assignments with synthetic roles like
+/// <c>admin-application</c>.
+/// </summary>
+public sealed record PowerPlatformTenantRoleAssignment(
+    string RoleIdentifier,
+    string RoleName,
+    string Scope,
+    PowerPlatformPrincipalType PrincipalType,
+    Guid PrincipalObjectId,
+    string? AssignmentId,
+    DateTimeOffset? CreatedOn,
+    DateTimeOffset? ExpiresOn,
+    bool IsSynthetic);
+
+/// <summary>
+/// Strategy abstraction for manipulating tenant-scoped role assignments.
+/// Concrete implementations handle either native Power Platform RBAC roles or
+/// synthetic/legacy role concepts such as <c>admin-application</c>.
+/// </summary>
+public interface IPowerPlatformRoleAssignmentStrategy
+{
+    Task<IReadOnlyList<PowerPlatformTenantRoleAssignment>> ListAsync(
+        Connection connection,
+        Credential credential,
+        PowerPlatformRolePrincipalReference principal,
+        CancellationToken ct);
+
+    Task AddAsync(
+        Connection connection,
+        Credential credential,
+        PowerPlatformRolePrincipalReference principal,
+        string roleNameOrId,
+        CancellationToken ct);
+
+    Task RemoveAsync(
+        Connection connection,
+        Credential credential,
+        PowerPlatformRolePrincipalReference principal,
+        string roleNameOrId,
+        CancellationToken ct);
+}

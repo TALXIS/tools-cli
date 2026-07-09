@@ -7,6 +7,8 @@ using TALXIS.CLI.Core.Model;
 
 namespace TALXIS.CLI.Platform.PowerPlatform.Control.Bap;
 
+internal sealed record BapAdminApplicationRegistration(Guid ApplicationId);
+
 /// <summary>
 /// Thin authenticated transport over the BAP admin API. Owns the cross-cutting
 /// concerns shared by every BAP caller — token acquisition, base-URI
@@ -62,12 +64,94 @@ internal sealed class BapAdminApiClient
         return new BapResponse(response.StatusCode, body, response.Headers.Location);
     }
 
+    public async Task<IReadOnlyList<BapAdminApplicationRegistration>> ListAdminApplicationsAsync(
+        Connection connection,
+        Credential credential,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(credential);
+
+        var token = await AcquireTokenAsync(connection, credential, ct).ConfigureAwait(false);
+        var requestUri = new Uri(
+            GetBaseUri(connection),
+            "/providers/Microsoft.BusinessAppPlatform/scopes/admin/adminApplications?api-version=2020-10-01");
+
+        var response = await SendAsync(HttpMethod.Get, requestUri, token, jsonBody: null, ct).ConfigureAwait(false);
+        if (!response.IsSuccess)
+        {
+            throw new InvalidOperationException(
+                $"BAP admin application list failed ({(int)response.StatusCode} {response.StatusCode}): {Truncate(response.Body, 500)}");
+        }
+
+        using var document = JsonDocument.Parse(response.Body);
+        if (document.RootElement.ValueKind != JsonValueKind.Array)
+            throw new InvalidOperationException("BAP admin application list payload was not a JSON array.");
+
+        var results = new List<BapAdminApplicationRegistration>();
+        foreach (var item in document.RootElement.EnumerateArray())
+        {
+            if (item.TryGetProperty("applicationId", out var applicationIdElement)
+                && applicationIdElement.ValueKind == JsonValueKind.String
+                && Guid.TryParse(applicationIdElement.GetString(), out var applicationId))
+            {
+                results.Add(new BapAdminApplicationRegistration(applicationId));
+            }
+        }
+
+        return results;
+    }
+
+    public async Task RegisterAdminApplicationAsync(
+        Connection connection,
+        Credential credential,
+        Guid clientId,
+        CancellationToken ct)
+    {
+        await SendAdminApplicationMutationAsync(connection, credential, clientId, HttpMethod.Put, ct)
+            .ConfigureAwait(false);
+    }
+
+    public async Task UnregisterAdminApplicationAsync(
+        Connection connection,
+        Credential credential,
+        Guid clientId,
+        CancellationToken ct)
+    {
+        await SendAdminApplicationMutationAsync(connection, credential, clientId, HttpMethod.Delete, ct)
+            .ConfigureAwait(false);
+    }
+
     /// <summary>
     /// Truncates a (potentially large) response body for inclusion in error
     /// messages without dumping a full payload to the log.
     /// </summary>
     public static string Truncate(string s, int max)
         => string.IsNullOrEmpty(s) ? string.Empty : (s.Length <= max ? s : s[..max] + "...");
+
+    private async Task SendAdminApplicationMutationAsync(
+        Connection connection,
+        Credential credential,
+        Guid clientId,
+        HttpMethod method,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(credential);
+
+        var token = await AcquireTokenAsync(connection, credential, ct).ConfigureAwait(false);
+        var requestUri = new Uri(
+            GetBaseUri(connection),
+            $"/providers/Microsoft.BusinessAppPlatform/scopes/admin/adminApplications/{clientId}?api-version=2020-10-01");
+
+        var response = await SendAsync(method, requestUri, token, jsonBody: null, ct).ConfigureAwait(false);
+        if (!response.IsSuccess)
+        {
+            var action = method == HttpMethod.Put ? "register" : "unregister";
+            throw new InvalidOperationException(
+                $"BAP admin application {action} failed ({(int)response.StatusCode} {response.StatusCode}): {Truncate(response.Body, 500)}");
+        }
+    }
 }
 
 /// <summary>Raw result of a BAP admin API call.</summary>

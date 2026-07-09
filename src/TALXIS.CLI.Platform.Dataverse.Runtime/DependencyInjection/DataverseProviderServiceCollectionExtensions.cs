@@ -1,11 +1,15 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core.Abstractions;
+using TALXIS.CLI.Core.Contracts.PowerPlatform;
 using TALXIS.CLI.Core.Identity;
 using TALXIS.CLI.Platform.Dataverse.Runtime.Authority;
 using TALXIS.CLI.Platform.Dataverse.Runtime;
 using TALXIS.CLI.Platform.Dataverse.Runtime.Msal;
 using TALXIS.CLI.Platform.PowerPlatform.Control;
+using TALXIS.CLI.Platform.PowerPlatform.Control.Graph;
+using TALXIS.CLI.Platform.PowerPlatform.Control.PowerPlatformRbac;
+using TALXIS.CLI.Platform.PowerPlatform.Control.Strategies;
 using TALXIS.CLI.Core.Resolution;
 using TALXIS.CLI.Core.Storage;
 
@@ -51,9 +55,16 @@ public static class DataverseProviderServiceCollectionExtensions
         services.AddSingleton<IDataverseAccessTokenService>(sp => sp.GetRequiredService<DataverseAccessTokenService>());
         services.AddSingleton<IAccessTokenService>(sp => sp.GetRequiredService<DataverseAccessTokenService>());
         services.AddSingleton<IDataverseConnectionFactory, DataverseConnectionFactory>();
+        services.AddSingleton<MicrosoftGraphClient>();
+        services.AddSingleton<PowerPlatformRbacClient>();
+        services.AddSingleton<PowerPlatformRbacRoleStrategy>();
+        services.AddSingleton<BapAdminApplicationRoleStrategy>();
+        services.AddSingleton<IPowerPlatformRoleAssignmentStrategy>(sp => sp.GetRequiredService<PowerPlatformRbacRoleStrategy>());
+        services.AddSingleton<IPowerPlatformRoleAssignmentStrategy>(sp => sp.GetRequiredService<BapAdminApplicationRoleStrategy>());
         services.AddSingleton<IPowerPlatformEnvironmentCatalog, PowerPlatformEnvironmentCatalog>();
         services.AddSingleton<IPowerPlatformEnvironmentProvisioner, PowerPlatformEnvironmentProvisioner>();
         services.AddSingleton<EnvironmentSettingsClient>();
+        services.AddSingleton<TenantRoleResolver>();
         services.AddSingleton<TALXIS.CLI.Core.Platforms.PowerPlatform.IEnvironmentSettingsService,
             EnvironmentSettingsService>();
         services.AddSingleton<TALXIS.CLI.Core.Platforms.PowerPlatform.IEnvironmentManagementService,
