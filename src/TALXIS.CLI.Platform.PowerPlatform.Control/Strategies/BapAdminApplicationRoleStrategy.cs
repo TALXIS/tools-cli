@@ -6,6 +6,17 @@ using TALXIS.CLI.Platform.PowerPlatform.Control.PowerPlatformRbac;
 
 namespace TALXIS.CLI.Platform.PowerPlatform.Control.Strategies;
 
+/// <summary>
+/// Implements the synthetic <c>admin-application</c> tenant role by registering/deregistering
+/// the application with the Power Platform Admin (BAP) API's <c>adminApplications</c> endpoint,
+/// the mechanism Microsoft documents at
+/// <see href="https://learn.microsoft.com/en-us/power-platform/admin/powerplatform-api-create-service-principal">
+/// Create a service principal to create and manage environments and other resources for Power
+/// Platform</see>. Unlike every other tenant role, this is not a Power Platform RBAC role
+/// assignment - <see cref="PowerPlatformTenantRoleAssignment.IsSynthetic"/> is always
+/// <see langword="true"/> for assignments produced by this strategy, so callers can tell it
+/// apart from real RBAC assignments in <c>tenant app role list</c> output.
+/// </summary>
 public sealed class BapAdminApplicationRoleStrategy : IPowerPlatformRoleAssignmentStrategy
 {
     public const string AdminApplicationRoleValue = "admin-application";

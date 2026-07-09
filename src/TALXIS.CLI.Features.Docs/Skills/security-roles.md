@@ -117,6 +117,15 @@ and manage their tenant-wide admin roles.
    - For applications only, `--role admin-application` is a special value: it authorizes that
      app to call this CLI's own `environment` admin commands (`create`/`list`/`update`/`delete`)
      non-interactively, modeled as just another role the app can hold — not a separate
-     create/delete concept.
+     create/delete concept. Unlike every other role, this one is **not** a Power Platform RBAC
+     role assignment: it is implemented by registering the application with the Power Platform
+     Admin (BAP) API's `adminApplications` endpoint, the same mechanism Microsoft documents at
+     [Create a service principal to create and manage environments and other resources for
+     Power Platform](https://learn.microsoft.com/en-us/power-platform/admin/powerplatform-api-create-service-principal).
+     Because it uses a different API, `role list` marks it with `"isSynthetic": true` in its
+     output (every real RBAC role assignment shows `"isSynthetic": false`) — this is how a
+     consumer scripting against the JSON output can tell the two apart. Attempting
+     `--role admin-application` against a `--user` or `--group` fails with a validation error,
+     since only applications can be registered as environment-management service principals.
    - Use `role list --app|--user|--group ..` at any point to see currently assigned tenant roles.
 
