@@ -5,7 +5,7 @@ namespace TALXIS.CLI.Features.Tenant;
 [CliCommand(
     Name = "tenant",
     Description = "Discover and manage tenant-wide resources and role assignments.",
-    Children = new[] { typeof(Role.RoleCliCommand) },
+    Children = new[] { typeof(Role.RoleCliCommand), typeof(App.AppCliCommand), typeof(User.UserCliCommand), typeof(Group.GroupCliCommand) },
     ShortFormAutoGenerate = CliNameAutoGenerate.None
 )]
 public class TenantCliCommand
