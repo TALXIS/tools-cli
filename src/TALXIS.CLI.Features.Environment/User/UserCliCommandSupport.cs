@@ -17,22 +17,7 @@ internal static class UserCliCommandSupport
         bool all,
         ILogger logger,
         out DataverseSecurityPrincipalStateFilter filter)
-    {
-        filter = DataverseSecurityPrincipalStateFilter.Enabled;
-        var selected = (enabled ? 1 : 0) + (disabled ? 1 : 0) + (all ? 1 : 0);
-        if (selected > 1)
-        {
-            logger.LogError("Specify at most one of --enabled, --disabled, or --all.");
-            return false;
-        }
-
-        if (disabled)
-            filter = DataverseSecurityPrincipalStateFilter.Disabled;
-        else if (all)
-            filter = DataverseSecurityPrincipalStateFilter.All;
-
-        return true;
-    }
+        => EnvironmentPrincipalCommandSupport.TryResolveStateFilter(enabled, disabled, all, logger, out filter);
 
     public static async Task<DataverseUserRecord?> ResolveUserAsync(
         IDataverseUserService service,
@@ -126,11 +111,11 @@ internal static class UserCliCommandSupport
         foreach (var row in rows)
         {
             OutputWriter.WriteLine(
-                $"{Truncate(row.FullName ?? string.Empty, nameWidth).PadRight(nameWidth)} | " +
-                $"{Truncate(row.UserPrincipalName ?? string.Empty, upnWidth).PadRight(upnWidth)} | " +
-                $"{Truncate(row.PrimaryEmailAddress ?? string.Empty, emailWidth).PadRight(emailWidth)} | " +
+                $"{EnvironmentPrincipalCommandSupport.Truncate(row.FullName ?? string.Empty, nameWidth).PadRight(nameWidth)} | " +
+                $"{EnvironmentPrincipalCommandSupport.Truncate(row.UserPrincipalName ?? string.Empty, upnWidth).PadRight(upnWidth)} | " +
+                $"{EnvironmentPrincipalCommandSupport.Truncate(row.PrimaryEmailAddress ?? string.Empty, emailWidth).PadRight(emailWidth)} | " +
                 $"{(row.IsDisabled ? "disabled" : "enabled").PadRight(stateWidth)} | " +
-                $"{Truncate(row.BusinessUnitName ?? string.Empty, buWidth).PadRight(buWidth)} | {row.Id}");
+                $"{EnvironmentPrincipalCommandSupport.Truncate(row.BusinessUnitName ?? string.Empty, buWidth).PadRight(buWidth)} | {row.Id}");
         }
     }
 
@@ -162,8 +147,8 @@ internal static class UserCliCommandSupport
         foreach (var row in rows.OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase))
         {
             OutputWriter.WriteLine(
-                $"{Truncate(row.Name, nameWidth).PadRight(nameWidth)} | " +
-                $"{Truncate(row.BusinessUnitName ?? string.Empty, buWidth).PadRight(buWidth)} | {row.Id}");
+                $"{EnvironmentPrincipalCommandSupport.Truncate(row.Name, nameWidth).PadRight(nameWidth)} | " +
+                $"{EnvironmentPrincipalCommandSupport.Truncate(row.BusinessUnitName ?? string.Empty, buWidth).PadRight(buWidth)} | {row.Id}");
         }
     }
 
@@ -171,28 +156,7 @@ internal static class UserCliCommandSupport
         string? csv,
         ILogger logger,
         out IReadOnlyList<string> roles)
-    {
-        if (string.IsNullOrWhiteSpace(csv))
-        {
-            roles = Array.Empty<string>();
-            return true;
-        }
-
-        var parsed = csv
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-        if (parsed.Length == 0)
-        {
-            logger.LogError("--role must contain at least one role name or GUID when specified.");
-            roles = Array.Empty<string>();
-            return false;
-        }
-
-        roles = parsed;
-        return true;
-    }
+        => EnvironmentPrincipalCommandSupport.TryParseRoleIdentifiers(csv, logger, out roles);
 
     public static bool TryHandleValidationException(ILogger logger, Exception ex, out int exitCode)
     {
@@ -270,7 +234,4 @@ internal static class UserCliCommandSupport
 
     private static Uri NormalizeEnvironmentUrl(Uri uri)
         => new(uri.GetLeftPart(UriPartial.Path).TrimEnd('/') + "/");
-
-    private static string Truncate(string value, int maxWidth)
-        => value.Length > maxWidth ? value[..(maxWidth - 1)] + "." : value;
 }

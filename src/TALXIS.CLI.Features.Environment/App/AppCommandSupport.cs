@@ -12,22 +12,7 @@ internal static class AppCommandSupport
         bool all,
         ILogger logger,
         out DataverseSecurityPrincipalStateFilter filter)
-    {
-        var selected = (enabled ? 1 : 0) + (disabled ? 1 : 0) + (all ? 1 : 0);
-        if (selected > 1)
-        {
-            logger.LogError("Specify at most one of --enabled, --disabled, or --all.");
-            filter = default;
-            return false;
-        }
-
-        filter = disabled
-            ? DataverseSecurityPrincipalStateFilter.Disabled
-            : all
-                ? DataverseSecurityPrincipalStateFilter.All
-                : DataverseSecurityPrincipalStateFilter.Enabled;
-        return true;
-    }
+        => EnvironmentPrincipalCommandSupport.TryResolveStateFilter(enabled, disabled, all, logger, out filter);
 
     internal static bool TryResolveEnabledState(
         bool enable,
@@ -50,28 +35,7 @@ internal static class AppCommandSupport
         string? csv,
         ILogger logger,
         out IReadOnlyList<string> roles)
-    {
-        if (string.IsNullOrWhiteSpace(csv))
-        {
-            roles = Array.Empty<string>();
-            return true;
-        }
-
-        var parsed = csv
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-        if (parsed.Length == 0)
-        {
-            logger.LogError("--role must contain at least one role name or GUID when specified.");
-            roles = Array.Empty<string>();
-            return false;
-        }
-
-        roles = parsed;
-        return true;
-    }
+        => EnvironmentPrincipalCommandSupport.TryParseRoleIdentifiers(csv, logger, out roles);
 
     internal static bool TryHandleValidationException(ILogger logger, Exception ex, out int exitCode)
     {
@@ -144,9 +108,9 @@ internal static class AppCommandSupport
             OutputWriter.WriteLine(
                 $"{row.Id} | " +
                 $"{row.ApplicationId} | " +
-                $"{Truncate(row.FullName ?? string.Empty, nameWidth).PadRight(nameWidth)} | " +
+                $"{EnvironmentPrincipalCommandSupport.Truncate(row.FullName ?? string.Empty, nameWidth).PadRight(nameWidth)} | " +
                 $"{(row.IsDisabled ? "Disabled" : "Enabled").PadRight(stateWidth)} | " +
-                $"{Truncate(row.BusinessUnitName ?? string.Empty, businessUnitWidth).PadRight(businessUnitWidth)}");
+                $"{EnvironmentPrincipalCommandSupport.Truncate(row.BusinessUnitName ?? string.Empty, businessUnitWidth).PadRight(businessUnitWidth)}");
         }
 #pragma warning restore TXC003
     }
@@ -174,8 +138,8 @@ internal static class AppCommandSupport
         {
             OutputWriter.WriteLine(
                 $"{row.Id} | " +
-                $"{Truncate(row.Name, nameWidth).PadRight(nameWidth)} | " +
-                $"{Truncate(row.BusinessUnitName ?? string.Empty, businessUnitWidth).PadRight(businessUnitWidth)}");
+                $"{EnvironmentPrincipalCommandSupport.Truncate(row.Name, nameWidth).PadRight(nameWidth)} | " +
+                $"{EnvironmentPrincipalCommandSupport.Truncate(row.BusinessUnitName ?? string.Empty, businessUnitWidth).PadRight(businessUnitWidth)}");
         }
 #pragma warning restore TXC003
     }
@@ -228,9 +192,6 @@ internal static class AppCommandSupport
     {
         OutputFormatter.WriteData(payload, _ => textRenderer());
     }
-
-    private static string Truncate(string value, int maxWidth)
-        => value.Length > maxWidth ? value[..(maxWidth - 1)] + "." : value;
 }
 
 internal sealed record AppRoleAssignmentFailure(string Role, string Message, bool IsValidationError);
