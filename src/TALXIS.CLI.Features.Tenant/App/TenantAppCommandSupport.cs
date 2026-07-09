@@ -16,7 +16,7 @@ internal static class TenantAppCommandSupport
         string? filter,
         CancellationToken ct)
     {
-        var context = await ResolveContextAsync(profile, ct).ConfigureAwait(false);
+        var context = await TenantPrincipalCommandSupport.ResolveContextAsync(profile, ct).ConfigureAwait(false);
         var graph = TxcServices.Get<MicrosoftGraphClient>();
         return await graph.ListServicePrincipalsAsync(
             context.Connection,
@@ -31,7 +31,7 @@ internal static class TenantAppCommandSupport
         string app,
         CancellationToken ct)
     {
-        var context = await ResolveContextAsync(profile, ct).ConfigureAwait(false);
+        var context = await TenantPrincipalCommandSupport.ResolveContextAsync(profile, ct).ConfigureAwait(false);
         var graph = TxcServices.Get<MicrosoftGraphClient>();
         var matches = await graph.ListServicePrincipalsAsync(
             context.Connection,
@@ -62,7 +62,7 @@ internal static class TenantAppCommandSupport
         string app,
         CancellationToken ct)
     {
-        var context = await ResolveContextAsync(profile, ct).ConfigureAwait(false);
+        var context = await TenantPrincipalCommandSupport.ResolveContextAsync(profile, ct).ConfigureAwait(false);
         var resolver = TxcServices.Get<TenantRoleResolver>();
         return await resolver.ListAssignmentsAsync(
             context.Connection,
@@ -78,7 +78,7 @@ internal static class TenantAppCommandSupport
         string role,
         CancellationToken ct)
     {
-        var context = await ResolveContextAsync(profile, ct).ConfigureAwait(false);
+        var context = await TenantPrincipalCommandSupport.ResolveContextAsync(profile, ct).ConfigureAwait(false);
         var resolver = TxcServices.Get<TenantRoleResolver>();
         await resolver.AddAssignmentAsync(
             context.Connection,
@@ -95,7 +95,7 @@ internal static class TenantAppCommandSupport
         string role,
         CancellationToken ct)
     {
-        var context = await ResolveContextAsync(profile, ct).ConfigureAwait(false);
+        var context = await TenantPrincipalCommandSupport.ResolveContextAsync(profile, ct).ConfigureAwait(false);
         var resolver = TxcServices.Get<TenantRoleResolver>();
         await resolver.RemoveAssignmentAsync(
             context.Connection,
@@ -104,39 +104,6 @@ internal static class TenantAppCommandSupport
             app,
             role,
             ct).ConfigureAwait(false);
-    }
-
-    internal static bool TryHandleValidationException(ILogger logger, Exception ex, out int exitCode)
-    {
-        if (ex is TenantPrincipalAmbiguousException ambiguousPrincipal)
-        {
-            logger.LogError("{Error}", ambiguousPrincipal.Message);
-            foreach (var candidate in ambiguousPrincipal.Candidates)
-                logger.LogError("Candidate: {Candidate}", candidate);
-
-            exitCode = 2;
-            return true;
-        }
-
-        if (ex is TenantRoleAmbiguousException ambiguousRole)
-        {
-            logger.LogError("{Error}", ambiguousRole.Message);
-            foreach (var candidate in ambiguousRole.CandidateNames)
-                logger.LogError("Candidate: {Candidate}", candidate);
-
-            exitCode = 2;
-            return true;
-        }
-
-        if (ex is ArgumentException or InvalidOperationException)
-        {
-            logger.LogError("{Error}", ex.Message);
-            exitCode = 2;
-            return true;
-        }
-
-        exitCode = 0;
-        return false;
     }
 
     internal static void WriteAppTable(IReadOnlyList<GraphServicePrincipal> rows)
@@ -164,7 +131,7 @@ internal static class TenantAppCommandSupport
             OutputWriter.WriteLine(
                 $"{(row.AppId?.ToString() ?? "-").PadRight(appIdWidth)} | " +
                 $"{row.Id} | " +
-                $"{Truncate(row.DisplayName ?? string.Empty, displayNameWidth)}");
+                $"{TenantPrincipalCommandSupport.Truncate(row.DisplayName ?? string.Empty, displayNameWidth)}");
         }
 #pragma warning restore TXC003
     }
@@ -202,8 +169,8 @@ internal static class TenantAppCommandSupport
         foreach (var row in rows)
         {
             OutputWriter.WriteLine(
-                $"{Truncate(row.RoleName, roleWidth).PadRight(roleWidth)} | " +
-                $"{Truncate(row.RoleIdentifier, identifierWidth).PadRight(identifierWidth)} | " +
+                $"{TenantPrincipalCommandSupport.Truncate(row.RoleName, roleWidth).PadRight(roleWidth)} | " +
+                $"{TenantPrincipalCommandSupport.Truncate(row.RoleIdentifier, identifierWidth).PadRight(identifierWidth)} | " +
                 $"{(row.IsSynthetic ? "Synthetic" : "Tenant role").PadRight(kindWidth)} | " +
                 $"{row.Scope}");
         }
@@ -213,36 +180,16 @@ internal static class TenantAppCommandSupport
     internal static void WriteMutationResult<T>(T payload, Action textRenderer)
         => OutputFormatter.WriteData(payload, _ => textRenderer());
 
-    private static Task<ResolvedProfileContext> ResolveContextAsync(string? profile, CancellationToken ct)
-    {
-        var configurationResolver = TxcServices.Get<IConfigurationResolver>();
-        return configurationResolver.ResolveAsync(profile, ct);
-    }
-
     private static string? BuildListFilter(string? filter)
     {
         if (string.IsNullOrWhiteSpace(filter))
             return null;
 
-        return $"startswith(displayName,'{EscapeODataString(filter.Trim())}')";
+        return $"startswith(displayName,'{GraphODataFilterSupport.EscapeODataString(filter.Trim())}')";
     }
 
-    // Microsoft Graph rejects an entire $filter expression with a 400 if any clause compares a
-    // Guid-typed property (id, appId) to a value that isn't a valid GUID literal - even when
-    // combined with "or" against a valid string clause. So the appId/id eq clauses must only be
-    // included when the supplied value actually parses as a GUID (mirrors
-    // TenantRoleResolver.BuildServicePrincipalFilter).
     private static string BuildExactAppFilter(string app)
-    {
-        var trimmed = app.Trim();
-        var escaped = EscapeODataString(trimmed);
-        var displayNameClause = $"displayName eq '{escaped}'";
-
-        if (!Guid.TryParse(trimmed, out _))
-            return displayNameClause;
-
-        return $"appId eq '{escaped}' or id eq '{escaped}' or {displayNameClause}";
-    }
+        => GraphODataFilterSupport.BuildIdentifierFilter(app, ["appId", "id"], ["displayName"]);
 
     private static bool MatchesApplication(GraphServicePrincipal principal, string input)
         => principal.Id.ToString().Equals(input, StringComparison.OrdinalIgnoreCase)
@@ -251,10 +198,4 @@ internal static class TenantAppCommandSupport
 
     private static string FormatAppCandidate(GraphServicePrincipal principal)
         => $"{principal.DisplayName ?? "-"} (appId: {principal.AppId?.ToString() ?? "-"}, id: {principal.Id})";
-
-    private static string EscapeODataString(string value)
-        => value.Replace("'", "''", StringComparison.Ordinal);
-
-    private static string Truncate(string value, int maxWidth)
-        => value.Length > maxWidth ? value[..(maxWidth - 1)] + "." : value;
 }

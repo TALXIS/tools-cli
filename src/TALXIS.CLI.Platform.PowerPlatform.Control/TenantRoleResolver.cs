@@ -290,32 +290,11 @@ public sealed class TenantRoleResolver
         return new PowerPlatformRolePrincipalReference(PowerPlatformPrincipalType.Group, objectId);
     }
 
-    // Microsoft Graph rejects an entire $filter expression with a 400 if any clause compares a
-    // Guid-typed property (id, appId) to a value that isn't a valid GUID literal - even when that
-    // clause is combined with "or" against a valid string clause. So the id/appId eq clauses must
-    // only be included when the supplied value actually parses as a GUID.
     private static string BuildServicePrincipalFilter(string value)
-    {
-        var trimmed = value.Trim();
-        var escaped = EscapeODataString(trimmed);
-        var displayNameClause = $"displayName eq '{escaped}'";
-
-        if (!Guid.TryParse(trimmed, out _))
-            return displayNameClause;
-
-        return $"appId eq '{escaped}' or id eq '{escaped}' or {displayNameClause}";
-    }
+        => GraphODataFilterSupport.BuildIdentifierFilter(value, ["appId", "id"], ["displayName"]);
 
     private static string BuildUserFilter(string value)
-    {
-        var trimmed = value.Trim();
-        var escaped = EscapeODataString(trimmed);
-
-        if (!Guid.TryParse(trimmed, out _))
-            return $"userPrincipalName eq '{escaped}'";
-
-        return $"id eq '{escaped}' or userPrincipalName eq '{escaped}'";
-    }
+        => GraphODataFilterSupport.BuildIdentifierFilter(value, ["id"], ["userPrincipalName"]);
 
     private static bool MatchesApplication(GraphServicePrincipal principal, string input)
         => principal.Id.ToString().Equals(input, StringComparison.OrdinalIgnoreCase)
@@ -341,7 +320,4 @@ public sealed class TenantRoleResolver
 
         return projector(matches[0]);
     }
-
-    private static string EscapeODataString(string value)
-        => value.Replace("'", "''", StringComparison.Ordinal);
 }

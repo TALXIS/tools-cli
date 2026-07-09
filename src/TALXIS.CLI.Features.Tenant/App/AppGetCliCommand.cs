@@ -31,7 +31,7 @@ public class AppGetCliCommand : ProfiledCliCommand
             OutputFormatter.WriteData(app, TenantAppCommandSupport.WriteAppDetail);
             return ExitSuccess;
         }
-        catch (Exception ex) when (TenantAppCommandSupport.TryHandleValidationException(Logger, ex, out var exitCode))
+        catch (Exception ex) when (TenantPrincipalCommandSupport.TryHandleValidationException(Logger, ex, out var exitCode))
         {
             return exitCode;
         }

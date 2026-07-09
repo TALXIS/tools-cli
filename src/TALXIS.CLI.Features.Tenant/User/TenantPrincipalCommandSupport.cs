@@ -41,6 +41,13 @@ internal static class TenantPrincipalCommandSupport
             return true;
         }
 
+        if (ex is ArgumentException or InvalidOperationException)
+        {
+            logger.LogError("{Error}", ex.Message);
+            exitCode = 2;
+            return true;
+        }
+
         exitCode = 0;
         return false;
     }
@@ -78,6 +85,6 @@ internal static class TenantPrincipalCommandSupport
     internal static void WriteMutationResult<T>(T payload, Action textRenderer)
         => OutputFormatter.WriteData(payload, _ => textRenderer());
 
-    private static string Truncate(string value, int maxWidth)
+    internal static string Truncate(string value, int maxWidth)
         => value.Length > maxWidth ? value[..(maxWidth - 1)] + "." : value;
 }

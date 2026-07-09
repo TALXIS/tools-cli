@@ -1,19 +1,24 @@
 using Microsoft.Extensions.Logging;
-using TALXIS.CLI.Features.Tenant.App;
-using TALXIS.CLI.Platform.PowerPlatform.Control;
 using TALXIS.CLI.Core.Contracts.PowerPlatform;
+using TALXIS.CLI.Features.Tenant;
+using TALXIS.CLI.Platform.PowerPlatform.Control;
 using Xunit;
 
-namespace TALXIS.CLI.Tests.Tenant.App;
+namespace TALXIS.CLI.Tests.Tenant;
 
-public sealed class TenantAppCommandSupportTests
+/// <summary>
+/// Direct unit coverage for the shared <see cref="TenantPrincipalCommandSupport.TryHandleValidationException"/>
+/// helper, reused by every <c>txc tenant</c> user/app/group/role command
+/// (previously duplicated per command-support class).
+/// </summary>
+public sealed class TenantPrincipalCommandSupportTests
 {
     [Fact]
     public void TryHandleValidationException_AmbiguousPrincipal_LogsCandidates()
     {
         var logger = new RecordingLogger();
 
-        var handled = TenantAppCommandSupport.TryHandleValidationException(
+        var handled = TenantPrincipalCommandSupport.TryHandleValidationException(
             logger,
             new TenantPrincipalAmbiguousException(
                 PowerPlatformPrincipalType.ApplicationUser,
@@ -35,7 +40,7 @@ public sealed class TenantAppCommandSupportTests
     {
         var logger = new RecordingLogger();
 
-        var handled = TenantAppCommandSupport.TryHandleValidationException(
+        var handled = TenantPrincipalCommandSupport.TryHandleValidationException(
             logger,
             new TenantRoleAmbiguousException("Owner", ["Owner", "Owner"]),
             out var exitCode);
@@ -43,6 +48,49 @@ public sealed class TenantAppCommandSupportTests
         Assert.True(handled);
         Assert.Equal(2, exitCode);
         Assert.Contains(logger.Messages, message => message.Contains("Candidate: Owner", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void TryHandleValidationException_ArgumentException_ReturnsValidationError()
+    {
+        var logger = new RecordingLogger();
+
+        var handled = TenantPrincipalCommandSupport.TryHandleValidationException(
+            logger,
+            new ArgumentException("Group 'not-a-guid' must be specified as an Entra object id (GUID)."),
+            out var exitCode);
+
+        Assert.True(handled);
+        Assert.Equal(2, exitCode);
+        Assert.Contains(logger.Messages, message => message.Contains("Group 'not-a-guid' must be specified as an Entra object id (GUID).", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void TryHandleValidationException_InvalidOperationException_ReturnsValidationError()
+    {
+        var logger = new RecordingLogger();
+
+        var handled = TenantPrincipalCommandSupport.TryHandleValidationException(
+            logger,
+            new InvalidOperationException("Something went wrong."),
+            out var exitCode);
+
+        Assert.True(handled);
+        Assert.Equal(2, exitCode);
+    }
+
+    [Fact]
+    public void TryHandleValidationException_UnrelatedException_ReturnsFalse()
+    {
+        var logger = new RecordingLogger();
+
+        var handled = TenantPrincipalCommandSupport.TryHandleValidationException(
+            logger,
+            new NotSupportedException("Unsupported."),
+            out var exitCode);
+
+        Assert.False(handled);
+        Assert.Equal(0, exitCode);
     }
 
     private sealed class RecordingLogger : ILogger
