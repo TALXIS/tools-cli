@@ -199,38 +199,47 @@ public sealed class TenantRoleResolverTests
     }
 
     [Fact]
-    public async Task ListAssignmentsAsync_GroupByDisplayName_DoesNotSendGuidTypedIdClause()
+    public async Task ListAssignmentsAsync_GroupByObjectId_ResolvesWithoutAnyGraphCall()
     {
-        HttpRequestMessage? graphRequest = null;
+        // Groups are never resolved through Microsoft Graph (that would require the
+        // "Group.Read.All" permission, which this CLI intentionally never requests -
+        // see TenantRoleResolver.ResolveGroup for the rationale). A valid GUID should
+        // flow straight through to the RBAC calls with zero Graph HTTP traffic.
         var handlers = new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
-            req =>
-            {
-                graphRequest = req;
-                return JsonResponse("""
-                {
-                  "value": [
-                    { "id": "11111111-1111-1111-1111-111111111111", "displayName": "zzz-txc-e2e-test-group" }
-                  ]
-                }
-                """);
-            },
             _ => JsonResponse("{\"value\":[]}"),
             _ => JsonResponse("{\"value\":[]}")
         ]);
 
         var sut = CreateResolver(handlers);
-        await sut.ListAssignmentsAsync(
+        var result = await sut.ListAssignmentsAsync(
             TestConnection(),
             TestCredential(),
             PowerPlatformPrincipalType.Group,
-            "zzz-txc-e2e-test-group",
+            "11111111-1111-1111-1111-111111111111",
             CancellationToken.None);
 
-        Assert.NotNull(graphRequest);
-        var query = Uri.UnescapeDataString(graphRequest!.RequestUri!.Query);
-        Assert.DoesNotContain("id eq", query);
-        Assert.Contains("displayName eq 'zzz-txc-e2e-test-group'", query);
+        Assert.Empty(result);
+        Assert.Empty(handlers);
     }
+
+    [Fact]
+    public async Task ListAssignmentsAsync_GroupByDisplayName_ThrowsValidationErrorWithoutAnyHttpCall()
+    {
+        var handlers = new Queue<Func<HttpRequestMessage, HttpResponseMessage>>();
+        var sut = CreateResolver(handlers);
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+            sut.ListAssignmentsAsync(
+                TestConnection(),
+                TestCredential(),
+                PowerPlatformPrincipalType.Group,
+                "zzz-txc-e2e-test-group",
+                CancellationToken.None));
+
+        Assert.Contains("Entra object id", ex.Message);
+        Assert.Empty(handlers);
+    }
+
 
     [Fact]
     public async Task AddAssignmentAsync_ApplicationByDisplayName_DoesNotSendGuidTypedIdOrAppIdClause()

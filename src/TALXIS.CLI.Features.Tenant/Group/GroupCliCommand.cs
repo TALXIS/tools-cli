@@ -3,16 +3,25 @@ using DotMake.CommandLine;
 namespace TALXIS.CLI.Features.Tenant.Group;
 
 /// <summary>
-/// Parent command for tenant-wide Entra group discovery and role assignment operations.
-/// Usage: <c>txc tenant group [list|get|role]</c>
+/// Parent command for tenant-wide role assignment operations on an Entra group.
+/// Usage: <c>txc tenant group role [list|add|remove]</c>
 /// </summary>
+/// <remarks>
+/// There is deliberately no <c>list</c>/<c>get</c> sub-command here (unlike
+/// <c>tenant user</c>/<c>tenant app</c>): searching or resolving groups by
+/// display name requires the Microsoft Graph <c>Group.Read.All</c>
+/// permission, which is not pre-consented for this CLI's Entra app
+/// registration in most tenants and we intentionally never prompt for extra
+/// consent. Instead, the group is always identified by its Entra object id
+/// (GUID) directly — the same approach used by <c>pac admin assign-group</c>.
+/// Find the object id via the Entra admin center or
+/// <c>az ad group show --group &lt;name&gt; --query id -o tsv</c>.
+/// </remarks>
 [CliCommand(
     Name = "group",
-    Description = "Discover Entra groups and manage their tenant role assignments.",
+    Description = "Manage tenant role assignments for an Entra group, identified by its object id.",
     Children = new[]
     {
-        typeof(GroupListCliCommand),
-        typeof(GroupGetCliCommand),
         typeof(GroupRoleCliCommand)
     },
     ShortFormAutoGenerate = CliNameAutoGenerate.None

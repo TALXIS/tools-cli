@@ -8,64 +8,15 @@ namespace TALXIS.CLI.Tests.Tenant.Group;
 [Collection("TxcServicesSerial")]
 public sealed class GroupCliCommandTests
 {
-    [Fact]
-    public async Task RunAsync_List_WithFilter_ReturnsGroups()
-    {
-        using var host = new TenantPrincipalCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
-            request =>
-            {
-                Assert.Equal(HttpMethod.Get, request.Method);
-                Assert.Contains("$filter=startswith(displayName,'Ops')", Uri.UnescapeDataString(request.RequestUri!.Query));
-                return TenantPrincipalCommandTestHost.JsonResponse("""
-                {
-                  "value": [
-                    {
-                      "id": "44444444-4444-4444-4444-444444444444",
-                      "displayName": "Ops Team"
-                    }
-                  ]
-                }
-                """);
-            }
-        ]));
-
-        var output = new StringWriter();
-        int exit;
-        using (OutputWriter.RedirectTo(output))
-        {
-            exit = await new GroupListCliCommand
-            {
-                Format = "json",
-                Filter = "Ops"
-            }.RunAsync();
-        }
-
-        Assert.Equal(0, exit);
-        var document = JsonDocument.Parse(output.ToString());
-        var groups = document.RootElement.EnumerateArray().ToArray();
-        Assert.Single(groups);
-        Assert.Equal("Ops Team", groups[0].GetProperty("displayName").GetString());
-    }
+    // Groups are resolved by raw Entra object id only - never through Microsoft Graph
+    // (see TenantRoleResolver's group-resolution remarks for why). These tests confirm
+    // no Graph/HTTP call is ever attempted for a non-GUID --group value, and that a
+    // valid GUID flows straight through to the Power Platform RBAC calls.
 
     [Fact]
-    public async Task RunAsync_RoleList_AmbiguousGroup_ReturnsValidationError()
+    public async Task RunAsync_RoleList_NonGuidGroup_ReturnsValidationErrorWithoutAnyHttpCall()
     {
-        using var host = new TenantPrincipalCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
-            _ => TenantPrincipalCommandTestHost.JsonResponse("""
-            {
-              "value": [
-                {
-                  "id": "44444444-4444-4444-4444-444444444444",
-                  "displayName": "Ops Team"
-                },
-                {
-                  "id": "55555555-5555-5555-5555-555555555555",
-                  "displayName": "Ops Team"
-                }
-              ]
-            }
-            """)
-        ]));
+        using var host = new TenantPrincipalCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>());
 
         var output = new StringWriter();
         int exit;
@@ -78,36 +29,30 @@ public sealed class GroupCliCommandTests
             }.RunAsync();
         }
 
-        Assert.Equal(2, exit);
+        Assert.NotEqual(0, exit);
         Assert.Equal(string.Empty, output.ToString());
     }
 
     [Fact]
-    public async Task RunAsync_RoleRemove_RemovesAssignment()
+    public async Task RunAsync_RoleRemove_ByObjectId_RemovesAssignmentWithoutGraphCall()
     {
         using var host = new TenantPrincipalCommandTestHost(new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
-            _ => TenantPrincipalCommandTestHost.JsonResponse("""
+            request =>
             {
-              "value": [
+                Assert.Contains("roleDefinitions", request.RequestUri!.ToString());
+                return TenantPrincipalCommandTestHost.JsonResponse("""
                 {
-                  "id": "44444444-4444-4444-4444-444444444444",
-                  "displayName": "Ops Team"
+                  "value": [
+                    {
+                      "roleDefinitionId": "66666666-6666-6666-6666-666666666666",
+                      "roleDefinitionName": "Tenant Reader",
+                      "description": "Read settings.",
+                      "assignableScopes": ["/tenants/tenant-id"]
+                    }
+                  ]
                 }
-              ]
-            }
-            """),
-            _ => TenantPrincipalCommandTestHost.JsonResponse("""
-            {
-              "value": [
-                {
-                  "roleDefinitionId": "66666666-6666-6666-6666-666666666666",
-                  "roleDefinitionName": "Tenant Reader",
-                  "description": "Read settings.",
-                  "assignableScopes": ["/tenants/tenant-id"]
-                }
-              ]
-            }
-            """),
+                """);
+            },
             _ => TenantPrincipalCommandTestHost.JsonResponse("""
             {
               "value": [
@@ -137,7 +82,7 @@ public sealed class GroupCliCommandTests
             {
                 Format = "json",
                 Yes = true,
-                Group = "Ops Team",
+                Group = "44444444-4444-4444-4444-444444444444",
                 Role = "Tenant Reader"
             }.RunAsync();
         }
@@ -145,6 +90,6 @@ public sealed class GroupCliCommandTests
         Assert.Equal(0, exit);
         var document = JsonDocument.Parse(output.ToString());
         Assert.Equal("role-removed", document.RootElement.GetProperty("status").GetString());
-        Assert.Equal("Ops Team", document.RootElement.GetProperty("group").GetString());
+        Assert.Equal("44444444-4444-4444-4444-444444444444", document.RootElement.GetProperty("group").GetString());
     }
 }

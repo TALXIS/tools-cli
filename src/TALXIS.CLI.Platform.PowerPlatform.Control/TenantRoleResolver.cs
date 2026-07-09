@@ -197,7 +197,7 @@ public sealed class TenantRoleResolver
         {
             PowerPlatformPrincipalType.ApplicationUser => await ResolveApplicationAsync(connection, credential, principalValue, ct).ConfigureAwait(false),
             PowerPlatformPrincipalType.User => await ResolveUserAsync(connection, credential, principalValue, ct).ConfigureAwait(false),
-            PowerPlatformPrincipalType.Group => await ResolveGroupAsync(connection, credential, principalValue, ct).ConfigureAwait(false),
+            PowerPlatformPrincipalType.Group => ResolveGroup(principalValue),
             _ => throw new ArgumentOutOfRangeException(nameof(principalType), principalType, "Unsupported tenant principal type."),
         };
     }
@@ -268,27 +268,26 @@ public sealed class TenantRoleResolver
                 UserPrincipalName: user.UserPrincipalName));
     }
 
-    private async Task<PowerPlatformRolePrincipalReference> ResolveGroupAsync(
-        Connection connection,
-        Credential credential,
-        string principalValue,
-        CancellationToken ct)
+    // Unlike users and applications, groups are never resolved through Microsoft Graph.
+    // Searching/resolving a group by display name requires the Graph "Group.Read.All"
+    // permission, which is not pre-consented for this CLI's Entra app registration in
+    // most tenants - and we deliberately never prompt tenant admins for extra consent.
+    // Instead, the caller must supply the group's Entra object id (GUID) directly, the
+    // same approach "pac admin assign-group" uses (its --group argument is a raw GUID).
+    private static PowerPlatformRolePrincipalReference ResolveGroup(string principalValue)
     {
-        var filter = BuildGroupFilter(principalValue);
-        var matches = await _graph.ListGroupsAsync(connection, credential, filter, top: 25, ct)
-            .ConfigureAwait(false);
+        var trimmed = principalValue.Trim();
+        if (!Guid.TryParse(trimmed, out var objectId))
+        {
+            throw new ArgumentException(
+                $"Group '{principalValue}' must be specified as an Entra object id (GUID). " +
+                "This CLI does not look up groups by display name to avoid requiring the " +
+                "Microsoft Graph 'Group.Read.All' permission. Find the object id via the Entra " +
+                "admin center or 'az ad group show --group <name> --query id -o tsv'.",
+                nameof(principalValue));
+        }
 
-        var normalized = principalValue.Trim();
-        var exactMatches = matches.Where(group => MatchesGroup(group, normalized)).ToList();
-        return ResolveSingle(
-            PowerPlatformPrincipalType.Group,
-            principalValue,
-            exactMatches,
-            group => group.DisplayName ?? group.Id.ToString(),
-            group => new PowerPlatformRolePrincipalReference(
-                PowerPlatformPrincipalType.Group,
-                group.Id,
-                DisplayName: group.DisplayName));
+        return new PowerPlatformRolePrincipalReference(PowerPlatformPrincipalType.Group, objectId);
     }
 
     // Microsoft Graph rejects an entire $filter expression with a 400 if any clause compares a
@@ -318,17 +317,6 @@ public sealed class TenantRoleResolver
         return $"id eq '{escaped}' or userPrincipalName eq '{escaped}'";
     }
 
-    private static string BuildGroupFilter(string value)
-    {
-        var trimmed = value.Trim();
-        var escaped = EscapeODataString(trimmed);
-
-        if (!Guid.TryParse(trimmed, out _))
-            return $"displayName eq '{escaped}'";
-
-        return $"id eq '{escaped}' or displayName eq '{escaped}'";
-    }
-
     private static bool MatchesApplication(GraphServicePrincipal principal, string input)
         => principal.Id.ToString().Equals(input, StringComparison.OrdinalIgnoreCase)
             || (principal.AppId?.ToString().Equals(input, StringComparison.OrdinalIgnoreCase) ?? false)
@@ -337,10 +325,6 @@ public sealed class TenantRoleResolver
     private static bool MatchesUser(GraphUser user, string input)
         => user.Id.ToString().Equals(input, StringComparison.OrdinalIgnoreCase)
             || string.Equals(user.UserPrincipalName, input, StringComparison.OrdinalIgnoreCase);
-
-    private static bool MatchesGroup(GraphGroup group, string input)
-        => group.Id.ToString().Equals(input, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(group.DisplayName, input, StringComparison.OrdinalIgnoreCase);
 
     private static PowerPlatformRolePrincipalReference ResolveSingle<TSource>(
         PowerPlatformPrincipalType principalType,

@@ -10,12 +10,12 @@ public sealed record GraphServicePrincipal(Guid Id, Guid? AppId, string? Display
 
 public sealed record GraphUser(Guid Id, string? DisplayName, string? UserPrincipalName);
 
-public sealed record GraphGroup(Guid Id, string? DisplayName);
-
 /// <summary>
 /// Small authenticated client for read-only Microsoft Graph directory lookups
 /// used by <c>txc tenant</c> commands. This client deliberately supports only
-/// the GET endpoints required by the feature: service principals, users, and groups.
+/// the GET endpoints required by the feature: service principals and users.
+/// Entra groups are intentionally never looked up through this client - see
+/// the remarks on <see cref="TenantRoleResolver"/>'s group resolution for why.
 /// </summary>
 public sealed class MicrosoftGraphClient
 {
@@ -69,25 +69,6 @@ public sealed class MicrosoftGraphClient
             ParseUser,
             "users",
             "User.Read.All",
-            ct);
-
-    public Task<IReadOnlyList<GraphGroup>> ListGroupsAsync(
-        Connection connection,
-        Credential credential,
-        string? filter,
-        int? top,
-        CancellationToken ct)
-        => GetPagedAsync(
-            connection,
-            credential,
-            BuildCollectionUri(
-                "groups",
-                filter,
-                top,
-                "$select=id,displayName"),
-            ParseGroup,
-            "groups",
-            "Group.Read.All",
             ct);
 
     private async Task<IReadOnlyList<T>> GetPagedAsync<T>(
@@ -178,14 +159,6 @@ public sealed class MicrosoftGraphClient
             id,
             TryReadOptionalString(item, "displayName"),
             TryReadOptionalString(item, "userPrincipalName"));
-    }
-
-    private static GraphGroup? ParseGroup(JsonElement item)
-    {
-        if (!TryReadGuid(item, "id", out var id))
-            return null;
-
-        return new GraphGroup(id, TryReadOptionalString(item, "displayName"));
     }
 
     private static Uri? TryReadNextLink(JsonElement root)

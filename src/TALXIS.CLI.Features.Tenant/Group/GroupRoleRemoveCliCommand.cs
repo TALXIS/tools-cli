@@ -9,7 +9,7 @@ namespace TALXIS.CLI.Features.Tenant.Group;
 
 /// <summary>
 /// Removes a tenant role from an Entra group.
-/// Usage: <c>txc tenant group role remove --group &lt;name-or-object-id&gt; --role &lt;name-or-guid&gt; --yes</c>
+/// Usage: <c>txc tenant group role remove --group &lt;object-id&gt; --role &lt;name-or-guid&gt; --yes</c>
 /// </summary>
 [CliDestructive("Permanently removes the tenant role assignment from the group.")]
 [CliCommand(
@@ -23,7 +23,7 @@ public class GroupRoleRemoveCliCommand : ProfiledCliCommand, IDestructiveCommand
     [CliOption(Name = "--yes", Description = "Skip interactive confirmation.", Required = false)]
     public bool Yes { get; set; }
 
-    [CliOption(Name = "--group", Description = "Display name or Entra object id.", Required = true)]
+    [CliOption(Name = "--group", Description = "Entra group object id (GUID). Find it via the Entra admin center or 'az ad group show --group <name> --query id -o tsv'.", Required = true)]
     public string Group { get; set; } = null!;
 
     [CliOption(Name = "--role", Description = "Tenant role name or role id.", Required = true)]

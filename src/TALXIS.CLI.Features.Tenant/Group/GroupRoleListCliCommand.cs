@@ -8,7 +8,7 @@ namespace TALXIS.CLI.Features.Tenant.Group;
 
 /// <summary>
 /// Lists tenant roles assigned to an Entra group.
-/// Usage: <c>txc tenant group role list --group &lt;name-or-object-id&gt;</c>
+/// Usage: <c>txc tenant group role list --group &lt;object-id&gt;</c>
 /// </summary>
 [CliReadOnly]
 [CliCommand(
@@ -19,7 +19,7 @@ public class GroupRoleListCliCommand : ProfiledCliCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(GroupRoleListCliCommand));
 
-    [CliOption(Name = "--group", Description = "Display name or Entra object id.", Required = true)]
+    [CliOption(Name = "--group", Description = "Entra group object id (GUID). Find it via the Entra admin center or 'az ad group show --group <name> --query id -o tsv'.", Required = true)]
     public string Group { get; set; } = null!;
 
     protected override Task<int> ExecuteAsync() => ExecuteListRolesAsync();

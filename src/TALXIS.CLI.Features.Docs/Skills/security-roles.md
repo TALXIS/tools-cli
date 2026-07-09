@@ -100,18 +100,23 @@ and manage their tenant-wide admin roles.
 1. **Find the tenant role** — `txc tenant role list [--filter <name>]` /
    `txc tenant role get --role <name-or-guid>`. This is the catalog every `--role` value below
    is validated against.
-2. **Find the principal** — mirrors the environment-level shape, one resource per principal
-   kind, all read-only discovery (no `create`/`update`/`delete` — the underlying Entra
-   app/user/group must already exist):
+2. **Find the principal:**
    - `txc tenant app list [--filter <name>]` / `txc tenant app get --app <client-id-or-object-id>`
    - `txc tenant user list [--filter <upn-or-name>]` / `txc tenant user get --user <upn-or-object-id>`
-   - `txc tenant group list [--filter <name>]` / `txc tenant group get --group <name-or-object-id>`
+   - Groups have no `list`/`get` — see the note below.
 3. **Assign or revoke the tenant role:**
    - `txc tenant app role add --app .. --role <name-or-guid>` / `role remove --app .. --role ..`
    - `txc tenant user role add --user .. --role <name-or-guid>` / `role remove --user .. --role ..`
-   - `txc tenant group role add --group .. --role <name-or-guid>` / `role remove --group .. --role ..`
+   - `txc tenant group role add --group <object-id> --role <name-or-guid>` /
+     `role remove --group <object-id> --role ..`. Unlike apps and users, `--group` must be the
+     group's Entra **object id (GUID)** — this CLI never looks groups up by display name, because
+     that would require the Microsoft Graph `Group.Read.All` permission, which is not
+     pre-consented for this CLI's Entra app registration in most tenants. This CLI never prompts
+     for extra consent, so find the object id yourself first, e.g. via the Entra admin center or
+     `az ad group show --group <name> --query id -o tsv`.
    - For applications only, `--role admin-application` is a special value: it authorizes that
      app to call this CLI's own `environment` admin commands (`create`/`list`/`update`/`delete`)
      non-interactively, modeled as just another role the app can hold — not a separate
      create/delete concept.
    - Use `role list --app|--user|--group ..` at any point to see currently assigned tenant roles.
+
