@@ -129,6 +129,149 @@ public sealed class TenantRoleResolverTests
     }
 
     [Fact]
+    public async Task ListAssignmentsAsync_UserByUpn_DoesNotSendGuidTypedIdClause()
+    {
+        // Regression test: Microsoft Graph rejects the entire $filter with a 400 if any clause
+        // compares a Guid-typed property (id) to a non-GUID value, even combined with "or" - so
+        // the "id eq" clause must be omitted entirely when the identifier isn't a GUID.
+        HttpRequestMessage? graphRequest = null;
+        var handlers = new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
+            req =>
+            {
+                graphRequest = req;
+                return JsonResponse("""
+                {
+                  "value": [
+                    { "id": "11111111-1111-1111-1111-111111111111", "userPrincipalName": "user@contoso.com", "displayName": "Contoso User" }
+                  ]
+                }
+                """);
+            },
+            _ => JsonResponse("{\"value\":[]}"),
+            _ => JsonResponse("{\"value\":[]}")
+        ]);
+
+        var sut = CreateResolver(handlers);
+        await sut.ListAssignmentsAsync(
+            TestConnection(),
+            TestCredential(),
+            PowerPlatformPrincipalType.User,
+            "user@contoso.com",
+            CancellationToken.None);
+
+        Assert.NotNull(graphRequest);
+        var query = Uri.UnescapeDataString(graphRequest!.RequestUri!.Query);
+        Assert.DoesNotContain("id eq", query);
+        Assert.Contains("userPrincipalName eq 'user@contoso.com'", query);
+    }
+
+    [Fact]
+    public async Task ListAssignmentsAsync_UserByObjectId_IncludesIdClause()
+    {
+        HttpRequestMessage? graphRequest = null;
+        var handlers = new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
+            req =>
+            {
+                graphRequest = req;
+                return JsonResponse("""
+                {
+                  "value": [
+                    { "id": "11111111-1111-1111-1111-111111111111", "userPrincipalName": "user@contoso.com", "displayName": "Contoso User" }
+                  ]
+                }
+                """);
+            },
+            _ => JsonResponse("{\"value\":[]}"),
+            _ => JsonResponse("{\"value\":[]}")
+        ]);
+
+        var sut = CreateResolver(handlers);
+        await sut.ListAssignmentsAsync(
+            TestConnection(),
+            TestCredential(),
+            PowerPlatformPrincipalType.User,
+            "11111111-1111-1111-1111-111111111111",
+            CancellationToken.None);
+
+        Assert.NotNull(graphRequest);
+        var query = Uri.UnescapeDataString(graphRequest!.RequestUri!.Query);
+        Assert.Contains("id eq '11111111-1111-1111-1111-111111111111'", query);
+    }
+
+    [Fact]
+    public async Task ListAssignmentsAsync_GroupByDisplayName_DoesNotSendGuidTypedIdClause()
+    {
+        HttpRequestMessage? graphRequest = null;
+        var handlers = new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
+            req =>
+            {
+                graphRequest = req;
+                return JsonResponse("""
+                {
+                  "value": [
+                    { "id": "11111111-1111-1111-1111-111111111111", "displayName": "zzz-txc-e2e-test-group" }
+                  ]
+                }
+                """);
+            },
+            _ => JsonResponse("{\"value\":[]}"),
+            _ => JsonResponse("{\"value\":[]}")
+        ]);
+
+        var sut = CreateResolver(handlers);
+        await sut.ListAssignmentsAsync(
+            TestConnection(),
+            TestCredential(),
+            PowerPlatformPrincipalType.Group,
+            "zzz-txc-e2e-test-group",
+            CancellationToken.None);
+
+        Assert.NotNull(graphRequest);
+        var query = Uri.UnescapeDataString(graphRequest!.RequestUri!.Query);
+        Assert.DoesNotContain("id eq", query);
+        Assert.Contains("displayName eq 'zzz-txc-e2e-test-group'", query);
+    }
+
+    [Fact]
+    public async Task AddAssignmentAsync_ApplicationByDisplayName_DoesNotSendGuidTypedIdOrAppIdClause()
+    {
+        HttpRequestMessage? graphRequest = null;
+        var handlers = new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
+            req =>
+            {
+                graphRequest = req;
+                return JsonResponse("""
+                {
+                  "value": [
+                    { "id": "11111111-1111-1111-1111-111111111111", "appId": "22222222-2222-2222-2222-222222222222", "displayName": "Contoso App" }
+                  ]
+                }
+                """);
+            },
+            _ => JsonResponse("[]"),
+            _ => new HttpResponseMessage(System.Net.HttpStatusCode.NoContent)
+            {
+                Content = new StringContent(string.Empty)
+            }
+        ]);
+
+        var sut = CreateResolver(handlers);
+        await sut.AddAssignmentAsync(
+            TestConnection(),
+            TestCredential(),
+            PowerPlatformPrincipalType.ApplicationUser,
+            "Contoso App",
+            "admin-application",
+            CancellationToken.None);
+
+        Assert.NotNull(graphRequest);
+        var query = Uri.UnescapeDataString(graphRequest!.RequestUri!.Query);
+        Assert.DoesNotContain("id eq", query);
+        Assert.DoesNotContain("appId eq", query);
+        Assert.Contains("displayName eq 'Contoso App'", query);
+    }
+
+    [Fact]
     public async Task GetTenantRoleAsync_AmbiguousName_ThrowsDistinctException()
     {
         var handlers = new Queue<Func<HttpRequestMessage, HttpResponseMessage>>([
