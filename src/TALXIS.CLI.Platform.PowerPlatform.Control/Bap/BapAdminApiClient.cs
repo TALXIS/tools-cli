@@ -73,40 +73,60 @@ internal sealed class BapAdminApiClient
         ArgumentNullException.ThrowIfNull(credential);
 
         var token = await AcquireTokenAsync(connection, credential, ct).ConfigureAwait(false);
-        var requestUri = new Uri(
+        Uri? requestUri = new Uri(
             GetBaseUri(connection),
             "/providers/Microsoft.BusinessAppPlatform/adminApplications?api-version=2021-04-01");
 
-        var response = await SendAsync(HttpMethod.Get, requestUri, token, jsonBody: null, ct).ConfigureAwait(false);
-        if (!response.IsSuccess)
-        {
-            throw new InvalidOperationException(
-                $"BAP admin application list failed ({(int)response.StatusCode} {response.StatusCode}): {Truncate(response.Body, 500)}");
-        }
-
-        using var document = JsonDocument.Parse(response.Body);
-
-        // The endpoint returns an OData-shaped payload (`{ "value": [...] }`),
-        // not a bare JSON array — unwrap the "value" property before enumerating.
-        var root = document.RootElement;
-        var items = root.ValueKind == JsonValueKind.Array
-            ? root
-            : root.TryGetProperty("value", out var valueElement) && valueElement.ValueKind == JsonValueKind.Array
-                ? valueElement
-                : throw new InvalidOperationException("BAP admin application list payload did not contain a \"value\" array.");
-
         var results = new List<BapAdminApplicationRegistration>();
-        foreach (var item in items.EnumerateArray())
+
+        // This endpoint is OData-paged (`@odata.nextLink`) — keep following the
+        // continuation link until the server stops returning one.
+        while (requestUri is not null)
         {
-            if (item.TryGetProperty("applicationId", out var applicationIdElement)
-                && applicationIdElement.ValueKind == JsonValueKind.String
-                && Guid.TryParse(applicationIdElement.GetString(), out var applicationId))
+            var response = await SendAsync(HttpMethod.Get, requestUri, token, jsonBody: null, ct).ConfigureAwait(false);
+            if (!response.IsSuccess)
             {
-                results.Add(new BapAdminApplicationRegistration(applicationId));
+                throw new InvalidOperationException(
+                    $"BAP admin application list failed ({(int)response.StatusCode} {response.StatusCode}): {Truncate(response.Body, 500)}");
             }
+
+            using var document = JsonDocument.Parse(response.Body);
+
+            // The endpoint returns an OData-shaped payload (`{ "value": [...] }`),
+            // not a bare JSON array — unwrap the "value" property before enumerating.
+            var root = document.RootElement;
+            var items = root.ValueKind == JsonValueKind.Array
+                ? root
+                : root.TryGetProperty("value", out var valueElement) && valueElement.ValueKind == JsonValueKind.Array
+                    ? valueElement
+                    : throw new InvalidOperationException("BAP admin application list payload did not contain a \"value\" array.");
+
+            foreach (var item in items.EnumerateArray())
+            {
+                if (item.TryGetProperty("applicationId", out var applicationIdElement)
+                    && applicationIdElement.ValueKind == JsonValueKind.String
+                    && Guid.TryParse(applicationIdElement.GetString(), out var applicationId))
+                {
+                    results.Add(new BapAdminApplicationRegistration(applicationId));
+                }
+            }
+
+            requestUri = root.ValueKind == JsonValueKind.Array
+                ? null
+                : TryReadNextLink(root);
         }
 
         return results;
+    }
+
+    private static Uri? TryReadNextLink(JsonElement root)
+    {
+        if (!root.TryGetProperty("@odata.nextLink", out var nextLinkElement)
+            || nextLinkElement.ValueKind != JsonValueKind.String)
+            return null;
+
+        var raw = nextLinkElement.GetString();
+        return Uri.TryCreate(raw, UriKind.Absolute, out var nextLink) ? nextLink : null;
     }
 
     public async Task RegisterAdminApplicationAsync(

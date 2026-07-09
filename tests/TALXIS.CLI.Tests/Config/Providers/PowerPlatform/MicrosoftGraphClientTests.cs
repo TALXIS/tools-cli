@@ -42,6 +42,50 @@ public sealed class MicrosoftGraphClientTests
     }
 
     [Fact]
+    public async Task ListServicePrincipalsAsync_FollowsODataNextLink_AcrossMultiplePages()
+    {
+        var callCount = 0;
+        var http = new FakeHttpClientFactoryWrapper(req =>
+        {
+            callCount++;
+            if (callCount == 1)
+            {
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("""
+                    {
+                      "value": [
+                        { "id": "11111111-1111-1111-1111-111111111111", "appId": "22222222-2222-2222-2222-222222222222", "displayName": "App One" }
+                      ],
+                      "@odata.nextLink": "https://graph.microsoft.com/v1.0/servicePrincipals?$skiptoken=abc"
+                    }
+                    """)
+                };
+            }
+
+            Assert.Equal("https://graph.microsoft.com/v1.0/servicePrincipals?$skiptoken=abc", req.RequestUri!.AbsoluteUri);
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("""
+                {
+                  "value": [
+                    { "id": "33333333-3333-3333-3333-333333333333", "appId": "44444444-4444-4444-4444-444444444444", "displayName": "App Two" }
+                  ]
+                }
+                """)
+            };
+        });
+
+        var sut = new MicrosoftGraphClient(new FakeAccessTokenService(), http);
+        var results = await sut.ListServicePrincipalsAsync(TestConnection(), TestCredential(), filter: null, top: 1, CancellationToken.None);
+
+        Assert.Equal(2, callCount);
+        Assert.Equal(2, results.Count);
+        Assert.Contains(results, r => r.DisplayName == "App One");
+        Assert.Contains(results, r => r.DisplayName == "App Two");
+    }
+
+    [Fact]
     public async Task ListUsersAsync_WithApplicationCredential403_ThrowsClearPermissionError()
     {
         var http = new FakeHttpClientFactoryWrapper(_ => new HttpResponseMessage(HttpStatusCode.Forbidden)

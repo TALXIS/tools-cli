@@ -42,6 +42,40 @@ public sealed class BapAdminApiClientTests
     }
 
     [Fact]
+    public async Task ListAdminApplicationsAsync_FollowsODataNextLink_AcrossMultiplePages()
+    {
+        var callCount = 0;
+        var sut = new BapAdminApiClient(
+            new FakeAccessTokenService(),
+            new FakeHttpClientFactoryWrapper(req =>
+            {
+                callCount++;
+                if (callCount == 1)
+                {
+                    return new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = new StringContent(
+                            "{\"value\":[{\"applicationId\":\"11111111-1111-1111-1111-111111111111\"}]," +
+                            "\"@odata.nextLink\":\"https://example.powerapps.com/next?skiptoken=abc\"}")
+                    };
+                }
+
+                Assert.Equal("https://example.powerapps.com/next?skiptoken=abc", req.RequestUri!.AbsoluteUri);
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("{\"value\":[{\"applicationId\":\"22222222-2222-2222-2222-222222222222\"}]}")
+                };
+            }));
+
+        var results = await sut.ListAdminApplicationsAsync(TestConnection(), TestCredential(), CancellationToken.None);
+
+        Assert.Equal(2, callCount);
+        Assert.Equal(2, results.Count);
+        Assert.Contains(results, r => r.ApplicationId == Guid.Parse("11111111-1111-1111-1111-111111111111"));
+        Assert.Contains(results, r => r.ApplicationId == Guid.Parse("22222222-2222-2222-2222-222222222222"));
+    }
+
+    [Fact]
     public async Task RegisterAdminApplicationAsync_UsesPutEndpoint()
     {
         HttpRequestMessage? captured = null;

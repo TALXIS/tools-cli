@@ -42,6 +42,51 @@ public sealed class PowerPlatformRbacClientTests
     }
 
     [Fact]
+    public async Task ListRoleDefinitionsAsync_FollowsODataNextLink_AcrossMultiplePages()
+    {
+        var callCount = 0;
+        var http = new FakeHttpClientFactoryWrapper(req =>
+        {
+            callCount++;
+            if (callCount == 1)
+            {
+                Assert.Equal("https://api.powerplatform.com/authorization/roleDefinitions?api-version=2024-10-01", req.RequestUri!.AbsoluteUri);
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("""
+                    {
+                      "value": [
+                        { "roleDefinitionId": "11111111-1111-1111-1111-111111111111", "roleDefinitionName": "Role One" }
+                      ],
+                      "@odata.nextLink": "https://api.powerplatform.com/authorization/roleDefinitions?api-version=2024-10-01&$skiptoken=abc"
+                    }
+                    """)
+                };
+            }
+
+            Assert.Equal("https://api.powerplatform.com/authorization/roleDefinitions?api-version=2024-10-01&$skiptoken=abc", req.RequestUri!.AbsoluteUri);
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("""
+                {
+                  "value": [
+                    { "roleDefinitionId": "22222222-2222-2222-2222-222222222222", "roleDefinitionName": "Role Two" }
+                  ]
+                }
+                """)
+            };
+        });
+
+        var sut = new PowerPlatformRbacClient(new FakeAccessTokenService(), http);
+        var roles = await sut.ListRoleDefinitionsAsync(TestConnection(), TestCredential(), CancellationToken.None);
+
+        Assert.Equal(2, callCount);
+        Assert.Equal(2, roles.Count);
+        Assert.Contains(roles, r => r.RoleDefinitionName == "Role One");
+        Assert.Contains(roles, r => r.RoleDefinitionName == "Role Two");
+    }
+
+    [Fact]
     public async Task AddTenantRoleAssignmentAsync_SendsTenantScopeBody()
     {
         HttpMethod? capturedMethod = null;

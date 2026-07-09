@@ -299,7 +299,7 @@ internal static class DataverseSecurityPrincipalManager
             CreateSystemUserQuery(includeApplicationUsers: false),
             ct).ConfigureAwait(false);
 
-        return related.Entities
+        return related
             .Select(ToRegularUserRecord)
             .OrderBy(static member => member.FullName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(static member => member.UserPrincipalName, StringComparer.OrdinalIgnoreCase)
@@ -807,10 +807,10 @@ internal static class DataverseSecurityPrincipalManager
             query,
             ct).ConfigureAwait(false);
 
-        return related.Entities.Select(ToRoleRecord).ToList();
+        return related.Select(ToRoleRecord).ToList();
     }
 
-    private static async Task<EntityCollection> RetrieveRelatedEntitiesAsync(
+    private static async Task<List<Entity>> RetrieveRelatedEntitiesAsync(
         IOrganizationServiceAsync2 service,
         string parentEntityName,
         Guid parentId,
@@ -818,17 +818,43 @@ internal static class DataverseSecurityPrincipalManager
         QueryExpression relatedQuery,
         CancellationToken ct)
     {
-        var request = new RetrieveRequest
-        {
-            Target = new EntityReference(parentEntityName, parentId),
-            ColumnSet = new ColumnSet(false),
-            RelatedEntitiesQuery = new RelationshipQueryCollection
-            {
-                { relationship, relatedQuery }
-            }
-        };
+        var results = new List<Entity>();
+        var pageNumber = 1;
+        string? pagingCookie = null;
 
-        var response = (RetrieveResponse)await service.ExecuteAsync(request, ct).ConfigureAwait(false);
+        while (true)
+        {
+            relatedQuery.PageInfo = new PagingInfo
+            {
+                Count = 5000,
+                PageNumber = pageNumber,
+                PagingCookie = pagingCookie,
+            };
+
+            var request = new RetrieveRequest
+            {
+                Target = new EntityReference(parentEntityName, parentId),
+                ColumnSet = new ColumnSet(false),
+                RelatedEntitiesQuery = new RelationshipQueryCollection
+                {
+                    { relationship, relatedQuery }
+                }
+            };
+
+            var response = (RetrieveResponse)await service.ExecuteAsync(request, ct).ConfigureAwait(false);
+            var collection = ExtractRelatedCollection(response, relationship);
+            results.AddRange(collection.Entities);
+
+            if (!collection.MoreRecords)
+                return results;
+
+            pageNumber++;
+            pagingCookie = collection.PagingCookie;
+        }
+    }
+
+    private static EntityCollection ExtractRelatedCollection(RetrieveResponse response, Relationship relationship)
+    {
         if (response.Entity.RelatedEntities.TryGetValue(relationship, out var collection))
             return collection;
 
