@@ -15,6 +15,7 @@ public static class DataverseDataServiceCollectionExtensions
         services.AddSingleton<IDataverseRecordService, DataverseRecordService>();
         services.AddSingleton<IDataverseBulkService, DataverseBulkService>();
         services.AddSingleton<IDataverseFileService, DataverseFileService>();
+        services.AddSingleton<IUserSettingsService, UserSettingsService>();
         services.AddTransient<IChangesetApplier, ChangesetApplier>();
         return services;
     }
