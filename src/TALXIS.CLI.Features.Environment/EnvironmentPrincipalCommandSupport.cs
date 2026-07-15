@@ -5,7 +5,7 @@ namespace TALXIS.CLI.Features.Environment;
 
 /// <summary>
 /// Shared command-support helpers reused by the <c>txc environment user</c>,
-/// <c>txc environment app</c>, and <c>txc environment team</c> command
+/// <c>txc environment service-principal</c>, and <c>txc environment team</c> command
 /// groups, all of which manage Dataverse security principals within an
 /// environment. Mirrors <c>TenantPrincipalCommandSupport</c> on the tenant
 /// side.
@@ -15,7 +15,7 @@ internal static class EnvironmentPrincipalCommandSupport
     /// <summary>
     /// Resolves the mutually-exclusive <c>--enabled</c>/<c>--disabled</c>/<c>--all</c>
     /// list filter options shared by <c>environment user list</c> and
-    /// <c>environment app list</c>.
+    /// <c>environment service-principal list</c>.
     /// </summary>
     internal static bool TryResolveStateFilter(
         bool enabled,
@@ -43,7 +43,7 @@ internal static class EnvironmentPrincipalCommandSupport
     /// <summary>
     /// Parses a comma-separated <c>--role</c> option value into a
     /// deduplicated list of role names/GUIDs, shared by the environment user
-    /// and app "create with roles" commands.
+    /// and service-principal "create with roles" commands.
     /// </summary>
     internal static bool TryParseRoleIdentifiers(
         string? csv,
@@ -83,7 +83,7 @@ internal static class EnvironmentPrincipalCommandSupport
     /// Matches an already-assigned role against a caller-supplied
     /// <c>--role</c> identifier, which may be either the role's GUID or its
     /// friendly name. Shared by the <c>role add</c> commands for
-    /// <c>environment user</c>, <c>environment app</c>, and
+    /// <c>environment user</c>, <c>environment service-principal</c>, and
     /// <c>environment team</c> to consistently detect a no-op re-assignment.
     /// </summary>
     internal static bool IsRoleMatch(DataverseRoleRecord role, string roleNameOrGuid)
@@ -96,7 +96,7 @@ internal static class EnvironmentPrincipalCommandSupport
     /// match, invalid argument, invalid operation). Callers supply a
     /// <paramref name="logAmbiguousMatch"/> delegate so each command group can
     /// keep its own candidate-listing format (e.g. <c>environment user</c> logs a
-    /// bulleted list, <c>environment app</c> logs a single "Candidate:" line per
+    /// bulleted list, <c>environment service-principal</c> logs a single "Candidate:" line per
     /// match) while sharing the exception-type dispatch and exit-code contract.
     /// </summary>
     internal static bool TryHandleValidationException(

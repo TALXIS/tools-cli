@@ -8,7 +8,7 @@ namespace TALXIS.CLI.Features.Tenant.Role;
 /// </summary>
 [CliCommand(
     Name = "role",
-    Description = "Browse the tenant role catalog accepted by --role in txc tenant app/user/group role add/remove commands.",
+    Description = "Browse the tenant role catalog accepted by --role in txc tenant service-principal/user/group role add/remove commands.",
     Children = new[]
     {
         typeof(RoleListCliCommand),

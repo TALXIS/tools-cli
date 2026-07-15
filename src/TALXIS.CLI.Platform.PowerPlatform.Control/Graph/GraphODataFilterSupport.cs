@@ -4,7 +4,7 @@ namespace TALXIS.CLI.Platform.PowerPlatform.Control.Graph;
 /// Shared Microsoft Graph OData <c>$filter</c> construction helpers used by
 /// every <c>txc tenant</c> command that resolves a user or application by a
 /// caller-supplied GUID-or-friendly-name identifier (e.g. <c>--user</c>,
-/// <c>--app</c>).
+/// <c>--service-principal</c>).
 /// </summary>
 public static class GraphODataFilterSupport
 {

@@ -8,7 +8,7 @@ namespace TALXIS.CLI.Features.Tenant.Group;
 /// </summary>
 /// <remarks>
 /// There is deliberately no <c>list</c>/<c>get</c> sub-command here (unlike
-/// <c>tenant user</c>/<c>tenant app</c>): searching or resolving groups by
+/// <c>tenant user</c>/<c>tenant service-principal</c>): searching or resolving groups by
 /// display name requires the Microsoft Graph <c>Group.Read.All</c>
 /// permission, which is not pre-consented for this CLI's Entra app
 /// registration in most tenants and we intentionally never prompt for extra

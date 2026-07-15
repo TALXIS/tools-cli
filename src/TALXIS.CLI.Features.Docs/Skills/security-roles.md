@@ -68,10 +68,10 @@ roles.
      admin access when you have none at all in this environment, use `txc environment user
      self-elevate` instead (a different, tenant-admin-privileged bootstrap path — see its own
      help text).
-   - Application user (service principal): `txc environment app list [--enabled|--disabled|--all]`
-     / `txc environment app get --app <client-id-or-guid>`. If the application user doesn't
+   - Application user (service principal): `txc environment service-principal list [--enabled|--disabled|--all]`
+     / `txc environment service-principal get --service-principal <client-id-or-guid>`. If the application user doesn't
      exist yet, create it directly (the Entra app registration itself must already exist):
-     `txc environment app create --app <entra-client-id> [--business-unit <name-or-guid>]
+     `txc environment service-principal create --service-principal <entra-client-id> [--business-unit <name-or-guid>]
      [--role <name-or-guid>[,<name-or-guid>,...]]` — `--role` accepts a comma-separated list to
      assign initial roles in the same step.
    - Team: `txc environment team list` / `txc environment team get --team <name-or-guid>`. If it
@@ -83,11 +83,11 @@ roles.
 3. **Assign or revoke the role:**
    - `txc environment user role add --user <upn-or-guid> --role <name-or-guid>` /
      `txc environment user role remove --user .. --role ..`
-   - `txc environment app role add --app <client-id-or-guid> --role <name-or-guid>` /
-     `txc environment app role remove --app .. --role ..`
+   - `txc environment service-principal role add --service-principal <client-id-or-guid> --role <name-or-guid>` /
+     `txc environment service-principal role remove --service-principal .. --role ..`
    - `txc environment team role add --team <name-or-guid> --role <name-or-guid>` /
      `txc environment team role remove --team .. --role ..`
-   - Use `role list --user|--app|--team ..` at any point to see currently assigned roles.
+   - Use `role list --user|--service-principal|--team ..` at any point to see currently assigned roles.
 
 ## Tenant-Wide Admin Roles (`txc tenant ...`)
 
@@ -101,14 +101,14 @@ and manage their tenant-wide admin roles.
    `txc tenant role get --role <name-or-guid>`. This is the catalog every `--role` value below
    is validated against.
 2. **Find the principal:**
-   - `txc tenant app list [--filter <name>]` / `txc tenant app get --app <client-id-or-object-id>`
+   - `txc tenant service-principal list [--filter <name>]` / `txc tenant service-principal get --service-principal <client-id-or-object-id>`
    - `txc tenant user list [--filter <upn-or-name>]` / `txc tenant user get --user <upn-or-object-id>`
    - Groups have no `list`/`get` — see the note below.
 3. **Assign or revoke the tenant role:**
-   - `txc tenant app role add --app .. --role <name-or-guid>` / `role remove --app .. --role ..`
+   - `txc tenant service-principal role add --service-principal .. --role <name-or-guid>` / `role remove --service-principal .. --role ..`
    - `txc tenant user role add --user .. --role <name-or-guid>` / `role remove --user .. --role ..`
    - `txc tenant group role add --group <object-id> --role <name-or-guid>` /
-     `role remove --group <object-id> --role ..`. Unlike apps and users, `--group` must be the
+     `role remove --group <object-id> --role ..`. Unlike service principals and users, `--group` must be the
      group's Entra **object id (GUID)** — this CLI never looks groups up by display name, because
      that would require the Microsoft Graph `Group.Read.All` permission, which is not
      pre-consented for this CLI's Entra app registration in most tenants. This CLI never prompts

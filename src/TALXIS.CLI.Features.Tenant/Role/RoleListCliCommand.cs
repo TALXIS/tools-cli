@@ -12,7 +12,7 @@ namespace TALXIS.CLI.Features.Tenant.Role;
 [CliReadOnly]
 [CliCommand(
     Name = "list",
-    Description = "List tenant roles accepted by --role in txc tenant app/user/group role add/remove commands."
+    Description = "List tenant roles accepted by --role in txc tenant service-principal/user/group role add/remove commands."
 )]
 public class RoleListCliCommand : ProfiledCliCommand
 {
