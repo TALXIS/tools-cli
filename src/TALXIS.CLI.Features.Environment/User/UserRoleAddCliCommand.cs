@@ -53,7 +53,7 @@ public class UserRoleAddCliCommand : ProfiledCliCommand
             return ExitValidationError;
 
         var existingRoles = await userService.ListRolesAsync(Profile, User, CancellationToken.None).ConfigureAwait(false);
-        if (existingRoles.Any(r => r.Id == role.Id))
+        if (existingRoles.Any(r => EnvironmentPrincipalCommandSupport.IsRoleMatch(r, Role)))
         {
             OutputFormatter.WriteData(
                 new

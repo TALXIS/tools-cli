@@ -13,6 +13,18 @@ public sealed class PowerPlatformRbacRoleStrategy : IPowerPlatformRoleAssignment
         _client = client ?? throw new ArgumentNullException(nameof(client));
     }
 
+    /// <inheritdoc />
+    public bool SupportsPrincipalType(PowerPlatformPrincipalType principalType) => true;
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Handles every role identifier except the synthetic
+    /// <see cref="BapAdminApplicationRoleStrategy.AdminApplicationRoleValue"/>,
+    /// which is owned exclusively by <see cref="BapAdminApplicationRoleStrategy"/>.
+    /// </remarks>
+    public bool CanHandle(PowerPlatformPrincipalType principalType, string roleNameOrId)
+        => !string.Equals(roleNameOrId, BapAdminApplicationRoleStrategy.AdminApplicationRoleValue, StringComparison.OrdinalIgnoreCase);
+
     public async Task<IReadOnlyList<PowerPlatformTenantRoleAssignment>> ListAsync(
         Connection connection,
         Credential credential,

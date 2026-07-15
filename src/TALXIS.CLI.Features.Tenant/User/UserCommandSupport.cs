@@ -147,7 +147,7 @@ internal static class UserCommandSupport
         if (string.IsNullOrWhiteSpace(filter))
             return null;
 
-        var escaped = TenantPrincipalCommandSupport.EscapeODataString(filter.Trim());
+        var escaped = GraphODataFilterSupport.EscapeODataString(filter.Trim());
         return $"startswith(userPrincipalName,'{escaped}') or startswith(displayName,'{escaped}')";
     }
 

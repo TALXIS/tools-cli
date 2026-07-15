@@ -78,4 +78,48 @@ internal static class EnvironmentPrincipalCommandSupport
     /// </summary>
     internal static string Truncate(string value, int maxWidth)
         => value.Length > maxWidth ? value[..(maxWidth - 1)] + "." : value;
+
+    /// <summary>
+    /// Matches an already-assigned role against a caller-supplied
+    /// <c>--role</c> identifier, which may be either the role's GUID or its
+    /// friendly name. Shared by the <c>role add</c> commands for
+    /// <c>environment user</c>, <c>environment app</c>, and
+    /// <c>environment team</c> to consistently detect a no-op re-assignment.
+    /// </summary>
+    internal static bool IsRoleMatch(DataverseRoleRecord role, string roleNameOrGuid)
+        => string.Equals(role.Id.ToString(), roleNameOrGuid, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(role.Name, roleNameOrGuid, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Shared exit-code mapping for the validation-style exceptions raised by
+    /// Dataverse security-principal resolution/mutation (ambiguous friendly-name
+    /// match, invalid argument, invalid operation). Callers supply a
+    /// <paramref name="logAmbiguousMatch"/> delegate so each command group can
+    /// keep its own candidate-listing format (e.g. <c>environment user</c> logs a
+    /// bulleted list, <c>environment app</c> logs a single "Candidate:" line per
+    /// match) while sharing the exception-type dispatch and exit-code contract.
+    /// </summary>
+    internal static bool TryHandleValidationException(
+        ILogger logger,
+        Exception ex,
+        Action<ILogger, DataverseAmbiguousMatchException> logAmbiguousMatch,
+        out int exitCode)
+    {
+        if (ex is DataverseAmbiguousMatchException ambiguous)
+        {
+            logAmbiguousMatch(logger, ambiguous);
+            exitCode = 2;
+            return true;
+        }
+
+        if (ex is ArgumentException or InvalidOperationException)
+        {
+            logger.LogError("{Error}", ex.Message);
+            exitCode = 2;
+            return true;
+        }
+
+        exitCode = 0;
+        return false;
+    }
 }

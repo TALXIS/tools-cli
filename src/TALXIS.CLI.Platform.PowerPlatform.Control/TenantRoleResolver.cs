@@ -77,7 +77,7 @@ public sealed class TenantRoleResolver
 {
     private readonly MicrosoftGraphClient _graph;
     private readonly PowerPlatformRbacRoleStrategy _rbacStrategy;
-    private readonly BapAdminApplicationRoleStrategy _bapStrategy;
+    private readonly IReadOnlyList<IPowerPlatformRoleAssignmentStrategy> _strategies;
 
     public TenantRoleResolver(
         MicrosoftGraphClient graph,
@@ -86,7 +86,13 @@ public sealed class TenantRoleResolver
     {
         _graph = graph ?? throw new ArgumentNullException(nameof(graph));
         _rbacStrategy = rbacStrategy ?? throw new ArgumentNullException(nameof(rbacStrategy));
-        _bapStrategy = bapStrategy ?? throw new ArgumentNullException(nameof(bapStrategy));
+        ArgumentNullException.ThrowIfNull(bapStrategy);
+
+        // Ordered list of strategies this resolver can dispatch to. Adding a
+        // new tenant-role strategy (e.g. another synthetic role) only requires
+        // implementing IPowerPlatformRoleAssignmentStrategy and adding it here -
+        // no other resolver logic needs to change (Open/Closed).
+        _strategies = [_rbacStrategy, bapStrategy];
     }
 
     public Task<IReadOnlyList<PowerPlatformRoleDefinition>> ListTenantRolesAsync(
@@ -114,11 +120,9 @@ public sealed class TenantRoleResolver
             .ConfigureAwait(false);
 
         var assignments = new List<PowerPlatformTenantRoleAssignment>();
-        assignments.AddRange(await _rbacStrategy.ListAsync(connection, credential, principal, ct).ConfigureAwait(false));
-
-        if (principalType == PowerPlatformPrincipalType.ApplicationUser)
+        foreach (var strategy in _strategies.Where(s => s.SupportsPrincipalType(principalType)))
         {
-            assignments.AddRange(await _bapStrategy.ListAsync(connection, credential, principal, ct).ConfigureAwait(false));
+            assignments.AddRange(await strategy.ListAsync(connection, credential, principal, ct).ConfigureAwait(false));
         }
 
         return assignments
@@ -134,25 +138,12 @@ public sealed class TenantRoleResolver
         string roleNameOrId,
         CancellationToken ct)
     {
-        if (string.Equals(roleNameOrId, BapAdminApplicationRoleStrategy.AdminApplicationRoleValue, StringComparison.OrdinalIgnoreCase)
-            && principalType != PowerPlatformPrincipalType.ApplicationUser)
-        {
-            throw new ArgumentException(
-                $"The synthetic role '{BapAdminApplicationRoleStrategy.AdminApplicationRoleValue}' is only valid for application principals.",
-                nameof(roleNameOrId));
-        }
+        var strategy = ResolveStrategy(principalType, roleNameOrId);
 
         var principal = await ResolvePrincipalAsync(connection, credential, principalType, principalValue, ct)
             .ConfigureAwait(false);
 
-        if (string.Equals(roleNameOrId, BapAdminApplicationRoleStrategy.AdminApplicationRoleValue, StringComparison.OrdinalIgnoreCase))
-        {
-            await _bapStrategy.AddAsync(connection, credential, principal, roleNameOrId, ct).ConfigureAwait(false);
-            return;
-        }
-
-        var role = await _rbacStrategy.ResolveTenantRoleAsync(connection, credential, roleNameOrId, ct).ConfigureAwait(false);
-        await _rbacStrategy.AddAsync(connection, credential, principal, role, ct).ConfigureAwait(false);
+        await strategy.AddAsync(connection, credential, principal, roleNameOrId, ct).ConfigureAwait(false);
     }
 
     public async Task RemoveAssignmentAsync(
@@ -163,25 +154,30 @@ public sealed class TenantRoleResolver
         string roleNameOrId,
         CancellationToken ct)
     {
-        if (string.Equals(roleNameOrId, BapAdminApplicationRoleStrategy.AdminApplicationRoleValue, StringComparison.OrdinalIgnoreCase)
-            && principalType != PowerPlatformPrincipalType.ApplicationUser)
+        var strategy = ResolveStrategy(principalType, roleNameOrId);
+
+        var principal = await ResolvePrincipalAsync(connection, credential, principalType, principalValue, ct)
+            .ConfigureAwait(false);
+
+        await strategy.RemoveAsync(connection, credential, principal, roleNameOrId, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Finds the single strategy that owns Add/Remove dispatch for the given
+    /// principal type + role identifier, without hardcoding per-strategy
+    /// checks here (see <see cref="IPowerPlatformRoleAssignmentStrategy.CanHandle"/>).
+    /// </summary>
+    private IPowerPlatformRoleAssignmentStrategy ResolveStrategy(PowerPlatformPrincipalType principalType, string roleNameOrId)
+    {
+        var strategy = _strategies.FirstOrDefault(s => s.CanHandle(principalType, roleNameOrId));
+        if (strategy is null)
         {
             throw new ArgumentException(
                 $"The synthetic role '{BapAdminApplicationRoleStrategy.AdminApplicationRoleValue}' is only valid for application principals.",
                 nameof(roleNameOrId));
         }
 
-        var principal = await ResolvePrincipalAsync(connection, credential, principalType, principalValue, ct)
-            .ConfigureAwait(false);
-
-        if (string.Equals(roleNameOrId, BapAdminApplicationRoleStrategy.AdminApplicationRoleValue, StringComparison.OrdinalIgnoreCase))
-        {
-            await _bapStrategy.RemoveAsync(connection, credential, principal, roleNameOrId, ct).ConfigureAwait(false);
-            return;
-        }
-
-        var role = await _rbacStrategy.ResolveTenantRoleAsync(connection, credential, roleNameOrId, ct).ConfigureAwait(false);
-        await _rbacStrategy.RemoveAsync(connection, credential, principal, role, ct).ConfigureAwait(false);
+        return strategy;
     }
 
     internal async Task<PowerPlatformRolePrincipalReference> ResolvePrincipalAsync(

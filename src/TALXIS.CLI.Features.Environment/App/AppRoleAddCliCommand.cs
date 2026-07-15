@@ -33,6 +33,21 @@ public class AppRoleAddCliCommand : ProfiledCliCommand
         try
         {
             var service = TxcServices.Get<IDataverseAppUserService>();
+
+            var existingRoles = await service.ListRolesAsync(Profile, App, CancellationToken.None).ConfigureAwait(false);
+            if (existingRoles.Any(r => EnvironmentPrincipalCommandSupport.IsRoleMatch(r, Role)))
+            {
+                AppCommandSupport.WriteMutationResult(
+                    new { status = "unchanged", app = App, role = Role },
+                    () =>
+                    {
+#pragma warning disable TXC003
+                        OutputWriter.WriteLine($"Role '{Role}' is already assigned to application user '{App}'.");
+#pragma warning restore TXC003
+                    });
+                return ExitSuccess;
+            }
+
             await service.AddRoleAsync(Profile, App, Role, CancellationToken.None).ConfigureAwait(false);
 
             var payload = new

@@ -35,6 +35,15 @@ public sealed class BapAdminApplicationRoleStrategy : IPowerPlatformRoleAssignme
         _bap = bap ?? throw new ArgumentNullException(nameof(bap));
     }
 
+    /// <inheritdoc />
+    public bool SupportsPrincipalType(PowerPlatformPrincipalType principalType)
+        => principalType == PowerPlatformPrincipalType.ApplicationUser;
+
+    /// <inheritdoc />
+    public bool CanHandle(PowerPlatformPrincipalType principalType, string roleNameOrId)
+        => principalType == PowerPlatformPrincipalType.ApplicationUser
+            && string.Equals(roleNameOrId, AdminApplicationRoleValue, StringComparison.OrdinalIgnoreCase);
+
     public async Task<IReadOnlyList<PowerPlatformTenantRoleAssignment>> ListAsync(
         Connection connection,
         Credential credential,

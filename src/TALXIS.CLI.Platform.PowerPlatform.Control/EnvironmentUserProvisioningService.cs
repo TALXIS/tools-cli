@@ -62,7 +62,7 @@ public sealed class EnvironmentUserProvisioningService : IEnvironmentUserProvisi
         var trimmed = userIdOrUpn.Trim();
         var filter = Guid.TryParse(trimmed, out var id)
             ? $"id eq '{id}'"
-            : $"userPrincipalName eq '{EscapeODataString(trimmed)}'";
+            : $"userPrincipalName eq '{GraphODataFilterSupport.EscapeODataString(trimmed)}'";
 
         var matches = await _graph.ListUsersAsync(connection, credential, filter, top: 5, ct).ConfigureAwait(false);
 
@@ -97,8 +97,6 @@ public sealed class EnvironmentUserProvisioningService : IEnvironmentUserProvisi
             ?? throw new InvalidOperationException(
                 $"Could not resolve Power Platform environment for URL '{connection.EnvironmentUrl}'.");
     }
-
-    private static string EscapeODataString(string value) => value.Replace("'", "''");
 
     /// <inheritdoc />
     public Task SelfElevateAsync(

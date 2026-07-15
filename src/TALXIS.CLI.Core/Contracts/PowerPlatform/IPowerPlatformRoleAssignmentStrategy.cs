@@ -54,9 +54,30 @@ public sealed record PowerPlatformTenantRoleAssignment(
 /// Strategy abstraction for manipulating tenant-scoped role assignments.
 /// Concrete implementations handle either native Power Platform RBAC roles or
 /// synthetic/legacy role concepts such as <c>admin-application</c>.
+/// <see cref="TALXIS.CLI.Platform.PowerPlatform.Control.TenantRoleResolver"/> uses
+/// <see cref="SupportsPrincipalType"/>/<see cref="CanHandle"/> to route work to
+/// the correct strategy instance without hardcoding per-strategy checks, so
+/// adding a new strategy (e.g. a future synthetic role) requires only a new
+/// implementation of this interface, not resolver changes.
 /// </summary>
 public interface IPowerPlatformRoleAssignmentStrategy
 {
+    /// <summary>
+    /// Whether this strategy participates in enumerating existing assignments
+    /// for the given principal type (used to fan <c>ListAssignmentsAsync</c>
+    /// out across every applicable strategy).
+    /// </summary>
+    bool SupportsPrincipalType(PowerPlatformPrincipalType principalType);
+
+    /// <summary>
+    /// Whether this strategy exclusively owns Add/Remove mutation dispatch for
+    /// the given principal type + role identifier combination. Exactly one
+    /// registered strategy is expected to return <see langword="true"/> for
+    /// any valid combination; when none does, the role/principal-type pairing
+    /// is invalid.
+    /// </summary>
+    bool CanHandle(PowerPlatformPrincipalType principalType, string roleNameOrId);
+
     Task<IReadOnlyList<PowerPlatformTenantRoleAssignment>> ListAsync(
         Connection connection,
         Credential credential,

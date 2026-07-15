@@ -38,34 +38,21 @@ internal static class AppCommandSupport
         => EnvironmentPrincipalCommandSupport.TryParseRoleIdentifiers(csv, logger, out roles);
 
     internal static bool TryHandleValidationException(ILogger logger, Exception ex, out int exitCode)
+        => EnvironmentPrincipalCommandSupport.TryHandleValidationException(logger, ex, LogAmbiguousMatch, out exitCode);
+
+    private static void LogAmbiguousMatch(ILogger logger, DataverseAmbiguousMatchException ambiguous)
     {
-        if (ex is DataverseAmbiguousMatchException ambiguous)
+        logger.LogError("{Error}", ambiguous.Message);
+        foreach (var candidate in ambiguous.Candidates)
         {
-            logger.LogError("{Error}", ambiguous.Message);
-            foreach (var candidate in ambiguous.Candidates)
-            {
-                logger.LogError(
-                    "Candidate: {Name} ({Id}){Description}",
-                    candidate.Name,
-                    candidate.Id,
-                    string.IsNullOrWhiteSpace(candidate.Description)
-                        ? string.Empty
-                        : $" — {candidate.Description}");
-            }
-
-            exitCode = 2;
-            return true;
+            logger.LogError(
+                "Candidate: {Name} ({Id}){Description}",
+                candidate.Name,
+                candidate.Id,
+                string.IsNullOrWhiteSpace(candidate.Description)
+                    ? string.Empty
+                    : $" — {candidate.Description}");
         }
-
-        if (ex is ArgumentException or InvalidOperationException)
-        {
-            logger.LogError("{Error}", ex.Message);
-            exitCode = 2;
-            return true;
-        }
-
-        exitCode = 0;
-        return false;
     }
 
     internal static void WriteAppDetails(DataverseAppUserRecord app)

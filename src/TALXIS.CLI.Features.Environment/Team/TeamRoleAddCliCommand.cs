@@ -34,6 +34,13 @@ public class TeamRoleAddCliCommand : ProfiledCliCommand
 
         try
         {
+            var existingRoles = await service.ListRolesAsync(Profile, Team, CancellationToken.None).ConfigureAwait(false);
+            if (existingRoles.Any(r => EnvironmentPrincipalCommandSupport.IsRoleMatch(r, Role)))
+            {
+                OutputFormatter.WriteResult("unchanged", $"Role '{Role}' is already assigned to team '{Team}'.");
+                return ExitSuccess;
+            }
+
             await service.AddRoleAsync(Profile, Team, Role, CancellationToken.None).ConfigureAwait(false);
             OutputFormatter.WriteResult("succeeded", $"Added role '{Role}' to team '{Team}'.");
             return ExitSuccess;

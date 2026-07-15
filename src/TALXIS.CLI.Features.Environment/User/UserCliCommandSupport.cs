@@ -159,24 +159,7 @@ internal static class UserCliCommandSupport
         => EnvironmentPrincipalCommandSupport.TryParseRoleIdentifiers(csv, logger, out roles);
 
     public static bool TryHandleValidationException(ILogger logger, Exception ex, out int exitCode)
-    {
-        if (ex is DataverseAmbiguousMatchException ambiguous)
-        {
-            LogAmbiguousMatch(logger, ambiguous);
-            exitCode = 2;
-            return true;
-        }
-
-        if (ex is ArgumentException or InvalidOperationException)
-        {
-            logger.LogError("{Error}", ex.Message);
-            exitCode = 2;
-            return true;
-        }
-
-        exitCode = 0;
-        return false;
-    }
+        => EnvironmentPrincipalCommandSupport.TryHandleValidationException(logger, ex, LogAmbiguousMatch, out exitCode);
 
     public static async Task<Guid> ResolveEnvironmentIdAsync(string? profileName, CancellationToken ct)
     {

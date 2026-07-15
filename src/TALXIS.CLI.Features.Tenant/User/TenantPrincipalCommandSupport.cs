@@ -16,9 +16,6 @@ internal static class TenantPrincipalCommandSupport
         return configurationResolver.ResolveAsync(profile, ct);
     }
 
-    internal static string EscapeODataString(string value)
-        => value.Replace("'", "''", StringComparison.Ordinal);
-
     internal static bool TryHandleValidationException(ILogger logger, Exception ex, out int exitCode)
     {
         if (ex is TenantPrincipalAmbiguousException ambiguousPrincipal)
