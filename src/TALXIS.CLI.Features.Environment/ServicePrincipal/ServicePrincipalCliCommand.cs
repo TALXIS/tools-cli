@@ -1,28 +1,28 @@
 using DotMake.CommandLine;
 
-namespace TALXIS.CLI.Features.Environment.App;
+namespace TALXIS.CLI.Features.Environment.ServicePrincipal;
 
 /// <summary>
 /// Parent command for Dataverse application-user operations.
 /// Application users are service principals represented by <c>systemuser</c>
 /// rows with an application client ID.
-/// Usage: <c>txc environment app [list|get|create|update|delete|role]</c>
+/// Usage: <c>txc environment service-principal [list|get|create|update|delete|role]</c>
 /// </summary>
 [CliCommand(
-    Name = "app",
+    Name = "service-principal",
     Description = "Manage Dataverse application users (service principals) in the current environment.",
     Children = new[]
     {
-        typeof(AppListCliCommand),
-        typeof(AppGetCliCommand),
-        typeof(AppCreateCliCommand),
-        typeof(AppUpdateCliCommand),
-        typeof(AppDeleteCliCommand),
-        typeof(AppRoleCliCommand)
+        typeof(ServicePrincipalListCliCommand),
+        typeof(ServicePrincipalGetCliCommand),
+        typeof(ServicePrincipalCreateCliCommand),
+        typeof(ServicePrincipalUpdateCliCommand),
+        typeof(ServicePrincipalDeleteCliCommand),
+        typeof(ServicePrincipalRoleCliCommand)
     },
     ShortFormAutoGenerate = CliNameAutoGenerate.None
 )]
-public class AppCliCommand
+public class ServicePrincipalCliCommand
 {
     public void Run(CliContext context)
     {
@@ -32,20 +32,20 @@ public class AppCliCommand
 
 /// <summary>
 /// Sub-resource for Dataverse security-role assignments on an application user.
-/// Usage: <c>txc environment app role [list|add|remove]</c>
+/// Usage: <c>txc environment service-principal role [list|add|remove]</c>
 /// </summary>
 [CliCommand(
     Name = "role",
     Description = "Manage Dataverse security roles assigned to an application user.",
     Children = new[]
     {
-        typeof(AppRoleListCliCommand),
-        typeof(AppRoleAddCliCommand),
-        typeof(AppRoleRemoveCliCommand)
+        typeof(ServicePrincipalRoleListCliCommand),
+        typeof(ServicePrincipalRoleAddCliCommand),
+        typeof(ServicePrincipalRoleRemoveCliCommand)
     },
     ShortFormAutoGenerate = CliNameAutoGenerate.None
 )]
-public class AppRoleCliCommand
+public class ServicePrincipalRoleCliCommand
 {
     public void Run(CliContext context)
     {

@@ -7,11 +7,11 @@ using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Platform.PowerPlatform.Control;
 using TALXIS.CLI.Platform.PowerPlatform.Control.Graph;
 
-namespace TALXIS.CLI.Features.Tenant.App;
+namespace TALXIS.CLI.Features.Tenant.ServicePrincipal;
 
-internal static class TenantAppCommandSupport
+internal static class TenantServicePrincipalCommandSupport
 {
-    public static async Task<IReadOnlyList<GraphServicePrincipal>> ListAppsAsync(
+    public static async Task<IReadOnlyList<GraphServicePrincipal>> ListServicePrincipalsAsync(
         string? profile,
         string? filter,
         CancellationToken ct)
@@ -26,7 +26,7 @@ internal static class TenantAppCommandSupport
             ct).ConfigureAwait(false);
     }
 
-    public static async Task<GraphServicePrincipal> GetAppAsync(
+    public static async Task<GraphServicePrincipal> GetServicePrincipalAsync(
         string? profile,
         string app,
         CancellationToken ct)
@@ -106,12 +106,12 @@ internal static class TenantAppCommandSupport
             ct).ConfigureAwait(false);
     }
 
-    internal static void WriteAppTable(IReadOnlyList<GraphServicePrincipal> rows)
+    internal static void WriteServicePrincipalTable(IReadOnlyList<GraphServicePrincipal> rows)
     {
 #pragma warning disable TXC003
         if (rows.Count == 0)
         {
-            OutputWriter.WriteLine("No tenant apps found.");
+            OutputWriter.WriteLine("No tenant service principals found.");
             return;
         }
 
@@ -136,7 +136,7 @@ internal static class TenantAppCommandSupport
 #pragma warning restore TXC003
     }
 
-    internal static void WriteAppDetail(GraphServicePrincipal app)
+    internal static void WriteServicePrincipalDetail(GraphServicePrincipal app)
     {
 #pragma warning disable TXC003
         OutputWriter.WriteLine($"Application ID: {(app.AppId?.ToString() ?? "-")}");
@@ -150,7 +150,7 @@ internal static class TenantAppCommandSupport
 #pragma warning disable TXC003
         if (rows.Count == 0)
         {
-            OutputWriter.WriteLine("No tenant app role assignments found.");
+            OutputWriter.WriteLine("No tenant service-principal role assignments found.");
             return;
         }
 

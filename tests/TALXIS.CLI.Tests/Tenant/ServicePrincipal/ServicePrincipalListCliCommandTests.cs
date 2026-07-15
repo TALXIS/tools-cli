@@ -1,12 +1,12 @@
 using System.Text.Json;
 using TALXIS.CLI.Core;
-using TALXIS.CLI.Features.Tenant.App;
+using TALXIS.CLI.Features.Tenant.ServicePrincipal;
 using Xunit;
 
-namespace TALXIS.CLI.Tests.Tenant.App;
+namespace TALXIS.CLI.Tests.Tenant.ServicePrincipal;
 
 [Collection("TxcServicesSerial")]
-public sealed class AppListCliCommandTests
+public sealed class ServicePrincipalListCliCommandTests
 {
     [Fact]
     public async Task RunAsync_FilteredList_ReturnsServicePrincipals()
@@ -33,7 +33,7 @@ public sealed class AppListCliCommandTests
         int exit;
         using (OutputWriter.RedirectTo(output))
         {
-            exit = await new AppListCliCommand { Format = "json", Filter = "Contoso" }.RunAsync();
+            exit = await new ServicePrincipalListCliCommand { Format = "json", Filter = "Contoso" }.RunAsync();
         }
 
         Assert.Equal(0, exit);

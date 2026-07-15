@@ -1,11 +1,11 @@
 using TALXIS.CLI.Core;
-using TALXIS.CLI.Features.Tenant.App;
+using TALXIS.CLI.Features.Tenant.ServicePrincipal;
 using Xunit;
 
-namespace TALXIS.CLI.Tests.Tenant.App;
+namespace TALXIS.CLI.Tests.Tenant.ServicePrincipal;
 
 [Collection("TxcServicesSerial")]
-public sealed class AppRoleAddCliCommandTests
+public sealed class ServicePrincipalRoleAddCliCommandTests
 {
     [Fact]
     public async Task RunAsync_AmbiguousRole_ReturnsValidationErrorAndCandidates()
@@ -52,10 +52,10 @@ public sealed class AppRoleAddCliCommandTests
             Console.SetError(error);
             using (OutputWriter.RedirectTo(output))
             {
-                exit = await new AppRoleAddCliCommand
+                exit = await new ServicePrincipalRoleAddCliCommand
                 {
                     Format = "json",
-                    App = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                    ServicePrincipal = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
                     Role = "Owner"
                 }.RunAsync();
             }

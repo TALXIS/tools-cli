@@ -6,26 +6,26 @@ using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Logging;
 
-namespace TALXIS.CLI.Features.Environment.App;
+namespace TALXIS.CLI.Features.Environment.ServicePrincipal;
 
 /// <summary>
 /// Hard-deletes a Dataverse application user.
-/// Usage: <c>txc environment app delete --app &lt;client-id-or-guid&gt; --yes</c>
+/// Usage: <c>txc environment service-principal delete --service-principal &lt;client-id-or-guid&gt; --yes</c>
 /// </summary>
 [CliDestructive("Permanently deletes the Dataverse application user from the environment.")]
 [CliCommand(
     Name = "delete",
     Description = "Hard-delete a Dataverse application user. The record must already be disabled before Dataverse will allow the delete."
 )]
-public class AppDeleteCliCommand : ProfiledCliCommand, IDestructiveCommand
+public class ServicePrincipalDeleteCliCommand : ProfiledCliCommand, IDestructiveCommand
 {
-    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(AppDeleteCliCommand));
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ServicePrincipalDeleteCliCommand));
 
     [CliOption(Name = "--yes", Description = "Skip interactive confirmation.", Required = false)]
     public bool Yes { get; set; }
 
-    [CliOption(Name = "--app", Description = "System-user GUID or application client ID GUID.", Required = true)]
-    public string App { get; set; } = null!;
+    [CliOption(Name = "--service-principal", Description = "System-user GUID or application client ID GUID.", Required = true)]
+    public string ServicePrincipal { get; set; } = null!;
 
     protected override Task<int> ExecuteAsync() => ExecuteDeleteAsync();
 
@@ -34,14 +34,14 @@ public class AppDeleteCliCommand : ProfiledCliCommand, IDestructiveCommand
         try
         {
             var service = TxcServices.Get<IDataverseAppUserService>();
-            var existing = await service.GetAsync(Profile, App, CancellationToken.None).ConfigureAwait(false);
+            var existing = await service.GetAsync(Profile, ServicePrincipal, CancellationToken.None).ConfigureAwait(false);
             if (existing is null)
             {
-                Logger.LogError("Application user '{App}' not found.", App);
+                Logger.LogError("Application user '{ServicePrincipal}' not found.", ServicePrincipal);
                 return ExitValidationError;
             }
 
-            await service.DeleteAsync(Profile, App, CancellationToken.None).ConfigureAwait(false);
+            await service.DeleteAsync(Profile, ServicePrincipal, CancellationToken.None).ConfigureAwait(false);
 
             var payload = new
             {
@@ -49,17 +49,17 @@ public class AppDeleteCliCommand : ProfiledCliCommand, IDestructiveCommand
                 appUser = existing,
             };
 
-            AppCommandSupport.WriteMutationResult(payload, () =>
+            ServicePrincipalCommandSupport.WriteMutationResult(payload, () =>
             {
 #pragma warning disable TXC003
                 OutputWriter.WriteLine("Application user deleted.");
-                AppCommandSupport.WriteAppDetails(existing);
+                ServicePrincipalCommandSupport.WriteAppDetails(existing);
 #pragma warning restore TXC003
             });
 
             return ExitSuccess;
         }
-        catch (Exception ex) when (AppCommandSupport.TryHandleValidationException(Logger, ex, out var exitCode))
+        catch (Exception ex) when (ServicePrincipalCommandSupport.TryHandleValidationException(Logger, ex, out var exitCode))
         {
             return exitCode;
         }

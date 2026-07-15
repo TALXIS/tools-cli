@@ -1,12 +1,12 @@
 using System.Text.Json;
 using TALXIS.CLI.Core;
-using TALXIS.CLI.Features.Tenant.App;
+using TALXIS.CLI.Features.Tenant.ServicePrincipal;
 using Xunit;
 
-namespace TALXIS.CLI.Tests.Tenant.App;
+namespace TALXIS.CLI.Tests.Tenant.ServicePrincipal;
 
 [Collection("TxcServicesSerial")]
-public sealed class AppGetCliCommandTests
+public sealed class ServicePrincipalGetCliCommandTests
 {
     [Fact]
     public async Task RunAsync_ClientIdSelector_ReturnsServicePrincipal()
@@ -33,10 +33,10 @@ public sealed class AppGetCliCommandTests
         int exit;
         using (OutputWriter.RedirectTo(output))
         {
-            exit = await new AppGetCliCommand
+            exit = await new ServicePrincipalGetCliCommand
             {
                 Format = "json",
-                App = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+                ServicePrincipal = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
             }.RunAsync();
         }
 
@@ -75,10 +75,10 @@ public sealed class AppGetCliCommandTests
         int exit;
         using (OutputWriter.RedirectTo(output))
         {
-            exit = await new AppGetCliCommand
+            exit = await new ServicePrincipalGetCliCommand
             {
                 Format = "json",
-                App = "Contoso CLI"
+                ServicePrincipal = "Contoso CLI"
             }.RunAsync();
         }
 
@@ -119,10 +119,10 @@ public sealed class AppGetCliCommandTests
             Console.SetError(error);
             using (OutputWriter.RedirectTo(output))
             {
-                exit = await new AppGetCliCommand
+                exit = await new ServicePrincipalGetCliCommand
                 {
                     Format = "json",
-                    App = "Contoso CLI"
+                    ServicePrincipal = "Contoso CLI"
                 }.RunAsync();
             }
         }

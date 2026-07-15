@@ -1,12 +1,12 @@
 using System.Text.Json;
 using TALXIS.CLI.Core;
-using TALXIS.CLI.Features.Tenant.App;
+using TALXIS.CLI.Features.Tenant.ServicePrincipal;
 using Xunit;
 
-namespace TALXIS.CLI.Tests.Tenant.App;
+namespace TALXIS.CLI.Tests.Tenant.ServicePrincipal;
 
 [Collection("TxcServicesSerial")]
-public sealed class AppRoleRemoveCliCommandTests
+public sealed class ServicePrincipalRoleRemoveCliCommandTests
 {
     [Fact]
     public async Task RunAsync_AdminApplicationRole_RemovesAssignment()
@@ -42,10 +42,10 @@ public sealed class AppRoleRemoveCliCommandTests
         int exit;
         using (OutputWriter.RedirectTo(output))
         {
-            exit = await new AppRoleRemoveCliCommand
+            exit = await new ServicePrincipalRoleRemoveCliCommand
             {
                 Format = "json",
-                App = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                ServicePrincipal = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
                 Role = "admin-application",
                 Yes = true
             }.RunAsync();

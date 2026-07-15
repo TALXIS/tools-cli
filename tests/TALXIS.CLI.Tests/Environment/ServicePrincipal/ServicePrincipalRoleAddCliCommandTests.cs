@@ -3,20 +3,20 @@ using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
-using TALXIS.CLI.Features.Environment.App;
+using TALXIS.CLI.Features.Environment.ServicePrincipal;
 using Xunit;
 
-namespace TALXIS.CLI.Tests.Environment.App;
+namespace TALXIS.CLI.Tests.Environment.ServicePrincipal;
 
 /// <summary>
-/// Regression coverage for <see cref="AppRoleAddCliCommand"/>'s idempotent
+/// Regression coverage for <see cref="ServicePrincipalRoleAddCliCommand"/>'s idempotent
 /// no-op behavior: re-running <c>role add</c> for a role that is already
 /// assigned must report <c>"unchanged"</c> and must not call
 /// <see cref="IDataverseAppUserService.AddRoleAsync"/> again, matching the
 /// equivalent behavior on <c>environment user role add</c>.
 /// </summary>
 [Collection("TxcServicesSerial")]
-public sealed class AppRoleAddCliCommandTests
+public sealed class ServicePrincipalRoleAddCliCommandTests
 {
     private static readonly Guid RoleId = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
@@ -30,10 +30,10 @@ public sealed class AppRoleAddCliCommandTests
         int exit;
         using (OutputWriter.RedirectTo(output))
         {
-            exit = await new AppRoleAddCliCommand
+            exit = await new ServicePrincipalRoleAddCliCommand
             {
                 Format = "json",
-                App = "11111111-1111-1111-1111-111111111111",
+                ServicePrincipal = "11111111-1111-1111-1111-111111111111",
                 Role = "Owner"
             }.RunAsync();
         }
@@ -52,10 +52,10 @@ public sealed class AppRoleAddCliCommandTests
         int exit;
         using (OutputWriter.RedirectTo(output))
         {
-            exit = await new AppRoleAddCliCommand
+            exit = await new ServicePrincipalRoleAddCliCommand
             {
                 Format = "json",
-                App = "11111111-1111-1111-1111-111111111111",
+                ServicePrincipal = "11111111-1111-1111-1111-111111111111",
                 Role = "Owner"
             }.RunAsync();
         }

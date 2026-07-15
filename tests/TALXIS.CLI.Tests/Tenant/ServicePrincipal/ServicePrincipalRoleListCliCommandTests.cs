@@ -1,12 +1,12 @@
 using System.Text.Json;
 using TALXIS.CLI.Core;
-using TALXIS.CLI.Features.Tenant.App;
+using TALXIS.CLI.Features.Tenant.ServicePrincipal;
 using Xunit;
 
-namespace TALXIS.CLI.Tests.Tenant.App;
+namespace TALXIS.CLI.Tests.Tenant.ServicePrincipal;
 
 [Collection("TxcServicesSerial")]
-public sealed class AppRoleListCliCommandTests
+public sealed class ServicePrincipalRoleListCliCommandTests
 {
     [Fact]
     public async Task RunAsync_ReturnsTenantRoleAndAdminApplicationAssignment()
@@ -61,10 +61,10 @@ public sealed class AppRoleListCliCommandTests
         int exit;
         using (OutputWriter.RedirectTo(output))
         {
-            exit = await new AppRoleListCliCommand
+            exit = await new ServicePrincipalRoleListCliCommand
             {
                 Format = "json",
-                App = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+                ServicePrincipal = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
             }.RunAsync();
         }
 

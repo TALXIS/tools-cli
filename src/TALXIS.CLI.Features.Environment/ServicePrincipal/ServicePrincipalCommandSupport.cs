@@ -2,9 +2,9 @@ using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 
-namespace TALXIS.CLI.Features.Environment.App;
+namespace TALXIS.CLI.Features.Environment.ServicePrincipal;
 
-internal static class AppCommandSupport
+internal static class ServicePrincipalCommandSupport
 {
     internal static bool TryResolveStateFilter(
         bool enabled,
@@ -134,7 +134,7 @@ internal static class AppCommandSupport
     internal static void WriteCreateResult(
         DataverseAppUserRecord app,
         IReadOnlyList<string> assignedRoles,
-        IReadOnlyList<AppRoleAssignmentFailure> failures)
+        IReadOnlyList<ServicePrincipalRoleAssignmentFailure> failures)
     {
         var payload = new
         {
@@ -181,4 +181,4 @@ internal static class AppCommandSupport
     }
 }
 
-internal sealed record AppRoleAssignmentFailure(string Role, string Message, bool IsValidationError);
+internal sealed record ServicePrincipalRoleAssignmentFailure(string Role, string Message, bool IsValidationError);
