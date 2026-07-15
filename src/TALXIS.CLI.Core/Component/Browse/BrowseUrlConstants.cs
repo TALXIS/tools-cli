@@ -1,4 +1,4 @@
-namespace TALXIS.CLI.Features.Environment.Component.Browse;
+namespace TALXIS.CLI.Core.Component.Browse;
 
 /// <summary>
 /// Shared constants for browse URL construction.
@@ -16,7 +16,7 @@ public static class BrowseUrlConstants
     {
         if (Uri.TryCreate(orgUrl, UriKind.Absolute, out var uri))
             return uri.Host;
-        // Already a bare hostname
+
         return orgUrl.TrimEnd('/');
     }
 }

@@ -8,6 +8,7 @@
     <ProjectReference Include="..\TALXIS.CLI.Features.Data\TALXIS.CLI.Features.Data.csproj" />
     <ProjectReference Include="..\TALXIS.CLI.Features.Environment\TALXIS.CLI.Features.Environment.csproj" />
     <ProjectReference Include="..\TALXIS.CLI.Features.Docs\TALXIS.CLI.Features.Docs.csproj" />
+    <ProjectReference Include="..\TALXIS.CLI.Features.Ui\TALXIS.CLI.Features.Ui.csproj" />
     <ProjectReference Include="..\TALXIS.CLI.Logging\TALXIS.CLI.Logging.csproj" />
     <ProjectReference Include="..\TALXIS.CLI.Features.Workspace\TALXIS.CLI.Features.Workspace.csproj" />
     <ProjectReference Include="..\TALXIS.CLI.Core\TALXIS.CLI.Core.csproj" />

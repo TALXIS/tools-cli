@@ -1,4 +1,4 @@
-namespace TALXIS.CLI.Features.Environment.Component.Browse;
+namespace TALXIS.CLI.Core.Component.Browse;
 
 /// <summary>
 /// URL builders for the Power Apps maker portal (<c>make.powerapps.com</c>).

@@ -1,6 +1,7 @@
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
+using TALXIS.CLI.Core.Component.Url;
 using TALXIS.CLI.Core.Resolution;
 using TALXIS.Platform.Metadata;
 using TALXIS.Platform.Metadata.Serialization.Xml;

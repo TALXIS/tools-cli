@@ -26,6 +26,7 @@ public class CommandConventionTests
         typeof(TALXIS.CLI.Features.Environment.EnvironmentCliCommand).Assembly,
         typeof(TALXIS.CLI.Features.Workspace.WorkspaceCliCommand).Assembly,
         typeof(TALXIS.CLI.Features.Data.DataCliCommand).Assembly,
+        typeof(TALXIS.CLI.Features.Ui.UiCliCommand).Assembly,
         typeof(TALXIS.CLI.TxcCliCommand).Assembly,
     };
 
