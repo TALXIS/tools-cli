@@ -55,7 +55,7 @@ internal static class ServicePrincipalCommandSupport
         }
     }
 
-    internal static void WriteAppDetails(DataverseAppUserRecord app)
+    internal static void WriteServicePrincipalDetails(DataverseServicePrincipalRecord app)
     {
 #pragma warning disable TXC003
         OutputWriter.WriteLine($"System User ID: {app.Id}");
@@ -68,12 +68,12 @@ internal static class ServicePrincipalCommandSupport
 #pragma warning restore TXC003
     }
 
-    internal static void WriteAppTable(IReadOnlyList<DataverseAppUserRecord> rows)
+    internal static void WriteAppTable(IReadOnlyList<DataverseServicePrincipalRecord> rows)
     {
 #pragma warning disable TXC003
         if (rows.Count == 0)
         {
-            OutputWriter.WriteLine("No application users found.");
+            OutputWriter.WriteLine("No service principals found.");
             return;
         }
 
@@ -132,14 +132,14 @@ internal static class ServicePrincipalCommandSupport
     }
 
     internal static void WriteCreateResult(
-        DataverseAppUserRecord app,
+        DataverseServicePrincipalRecord app,
         IReadOnlyList<string> assignedRoles,
         IReadOnlyList<ServicePrincipalRoleAssignmentFailure> failures)
     {
         var payload = new
         {
             status = failures.Count == 0 ? "created" : "partial",
-            appUser = app,
+            servicePrincipal = app,
             assignedRoles,
             failedRoles = failures.Select(static failure => new
             {
@@ -152,9 +152,9 @@ internal static class ServicePrincipalCommandSupport
         {
 #pragma warning disable TXC003
             OutputWriter.WriteLine(failures.Count == 0
-                ? "Application user created."
-                : "Application user created, but one or more role assignments failed.");
-            WriteAppDetails(app);
+                ? "Service principal created."
+                : "Service principal created, but one or more role assignments failed.");
+            WriteServicePrincipalDetails(app);
 
             if (assignedRoles.Count > 0)
             {

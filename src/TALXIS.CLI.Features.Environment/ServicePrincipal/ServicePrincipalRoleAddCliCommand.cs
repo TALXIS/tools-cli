@@ -8,13 +8,13 @@ using TALXIS.CLI.Logging;
 namespace TALXIS.CLI.Features.Environment.ServicePrincipal;
 
 /// <summary>
-/// Assigns a security role to a Dataverse application user.
+/// Assigns a security role to a Dataverse service principal.
 /// Usage: <c>txc environment service-principal role add --service-principal &lt;client-id-or-guid&gt; --role &lt;name-or-guid&gt;</c>
 /// </summary>
 [CliIdempotent]
 [CliCommand(
     Name = "add",
-    Description = "Assign a security role to a Dataverse application user."
+    Description = "Assign a security role to a Dataverse service principal."
 )]
 public class ServicePrincipalRoleAddCliCommand : ProfiledCliCommand
 {
@@ -32,7 +32,7 @@ public class ServicePrincipalRoleAddCliCommand : ProfiledCliCommand
     {
         try
         {
-            var service = TxcServices.Get<IDataverseAppUserService>();
+            var service = TxcServices.Get<IDataverseServicePrincipalService>();
 
             var existingRoles = await service.ListRolesAsync(Profile, ServicePrincipal, CancellationToken.None).ConfigureAwait(false);
             if (existingRoles.Any(r => EnvironmentPrincipalCommandSupport.IsRoleMatch(r, Role)))
@@ -42,7 +42,7 @@ public class ServicePrincipalRoleAddCliCommand : ProfiledCliCommand
                     () =>
                     {
 #pragma warning disable TXC003
-                        OutputWriter.WriteLine($"Role '{Role}' is already assigned to application user '{ServicePrincipal}'.");
+                        OutputWriter.WriteLine($"Role '{Role}' is already assigned to service principal '{ServicePrincipal}'.");
 #pragma warning restore TXC003
                     });
                 return ExitSuccess;
@@ -60,7 +60,7 @@ public class ServicePrincipalRoleAddCliCommand : ProfiledCliCommand
             ServicePrincipalCommandSupport.WriteMutationResult(payload, () =>
             {
 #pragma warning disable TXC003
-                OutputWriter.WriteLine($"Role '{Role}' assigned to application user '{ServicePrincipal}'.");
+                OutputWriter.WriteLine($"Role '{Role}' assigned to service principal '{ServicePrincipal}'.");
 #pragma warning restore TXC003
             });
 

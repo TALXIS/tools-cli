@@ -8,13 +8,13 @@ using TALXIS.CLI.Logging;
 namespace TALXIS.CLI.Features.Environment.ServicePrincipal;
 
 /// <summary>
-/// Creates a Dataverse application user directly in the environment.
+/// Creates a Dataverse service principal directly in the environment.
 /// Usage: <c>txc environment service-principal create --service-principal &lt;entra-client-id&gt; [--business-unit &lt;name-or-guid&gt;] [--role &lt;csv&gt;]</c>
 /// </summary>
 [CliIdempotent]
 [CliCommand(
     Name = "create",
-    Description = "Create a Dataverse application user from an existing Entra app registration. This creates only the environment-side application user record, so the app registration itself must already exist. No prior environment-side registration step is required. Use --role with one comma-separated value to assign initial roles. If the user is created but one or more role assignments fail, txc reports the created user, lists the failed roles, and exits non-zero so you can retry just those role assignments."
+    Description = "Create a Dataverse service principal from an existing Entra app registration. This creates only the environment-side service principal record, so the app registration itself must already exist. No prior environment-side registration step is required. Use --role with one comma-separated value to assign initial roles. If the user is created but one or more role assignments fail, txc reports the created user, lists the failed roles, and exits non-zero so you can retry just those role assignments."
 )]
 public class ServicePrincipalCreateCliCommand : ProfiledCliCommand
 {
@@ -41,10 +41,10 @@ public class ServicePrincipalCreateCliCommand : ProfiledCliCommand
     {
         try
         {
-            var service = TxcServices.Get<IDataverseAppUserService>();
+            var service = TxcServices.Get<IDataverseServicePrincipalService>();
             var app = await service.CreateAsync(
                 Profile,
-                new DataverseAppUserCreateOptions(ServicePrincipal, BusinessUnit, Array.Empty<string>()),
+                new DataverseServicePrincipalCreateOptions(ServicePrincipal, BusinessUnit, Array.Empty<string>()),
                 CancellationToken.None).ConfigureAwait(false);
 
             if (requestedRoles.Count == 0)
@@ -78,8 +78,8 @@ public class ServicePrincipalCreateCliCommand : ProfiledCliCommand
     }
 
     private async Task TryAssignRoleAsync(
-        IDataverseAppUserService service,
-        DataverseAppUserRecord app,
+        IDataverseServicePrincipalService service,
+        DataverseServicePrincipalRecord app,
         string role,
         ICollection<string> assignedRoles,
         ICollection<ServicePrincipalRoleAssignmentFailure> failures)

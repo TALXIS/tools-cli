@@ -9,6 +9,17 @@ public enum PowerPlatformPrincipalType
 {
     User = 0,
     Group = 1,
+
+    /// <summary>
+    /// A service principal (Entra application), tenant-scoped for RBAC.
+    /// The member name is intentionally kept as <c>ApplicationUser</c>
+    /// (not renamed to <c>ServicePrincipal</c>) because its
+    /// <see cref="object.ToString"/> value is sent as the literal
+    /// <c>principalType</c> value to the real Power Platform Admin RBAC API
+    /// and parsed back from that API's responses via
+    /// <see cref="Enum.TryParse{TEnum}(string, bool, out TEnum)"/> — this is
+    /// an external wire-format contract, not just an internal name.
+    /// </summary>
     ApplicationUser = 2,
 }
 

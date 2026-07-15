@@ -84,7 +84,7 @@ If `config_profile_validate` fails:
 1. Check the environment URL is correct (`config_profile_get`)
 2. Verify the service principal exists in the target environment's Azure AD
 3. Confirm the service principal has a Dataverse security role assigned (see
-   [security-roles](security-roles.md) for creating the application user and assigning roles)
+   [security-roles](security-roles.md) for creating the service principal and assigning roles)
 4. Check if credentials (secret/certificate) have expired
 
 ## What NOT to Do

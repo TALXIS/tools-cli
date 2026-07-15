@@ -1,7 +1,7 @@
 namespace TALXIS.CLI.Core.Contracts.Dataverse;
 
 /// <summary>
-/// Filter applied when listing Dataverse users or application users.
+/// Filter applied when listing Dataverse users or service principals.
 /// </summary>
 public enum DataverseSecurityPrincipalStateFilter
 {
@@ -102,10 +102,10 @@ public sealed record DataverseUserRecord(
     string? BusinessUnitName);
 
 /// <summary>
-/// Read model for a Dataverse application user (<c>systemuser</c> with a
+/// Read model for a Dataverse service principal (<c>systemuser</c> with a
 /// populated <c>applicationid</c>).
 /// </summary>
-public sealed record DataverseAppUserRecord(
+public sealed record DataverseServicePrincipalRecord(
     Guid Id,
     Guid ApplicationId,
     string? FullName,
@@ -138,9 +138,9 @@ public sealed record DataverseTeamRecord(
     bool IsSystemManaged);
 
 /// <summary>
-/// Input model for creating a Dataverse application user.
+/// Input model for creating a Dataverse service principal.
 /// </summary>
-public sealed record DataverseAppUserCreateOptions(
+public sealed record DataverseServicePrincipalCreateOptions(
     Guid EntraClientId,
     string? BusinessUnitIdOrName,
     IReadOnlyList<string> InitialRoleNamesOrGuids);

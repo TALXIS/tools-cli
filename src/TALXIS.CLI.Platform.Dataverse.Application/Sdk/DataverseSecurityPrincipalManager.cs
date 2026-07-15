@@ -44,7 +44,7 @@ internal static class DataverseSecurityPrincipalManager
         DataverseSecurityPrincipalStateFilter filter,
         CancellationToken ct)
     {
-        var query = CreateSystemUserQuery(includeApplicationUsers: false);
+        var query = CreateSystemUserQuery(includeServicePrincipals: false);
         ApplyEnabledStateFilter(query.Criteria, filter);
         query.AddOrder("fullname", OrderType.Ascending);
         query.AddOrder("domainname", OrderType.Ascending);
@@ -111,35 +111,35 @@ internal static class DataverseSecurityPrincipalManager
         Disassociate("systemuser", user.Id, "role", role.Id, SystemUserRoleRelationshipName, service);
     }
 
-    public static async Task<IReadOnlyList<DataverseAppUserRecord>> ListApplicationUsersAsync(
+    public static async Task<IReadOnlyList<DataverseServicePrincipalRecord>> ListServicePrincipalsAsync(
         IOrganizationServiceAsync2 service,
         DataverseSecurityPrincipalStateFilter filter,
         CancellationToken ct)
     {
-        var query = CreateSystemUserQuery(includeApplicationUsers: true);
+        var query = CreateSystemUserQuery(includeServicePrincipals: true);
         ApplyEnabledStateFilter(query.Criteria, filter);
         query.AddOrder("fullname", OrderType.Ascending);
         query.AddOrder("applicationid", OrderType.Ascending);
 
         var entities = await RetrieveAllAsync(service, query, ct).ConfigureAwait(false);
-        return entities.Select(ToApplicationUserRecord).ToList();
+        return entities.Select(ToServicePrincipalRecord).ToList();
     }
 
-    public static async Task<DataverseAppUserRecord?> GetApplicationUserAsync(
+    public static async Task<DataverseServicePrincipalRecord?> GetServicePrincipalAsync(
         IOrganizationServiceAsync2 service,
         string clientIdOrGuid,
         CancellationToken ct)
     {
-        var matches = await QueryApplicationUsersAsync(service, clientIdOrGuid, ct).ConfigureAwait(false);
-        return ResolveOptionalSingle(matches, "Dataverse application user", clientIdOrGuid, static app => new DataverseLookupCandidate(
+        var matches = await QueryServicePrincipalsAsync(service, clientIdOrGuid, ct).ConfigureAwait(false);
+        return ResolveOptionalSingle(matches, "Dataverse service principal", clientIdOrGuid, static app => new DataverseLookupCandidate(
             app.Id,
             app.FullName ?? app.ApplicationId.ToString(),
             app.ApplicationId.ToString()));
     }
 
-    public static async Task<DataverseAppUserRecord> CreateApplicationUserAsync(
+    public static async Task<DataverseServicePrincipalRecord> CreateServicePrincipalAsync(
         IOrganizationServiceAsync2 service,
-        DataverseAppUserCreateOptions options,
+        DataverseServicePrincipalCreateOptions options,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -159,17 +159,17 @@ internal static class DataverseSecurityPrincipalManager
             Associate("systemuser", id, "role", role.Id, SystemUserRoleRelationshipName, service);
         }
 
-        return await GetApplicationUserBySystemUserIdAsync(service, id, ct).ConfigureAwait(false)
-            ?? throw new InvalidOperationException($"Application user '{id}' was created but could not be reloaded.");
+        return await GetServicePrincipalBySystemUserIdAsync(service, id, ct).ConfigureAwait(false)
+            ?? throw new InvalidOperationException($"Service principal '{id}' was created but could not be reloaded.");
     }
 
-    public static async Task UpdateApplicationUserEnabledStateAsync(
+    public static async Task UpdateServicePrincipalEnabledStateAsync(
         IOrganizationServiceAsync2 service,
         string clientIdOrGuid,
         bool enabled,
         CancellationToken ct)
     {
-        var app = await RequireApplicationUserAsync(service, clientIdOrGuid, ct).ConfigureAwait(false);
+        var app = await RequireServicePrincipalAsync(service, clientIdOrGuid, ct).ConfigureAwait(false);
         var entity = new Entity("systemuser", app.Id)
         {
             ["isdisabled"] = !enabled,
@@ -178,45 +178,45 @@ internal static class DataverseSecurityPrincipalManager
         await service.UpdateAsync(entity, ct).ConfigureAwait(false);
     }
 
-    public static async Task DeleteApplicationUserAsync(
+    public static async Task DeleteServicePrincipalAsync(
         IOrganizationServiceAsync2 service,
         string clientIdOrGuid,
         CancellationToken ct)
     {
-        var app = await RequireApplicationUserAsync(service, clientIdOrGuid, ct).ConfigureAwait(false);
+        var app = await RequireServicePrincipalAsync(service, clientIdOrGuid, ct).ConfigureAwait(false);
         if (!app.IsDisabled)
-            throw new InvalidOperationException($"Application user '{clientIdOrGuid}' must be disabled before it can be deleted.");
+            throw new InvalidOperationException($"Service principal '{clientIdOrGuid}' must be disabled before it can be deleted.");
 
         await service.DeleteAsync("systemuser", app.Id, ct).ConfigureAwait(false);
     }
 
-    public static async Task<IReadOnlyList<DataverseRoleRecord>> ListApplicationUserRolesAsync(
+    public static async Task<IReadOnlyList<DataverseRoleRecord>> ListServicePrincipalRolesAsync(
         IOrganizationServiceAsync2 service,
         string clientIdOrGuid,
         CancellationToken ct)
     {
-        var app = await RequireApplicationUserAsync(service, clientIdOrGuid, ct).ConfigureAwait(false);
+        var app = await RequireServicePrincipalAsync(service, clientIdOrGuid, ct).ConfigureAwait(false);
         return await ListRelatedRolesAsync(service, "systemuser", app.Id, SystemUserRoleRelationshipName, ct).ConfigureAwait(false);
     }
 
-    public static async Task AddApplicationUserRoleAsync(
+    public static async Task AddServicePrincipalRoleAsync(
         IOrganizationServiceAsync2 service,
         string clientIdOrGuid,
         string roleNameOrGuid,
         CancellationToken ct)
     {
-        var app = await RequireApplicationUserAsync(service, clientIdOrGuid, ct).ConfigureAwait(false);
+        var app = await RequireServicePrincipalAsync(service, clientIdOrGuid, ct).ConfigureAwait(false);
         var role = await RequireRoleAsync(service, roleNameOrGuid, ct).ConfigureAwait(false);
         Associate("systemuser", app.Id, "role", role.Id, SystemUserRoleRelationshipName, service);
     }
 
-    public static async Task RemoveApplicationUserRoleAsync(
+    public static async Task RemoveServicePrincipalRoleAsync(
         IOrganizationServiceAsync2 service,
         string clientIdOrGuid,
         string roleNameOrGuid,
         CancellationToken ct)
     {
-        var app = await RequireApplicationUserAsync(service, clientIdOrGuid, ct).ConfigureAwait(false);
+        var app = await RequireServicePrincipalAsync(service, clientIdOrGuid, ct).ConfigureAwait(false);
         var role = await RequireRoleAsync(service, roleNameOrGuid, ct).ConfigureAwait(false);
         Disassociate("systemuser", app.Id, "role", role.Id, SystemUserRoleRelationshipName, service);
     }
@@ -296,7 +296,7 @@ internal static class DataverseSecurityPrincipalManager
             "team",
             team.Id,
             relationship,
-            CreateSystemUserQuery(includeApplicationUsers: false),
+            CreateSystemUserQuery(includeServicePrincipals: false),
             ct).ConfigureAwait(false);
 
         return related
@@ -470,12 +470,12 @@ internal static class DataverseSecurityPrincipalManager
         => await GetRegularUserAsync(service, userIdOrUpn, ct).ConfigureAwait(false)
             ?? throw new InvalidOperationException($"Dataverse user '{userIdOrUpn}' was not found.");
 
-    private static async Task<DataverseAppUserRecord> RequireApplicationUserAsync(
+    private static async Task<DataverseServicePrincipalRecord> RequireServicePrincipalAsync(
         IOrganizationServiceAsync2 service,
         string clientIdOrGuid,
         CancellationToken ct)
-        => await GetApplicationUserAsync(service, clientIdOrGuid, ct).ConfigureAwait(false)
-            ?? throw new InvalidOperationException($"Dataverse application user '{clientIdOrGuid}' was not found.");
+        => await GetServicePrincipalAsync(service, clientIdOrGuid, ct).ConfigureAwait(false)
+            ?? throw new InvalidOperationException($"Dataverse service principal '{clientIdOrGuid}' was not found.");
 
     private static async Task<DataverseTeamRecord> RequireTeamAsync(
         IOrganizationServiceAsync2 service,
@@ -496,35 +496,35 @@ internal static class DataverseSecurityPrincipalManager
         string userIdOrUpn,
         CancellationToken ct)
     {
-        var query = CreateSystemUserQuery(includeApplicationUsers: false);
+        var query = CreateSystemUserQuery(includeServicePrincipals: false);
         ApplyRegularUserIdentifierFilter(query.Criteria, userIdOrUpn);
 
         var entities = await RetrieveAllAsync(service, query, ct).ConfigureAwait(false);
         return entities.Select(ToRegularUserRecord).ToList();
     }
 
-    private static async Task<IReadOnlyList<DataverseAppUserRecord>> QueryApplicationUsersAsync(
+    private static async Task<IReadOnlyList<DataverseServicePrincipalRecord>> QueryServicePrincipalsAsync(
         IOrganizationServiceAsync2 service,
         string clientIdOrGuid,
         CancellationToken ct)
     {
-        var query = CreateSystemUserQuery(includeApplicationUsers: true);
-        ApplyApplicationUserIdentifierFilter(query.Criteria, clientIdOrGuid);
+        var query = CreateSystemUserQuery(includeServicePrincipals: true);
+        ApplyServicePrincipalIdentifierFilter(query.Criteria, clientIdOrGuid);
 
         var entities = await RetrieveAllAsync(service, query, ct).ConfigureAwait(false);
-        return entities.Select(ToApplicationUserRecord).ToList();
+        return entities.Select(ToServicePrincipalRecord).ToList();
     }
 
-    private static async Task<DataverseAppUserRecord?> GetApplicationUserBySystemUserIdAsync(
+    private static async Task<DataverseServicePrincipalRecord?> GetServicePrincipalBySystemUserIdAsync(
         IOrganizationServiceAsync2 service,
         Guid systemUserId,
         CancellationToken ct)
     {
-        var query = CreateSystemUserQuery(includeApplicationUsers: true);
+        var query = CreateSystemUserQuery(includeServicePrincipals: true);
         query.Criteria.AddCondition("systemuserid", ConditionOperator.Equal, systemUserId);
 
         var entities = await RetrieveAllAsync(service, query, ct).ConfigureAwait(false);
-        return entities.Count == 0 ? null : ToApplicationUserRecord(entities[0]);
+        return entities.Count == 0 ? null : ToServicePrincipalRecord(entities[0]);
     }
 
     private static async Task<IReadOnlyList<DataverseTeamRecord>> QueryTeamsAsync(
@@ -577,7 +577,7 @@ internal static class DataverseSecurityPrincipalManager
         return entities.Select(ToRoleRecord).ToList();
     }
 
-    private static QueryExpression CreateSystemUserQuery(bool includeApplicationUsers)
+    private static QueryExpression CreateSystemUserQuery(bool includeServicePrincipals)
     {
         var query = new QueryExpression("systemuser")
         {
@@ -586,7 +586,7 @@ internal static class DataverseSecurityPrincipalManager
 
         query.Criteria.AddCondition(
             "applicationid",
-            includeApplicationUsers ? ConditionOperator.NotNull : ConditionOperator.Null);
+            includeServicePrincipals ? ConditionOperator.NotNull : ConditionOperator.Null);
 
         AddBusinessUnitLink(query, "businessunitid", "businessunitid");
         return query;
@@ -652,10 +652,10 @@ internal static class DataverseSecurityPrincipalManager
         criteria.AddFilter(identifierFilter);
     }
 
-    private static void ApplyApplicationUserIdentifierFilter(FilterExpression criteria, string clientIdOrGuid)
+    private static void ApplyServicePrincipalIdentifierFilter(FilterExpression criteria, string clientIdOrGuid)
     {
         if (!Guid.TryParse(clientIdOrGuid, out var id))
-            throw new ArgumentException("Application users can only be resolved by system user GUID or application client ID GUID.", nameof(clientIdOrGuid));
+            throw new ArgumentException("Service principals can only be resolved by system user GUID or application client ID GUID.", nameof(clientIdOrGuid));
 
         var identifierFilter = new FilterExpression(LogicalOperator.Or);
         identifierFilter.AddCondition("systemuserid", ConditionOperator.Equal, id);
@@ -673,7 +673,7 @@ internal static class DataverseSecurityPrincipalManager
         BusinessUnitId: GetEntityReferenceId(entity, "businessunitid"),
         BusinessUnitName: GetAliasedString(entity, BusinessUnitAlias, "name"));
 
-    private static DataverseAppUserRecord ToApplicationUserRecord(Entity entity) => new(
+    private static DataverseServicePrincipalRecord ToServicePrincipalRecord(Entity entity) => new(
         Id: entity.Id,
         ApplicationId: entity.GetAttributeValue<Guid>("applicationid"),
         FullName: entity.GetAttributeValue<string>("fullname"),

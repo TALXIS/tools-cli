@@ -12,7 +12,7 @@ namespace TALXIS.CLI.Tests.Environment.ServicePrincipal;
 /// Regression coverage for <see cref="ServicePrincipalRoleAddCliCommand"/>'s idempotent
 /// no-op behavior: re-running <c>role add</c> for a role that is already
 /// assigned must report <c>"unchanged"</c> and must not call
-/// <see cref="IDataverseAppUserService.AddRoleAsync"/> again, matching the
+/// <see cref="IDataverseServicePrincipalService.AddRoleAsync"/> again, matching the
 /// equivalent behavior on <c>environment user role add</c>.
 /// </summary>
 [Collection("TxcServicesSerial")]
@@ -24,7 +24,7 @@ public sealed class ServicePrincipalRoleAddCliCommandTests
     public async Task RunAsync_RoleAlreadyAssigned_ReturnsUnchangedWithoutMutating()
     {
         var role = new DataverseRoleRecord(RoleId, "Owner", null, null);
-        using var host = new FakeAppUserServiceHost(existingRoles: new[] { role });
+        using var host = new FakeServicePrincipalServiceHost(existingRoles: new[] { role });
 
         var output = new StringWriter();
         int exit;
@@ -46,7 +46,7 @@ public sealed class ServicePrincipalRoleAddCliCommandTests
     [Fact]
     public async Task RunAsync_RoleNotYetAssigned_AddsRoleAndReportsRoleAdded()
     {
-        using var host = new FakeAppUserServiceHost(existingRoles: Array.Empty<DataverseRoleRecord>());
+        using var host = new FakeServicePrincipalServiceHost(existingRoles: Array.Empty<DataverseRoleRecord>());
 
         var output = new StringWriter();
         int exit;
@@ -65,19 +65,19 @@ public sealed class ServicePrincipalRoleAddCliCommandTests
         Assert.Contains("\"status\": \"role-added\"", output.ToString());
     }
 
-    private sealed class FakeAppUserServiceHost : IDisposable
+    private sealed class FakeServicePrincipalServiceHost : IDisposable
     {
         private readonly ServiceProvider _provider;
 
-        public FakeAppUserService Service { get; }
+        public FakeServicePrincipalService Service { get; }
 
-        public FakeAppUserServiceHost(IReadOnlyList<DataverseRoleRecord> existingRoles)
+        public FakeServicePrincipalServiceHost(IReadOnlyList<DataverseRoleRecord> existingRoles)
         {
-            Service = new FakeAppUserService(existingRoles);
+            Service = new FakeServicePrincipalService(existingRoles);
 
             var services = new ServiceCollection();
             services.AddLogging();
-            services.AddSingleton<IDataverseAppUserService>(Service);
+            services.AddSingleton<IDataverseServicePrincipalService>(Service);
 
             _provider = services.BuildServiceProvider();
             TxcServices.Initialize(_provider);
@@ -90,17 +90,17 @@ public sealed class ServicePrincipalRoleAddCliCommandTests
         }
     }
 
-    private sealed class FakeAppUserService(IReadOnlyList<DataverseRoleRecord> existingRoles) : IDataverseAppUserService
+    private sealed class FakeServicePrincipalService(IReadOnlyList<DataverseRoleRecord> existingRoles) : IDataverseServicePrincipalService
     {
         public bool AddRoleAsyncCalled { get; private set; }
 
-        public Task<IReadOnlyList<DataverseAppUserRecord>> ListAsync(string? profileName, DataverseSecurityPrincipalStateFilter filter, CancellationToken ct)
+        public Task<IReadOnlyList<DataverseServicePrincipalRecord>> ListAsync(string? profileName, DataverseSecurityPrincipalStateFilter filter, CancellationToken ct)
             => throw new NotImplementedException();
 
-        public Task<DataverseAppUserRecord?> GetAsync(string? profileName, string clientIdOrGuid, CancellationToken ct)
+        public Task<DataverseServicePrincipalRecord?> GetAsync(string? profileName, string clientIdOrGuid, CancellationToken ct)
             => throw new NotImplementedException();
 
-        public Task<DataverseAppUserRecord> CreateAsync(string? profileName, DataverseAppUserCreateOptions options, CancellationToken ct)
+        public Task<DataverseServicePrincipalRecord> CreateAsync(string? profileName, DataverseServicePrincipalCreateOptions options, CancellationToken ct)
             => throw new NotImplementedException();
 
         public Task UpdateEnabledStateAsync(string? profileName, string clientIdOrGuid, bool enabled, CancellationToken ct)

@@ -9,13 +9,13 @@ using TALXIS.CLI.Logging;
 namespace TALXIS.CLI.Features.Environment.ServicePrincipal;
 
 /// <summary>
-/// Removes a security role from a Dataverse application user.
+/// Removes a security role from a Dataverse service principal.
 /// Usage: <c>txc environment service-principal role remove --service-principal &lt;client-id-or-guid&gt; --role &lt;name-or-guid&gt; --yes</c>
 /// </summary>
-[CliDestructive("Permanently removes the security role assignment from the Dataverse application user.")]
+[CliDestructive("Permanently removes the security role assignment from the Dataverse service principal.")]
 [CliCommand(
     Name = "remove",
-    Description = "Remove a security role from a Dataverse application user."
+    Description = "Remove a security role from a Dataverse service principal."
 )]
 public class ServicePrincipalRoleRemoveCliCommand : ProfiledCliCommand, IDestructiveCommand
 {
@@ -36,7 +36,7 @@ public class ServicePrincipalRoleRemoveCliCommand : ProfiledCliCommand, IDestruc
     {
         try
         {
-            var service = TxcServices.Get<IDataverseAppUserService>();
+            var service = TxcServices.Get<IDataverseServicePrincipalService>();
             await service.RemoveRoleAsync(Profile, ServicePrincipal, Role, CancellationToken.None).ConfigureAwait(false);
 
             var payload = new
@@ -49,7 +49,7 @@ public class ServicePrincipalRoleRemoveCliCommand : ProfiledCliCommand, IDestruc
             ServicePrincipalCommandSupport.WriteMutationResult(payload, () =>
             {
 #pragma warning disable TXC003
-                OutputWriter.WriteLine($"Role '{Role}' removed from application user '{ServicePrincipal}'.");
+                OutputWriter.WriteLine($"Role '{Role}' removed from service principal '{ServicePrincipal}'.");
 #pragma warning restore TXC003
             });
 

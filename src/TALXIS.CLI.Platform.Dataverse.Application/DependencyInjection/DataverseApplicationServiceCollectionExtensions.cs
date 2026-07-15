@@ -27,7 +27,7 @@ public static class DataverseApplicationServiceCollectionExtensions
         services.AddTransient<IDataverseRelationshipService, DataverseRelationshipService>();
         services.AddTransient<IDataverseOptionSetService, DataverseOptionSetService>();
         services.AddSingleton<IDataverseUserService, DataverseUserService>();
-        services.AddSingleton<IDataverseAppUserService, DataverseAppUserService>();
+        services.AddSingleton<IDataverseServicePrincipalService, DataverseServicePrincipalService>();
         services.AddSingleton<IDataverseTeamService, DataverseTeamService>();
         services.AddSingleton<IDataverseRoleService, DataverseRoleService>();
         services.AddSingleton<ISolutionDetailService, DataverseSolutionDetailService>();

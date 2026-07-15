@@ -8,13 +8,13 @@ using TALXIS.CLI.Logging;
 namespace TALXIS.CLI.Features.Environment.ServicePrincipal;
 
 /// <summary>
-/// Enables or disables a Dataverse application user.
+/// Enables or disables a Dataverse service principal.
 /// Usage: <c>txc environment service-principal update --service-principal &lt;client-id-or-guid&gt; [--enable|--disable]</c>
 /// </summary>
 [CliIdempotent]
 [CliCommand(
     Name = "update",
-    Description = "Enable or disable a Dataverse application user. Specify exactly one of --enable or --disable."
+    Description = "Enable or disable a Dataverse service principal. Specify exactly one of --enable or --disable."
 )]
 public class ServicePrincipalUpdateCliCommand : ProfiledCliCommand
 {
@@ -23,10 +23,10 @@ public class ServicePrincipalUpdateCliCommand : ProfiledCliCommand
     [CliOption(Name = "--service-principal", Description = "System-user GUID or application client ID GUID.", Required = true)]
     public string ServicePrincipal { get; set; } = null!;
 
-    [CliOption(Name = "--enable", Description = "Enable the application user.", Required = false)]
+    [CliOption(Name = "--enable", Description = "Enable the service principal.", Required = false)]
     public bool Enable { get; set; }
 
-    [CliOption(Name = "--disable", Description = "Disable the application user.", Required = false)]
+    [CliOption(Name = "--disable", Description = "Disable the service principal.", Required = false)]
     public bool Disable { get; set; }
 
     protected override Task<int> ExecuteAsync()
@@ -41,23 +41,22 @@ public class ServicePrincipalUpdateCliCommand : ProfiledCliCommand
     {
         try
         {
-            var service = TxcServices.Get<IDataverseAppUserService>();
+            var service = TxcServices.Get<IDataverseServicePrincipalService>();
             await service.UpdateEnabledStateAsync(Profile, ServicePrincipal, enabled, CancellationToken.None).ConfigureAwait(false);
 
             var updated = await service.GetAsync(Profile, ServicePrincipal, CancellationToken.None).ConfigureAwait(false);
             var payload = new
             {
                 status = enabled ? "enabled" : "disabled",
-                appUser = updated,
-                servicePrincipal = ServicePrincipal,
+                servicePrincipal = updated,
             };
 
             ServicePrincipalCommandSupport.WriteMutationResult(payload, () =>
             {
 #pragma warning disable TXC003
-                OutputWriter.WriteLine($"Application user {(enabled ? "enabled" : "disabled")}.");
+                OutputWriter.WriteLine($"Service principal {(enabled ? "enabled" : "disabled")}.");
                 if (updated is not null)
-                    ServicePrincipalCommandSupport.WriteAppDetails(updated);
+                    ServicePrincipalCommandSupport.WriteServicePrincipalDetails(updated);
                 else
                     OutputWriter.WriteLine($"Identifier: {ServicePrincipal}");
 #pragma warning restore TXC003

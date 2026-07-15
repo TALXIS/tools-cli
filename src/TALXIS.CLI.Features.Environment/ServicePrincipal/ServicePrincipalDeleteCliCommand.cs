@@ -9,13 +9,13 @@ using TALXIS.CLI.Logging;
 namespace TALXIS.CLI.Features.Environment.ServicePrincipal;
 
 /// <summary>
-/// Hard-deletes a Dataverse application user.
+/// Hard-deletes a Dataverse service principal.
 /// Usage: <c>txc environment service-principal delete --service-principal &lt;client-id-or-guid&gt; --yes</c>
 /// </summary>
-[CliDestructive("Permanently deletes the Dataverse application user from the environment.")]
+[CliDestructive("Permanently deletes the Dataverse service principal from the environment.")]
 [CliCommand(
     Name = "delete",
-    Description = "Hard-delete a Dataverse application user. The record must already be disabled before Dataverse will allow the delete."
+    Description = "Hard-delete a Dataverse service principal. The record must already be disabled before Dataverse will allow the delete."
 )]
 public class ServicePrincipalDeleteCliCommand : ProfiledCliCommand, IDestructiveCommand
 {
@@ -33,11 +33,11 @@ public class ServicePrincipalDeleteCliCommand : ProfiledCliCommand, IDestructive
     {
         try
         {
-            var service = TxcServices.Get<IDataverseAppUserService>();
+            var service = TxcServices.Get<IDataverseServicePrincipalService>();
             var existing = await service.GetAsync(Profile, ServicePrincipal, CancellationToken.None).ConfigureAwait(false);
             if (existing is null)
             {
-                Logger.LogError("Application user '{ServicePrincipal}' not found.", ServicePrincipal);
+                Logger.LogError("Service principal '{ServicePrincipal}' not found.", ServicePrincipal);
                 return ExitValidationError;
             }
 
@@ -46,14 +46,14 @@ public class ServicePrincipalDeleteCliCommand : ProfiledCliCommand, IDestructive
             var payload = new
             {
                 status = "deleted",
-                appUser = existing,
+                servicePrincipal = existing,
             };
 
             ServicePrincipalCommandSupport.WriteMutationResult(payload, () =>
             {
 #pragma warning disable TXC003
-                OutputWriter.WriteLine("Application user deleted.");
-                ServicePrincipalCommandSupport.WriteAppDetails(existing);
+                OutputWriter.WriteLine("Service principal deleted.");
+                ServicePrincipalCommandSupport.WriteServicePrincipalDetails(existing);
 #pragma warning restore TXC003
             });
 

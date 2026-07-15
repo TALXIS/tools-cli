@@ -46,7 +46,7 @@ When using `pp-security-role-privilege`, specify privileges as a JSON array:
 ```
 Each entry maps a privilege type to the desired depth. Omitted types default to `None`.
 
-## Assigning Roles to Environment Users, Application Users, and Teams
+## Assigning Roles to Environment Users, Service Principals, and Teams
 
 Once a security role exists (scaffolded above, or already present in the target environment),
 use these commands to find it and assign it to whoever needs it. All three principal kinds
@@ -68,8 +68,8 @@ roles.
      admin access when you have none at all in this environment, use `txc environment user
      self-elevate` instead (a different, tenant-admin-privileged bootstrap path — see its own
      help text).
-   - Application user (service principal): `txc environment service-principal list [--enabled|--disabled|--all]`
-     / `txc environment service-principal get --service-principal <client-id-or-guid>`. If the application user doesn't
+   - Service principal: `txc environment service-principal list [--enabled|--disabled|--all]`
+     / `txc environment service-principal get --service-principal <client-id-or-guid>`. If the service principal doesn't
      exist yet, create it directly (the Entra app registration itself must already exist):
      `txc environment service-principal create --service-principal <entra-client-id> [--business-unit <name-or-guid>]
      [--role <name-or-guid>[,<name-or-guid>,...]]` — `--role` accepts a comma-separated list to

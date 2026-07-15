@@ -3,14 +3,14 @@ using DotMake.CommandLine;
 namespace TALXIS.CLI.Features.Environment.ServicePrincipal;
 
 /// <summary>
-/// Parent command for Dataverse application-user operations.
-/// Application users are service principals represented by <c>systemuser</c>
+/// Parent command for Dataverse service-principal operations.
+/// Service principals are represented by <c>systemuser</c>
 /// rows with an application client ID.
 /// Usage: <c>txc environment service-principal [list|get|create|update|delete|role]</c>
 /// </summary>
 [CliCommand(
     Name = "service-principal",
-    Description = "Manage Dataverse application users (service principals) in the current environment.",
+    Description = "Manage Dataverse service principals in the current environment.",
     Children = new[]
     {
         typeof(ServicePrincipalListCliCommand),
@@ -31,12 +31,12 @@ public class ServicePrincipalCliCommand
 }
 
 /// <summary>
-/// Sub-resource for Dataverse security-role assignments on an application user.
+/// Sub-resource for Dataverse security-role assignments on an service principal.
 /// Usage: <c>txc environment service-principal role [list|add|remove]</c>
 /// </summary>
 [CliCommand(
     Name = "role",
-    Description = "Manage Dataverse security roles assigned to an application user.",
+    Description = "Manage Dataverse security roles assigned to an service principal.",
     Children = new[]
     {
         typeof(ServicePrincipalRoleListCliCommand),

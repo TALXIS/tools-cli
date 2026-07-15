@@ -8,13 +8,13 @@ using TALXIS.CLI.Logging;
 namespace TALXIS.CLI.Features.Environment.ServicePrincipal;
 
 /// <summary>
-/// Lists security roles assigned to a Dataverse application user.
+/// Lists security roles assigned to a Dataverse service principal.
 /// Usage: <c>txc environment service-principal role list --service-principal &lt;client-id-or-guid&gt;</c>
 /// </summary>
 [CliReadOnly]
 [CliCommand(
     Name = "list",
-    Description = "List security roles assigned to a Dataverse application user."
+    Description = "List security roles assigned to a Dataverse service principal."
 )]
 public class ServicePrincipalRoleListCliCommand : ProfiledCliCommand
 {
@@ -29,7 +29,7 @@ public class ServicePrincipalRoleListCliCommand : ProfiledCliCommand
     {
         try
         {
-            var service = TxcServices.Get<IDataverseAppUserService>();
+            var service = TxcServices.Get<IDataverseServicePrincipalService>();
             var rows = await service.ListRolesAsync(Profile, ServicePrincipal, CancellationToken.None).ConfigureAwait(false);
             OutputFormatter.WriteList(rows, ServicePrincipalCommandSupport.WriteRoleTable);
             return ExitSuccess;

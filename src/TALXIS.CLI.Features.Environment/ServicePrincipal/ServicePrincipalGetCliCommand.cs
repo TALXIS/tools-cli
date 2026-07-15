@@ -8,13 +8,13 @@ using TALXIS.CLI.Logging;
 namespace TALXIS.CLI.Features.Environment.ServicePrincipal;
 
 /// <summary>
-/// Gets one Dataverse application user by system-user GUID or application client ID.
+/// Gets one Dataverse service principal by system-user GUID or application client ID.
 /// Usage: <c>txc environment service-principal get --service-principal &lt;client-id-or-guid&gt;</c>
 /// </summary>
 [CliReadOnly]
 [CliCommand(
     Name = "get",
-    Description = "Get one Dataverse application user by system-user GUID or application client ID."
+    Description = "Get one Dataverse service principal by system-user GUID or application client ID."
 )]
 public class ServicePrincipalGetCliCommand : ProfiledCliCommand
 {
@@ -29,15 +29,15 @@ public class ServicePrincipalGetCliCommand : ProfiledCliCommand
     {
         try
         {
-            var service = TxcServices.Get<IDataverseAppUserService>();
+            var service = TxcServices.Get<IDataverseServicePrincipalService>();
             var app = await service.GetAsync(Profile, ServicePrincipal, CancellationToken.None).ConfigureAwait(false);
             if (app is null)
             {
-                Logger.LogError("Application user '{ServicePrincipal}' not found.", ServicePrincipal);
+                Logger.LogError("Service principal '{ServicePrincipal}' not found.", ServicePrincipal);
                 return ExitValidationError;
             }
 
-            OutputFormatter.WriteData(app, ServicePrincipalCommandSupport.WriteAppDetails);
+            OutputFormatter.WriteData(app, ServicePrincipalCommandSupport.WriteServicePrincipalDetails);
             return ExitSuccess;
         }
         catch (Exception ex) when (ServicePrincipalCommandSupport.TryHandleValidationException(Logger, ex, out var exitCode))

@@ -4,33 +4,33 @@ using TALXIS.CLI.Platform.Dataverse.Runtime;
 
 namespace TALXIS.CLI.Platform.Dataverse.Application.Services;
 
-internal sealed class DataverseAppUserService : IDataverseAppUserService
+internal sealed class DataverseServicePrincipalService : IDataverseServicePrincipalService
 {
-    public async Task<IReadOnlyList<DataverseAppUserRecord>> ListAsync(
+    public async Task<IReadOnlyList<DataverseServicePrincipalRecord>> ListAsync(
         string? profileName,
         DataverseSecurityPrincipalStateFilter filter,
         CancellationToken ct)
     {
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
-        return await DataverseSecurityPrincipalManager.ListApplicationUsersAsync(conn.Client, filter, ct).ConfigureAwait(false);
+        return await DataverseSecurityPrincipalManager.ListServicePrincipalsAsync(conn.Client, filter, ct).ConfigureAwait(false);
     }
 
-    public async Task<DataverseAppUserRecord?> GetAsync(
+    public async Task<DataverseServicePrincipalRecord?> GetAsync(
         string? profileName,
         string clientIdOrGuid,
         CancellationToken ct)
     {
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
-        return await DataverseSecurityPrincipalManager.GetApplicationUserAsync(conn.Client, clientIdOrGuid, ct).ConfigureAwait(false);
+        return await DataverseSecurityPrincipalManager.GetServicePrincipalAsync(conn.Client, clientIdOrGuid, ct).ConfigureAwait(false);
     }
 
-    public async Task<DataverseAppUserRecord> CreateAsync(
+    public async Task<DataverseServicePrincipalRecord> CreateAsync(
         string? profileName,
-        DataverseAppUserCreateOptions options,
+        DataverseServicePrincipalCreateOptions options,
         CancellationToken ct)
     {
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
-        return await DataverseSecurityPrincipalManager.CreateApplicationUserAsync(conn.Client, options, ct).ConfigureAwait(false);
+        return await DataverseSecurityPrincipalManager.CreateServicePrincipalAsync(conn.Client, options, ct).ConfigureAwait(false);
     }
 
     public async Task UpdateEnabledStateAsync(
@@ -40,7 +40,7 @@ internal sealed class DataverseAppUserService : IDataverseAppUserService
         CancellationToken ct)
     {
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
-        await DataverseSecurityPrincipalManager.UpdateApplicationUserEnabledStateAsync(conn.Client, clientIdOrGuid, enabled, ct).ConfigureAwait(false);
+        await DataverseSecurityPrincipalManager.UpdateServicePrincipalEnabledStateAsync(conn.Client, clientIdOrGuid, enabled, ct).ConfigureAwait(false);
     }
 
     public async Task DeleteAsync(
@@ -49,7 +49,7 @@ internal sealed class DataverseAppUserService : IDataverseAppUserService
         CancellationToken ct)
     {
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
-        await DataverseSecurityPrincipalManager.DeleteApplicationUserAsync(conn.Client, clientIdOrGuid, ct).ConfigureAwait(false);
+        await DataverseSecurityPrincipalManager.DeleteServicePrincipalAsync(conn.Client, clientIdOrGuid, ct).ConfigureAwait(false);
     }
 
     public async Task<IReadOnlyList<DataverseRoleRecord>> ListRolesAsync(
@@ -58,7 +58,7 @@ internal sealed class DataverseAppUserService : IDataverseAppUserService
         CancellationToken ct)
     {
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
-        return await DataverseSecurityPrincipalManager.ListApplicationUserRolesAsync(conn.Client, clientIdOrGuid, ct).ConfigureAwait(false);
+        return await DataverseSecurityPrincipalManager.ListServicePrincipalRolesAsync(conn.Client, clientIdOrGuid, ct).ConfigureAwait(false);
     }
 
     public async Task AddRoleAsync(
@@ -68,7 +68,7 @@ internal sealed class DataverseAppUserService : IDataverseAppUserService
         CancellationToken ct)
     {
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
-        await DataverseSecurityPrincipalManager.AddApplicationUserRoleAsync(conn.Client, clientIdOrGuid, roleNameOrGuid, ct).ConfigureAwait(false);
+        await DataverseSecurityPrincipalManager.AddServicePrincipalRoleAsync(conn.Client, clientIdOrGuid, roleNameOrGuid, ct).ConfigureAwait(false);
     }
 
     public async Task RemoveRoleAsync(
@@ -78,6 +78,6 @@ internal sealed class DataverseAppUserService : IDataverseAppUserService
         CancellationToken ct)
     {
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
-        await DataverseSecurityPrincipalManager.RemoveApplicationUserRoleAsync(conn.Client, clientIdOrGuid, roleNameOrGuid, ct).ConfigureAwait(false);
+        await DataverseSecurityPrincipalManager.RemoveServicePrincipalRoleAsync(conn.Client, clientIdOrGuid, roleNameOrGuid, ct).ConfigureAwait(false);
     }
 }
