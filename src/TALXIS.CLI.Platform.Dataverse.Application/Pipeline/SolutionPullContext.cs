@@ -11,6 +11,7 @@ internal sealed class SolutionPullContext
     public IReadOnlyCollection<string>? ReferencedPcfControlNames { get; init; }
     public List<string> NormalizedAssemblies { get; } = [];
     public List<string> ExcludedRelationships { get; } = [];
+    public List<string> NormalizationChanges { get; } = [];
     public List<string> ExcludedBinaries { get; } = [];
     public List<string> ExcludedWebResources { get; } = [];
     public List<string> ExcludedPcfControls { get; } = [];

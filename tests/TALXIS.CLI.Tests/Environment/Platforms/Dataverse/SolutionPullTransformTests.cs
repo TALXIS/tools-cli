@@ -13,8 +13,7 @@ public class SolutionPullTransformTests : IDisposable
     private readonly PcfControlExclusionStep _pcfControlExclusionStep;
     private readonly string _root;
     private readonly ScriptLibraryExclusionStep _scriptLibraryExclusionStep;
-    private readonly SolutionManifestNormalizationStep _solutionManifestNormalizationStep;
-    private readonly SystemRelationshipExclusionStep _systemRelationshipExclusionStep;
+    private readonly ExportNormalizationStep _exportNormalizationStep;
 
     // A non-existent path simulates a first-sync scenario: no local convention established yet.
     // All assemblies are treated as new and default to the flat TALXIS SDK layout.
@@ -30,8 +29,7 @@ public class SolutionPullTransformTests : IDisposable
         _pluginAssemblyNormalizationStep = new PluginAssemblyNormalizationStep(NullLogger.Instance);
         _pcfControlExclusionStep = new PcfControlExclusionStep(projectReferenceReader);
         _scriptLibraryExclusionStep = new ScriptLibraryExclusionStep(projectReferenceReader, NullLogger.Instance);
-        _solutionManifestNormalizationStep = new SolutionManifestNormalizationStep();
-        _systemRelationshipExclusionStep = new SystemRelationshipExclusionStep();
+        _exportNormalizationStep = new ExportNormalizationStep();
     }
 
     public void Dispose()
@@ -296,17 +294,19 @@ public class SolutionPullTransformTests : IDisposable
         File.WriteAllText(Path.Combine(dir, name + ".data.xml"), $"<WebResource><Name>{name}</Name></WebResource>");
     }
 
-    private void WriteSolutionManifest(string root, string version, string managed)
+    private void WriteSolutionManifest(string root, string version, string managed, string rootAttributes = "", string rootComponents = "<RootComponent type=\"1\" schemaName=\"tprt_testitem\" behavior=\"0\" />")
     {
         var otherDir = Path.Combine(root, "Other");
         Directory.CreateDirectory(otherDir);
         File.WriteAllText(
             Path.Combine(otherDir, "Solution.xml"),
             $"""
-             <ImportExportXml>
+             <ImportExportXml{rootAttributes}>
                <SolutionManifest>
+                 <UniqueName>TestSolution</UniqueName>
                  <Version>{version}</Version>
                  <Managed>{managed}</Managed>
+                 <RootComponents>{rootComponents}</RootComponents>
                </SolutionManifest>
              </ImportExportXml>
              """);
@@ -356,25 +356,31 @@ public class SolutionPullTransformTests : IDisposable
     }
 
     // ──────────────────────────────────────────────────────────────────────────────
-    // NormalizeSolutionManifest
+    // ExportNormalizationStep — manifest normalization
     // ──────────────────────────────────────────────────────────────────────────────
 
+    private string CreateDestination(string version = "1.0.0.0", string managed = "2")
+    {
+        var destinationRoot = Path.Combine(Path.GetTempPath(), "dest_" + Guid.NewGuid().ToString("N"));
+        WriteSolutionManifest(destinationRoot, version, managed);
+        return destinationRoot;
+    }
+
     [Fact]
-    public void NormalizeSolutionManifest_PreservesLocalVersion_WhenLocalExists()
+    public void Normalize_PreservesLocalManifestAsSourceOfTruth()
     {
         WriteSolutionManifest(_root, "1.0.12606.28000", "0");
-        var destinationRoot = Path.Combine(Path.GetTempPath(), "dest_" + Guid.NewGuid().ToString("N"));
-        WriteSolutionManifest(destinationRoot, "1.0.0.42", "1");
+        var destinationRoot = CreateDestination(version: "1.0.0.42", managed: "2");
 
         try
         {
             var context = CreateContext(destinationRoot);
-            _solutionManifestNormalizationStep.Execute(context);
+            _exportNormalizationStep.Execute(context);
 
-            var document = XDocument.Load(Path.Combine(_root, "Other", "Solution.xml"));
-            var manifest = document.Descendants("SolutionManifest").Single();
-            Assert.Equal("1.0.0.42", manifest.Element("Version")?.Value);
-            Assert.Equal("2", manifest.Element("Managed")?.Value);
+            var stagingManifest = File.ReadAllText(Path.Combine(_root, "Other", "Solution.xml"));
+            var localManifest = File.ReadAllText(Path.Combine(destinationRoot, "Other", "Solution.xml"));
+            Assert.Equal(localManifest, stagingManifest);
+            Assert.Empty(context.NormalizationChanges);
         }
         finally
         {
@@ -383,119 +389,223 @@ public class SolutionPullTransformTests : IDisposable
     }
 
     [Fact]
-    public void NormalizeSolutionManifest_UsesDataverseVersion_WhenNoLocalFile()
+    public void Normalize_DeclaresPulledSubcomponentsOfIncludedEntity()
+    {
+        const string formId = "9c7e6ba6-1111-2222-3333-444444444444";
+        WriteSolutionManifest(_root, "1.0.0.0", "2");
+        var formDir = Path.Combine(_root, "Entities", "tprt_testitem", "FormXml", "main");
+        Directory.CreateDirectory(formDir);
+        File.WriteAllText(Path.Combine(formDir, $"{{{formId}}}.xml"),
+            $$"""
+            <forms>
+              <systemform>
+                <formid>{{{formId}}}</formid>
+                <LocalizedNames><LocalizedName description="Main form" languagecode="1033" /></LocalizedNames>
+              </systemform>
+            </forms>
+            """);
+        var destinationRoot = CreateDestination();
+
+        try
+        {
+            var context = CreateContext(destinationRoot);
+            _exportNormalizationStep.Execute(context);
+
+            var document = XDocument.Load(Path.Combine(_root, "Other", "Solution.xml"));
+            var formComponent = document.Descendants("RootComponent")
+                .SingleOrDefault(c => c.Attribute("type")?.Value == "60");
+            Assert.NotNull(formComponent);
+            Assert.Contains(formId, formComponent!.Attribute("id")?.Value, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(context.NormalizationChanges, c => c.Contains("Declared form"));
+
+            File.Copy(Path.Combine(_root, "Other", "Solution.xml"), Path.Combine(destinationRoot, "Other", "Solution.xml"), overwrite: true);
+            var secondContext = CreateContext(destinationRoot);
+            _exportNormalizationStep.Execute(secondContext);
+
+            var secondDocument = XDocument.Load(Path.Combine(_root, "Other", "Solution.xml"));
+            Assert.Single(secondDocument.Descendants("RootComponent").Where(c => c.Attribute("type")?.Value == "60"));
+            Assert.DoesNotContain(secondContext.NormalizationChanges, c => c.Contains("Declared form"));
+        }
+        finally
+        {
+            Directory.Delete(destinationRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Normalize_KeepsLocalOnlyRootComponentAfterPull()
+    {
+        WriteSolutionManifest(_root, "1.0.0.0", "2");
+        var destinationRoot = Path.Combine(Path.GetTempPath(), "dest_" + Guid.NewGuid().ToString("N"));
+        WriteSolutionManifest(destinationRoot, "1.0.0.0", "2",
+            rootComponents: "<RootComponent type=\"1\" schemaName=\"tprt_testitem\" behavior=\"0\" /><RootComponent type=\"60\" id=\"{6db7bd1a-9a3e-477c-85c5-c819e39b5272}\" behavior=\"0\" />");
+
+        try
+        {
+            var context = CreateContext(destinationRoot);
+            _exportNormalizationStep.Execute(context);
+
+            var document = XDocument.Load(Path.Combine(_root, "Other", "Solution.xml"));
+            var components = document.Descendants("RootComponent").ToArray();
+            Assert.Equal(2, components.Length);
+            Assert.Contains(components, c => c.Attribute("type")?.Value == "60");
+        }
+        finally
+        {
+            Directory.Delete(destinationRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Normalize_Skips_WhenNoLocalSolutionXml()
     {
         WriteSolutionManifest(_root, "1.0.12606.28000", "1");
 
-        var context = CreateContext(Path.Combine(Path.GetTempPath(), "dest_" + Guid.NewGuid().ToString("N")));
-        _solutionManifestNormalizationStep.Execute(context);
+        var context = CreateContext(NoLocalConvention);
+        _exportNormalizationStep.Execute(context);
 
         var document = XDocument.Load(Path.Combine(_root, "Other", "Solution.xml"));
         var manifest = document.Descendants("SolutionManifest").Single();
         Assert.Equal("1.0.12606.28000", manifest.Element("Version")?.Value);
-        Assert.Equal("2", manifest.Element("Managed")?.Value);
+        Assert.Equal("1", manifest.Element("Managed")?.Value);
+        Assert.Empty(context.NormalizationChanges);
     }
 
     [Fact]
-    public void NormalizeSolutionManifest_ForcesManagedTwo_Regardless()
+    public void Normalize_StripsServerVersionAttributes()
     {
-        WriteSolutionManifest(_root, "1.0.0.0", "0");
+        WriteSolutionManifest(_root, "1.0.0.0", "2",
+            rootAttributes: " OrganizationVersion=\"9.2.25092.135\" OrganizationSchemaType=\"Standard\" CRMServerServiceabilityVersion=\"9.2.25092.00139\"");
+        var destinationRoot = CreateDestination();
 
-        var context = CreateContext(NoLocalConvention);
-        _solutionManifestNormalizationStep.Execute(context);
+        try
+        {
+            var context = CreateContext(destinationRoot);
+            _exportNormalizationStep.Execute(context);
 
-        var document = XDocument.Load(Path.Combine(_root, "Other", "Solution.xml"));
-        Assert.Equal("2", document.Descendants("Managed").Single().Value);
+            var root = XDocument.Load(Path.Combine(_root, "Other", "Solution.xml")).Root!;
+            Assert.Null(root.Attribute("OrganizationVersion"));
+            Assert.Null(root.Attribute("OrganizationSchemaType"));
+            Assert.Null(root.Attribute("CRMServerServiceabilityVersion"));
+            Assert.NotEmpty(context.NormalizationChanges);
+        }
+        finally
+        {
+            Directory.Delete(destinationRoot, recursive: true);
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────────────────
-    // ExcludeStandardSystemRelationships
+    // ExportNormalizationStep — system relationship exclusion
     // ──────────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public void ExcludeStandardSystemRelationships_RemovesKnownPatterns()
+    public void Normalize_RemovesKnownSystemRelationshipPatterns()
     {
+        WriteSolutionManifest(_root, "1.0.0.0", "2");
         WriteRelationshipsFile(
             """
-            <ImportExportXml>
-              <Relationships>
-                <EntityRelationship Name="business_unit_tprt_testitem" />
-                <EntityRelationship Name="lk_tprt_testitem_createdby" />
-                <EntityRelationship Name="lk_tprt_testitem_modifiedby" />
-                <EntityRelationship Name="owner_tprt_testitem" />
-                <EntityRelationship Name="team_tprt_testitem" />
-                <EntityRelationship Name="user_tprt_testitem" />
-                <EntityRelationship Name="tprt_testitem_tprt_custom" />
-              </Relationships>
-            </ImportExportXml>
+            <EntityRelationships xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+              <EntityRelationship Name="business_unit_tprt_testitem" />
+              <EntityRelationship Name="lk_tprt_testitem_createdby" />
+              <EntityRelationship Name="lk_tprt_testitem_modifiedby" />
+              <EntityRelationship Name="owner_tprt_testitem" />
+              <EntityRelationship Name="team_tprt_testitem" />
+              <EntityRelationship Name="user_tprt_testitem" />
+              <EntityRelationship Name="tprt_testitem_tprt_custom" />
+            </EntityRelationships>
             """);
+        var destinationRoot = CreateDestination();
 
-        var context = CreateContext(NoLocalConvention);
-        _systemRelationshipExclusionStep.Execute(context);
+        try
+        {
+            var context = CreateContext(destinationRoot);
+            _exportNormalizationStep.Execute(context);
 
-        var document = XDocument.Load(Path.Combine(_root, "Other", "Relationships.xml"));
-        var remaining = document.Descendants("EntityRelationship")
-            .Select(element => element.Attribute("Name")?.Value)
-            .Where(name => name is not null)
-            .ToArray();
-        Assert.Equal(new[] { "tprt_testitem_tprt_custom" }, remaining);
+            var document = XDocument.Load(Path.Combine(_root, "Other", "Relationships.xml"));
+            var remaining = document.Descendants("EntityRelationship")
+                .Select(element => element.Attribute("Name")?.Value)
+                .Where(name => name is not null)
+                .ToArray();
+            Assert.Equal(new[] { "tprt_testitem_tprt_custom" }, remaining);
+            Assert.Equal(6, context.ExcludedRelationships.Count);
+        }
+        finally
+        {
+            Directory.Delete(destinationRoot, recursive: true);
+        }
     }
 
     [Fact]
-    public void ExcludeStandardSystemRelationships_KeepsCustomRelationships()
+    public void Normalize_KeepsCustomAndLocallyPresentRelationships()
     {
+        WriteSolutionManifest(_root, "1.0.0.0", "2");
         WriteRelationshipsFile(
             """
-            <ImportExportXml>
-              <Relationships>
-                <EntityRelationship Name="tprt_testitem_tprt_custom" />
-                <EntityRelationship Name="custom_lookup_relationship" />
-              </Relationships>
-            </ImportExportXml>
+            <EntityRelationships xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+              <EntityRelationship Name="tprt_testitem_tprt_custom" />
+              <EntityRelationship Name="owner_tprt_testitem" />
+            </EntityRelationships>
+            """);
+        var destinationRoot = CreateDestination();
+        var destinationOther = Path.Combine(destinationRoot, "Other");
+        File.WriteAllText(Path.Combine(destinationOther, "Relationships.xml"),
+            """
+            <EntityRelationships xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+              <EntityRelationship Name="owner_tprt_testitem" />
+            </EntityRelationships>
             """);
 
-        var context = CreateContext(NoLocalConvention);
-        _systemRelationshipExclusionStep.Execute(context);
+        try
+        {
+            var context = CreateContext(destinationRoot);
+            _exportNormalizationStep.Execute(context);
 
-        var document = XDocument.Load(Path.Combine(_root, "Other", "Relationships.xml"));
-        var remaining = document.Descendants("EntityRelationship")
-            .Select(element => element.Attribute("Name")?.Value)
-            .Where(name => name is not null)
-            .ToArray();
-        Assert.Empty(context.ExcludedRelationships);
-        Assert.Equal(new[] { "tprt_testitem_tprt_custom", "custom_lookup_relationship" }, remaining);
+            var document = XDocument.Load(Path.Combine(_root, "Other", "Relationships.xml"));
+            var remaining = document.Descendants("EntityRelationship")
+                .Select(element => element.Attribute("Name")?.Value)
+                .Where(name => name is not null)
+                .ToArray();
+            Assert.Empty(context.ExcludedRelationships);
+            Assert.Equal(new[] { "tprt_testitem_tprt_custom", "owner_tprt_testitem" }, remaining);
+        }
+        finally
+        {
+            Directory.Delete(destinationRoot, recursive: true);
+        }
     }
 
     [Fact]
-    public void ExcludeStandardSystemRelationships_ReturnsRemovedNames()
+    public void Normalize_RemovesEntityNotInLocalSolution()
     {
-        WriteRelationshipsFile(
+        WriteSolutionManifest(_root, "1.0.0.0", "2");
+        var entityDir = Path.Combine(_root, "Entities", "tprt_leaked");
+        Directory.CreateDirectory(entityDir);
+        File.WriteAllText(Path.Combine(entityDir, "Entity.xml"),
             """
-            <ImportExportXml>
-              <Relationships>
-                <EntityRelationship Name="business_unit_tprt_testitem" />
-                <EntityRelationship Name="owner_tprt_testitem" />
-                <EntityRelationship Name="custom_relationship" />
-              </Relationships>
-            </ImportExportXml>
+            <Entity xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+              <EntityInfo>
+                <entity Name="tprt_leaked">
+                  <LocalizedNames><LocalizedName description="Leaked" languagecode="1033" /></LocalizedNames>
+                  <attributes />
+                </entity>
+              </EntityInfo>
+            </Entity>
             """);
+        var destinationRoot = CreateDestination();
 
-        var context = CreateContext(NoLocalConvention);
-        _systemRelationshipExclusionStep.Execute(context);
+        try
+        {
+            var context = CreateContext(destinationRoot);
+            _exportNormalizationStep.Execute(context);
 
-        Assert.Equal(new[] { "business_unit_tprt_testitem", "owner_tprt_testitem" }, context.ExcludedRelationships);
-    }
-
-    [Fact]
-    public void ExcludeStandardSystemRelationships_HandlesEmptyFile()
-    {
-        WriteRelationshipsFile(string.Empty);
-
-        var context = CreateContext(NoLocalConvention);
-        _systemRelationshipExclusionStep.Execute(context);
-
-        Assert.Empty(context.ExcludedRelationships);
-        Assert.Equal(string.Empty, File.ReadAllText(Path.Combine(_root, "Other", "Relationships.xml")));
+            Assert.False(Directory.Exists(entityDir));
+            Assert.Contains(context.NormalizationChanges, c => c.Contains("tprt_leaked"));
+        }
+        finally
+        {
+            Directory.Delete(destinationRoot, recursive: true);
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────────────────
