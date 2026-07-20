@@ -392,6 +392,7 @@ public class SolutionPullTransformTests : IDisposable
     public void Normalize_DeclaresPulledSubcomponentsOfIncludedEntity()
     {
         const string formId = "9c7e6ba6-1111-2222-3333-444444444444";
+        const string viewId = "9c7e6ba6-5555-6666-7777-888888888888";
         WriteSolutionManifest(_root, "1.0.0.0", "2");
         var formDir = Path.Combine(_root, "Entities", "tprt_testitem", "FormXml", "main");
         Directory.CreateDirectory(formDir);
@@ -403,6 +404,18 @@ public class SolutionPullTransformTests : IDisposable
                 <LocalizedNames><LocalizedName description="Main form" languagecode="1033" /></LocalizedNames>
               </systemform>
             </forms>
+            """);
+        var viewDir = Path.Combine(_root, "Entities", "tprt_testitem", "SavedQueries");
+        Directory.CreateDirectory(viewDir);
+        File.WriteAllText(Path.Combine(viewDir, $"{{{viewId}}}.xml"),
+            $$"""
+            <savedqueries>
+              <savedquery>
+                <savedqueryid>{{{viewId}}}</savedqueryid>
+                <querytype>0</querytype>
+                <LocalizedNames><LocalizedName description="Active items" languagecode="1033" /></LocalizedNames>
+              </savedquery>
+            </savedqueries>
             """);
         var destinationRoot = CreateDestination();
 
@@ -417,6 +430,9 @@ public class SolutionPullTransformTests : IDisposable
             Assert.NotNull(formComponent);
             Assert.Contains(formId, formComponent!.Attribute("id")?.Value, StringComparison.OrdinalIgnoreCase);
             Assert.Contains(context.NormalizationChanges, c => c.Contains("Declared form"));
+
+            Assert.Empty(document.Descendants("RootComponent").Where(c => c.Attribute("type")?.Value == "26"));
+            Assert.DoesNotContain(context.NormalizationChanges, c => c.Contains("Declared view"));
 
             File.Copy(Path.Combine(_root, "Other", "Solution.xml"), Path.Combine(destinationRoot, "Other", "Solution.xml"), overwrite: true);
             var secondContext = CreateContext(destinationRoot);

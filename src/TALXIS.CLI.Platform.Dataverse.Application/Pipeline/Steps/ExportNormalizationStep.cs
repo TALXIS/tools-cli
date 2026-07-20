@@ -77,8 +77,9 @@ internal sealed class ExportNormalizationStep : ISolutionPullStep
         }
     }
 
-    // Subcomponents pulled with a behavior=0 entity become explicit RootComponents in the local
-    // manifest, so they survive a later switch of the entity to behavior 1/2.
+    // Forms pulled with a behavior=0 entity become explicit RootComponents in the local manifest,
+    // so they survive a later switch of the entity to behavior 1/2. Views are plain subcomponents
+    // and never appear in the manifest — they always follow their entity.
     private static int DeclareDownloadedSubcomponents(Workspace exported, Solution sourceSolution, SolutionPullContext context)
     {
         var includedEntities = new HashSet<string>(
@@ -99,17 +100,6 @@ internal sealed class ExportNormalizationStep : ISolutionPullStep
 
             sourceSolution.AddRootComponent(new RootComponent { Type = ComponentType.SystemForm, Id = formId, Behavior = 0 });
             context.NormalizationChanges.Add($"Declared form '{form.DisplayName.Default ?? form.FormId}' of entity '{form.EntityLogicalName}' as a root component.");
-            declared++;
-        }
-
-        foreach (var view in exported.Views)
-        {
-            if (view.EntityLogicalName is null || !includedEntities.Contains(view.EntityLogicalName)) continue;
-            if (!Guid.TryParse(view.SavedQueryId, out var viewId)) continue;
-            if (sourceSolution.RootComponents.Any(rc => rc.Type == ComponentType.SavedQuery && rc.Id == viewId)) continue;
-
-            sourceSolution.AddRootComponent(new RootComponent { Type = ComponentType.SavedQuery, Id = viewId, Behavior = 0 });
-            context.NormalizationChanges.Add($"Declared view '{view.DisplayName.Default ?? view.SavedQueryId}' of entity '{view.EntityLogicalName}' as a root component.");
             declared++;
         }
 
