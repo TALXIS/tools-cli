@@ -449,6 +449,68 @@ public class SolutionPullTransformTests : IDisposable
     }
 
     [Fact]
+    public void Normalize_RunsOnFreshScaffoldWithMismatchedUniqueName()
+    {
+        const string bootstrapFormId = "1a2b3c4d-0001-4002-8003-000000000042";
+        WriteSolutionManifest(_root, "1.0.0.0", "0");
+        WriteRelationshipsFile(
+            """
+            <EntityRelationships xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+              <EntityRelationship Name="owner_tprt_testitem" />
+              <EntityRelationship Name="tprt_testitem_tprt_custom" />
+            </EntityRelationships>
+            """);
+        var bootstrapFormDir = Path.Combine(_root, "Entities", "tprt_testitem", "FormXml", "main");
+        Directory.CreateDirectory(bootstrapFormDir);
+        File.WriteAllText(Path.Combine(bootstrapFormDir, $"{{{bootstrapFormId}}}.xml"),
+            $$"""
+            <forms>
+              <systemform>
+                <formid>{{{bootstrapFormId}}}</formid>
+                <LocalizedNames><LocalizedName description="Main form" languagecode="1033" /></LocalizedNames>
+              </systemform>
+            </forms>
+            """);
+        var destinationRoot = Path.Combine(Path.GetTempPath(), "dest_" + Guid.NewGuid().ToString("N"));
+        var destinationOther = Path.Combine(destinationRoot, "Other");
+        Directory.CreateDirectory(destinationOther);
+        File.WriteAllText(Path.Combine(destinationOther, "Solution.xml"),
+            """
+            <ImportExportXml>
+              <SolutionManifest>
+                <UniqueName>pulled</UniqueName>
+                <Version>1.0</Version>
+                <Managed>2</Managed>
+                <RootComponents />
+              </SolutionManifest>
+            </ImportExportXml>
+            """);
+
+        try
+        {
+            var context = CreateContext(destinationRoot);
+            _exportNormalizationStep.Execute(context);
+
+            var document = XDocument.Load(Path.Combine(_root, "Other", "Relationships.xml"));
+            var remaining = document.Descendants("EntityRelationship")
+                .Select(element => element.Attribute("Name")?.Value)
+                .ToArray();
+            Assert.Equal(new[] { "tprt_testitem_tprt_custom" }, remaining);
+            Assert.Contains("owner_tprt_testitem", context.ExcludedRelationships);
+
+            var manifest = XDocument.Load(Path.Combine(_root, "Other", "Solution.xml"));
+            var formComponent = manifest.Descendants("RootComponent")
+                .SingleOrDefault(c => c.Attribute("type")?.Value == "60");
+            Assert.NotNull(formComponent);
+            Assert.Contains(bootstrapFormId, formComponent!.Attribute("id")?.Value, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            Directory.Delete(destinationRoot, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Normalize_KeepsLocalOnlyRootComponentAfterPull()
     {
         WriteSolutionManifest(_root, "1.0.0.0", "2");
