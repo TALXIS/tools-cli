@@ -49,6 +49,12 @@ public sealed class DataverseConnectionFactory : IDataverseConnectionFactory
         // IDataverseAccessTokenService delegates to MSAL which provides its own caching.
         var conn = context.Connection;
         var cred = context.Credential;
+
+        // Prevent indefinite hangs when token acquisition fails silently.
+        // This class-level static timeout value must be set before a ServiceClient class is instantiated.
+        // https://learn.microsoft.com/en-us/dotnet/api/microsoft.powerplatform.dataverse.client.serviceclient.maxconnectiontimeout?view=dataverse-sdk-latest
+        ServiceClient.MaxConnectionTimeout = TimeSpan.FromMinutes(2);
+
         var client = new ServiceClient(
             envUri,
             async resource =>
@@ -65,9 +71,6 @@ public sealed class DataverseConnectionFactory : IDataverseConnectionFactory
             },
             useUniqueInstance: true,
             logger: null);
-
-        // Prevent indefinite hangs when token acquisition fails silently.
-        ServiceClient.MaxConnectionTimeout = TimeSpan.FromMinutes(2);
 
         if (!client.IsReady)
         {
