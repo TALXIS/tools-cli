@@ -475,16 +475,8 @@ public class CrmServiceClient : ServiceClient, IDisposable
 
     public Guid CreateNewRecord(string entityName, Dictionary<string, CrmDataTypeWrapper> valueArray, string applyToSolution = "", bool enabledDuplicateDetection = false, Guid batchId = default)
     {
-        var entity = new Entity(entityName);
-        PopulateEntityFromDataTypeWrappers(entity, valueArray);
-
-        var request = new CreateRequest { Target = entity };
-        request.Parameters["SuppressDuplicateDetection"] = !enabledDuplicateDetection;
-        if (!string.IsNullOrWhiteSpace(applyToSolution))
-            request.Parameters["SolutionUniqueName"] = applyToSolution;
-
-        var response = (CreateResponse)Execute(request);
-        return response?.id ?? Guid.Empty;
+        return Microsoft.PowerPlatform.Dataverse.Client.Extensions.CRUDExtentions
+            .CreateNewRecord(this, entityName, ConvertToDataverseDataTypeWrappers(valueArray), applyToSolution, enabledDuplicateDetection, batchId);
     }
 
     public List<EntityMetadata> GetAllEntityMetadata(bool onlyPublished = true, EntityFilters filter = EntityFilters.Entity)
@@ -550,44 +542,21 @@ public class CrmServiceClient : ServiceClient, IDisposable
 
     public bool UpdateEntity(string entityName, string keyFieldName, Guid id, Dictionary<string, CrmDataTypeWrapper> fieldList, string applyToSolution = "", bool enabledDuplicateDetection = false, Guid batchId = default)
     {
-        try
-        {
-            var entity = new Entity(entityName, id);
-            PopulateEntityFromDataTypeWrappers(entity, fieldList);
-
-            var request = new UpdateRequest { Target = entity };
-            request.Parameters["SuppressDuplicateDetection"] = !enabledDuplicateDetection;
-            if (!string.IsNullOrWhiteSpace(applyToSolution))
-                request.Parameters["SolutionUniqueName"] = applyToSolution;
-
-            Execute(request);
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
+        return Microsoft.PowerPlatform.Dataverse.Client.Extensions.CRUDExtentions
+            .UpdateEntity(this, entityName, keyFieldName, id, ConvertToDataverseDataTypeWrappers(fieldList), applyToSolution, enabledDuplicateDetection, batchId);
     }
 
     public bool DeleteEntity(string entityType, Guid entityId, Guid batchId = default)
     {
-        try
-        {
-            Delete(entityType, entityId);
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
+        return Microsoft.PowerPlatform.Dataverse.Client.Extensions.CRUDExtentions
+            .DeleteEntity(this, entityType, entityId, batchId);
     }
 
     public bool UpdateStateAndStatusForEntity(string entName, Guid id, string stateCode, string statusCode, Guid batchId = default)
     {
         try
         {
-            return Microsoft.PowerPlatform.Dataverse.Client.Extensions.CRUDExtentions
-                .UpdateStateAndStatusForEntity(this, entName, id, stateCode, statusCode, batchId);
+            return UpdateStateAndStatusForEntity(entName, id, int.Parse(stateCode), int.Parse(statusCode), batchId);
         }
         catch
         {
@@ -597,28 +566,14 @@ public class CrmServiceClient : ServiceClient, IDisposable
 
     public bool UpdateStateAndStatusForEntity(string entName, Guid id, int stateCode, int statusCode, Guid batchId = default)
     {
-        try
-        {
-            return Microsoft.PowerPlatform.Dataverse.Client.Extensions.CRUDExtentions
-                .UpdateStateAndStatusForEntity(this, entName, id, stateCode, statusCode, batchId);
-        }
-        catch
-        {
-            return false;
-        }
+        return Microsoft.PowerPlatform.Dataverse.Client.Extensions.CRUDExtentions
+            .UpdateStateAndStatusForEntity(this, entName, id, stateCode, statusCode, batchId);
     }
 
     public bool DeleteEntityAssociation(string entityName1, Guid entity1Id, string entityName2, Guid entity2Id, string relationshipName, Guid batchId = default)
     {
-        try
-        {
-            Disassociate(entityName1, entity1Id, new Relationship(relationshipName), new EntityReferenceCollection { new EntityReference(entityName2, entity2Id) });
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
+        return Microsoft.PowerPlatform.Dataverse.Client.Extensions.CRUDExtentions
+            .DeleteEntityAssociation(this, entityName1, entity1Id, entityName2, entity2Id, relationshipName, batchId);
     }
 
     /// <summary>
@@ -647,7 +602,7 @@ public class CrmServiceClient : ServiceClient, IDisposable
     public Guid CloseOpportunity(Guid opportunityId, Dictionary<string, CrmDataTypeWrapper> closeData, int status, Guid batchId = default)
     {
         string requestName = status == 2 ? "LoseOpportunity" : "WinOpportunity";
-        return ExecuteCloseRequest("opportunityclose", "opportunityid", "opportunity", opportunityId, closeData, status, requestName);
+        return ExecuteCloseRequest("opportunityclose", "opportunityid", "opportunity", opportunityId, closeData, status, requestName, batchId);
     }
 
     /// <summary>
@@ -655,7 +610,7 @@ public class CrmServiceClient : ServiceClient, IDisposable
     /// </summary>
     public Guid CloseIncident(Guid incidentId, Dictionary<string, CrmDataTypeWrapper> closeData, int status, Guid batchId = default)
     {
-        return ExecuteCloseRequest("incidentresolution", "incidentid", "incident", incidentId, closeData, status, "CloseIncident");
+        return ExecuteCloseRequest("incidentresolution", "incidentid", "incident", incidentId, closeData, status, "CloseIncident", batchId);
     }
 
     /// <summary>
@@ -663,7 +618,7 @@ public class CrmServiceClient : ServiceClient, IDisposable
     /// </summary>
     public Guid CloseQuote(Guid quoteId, Dictionary<string, CrmDataTypeWrapper> closeData, int status, Guid batchId = default)
     {
-        return ExecuteCloseRequest("quoteclose", "quoteid", "quote", quoteId, closeData, status, "CloseQuote");
+        return ExecuteCloseRequest("quoteclose", "quoteid", "quote", quoteId, closeData, status, "CloseQuote", batchId);
     }
 
     /// <summary>
@@ -671,14 +626,14 @@ public class CrmServiceClient : ServiceClient, IDisposable
     /// </summary>
     public Guid CancelSalesOrder(Guid orderId, Dictionary<string, CrmDataTypeWrapper> closeData, int status, Guid batchId = default)
     {
-        return ExecuteCloseRequest("orderclose", "salesorderid", "salesorder", orderId, closeData, status, "CancelSalesOrder");
+        return ExecuteCloseRequest("orderclose", "salesorderid", "salesorder", orderId, closeData, status, "CancelSalesOrder", batchId);
     }
 
     /// <summary>
     /// Shared helper for close/cancel operations. Creates an activity entity
     /// and executes the corresponding organization request.
     /// </summary>
-    private Guid ExecuteCloseRequest(string closeEntityName, string regardingFieldName, string regardingEntityName, Guid regardingId, Dictionary<string, CrmDataTypeWrapper> closeData, int status, string requestName)
+    private Guid ExecuteCloseRequest(string closeEntityName, string regardingFieldName, string regardingEntityName, Guid regardingId, Dictionary<string, CrmDataTypeWrapper> closeData, int status, string requestName, Guid batchId)
     {
         var closeEntity = new Entity(closeEntityName);
         closeEntity[regardingFieldName] = new EntityReference(regardingEntityName, regardingId);
@@ -703,6 +658,11 @@ public class CrmServiceClient : ServiceClient, IDisposable
             _ => closeEntityName,
         };
         request[closeParamName] = closeEntity;
+
+        if (TryQueueRequest(batchId, request, $"Close request {requestName}"))
+        {
+            return Guid.Empty;
+        }
 
         var response = Execute(request);
         return response.Results.TryGetValue("id", out var id) ? (Guid)id : Guid.Empty;
@@ -1020,6 +980,56 @@ public class CrmServiceClient : ServiceClient, IDisposable
         };
     }
 
+    private static Dictionary<string, DataverseDataTypeWrapper> ConvertToDataverseDataTypeWrappers(
+        Dictionary<string, CrmDataTypeWrapper>? valueArray)
+    {
+        if (valueArray == null || valueArray.Count == 0)
+            return new Dictionary<string, DataverseDataTypeWrapper>(0, StringComparer.OrdinalIgnoreCase);
+
+        var converted = new Dictionary<string, DataverseDataTypeWrapper>(valueArray.Count, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var kvp in valueArray)
+        {
+            var wrapper = kvp.Value;
+            if (wrapper == null)
+            {
+                // Note: Not sure if CMT even allows null values in the xml, but if it does, we should handle them gracefully.
+                converted[kvp.Key] = new DataverseDataTypeWrapper(null, DataverseFieldType.Raw);
+                continue;
+            }
+
+            var dataverseFieldType = ConvertCrmFieldTypeToDataverseFieldType(wrapper.Type);
+            converted[kvp.Key] = string.IsNullOrWhiteSpace(wrapper.ReferencedEntity)
+                ? new DataverseDataTypeWrapper(wrapper.Value!, dataverseFieldType)
+                : new DataverseDataTypeWrapper(wrapper.Value!, dataverseFieldType, wrapper.ReferencedEntity);
+        }
+
+        return converted;
+    }
+
+    private static DataverseFieldType ConvertCrmFieldTypeToDataverseFieldType(CrmFieldType fieldType)
+    {
+        return fieldType switch
+        {
+            CrmFieldType.CrmBoolean => DataverseFieldType.Boolean,
+            CrmFieldType.CrmDateTime => DataverseFieldType.DateTime,
+            CrmFieldType.CrmDecimal => DataverseFieldType.Decimal,
+            CrmFieldType.CrmFloat => DataverseFieldType.Float,
+            CrmFieldType.CrmMoney => DataverseFieldType.Money,
+            CrmFieldType.CrmNumber => DataverseFieldType.Number,
+            CrmFieldType.Customer => DataverseFieldType.Customer,
+            CrmFieldType.Key => DataverseFieldType.Key,
+            CrmFieldType.Lookup => DataverseFieldType.Lookup,
+            CrmFieldType.Picklist => DataverseFieldType.Picklist,
+            CrmFieldType.String => DataverseFieldType.String,
+            CrmFieldType.UniqueIdentifier => DataverseFieldType.UniqueIdentifier,
+            CrmFieldType.Image => DataverseFieldType.Image,
+            CrmFieldType.File => DataverseFieldType.File,
+            CrmFieldType.Raw => DataverseFieldType.Raw,
+            _ => throw new ArgumentOutOfRangeException(nameof(fieldType), fieldType, "Unsupported CRM field type.")
+        };
+    }
+
     #endregion
 
     #region Solution import methods
@@ -1183,4 +1193,28 @@ public class CrmServiceClient : ServiceClient, IDisposable
     }
 
     #endregion
+
+    private bool TryQueueRequest(Guid batchId, OrganizationRequest request, string debugMessage)
+    {
+        if (batchId == Guid.Empty)
+        {
+            return false;
+        }
+
+        Microsoft.PowerPlatform.Dataverse.Client.RequestBatch? modern =
+            Microsoft.PowerPlatform.Dataverse.Client.Extensions.BatchExtensions.GetBatchById(this, batchId);
+
+        if (modern is null)
+        {
+            return false;
+        }
+
+        modern.BatchItems.Add(new Microsoft.PowerPlatform.Dataverse.Client.BatchItemOrganizationRequest
+        {
+            Request = request,
+            RequestDebugMessage = debugMessage,
+            RequestReferenceNumber = Guid.NewGuid()
+        });
+        return true;
+    }
 }
