@@ -22,7 +22,7 @@ public class DataPackageImportCliCommand : ProfiledCliCommand
     [CliArgument(Description = "Path to the CMT data package (.zip file or folder containing data.xml and data_schema.xml)")]
     public required string Data { get; set; }
 
-    [CliOption(Name = "--connection-count", Description = "Opens 1 primary management connection and N-1 cloned worker connections. Only the cloned connections are used for parallel record import, so the effective parallelism is N-1. To get 4 parallel workers, pass 5. Matches 'pac data import' behaviour.", Required = false)]
+    [CliOption(Name = "--connection-count", Description = "Opens 1 primary management connection and N-1 cloned worker connections. Only the cloned connections are used for parallel record import, so the effective parallelism is N-1. To get 4 parallel workers, pass 5.", Required = false)]
     [DefaultValue(1)]
     public int ConnectionCount { get; set; } = 1;
 
