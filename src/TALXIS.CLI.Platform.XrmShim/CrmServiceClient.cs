@@ -476,7 +476,21 @@ public class CrmServiceClient : ServiceClient, IDisposable
     public Guid CreateNewRecord(string entityName, Dictionary<string, CrmDataTypeWrapper> valueArray, string applyToSolution = "", bool enabledDuplicateDetection = false, Guid batchId = default)
     {
         return Microsoft.PowerPlatform.Dataverse.Client.Extensions.CRUDExtentions
-            .CreateNewRecord(this, entityName, ConvertToDataverseDataTypeWrappers(valueArray), applyToSolution, enabledDuplicateDetection, batchId);
+            .CreateNewRecord(
+                this,
+                entityName,
+                valueArray.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => new Microsoft.PowerPlatform.Dataverse.Client.DataverseDataTypeWrapper(
+                        kvp.Value.Value,
+                        (Microsoft.PowerPlatform.Dataverse.Client.DataverseFieldType)(int)kvp.Value.Type,
+                        kvp.Value.ReferencedEntity
+                    )
+                ),
+                applyToSolution,
+                enabledDuplicateDetection,
+                batchId
+            );
     }
 
     public List<EntityMetadata> GetAllEntityMetadata(bool onlyPublished = true, EntityFilters filter = EntityFilters.Entity)
@@ -543,7 +557,23 @@ public class CrmServiceClient : ServiceClient, IDisposable
     public bool UpdateEntity(string entityName, string keyFieldName, Guid id, Dictionary<string, CrmDataTypeWrapper> fieldList, string applyToSolution = "", bool enabledDuplicateDetection = false, Guid batchId = default)
     {
         return Microsoft.PowerPlatform.Dataverse.Client.Extensions.CRUDExtentions
-            .UpdateEntity(this, entityName, keyFieldName, id, ConvertToDataverseDataTypeWrappers(fieldList), applyToSolution, enabledDuplicateDetection, batchId);
+            .UpdateEntity(
+                this,
+                entityName,
+                keyFieldName,
+                id,
+                fieldList.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => new Microsoft.PowerPlatform.Dataverse.Client.DataverseDataTypeWrapper(
+                        kvp.Value.Value,
+                        (Microsoft.PowerPlatform.Dataverse.Client.DataverseFieldType)(int)kvp.Value.Type,
+                        kvp.Value.ReferencedEntity
+                    )
+                ),
+                applyToSolution,
+                enabledDuplicateDetection,
+                batchId
+            );
     }
 
     public bool DeleteEntity(string entityType, Guid entityId, Guid batchId = default)
@@ -977,56 +1007,6 @@ public class CrmServiceClient : ServiceClient, IDisposable
             // Raw: pass through as-is — CMT already creates the correct SDK type
             // (OptionSetValue, OptionSetValueCollection, EntityCollection, byte[], etc.)
             _ => wrapper.Value
-        };
-    }
-
-    private static Dictionary<string, DataverseDataTypeWrapper> ConvertToDataverseDataTypeWrappers(
-        Dictionary<string, CrmDataTypeWrapper>? valueArray)
-    {
-        if (valueArray == null || valueArray.Count == 0)
-            return new Dictionary<string, DataverseDataTypeWrapper>(0, StringComparer.OrdinalIgnoreCase);
-
-        var converted = new Dictionary<string, DataverseDataTypeWrapper>(valueArray.Count, StringComparer.OrdinalIgnoreCase);
-
-        foreach (var kvp in valueArray)
-        {
-            var wrapper = kvp.Value;
-            if (wrapper == null)
-            {
-                // Note: Not sure if CMT even allows null values in the xml, but if it does, we should handle them gracefully.
-                converted[kvp.Key] = new DataverseDataTypeWrapper(null, DataverseFieldType.Raw);
-                continue;
-            }
-
-            var dataverseFieldType = ConvertCrmFieldTypeToDataverseFieldType(wrapper.Type);
-            converted[kvp.Key] = string.IsNullOrWhiteSpace(wrapper.ReferencedEntity)
-                ? new DataverseDataTypeWrapper(wrapper.Value!, dataverseFieldType)
-                : new DataverseDataTypeWrapper(wrapper.Value!, dataverseFieldType, wrapper.ReferencedEntity);
-        }
-
-        return converted;
-    }
-
-    private static DataverseFieldType ConvertCrmFieldTypeToDataverseFieldType(CrmFieldType fieldType)
-    {
-        return fieldType switch
-        {
-            CrmFieldType.CrmBoolean => DataverseFieldType.Boolean,
-            CrmFieldType.CrmDateTime => DataverseFieldType.DateTime,
-            CrmFieldType.CrmDecimal => DataverseFieldType.Decimal,
-            CrmFieldType.CrmFloat => DataverseFieldType.Float,
-            CrmFieldType.CrmMoney => DataverseFieldType.Money,
-            CrmFieldType.CrmNumber => DataverseFieldType.Number,
-            CrmFieldType.Customer => DataverseFieldType.Customer,
-            CrmFieldType.Key => DataverseFieldType.Key,
-            CrmFieldType.Lookup => DataverseFieldType.Lookup,
-            CrmFieldType.Picklist => DataverseFieldType.Picklist,
-            CrmFieldType.String => DataverseFieldType.String,
-            CrmFieldType.UniqueIdentifier => DataverseFieldType.UniqueIdentifier,
-            CrmFieldType.Image => DataverseFieldType.Image,
-            CrmFieldType.File => DataverseFieldType.File,
-            CrmFieldType.Raw => DataverseFieldType.Raw,
-            _ => throw new ArgumentOutOfRangeException(nameof(fieldType), fieldType, "Unsupported CRM field type.")
         };
     }
 
