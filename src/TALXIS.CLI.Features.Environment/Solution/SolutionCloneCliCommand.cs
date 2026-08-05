@@ -130,6 +130,7 @@ public class SolutionCloneCliCommand : ProfiledCliCommand
                 excludedWebResources = result.ExcludedWebResources,
                 excludedPcfControls = result.ExcludedPcfControls,
                 removedFiles = result.RemovedFiles,
+                normalizationChanges = result.NormalizationChanges,
             },
             _ =>
             {
@@ -145,6 +146,8 @@ public class SolutionCloneCliCommand : ProfiledCliCommand
                     OutputWriter.WriteLine($"  Excluded {result.ExcludedWebResources.Count} script-library web resource(s)");
                 if (result.ExcludedPcfControls.Count > 0)
                     OutputWriter.WriteLine($"  Excluded {result.ExcludedPcfControls.Count} PCF control(s)");
+                if (result.NormalizationChanges.Count > 0)
+                    OutputWriter.WriteLine($"  Applied {result.NormalizationChanges.Count} normalization change(s)");
 #pragma warning restore TXC003
             });
 

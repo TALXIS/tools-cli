@@ -58,8 +58,7 @@ public class SolutionPullPipelineTests : IDisposable
 
         var steps = new ISolutionPullStep[]
         {
-            new SystemRelationshipExclusionStep(),
-            new SolutionManifestNormalizationStep(),
+            new ExportNormalizationStep(),
             new PluginAssemblyNormalizationStep(NullLogger.Instance),
             new ProjectReferenceBinaryExclusionStep(_projectReferenceReader),
             new ScriptLibraryExclusionStep(_projectReferenceReader, NullLogger.Instance),

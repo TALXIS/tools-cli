@@ -12,7 +12,8 @@ public sealed record SolutionPullResult(
     IReadOnlyList<string> ExcludedBinaries,
     IReadOnlyList<string> ExcludedWebResources,
     IReadOnlyList<string> ExcludedPcfControls,
-    IReadOnlyList<string> RemovedFiles);
+    IReadOnlyList<string> RemovedFiles,
+    IReadOnlyList<string> NormalizationChanges);
 
 public interface ISolutionPullService
 {

@@ -53,8 +53,7 @@ internal sealed class DataverseSolutionPullService : ISolutionPullService
 
             var steps = new ISolutionPullStep[]
             {
-                new SystemRelationshipExclusionStep(),
-                new SolutionManifestNormalizationStep(),
+                new ExportNormalizationStep(),
                 new PluginAssemblyNormalizationStep(_logger),
                 new ProjectReferenceBinaryExclusionStep(_projectReferenceReader),
                 new ScriptLibraryExclusionStep(_projectReferenceReader, _logger),
@@ -74,7 +73,8 @@ internal sealed class DataverseSolutionPullService : ISolutionPullService
                 context.ExcludedBinaries,
                 context.ExcludedWebResources,
                 context.ExcludedPcfControls,
-                removed);
+                removed,
+                context.NormalizationChanges);
         }
         finally
         {
