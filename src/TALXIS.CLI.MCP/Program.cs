@@ -52,6 +52,13 @@ var taskStore = new CancellableTaskStore(new InMemoryMcpTaskStore(
 
 // Initialize telemetry for the MCP server (fire-and-forget, never blocks startup)
 InitializeMcpTelemetry();
+var mcpTelemetryEnricher = new McpTelemetryEnricher(
+    TALXIS.CLI.Core.DependencyInjection.TxcServices.GetOptional<TALXIS.CLI.Core.Telemetry.ActivityIdentityTagger>(),
+    TALXIS.CLI.Core.DependencyInjection.TxcServices.GetOptional<TALXIS.CLI.Core.Abstractions.IProfileStore>(),
+    TALXIS.CLI.Core.DependencyInjection.TxcServices.GetOptional<TALXIS.CLI.Core.Abstractions.IConnectionStore>(),
+    TALXIS.CLI.Core.DependencyInjection.TxcServices.GetOptional<TALXIS.CLI.Core.Abstractions.ICredentialStore>(),
+    TALXIS.CLI.Core.DependencyInjection.TxcServices.GetOptional<TALXIS.CLI.Core.Abstractions.IGlobalConfigStore>(),
+    TALXIS.CLI.Core.DependencyInjection.TxcServices.GetOptional<TALXIS.CLI.Core.Abstractions.IWorkspaceDiscovery>());
 
 try
 {
@@ -366,6 +373,7 @@ async Task<CallToolResult> ExecuteCliToolAsync(
         // Capture the MCP Server span before creating the Client span —
         // Activity.Current will change once the dispatch span starts.
         var mcpActivity = System.Diagnostics.Activity.Current;
+        await mcpTelemetryEnricher.TagActivityAsync(mcpActivity, cliArguments, workingDirectory, ct);
 
         CliSubprocessResult result;
         // Client span for the subprocess dispatch — shows as a dependency in App Insights,
@@ -378,6 +386,7 @@ async Task<CallToolResult> ExecuteCliToolAsync(
             // in the dependency type and Application Map
             dispatchActivity?.SetTag("peer.service", "talxis-cli");
             dispatchActivity?.SetTag(TALXIS.CLI.Core.Telemetry.TxcTelemetryTags.Tool, toolName);
+            await mcpTelemetryEnricher.TagActivityAsync(dispatchActivity, cliArguments, workingDirectory, ct);
             result = await CliSubprocessRunner.RunAsync(cliArgs, logForwarder, ct, workingDirectory);
 
             dispatchActivity?.SetTag(TALXIS.CLI.Core.Telemetry.TxcTelemetryTags.SubprocessExitCode, result.ExitCode);
@@ -441,6 +450,8 @@ async ValueTask<CallToolResult> ExecuteAsTaskAsync(
     // may not be safe to access after the handler returns.
     var server = ctx.Server;
     var sessionId = server.SessionId;
+    var requestActivity = System.Diagnostics.Activity.Current;
+    var parentActivityContext = requestActivity?.Context;
     // Use override arguments (from execute_operation) if provided, otherwise extract from ctx
     var arguments = overrideArguments is not null
         ? new Dictionary<string, System.Text.Json.JsonElement>(overrideArguments)
@@ -450,6 +461,10 @@ async ValueTask<CallToolResult> ExecuteAsTaskAsync(
     var progressToken = ctx.Params?.ProgressToken;
     var requestId = ctx.JsonRpcRequest.Id;
     var jsonRpcRequest = ctx.JsonRpcRequest;
+    string? workingDirectory = rootsService is not null
+        ? await rootsService.GetWorkingDirectoryAsync(ct)
+        : null;
+    await mcpTelemetryEnricher.TagActivityAsync(requestActivity, arguments, workingDirectory, ct);
 
     // Create the task in the store
     var mcpTask = await taskStore.CreateTaskAsync(
@@ -468,8 +483,18 @@ async ValueTask<CallToolResult> ExecuteAsTaskAsync(
     // All captured variables are locals — no ctx/p references inside the closure.
     _ = Task.Run(async () =>
     {
+        using var taskActivity = parentActivityContext.HasValue
+            ? TxcTelemetry.Source.StartActivity($"task:{toolName}", System.Diagnostics.ActivityKind.Server, parentActivityContext.Value)
+            : TxcTelemetry.Source.StartActivity($"task:{toolName}", System.Diagnostics.ActivityKind.Server);
+
+        taskActivity?.SetTag(TALXIS.CLI.Core.Telemetry.TxcTelemetryTags.Tool, toolName);
+        taskActivity?.SetTag(TALXIS.CLI.Core.Telemetry.TxcTelemetryTags.EntryPoint, TALXIS.CLI.Core.Telemetry.TxcTelemetryTags.EntryPointMcp);
+        taskActivity?.SetTag(TALXIS.CLI.Core.Telemetry.TxcTelemetryTags.Version, typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "unknown");
+
         try
         {
+            await mcpTelemetryEnricher.TagActivityAsync(taskActivity, arguments, workingDirectory, taskCts.Token);
+
             // Mark task as working
             var workingTask = await taskStore.UpdateTaskStatusAsync(
                 mcpTask.TaskId, McpTaskStatus.Working, null, sessionId, CancellationToken.None);
@@ -486,11 +511,31 @@ async ValueTask<CallToolResult> ExecuteAsTaskAsync(
 
             mcpLogger.LogInformation("Starting task-augmented tool: {ToolName} (taskId: {TaskId})", toolName, mcpTask.TaskId);
 
-            string? workingDirectory = rootsService is not null
-                ? await rootsService.GetWorkingDirectoryAsync(taskCts.Token)
-                : null;
+            CliSubprocessResult result;
+            using (var dispatchActivity = TxcTelemetry.Source.StartActivity(
+                $"subprocess:{toolName}", System.Diagnostics.ActivityKind.Client))
+            {
+                dispatchActivity?.SetTag("peer.service", "talxis-cli");
+                dispatchActivity?.SetTag(TALXIS.CLI.Core.Telemetry.TxcTelemetryTags.Tool, toolName);
+                await mcpTelemetryEnricher.TagActivityAsync(dispatchActivity, cliArguments, workingDirectory, taskCts.Token);
+                result = await CliSubprocessRunner.RunAsync(cliArgs, logForwarder, taskCts.Token, workingDirectory);
+                dispatchActivity?.SetTag(TALXIS.CLI.Core.Telemetry.TxcTelemetryTags.SubprocessExitCode, result.ExitCode);
+                if (result.ExitCode != 0)
+                    dispatchActivity?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, $"Exit code {result.ExitCode}");
+            }
 
-            CliSubprocessResult result = await CliSubprocessRunner.RunAsync(cliArgs, logForwarder, taskCts.Token, workingDirectory);
+            taskActivity?.SetTag(TALXIS.CLI.Core.Telemetry.TxcTelemetryTags.ExitCode, result.ExitCode);
+            if (result.ExitCode != 0)
+            {
+                taskActivity?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, $"Exit code {result.ExitCode}");
+                if (!string.IsNullOrWhiteSpace(result.LastErrors))
+                {
+                    var firstError = result.LastErrors
+                        .Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                        .FirstOrDefault() ?? result.LastErrors.Trim();
+                    taskActivity?.SetTag(TALXIS.CLI.Core.Telemetry.TxcTelemetryTags.ErrorMessage, firstError);
+                }
+            }
 
             mcpLogger.LogInformation("Task completed: {ToolName} (exit code {ExitCode}, taskId: {TaskId})", toolName, result.ExitCode, mcpTask.TaskId);
 
@@ -517,6 +562,9 @@ async ValueTask<CallToolResult> ExecuteAsTaskAsync(
         {
             try
             {
+                taskActivity?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, ex.Message);
+                TxcLoggerFactory.CreateLogger($"txc.{toolName}")
+                    .LogError(ex, "Task dispatch failed: {ToolName}", toolName);
                 var errorResult = toolResultFactory.BuildExceptionResult(toolName, ex);
                 var errorElement = System.Text.Json.JsonSerializer.SerializeToElement(errorResult);
                 var failedTask = await taskStore.StoreTaskResultAsync(
