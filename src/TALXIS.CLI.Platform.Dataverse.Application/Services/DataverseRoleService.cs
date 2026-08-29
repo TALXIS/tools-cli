@@ -9,18 +9,22 @@ internal sealed class DataverseRoleService : IDataverseRoleService
     public async Task<IReadOnlyList<DataverseRoleRecord>> ListAsync(
         string? profileName,
         string? filter,
-        CancellationToken ct)
+        CancellationToken ct,
+        Guid? environmentId = null)
     {
-        using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+        var context = await DataverseScopedCommandSupport.ResolveContextAsync(profileName, environmentId, ct).ConfigureAwait(false);
+        using var conn = await DataverseCommandBridge.ConnectAsync(context, ct).ConfigureAwait(false);
         return await DataverseSecurityPrincipalManager.ListRolesAsync(conn.Client, filter, ct).ConfigureAwait(false);
     }
 
     public async Task<DataverseRoleRecord?> GetAsync(
         string? profileName,
         string nameOrGuid,
-        CancellationToken ct)
+        CancellationToken ct,
+        Guid? environmentId = null)
     {
-        using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+        var context = await DataverseScopedCommandSupport.ResolveContextAsync(profileName, environmentId, ct).ConfigureAwait(false);
+        using var conn = await DataverseCommandBridge.ConnectAsync(context, ct).ConfigureAwait(false);
         return await DataverseSecurityPrincipalManager.GetRoleAsync(conn.Client, nameOrGuid, ct).ConfigureAwait(false);
     }
 }

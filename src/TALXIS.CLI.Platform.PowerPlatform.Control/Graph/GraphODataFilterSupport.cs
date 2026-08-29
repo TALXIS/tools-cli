@@ -2,7 +2,7 @@ namespace TALXIS.CLI.Platform.PowerPlatform.Control.Graph;
 
 /// <summary>
 /// Shared Microsoft Graph OData <c>$filter</c> construction helpers used by
-/// every <c>txc tenant</c> command that resolves a user or application by a
+/// every <c>txc security</c> command that resolves a user or application by a
 /// caller-supplied GUID-or-friendly-name identifier (e.g. <c>--user</c>,
 /// <c>--service-principal</c>).
 /// </summary>

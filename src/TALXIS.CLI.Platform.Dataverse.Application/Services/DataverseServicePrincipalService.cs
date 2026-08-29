@@ -9,27 +9,33 @@ internal sealed class DataverseServicePrincipalService : IDataverseServicePrinci
     public async Task<IReadOnlyList<DataverseServicePrincipalRecord>> ListAsync(
         string? profileName,
         DataverseSecurityPrincipalStateFilter filter,
-        CancellationToken ct)
+        CancellationToken ct,
+        Guid? environmentId = null)
     {
-        using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+        var context = await DataverseScopedCommandSupport.ResolveContextAsync(profileName, environmentId, ct).ConfigureAwait(false);
+        using var conn = await DataverseCommandBridge.ConnectAsync(context, ct).ConfigureAwait(false);
         return await DataverseSecurityPrincipalManager.ListServicePrincipalsAsync(conn.Client, filter, ct).ConfigureAwait(false);
     }
 
     public async Task<DataverseServicePrincipalRecord?> GetAsync(
         string? profileName,
         string clientIdOrGuid,
-        CancellationToken ct)
+        CancellationToken ct,
+        Guid? environmentId = null)
     {
-        using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+        var context = await DataverseScopedCommandSupport.ResolveContextAsync(profileName, environmentId, ct).ConfigureAwait(false);
+        using var conn = await DataverseCommandBridge.ConnectAsync(context, ct).ConfigureAwait(false);
         return await DataverseSecurityPrincipalManager.GetServicePrincipalAsync(conn.Client, clientIdOrGuid, ct).ConfigureAwait(false);
     }
 
     public async Task<DataverseServicePrincipalRecord> CreateAsync(
         string? profileName,
         DataverseServicePrincipalCreateOptions options,
-        CancellationToken ct)
+        CancellationToken ct,
+        Guid? environmentId = null)
     {
-        using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+        var context = await DataverseScopedCommandSupport.ResolveContextAsync(profileName, environmentId, ct).ConfigureAwait(false);
+        using var conn = await DataverseCommandBridge.ConnectAsync(context, ct).ConfigureAwait(false);
         return await DataverseSecurityPrincipalManager.CreateServicePrincipalAsync(conn.Client, options, ct).ConfigureAwait(false);
     }
 
@@ -37,27 +43,33 @@ internal sealed class DataverseServicePrincipalService : IDataverseServicePrinci
         string? profileName,
         string clientIdOrGuid,
         bool enabled,
-        CancellationToken ct)
+        CancellationToken ct,
+        Guid? environmentId = null)
     {
-        using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+        var context = await DataverseScopedCommandSupport.ResolveContextAsync(profileName, environmentId, ct).ConfigureAwait(false);
+        using var conn = await DataverseCommandBridge.ConnectAsync(context, ct).ConfigureAwait(false);
         await DataverseSecurityPrincipalManager.UpdateServicePrincipalEnabledStateAsync(conn.Client, clientIdOrGuid, enabled, ct).ConfigureAwait(false);
     }
 
     public async Task DeleteAsync(
         string? profileName,
         string clientIdOrGuid,
-        CancellationToken ct)
+        CancellationToken ct,
+        Guid? environmentId = null)
     {
-        using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+        var context = await DataverseScopedCommandSupport.ResolveContextAsync(profileName, environmentId, ct).ConfigureAwait(false);
+        using var conn = await DataverseCommandBridge.ConnectAsync(context, ct).ConfigureAwait(false);
         await DataverseSecurityPrincipalManager.DeleteServicePrincipalAsync(conn.Client, clientIdOrGuid, ct).ConfigureAwait(false);
     }
 
     public async Task<IReadOnlyList<DataverseRoleRecord>> ListRolesAsync(
         string? profileName,
         string clientIdOrGuid,
-        CancellationToken ct)
+        CancellationToken ct,
+        Guid? environmentId = null)
     {
-        using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+        var context = await DataverseScopedCommandSupport.ResolveContextAsync(profileName, environmentId, ct).ConfigureAwait(false);
+        using var conn = await DataverseCommandBridge.ConnectAsync(context, ct).ConfigureAwait(false);
         return await DataverseSecurityPrincipalManager.ListServicePrincipalRolesAsync(conn.Client, clientIdOrGuid, ct).ConfigureAwait(false);
     }
 
@@ -65,9 +77,11 @@ internal sealed class DataverseServicePrincipalService : IDataverseServicePrinci
         string? profileName,
         string clientIdOrGuid,
         string roleNameOrGuid,
-        CancellationToken ct)
+        CancellationToken ct,
+        Guid? environmentId = null)
     {
-        using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+        var context = await DataverseScopedCommandSupport.ResolveContextAsync(profileName, environmentId, ct).ConfigureAwait(false);
+        using var conn = await DataverseCommandBridge.ConnectAsync(context, ct).ConfigureAwait(false);
         await DataverseSecurityPrincipalManager.AddServicePrincipalRoleAsync(conn.Client, clientIdOrGuid, roleNameOrGuid, ct).ConfigureAwait(false);
     }
 
@@ -75,9 +89,11 @@ internal sealed class DataverseServicePrincipalService : IDataverseServicePrinci
         string? profileName,
         string clientIdOrGuid,
         string roleNameOrGuid,
-        CancellationToken ct)
+        CancellationToken ct,
+        Guid? environmentId = null)
     {
-        using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+        var context = await DataverseScopedCommandSupport.ResolveContextAsync(profileName, environmentId, ct).ConfigureAwait(false);
+        using var conn = await DataverseCommandBridge.ConnectAsync(context, ct).ConfigureAwait(false);
         await DataverseSecurityPrincipalManager.RemoveServicePrincipalRoleAsync(conn.Client, clientIdOrGuid, roleNameOrGuid, ct).ConfigureAwait(false);
     }
 }

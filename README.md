@@ -50,7 +50,7 @@ txc workspace explain
 - [Collaboration](#collaboration)
 
 **Detailed guides:**
-[Data Plane](docs/data-plane.md) · [Schema Management](docs/schema-management.md) · [Changeset Staging](docs/changeset-staging.md) · [Architecture](docs/architecture.md) · [Profiles & Auth](docs/profiles-and-authentication.md) · [Output Contract](docs/output-contract.md)
+[Data Plane](docs/data-plane.md) · [Schema Management](docs/schema-management.md) · [Changeset Staging](docs/changeset-staging.md) · [Architecture](docs/architecture.md) · [Profiles & Auth](docs/profiles-and-authentication.md) · [Output Contract](docs/output-contract.md) · [Command Taxonomy](docs/command-taxonomy.md)
 
 ---
 

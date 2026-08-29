@@ -15,7 +15,7 @@ public sealed record EnvironmentUserProvisionResult(
 /// Provisions a brand-new Entra user into a Dataverse environment so they can
 /// be assigned security roles immediately, without waiting for the user to
 /// sign in once and be picked up by background JIT sync. Backs
-/// <c>txc environment user add</c>.
+/// <c>txc security user add --environment ...</c>.
 /// </summary>
 public interface IEnvironmentUserProvisioningService
 {
@@ -28,12 +28,13 @@ public interface IEnvironmentUserProvisioningService
     Task<EnvironmentUserProvisionResult> ProvisionUserAsync(
         string? profileName,
         string userIdOrUpn,
-        CancellationToken ct);
+        CancellationToken ct,
+        Guid? environmentId = null);
 
     /// <summary>
     /// Applies the environment admin role to the current authenticated
     /// caller (<paramref name="connection"/>/<paramref name="credential"/>)
-    /// in the given environment. Backs <c>txc environment user self-elevate</c>.
+    /// in the given environment. Backs <c>txc security user self-elevate</c>.
     /// </summary>
     Task SelfElevateAsync(
         Connection connection,

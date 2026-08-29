@@ -15,9 +15,14 @@ public static class DataverseCommandBridge
     public static async Task<DataverseConnection> ConnectAsync(string? profileName, CancellationToken ct)
     {
         var resolver = TxcServices.Get<IConfigurationResolver>();
-        var factory = TxcServices.Get<IDataverseConnectionFactory>();
         var context = await resolver.ResolveAsync(profileName, ct).ConfigureAwait(false);
-        return await factory.ConnectAsync(context, ct).ConfigureAwait(false);
+        return await ConnectAsync(context, ct).ConfigureAwait(false);
+    }
+
+    public static Task<DataverseConnection> ConnectAsync(ResolvedProfileContext context, CancellationToken ct)
+    {
+        var factory = TxcServices.Get<IDataverseConnectionFactory>();
+        return factory.ConnectAsync(context, ct);
     }
 
     /// <summary>

@@ -12,7 +12,8 @@ public interface IDataverseUserService
     Task<IReadOnlyList<DataverseUserRecord>> ListAsync(
         string? profileName,
         DataverseSecurityPrincipalStateFilter filter,
-        CancellationToken ct);
+        CancellationToken ct,
+        Guid? environmentId = null);
 
     /// <summary>
     /// Resolves a single Dataverse environment user by system-user GUID or UPN.
@@ -23,7 +24,8 @@ public interface IDataverseUserService
     Task<DataverseUserRecord?> GetAsync(
         string? profileName,
         string userIdOrUpn,
-        CancellationToken ct);
+        CancellationToken ct,
+        Guid? environmentId = null);
 
     /// <summary>
     /// Enables or disables a Dataverse environment user resolved from a GUID or
@@ -34,7 +36,8 @@ public interface IDataverseUserService
         string? profileName,
         string userIdOrUpn,
         bool enabled,
-        CancellationToken ct);
+        CancellationToken ct,
+        Guid? environmentId = null);
 
     /// <summary>
     /// Lists security roles assigned to the resolved Dataverse environment
@@ -44,7 +47,8 @@ public interface IDataverseUserService
     Task<IReadOnlyList<DataverseRoleRecord>> ListRolesAsync(
         string? profileName,
         string userIdOrUpn,
-        CancellationToken ct);
+        CancellationToken ct,
+        Guid? environmentId = null);
 
     /// <summary>
     /// Assigns a Dataverse security role to the resolved environment user.
@@ -56,7 +60,8 @@ public interface IDataverseUserService
         string? profileName,
         string userIdOrUpn,
         string roleNameOrGuid,
-        CancellationToken ct);
+        CancellationToken ct,
+        Guid? environmentId = null);
 
     /// <summary>
     /// Removes a Dataverse security role from the resolved environment user.
@@ -68,5 +73,6 @@ public interface IDataverseUserService
         string? profileName,
         string userIdOrUpn,
         string roleNameOrGuid,
-        CancellationToken ct);
+        CancellationToken ct,
+        Guid? environmentId = null);
 }

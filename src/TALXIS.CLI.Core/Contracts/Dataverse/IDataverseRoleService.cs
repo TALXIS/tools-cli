@@ -12,7 +12,8 @@ public interface IDataverseRoleService
     Task<IReadOnlyList<DataverseRoleRecord>> ListAsync(
         string? profileName,
         string? filter,
-        CancellationToken ct);
+        CancellationToken ct,
+        Guid? environmentId = null);
 
     /// <summary>
     /// Resolves a single Dataverse role by role GUID or exact role name.
@@ -23,5 +24,6 @@ public interface IDataverseRoleService
     Task<DataverseRoleRecord?> GetAsync(
         string? profileName,
         string nameOrGuid,
-        CancellationToken ct);
+        CancellationToken ct,
+        Guid? environmentId = null);
 }

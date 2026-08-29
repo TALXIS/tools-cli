@@ -14,7 +14,8 @@
     <ProjectReference Include="..\TALXIS.CLI.Features.Config\TALXIS.CLI.Features.Config.csproj" />
     <ProjectReference Include="..\TALXIS.CLI.Platform.Dataverse.Runtime\TALXIS.CLI.Platform.Dataverse.Runtime.csproj" />
     <ProjectReference Include="..\TALXIS.CLI.Platform.Dataverse.Application\TALXIS.CLI.Platform.Dataverse.Application.csproj" />
-    <ProjectReference Include="..\TALXIS.CLI.Features.Tenant\TALXIS.CLI.Features.Tenant.csproj" />
+    <ProjectReference Include="..\TALXIS.CLI.Features.Security\TALXIS.CLI.Features.Security.csproj" />
+    <ProjectReference Include="..\TALXIS.CLI.Features.Governance\TALXIS.CLI.Features.Governance.csproj" />
   </ItemGroup>
 
   <ItemGroup>

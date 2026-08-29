@@ -15,7 +15,7 @@ namespace TALXIS.CLI.Platform.PowerPlatform.Control.Strategies;
 /// Platform</see>. Unlike every other tenant role, this is not a Power Platform RBAC role
 /// assignment - <see cref="PowerPlatformTenantRoleAssignment.IsSynthetic"/> is always
 /// <see langword="true"/> for assignments produced by this strategy, so callers can tell it
-/// apart from real RBAC assignments in <c>tenant service-principal role list</c> output.
+/// apart from real RBAC assignments in <c>security service-principal role list</c> output.
 /// </summary>
 public sealed class BapAdminApplicationRoleStrategy : IPowerPlatformRoleAssignmentStrategy
 {

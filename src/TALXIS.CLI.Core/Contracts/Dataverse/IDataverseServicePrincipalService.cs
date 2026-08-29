@@ -12,7 +12,8 @@ public interface IDataverseServicePrincipalService
     Task<IReadOnlyList<DataverseServicePrincipalRecord>> ListAsync(
         string? profileName,
         DataverseSecurityPrincipalStateFilter filter,
-        CancellationToken ct);
+        CancellationToken ct,
+        Guid? environmentId = null);
 
     /// <summary>
     /// Resolves a single Dataverse service principal by system-user GUID or
@@ -23,7 +24,8 @@ public interface IDataverseServicePrincipalService
     Task<DataverseServicePrincipalRecord?> GetAsync(
         string? profileName,
         string clientIdOrGuid,
-        CancellationToken ct);
+        CancellationToken ct,
+        Guid? environmentId = null);
 
     /// <summary>
     /// Creates a Dataverse service principal directly in the environment and
@@ -33,7 +35,8 @@ public interface IDataverseServicePrincipalService
     Task<DataverseServicePrincipalRecord> CreateAsync(
         string? profileName,
         DataverseServicePrincipalCreateOptions options,
-        CancellationToken ct);
+        CancellationToken ct,
+        Guid? environmentId = null);
 
     /// <summary>
     /// Enables or disables a Dataverse service principal resolved from a system
@@ -44,7 +47,8 @@ public interface IDataverseServicePrincipalService
         string? profileName,
         string clientIdOrGuid,
         bool enabled,
-        CancellationToken ct);
+        CancellationToken ct,
+        Guid? environmentId = null);
 
     /// <summary>
     /// Hard-deletes a Dataverse service principal. Dataverse only allows this
@@ -54,7 +58,8 @@ public interface IDataverseServicePrincipalService
     Task DeleteAsync(
         string? profileName,
         string clientIdOrGuid,
-        CancellationToken ct);
+        CancellationToken ct,
+        Guid? environmentId = null);
 
     /// <summary>
     /// Lists security roles assigned to the resolved Dataverse application
@@ -64,7 +69,8 @@ public interface IDataverseServicePrincipalService
     Task<IReadOnlyList<DataverseRoleRecord>> ListRolesAsync(
         string? profileName,
         string clientIdOrGuid,
-        CancellationToken ct);
+        CancellationToken ct,
+        Guid? environmentId = null);
 
     /// <summary>
     /// Assigns a Dataverse security role to the resolved service principal.
@@ -77,7 +83,8 @@ public interface IDataverseServicePrincipalService
         string? profileName,
         string clientIdOrGuid,
         string roleNameOrGuid,
-        CancellationToken ct);
+        CancellationToken ct,
+        Guid? environmentId = null);
 
     /// <summary>
     /// Removes a Dataverse security role from the resolved service principal.
@@ -90,5 +97,6 @@ public interface IDataverseServicePrincipalService
         string? profileName,
         string clientIdOrGuid,
         string roleNameOrGuid,
-        CancellationToken ct);
+        CancellationToken ct,
+        Guid? environmentId = null);
 }
