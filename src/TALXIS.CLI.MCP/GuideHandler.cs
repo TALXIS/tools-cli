@@ -18,12 +18,18 @@ public class GuideHandler
     private readonly ToolCatalog _catalog;
     private readonly ActiveToolSet _activeToolSet;
     private readonly GuideReasoningEngine? _reasoningEngine;
+    private readonly ITemplateParameterProvider? _templateParams;
 
-    public GuideHandler(ToolCatalog catalog, ActiveToolSet activeToolSet, GuideReasoningEngine? reasoningEngine = null)
+    public GuideHandler(
+        ToolCatalog catalog,
+        ActiveToolSet activeToolSet,
+        GuideReasoningEngine? reasoningEngine = null,
+        ITemplateParameterProvider? templateParams = null)
     {
         _catalog = catalog;
         _activeToolSet = activeToolSet;
         _reasoningEngine = reasoningEngine;
+        _templateParams = templateParams;
     }
 
     /// <summary>
@@ -76,6 +82,9 @@ public class GuideHandler
         var toolDefinitions = entries.Select(McpToolRegistry.BuildToolDefinition).ToList();
         _activeToolSet.InjectTools(toolDefinitions);
 
+        // Attach authoritative template parameters when the recipe scaffolds.
+        recipeText = await EnrichRecipeWithTemplateParamsAsync(recipeText, entries, ct);
+
         // Build structured response (includes recipe when available from sampling)
         var response = BuildGuidanceResponse(entries, query, recipeText);
 
@@ -113,6 +122,9 @@ public class GuideHandler
 
         var toolDefinitions = entries.Select(McpToolRegistry.BuildToolDefinition).ToList();
         _activeToolSet.InjectTools(toolDefinitions);
+
+        // Attach authoritative template parameters when the recipe scaffolds.
+        recipeText = await EnrichRecipeWithTemplateParamsAsync(recipeText, entries, ct);
 
         var response = BuildGuidanceResponse(entries, query, recipeText);
 
@@ -179,6 +191,7 @@ RECIPE RULES:
 - Environment operations take 30s-5min — only use for inspection/deployment
 - If a step depends on a previous step's output, say so
 - Include error recovery hints for common failures (TALXISXSD001 = schema validation, TALXISGUID001 = duplicate GUIDs)
+- If any step scaffolds a component via workspace_component_create, append a line ""TEMPLATES: <short-name>[, <short-name>...]"" (e.g. ""TEMPLATES: pp-entity, pp-entity-attribute"") naming the exact template short-names used. The real parameter list for those templates will be attached below your recipe — use those exact parameter names and choices, do not invent parameters.
 
 {catalogPrompt}{internalSkillsContext}";
 
@@ -207,6 +220,17 @@ RECIPE RULES:
 
         return ParseToolNamesAndRecipeFromSamplingResponse(responseText);
     }
+
+    /// <summary>
+    /// When the recipe scaffolds via <c>workspace_component_create</c>, fetches the real
+    /// parameters for each referenced template and appends an authoritative block so the
+    /// model uses genuine parameter names/types/choices/conditions instead of inventing
+    /// them. Best-effort: any lookup failure leaves the recipe unchanged.
+    /// </summary>
+    private Task<string?> EnrichRecipeWithTemplateParamsAsync(
+        string? recipeText, List<ToolCatalogEntry> entries, CancellationToken ct)
+        => TemplateParameterEnricher.EnrichAsync(
+            recipeText, entries.Select(e => e.Descriptor.Name), _templateParams, ct);
 
     /// <summary>
     /// Parses tool names and recipe text from a sampling response.
