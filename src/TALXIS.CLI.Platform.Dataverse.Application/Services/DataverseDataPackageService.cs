@@ -7,7 +7,7 @@ using TALXIS.CLI.Platform.Xrm;
 
 namespace TALXIS.CLI.Platform.Dataverse.Application.Services;
 
-internal sealed class DataverseDataPackageService : IDataPackageService
+internal sealed partial class DataverseDataPackageService : IDataPackageService
 {
     public async Task<DataPackageImportResult> ImportAsync(
         string? profileName,
