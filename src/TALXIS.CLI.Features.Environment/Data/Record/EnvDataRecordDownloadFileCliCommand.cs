@@ -23,8 +23,11 @@ public class EnvDataRecordDownloadFileCliCommand : ProfiledCliCommand
     [CliOption(Name = "--entity", Description = "Entity logical name (e.g. fin_mytable).", Required = true)]
     public string Entity { get; set; } = null!;
 
-    [CliArgument(
+    [CliOption(
+        Name = "--record-id",
+        Aliases = ["--record"],
         Description = "The GUID of the record containing the file.",
+        Required = true,
         ValidationPattern = CliValidation.GuidPattern,
         ValidationMessage = CliValidation.GuidValidationMessage)]
     public required Guid RecordId { get; set; }
