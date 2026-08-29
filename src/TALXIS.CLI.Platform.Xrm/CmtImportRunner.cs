@@ -40,6 +40,23 @@ public sealed class CmtImportRunner
     /// </summary>
     private int _failedStageCount;
 
+    /// <summary>
+    /// Guards the one-shot LookupKeys pre-population so it fires exactly once
+    /// when CMT fires the first "Processing Entity:" progress event (which is
+    /// after <c>ImportCommonMethods.dataEntities</c> is populated and
+    /// <c>ClearCrossReferanceList()</c> has already run).
+    /// </summary>
+    private int _lookupKeysPrepopulated;
+
+    /// <summary>
+    /// Runtime type of the ImportCrmDataHandler (set during RunInternalAsync).
+    /// Used by <see cref="CmtLookupKeysPrepopulator"/> to navigate to
+    /// the correct runtime-loaded DataMigCommon assembly, which may differ from
+    /// the net462 compile-time reference if the assembly resolver returned a
+    /// different instance.
+    /// </summary>
+    private Type? _handlerRuntimeType;
+
     public CmtImportRunner()
     {
         _assemblyMap = new Dictionary<string, Assembly>(
@@ -191,6 +208,10 @@ public sealed class CmtImportRunner
             ConfigurationManager.AppSettings["ExportFiles"] = "true";
 
             // 4. Wire progress event handlers.
+            // Capture the RUNTIME type so PrePopulateLookupKeysFromPackage can
+            // navigate to the correct DataMigCommon assembly instance (which may
+            // differ from the net462 compile-time reference).
+            _handlerRuntimeType = handler.GetType();
             handler.AddNewProgressItem += OnAddNewProgressItem;
             handler.UpdateProgressItem += OnUpdateProgressItem;
 
@@ -348,6 +369,19 @@ public sealed class CmtImportRunner
 
     private void OnAddNewProgressItem(object? sender, ProgressItemEventArgs e)
     {
+        // "Processing Entity: <name>" is the first AddNewProgressItem fired by
+        // ImportCrmEntityActions.BeginEntityImport() — it fires AFTER
+        // ImportDataToCrm() has called ImportCommonMethods.ClearCrossReferanceList()
+        // (which clears LookupKeys), so this is the correct point to pre-seed the
+        // cache. Hooking on "Schema Validation Complete" fires too early — CMT wipes
+        // LookupKeys via ClearCrossReferanceList() after that event returns.
+        string message = e.progressItem?.ItemText ?? string.Empty;
+        if (message.StartsWith("Processing Entity:", StringComparison.OrdinalIgnoreCase)
+            && Interlocked.CompareExchange(ref _lookupKeysPrepopulated, 1, 0) == 0)
+        {
+            CmtLookupKeysPrepopulator.Prepopulate(_handlerRuntimeType, _logger);
+        }
+
         OnUpdateProgressItem(sender, e);
     }
 
@@ -357,6 +391,7 @@ public sealed class CmtImportRunner
             return;
 
         string message = e.progressItem.ItemText ?? string.Empty;
+
         switch (e.progressItem.ItemStatus)
         {
             case ProgressItemStatus.Complete:
@@ -427,4 +462,5 @@ public sealed class CmtImportRunner
         _unresolvedAssemblies.Add(key);
         return null;
     }
+
 }
