@@ -98,6 +98,20 @@ internal static class CliSubprocessRunner
 
     private static Process StartProcess(IReadOnlyList<string> cliArgs, string? workingDirectory = null)
     {
+        ProcessStartInfo startInfo = BuildStartInfo(cliArgs, workingDirectory);
+        return Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Failed to start the txc CLI subprocess.");
+    }
+
+    /// <summary>
+    /// Builds the <see cref="ProcessStartInfo"/> for a txc CLI subprocess without
+    /// starting it. Extracted from <see cref="StartProcess"/> so the
+    /// forced-headless contract (<c>TXC_NON_INTERACTIVE=1</c>) can be covered by a
+    /// unit test that doesn't spawn a real process — see
+    /// <c>CliSubprocessRunnerTests</c>.
+    /// </summary>
+    internal static ProcessStartInfo BuildStartInfo(IReadOnlyList<string> cliArgs, string? workingDirectory = null)
+    {
         (string fileName, string? assemblyPath) = ResolveCliHost();
         ProcessStartInfo startInfo = new()
         {
@@ -159,8 +173,7 @@ internal static class CliSubprocessRunner
             startInfo.ArgumentList.Add(cliArg);
         }
 
-        return Process.Start(startInfo)
-            ?? throw new InvalidOperationException("Failed to start the txc CLI subprocess.");
+        return startInfo;
     }
 
     private static (string FileName, string? AssemblyPath) ResolveCliHost()

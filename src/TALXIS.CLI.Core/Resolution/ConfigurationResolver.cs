@@ -50,8 +50,11 @@ public sealed class ConfigurationResolver : IConfigurationResolver
         if (name is null)
         {
             throw new ConfigurationResolutionException(
-                "No txc profile could be resolved. Pass --profile <name>, set TXC_PROFILE, "
-                + "pin a workspace default with 'txc config profile pin', or select a global default with 'txc config profile select'.",
+                "No txc profile could be resolved. Run 'txc config profile list' and 'txc config connection list' "
+                + "first to check whether a suitable profile or connection already exists before creating a new "
+                + "one — confirm the target environment with the user if it's unclear. To resolve: pass --profile <name>, "
+                + "set TXC_PROFILE, pin a workspace default with 'txc config profile pin', or select a global default "
+                + "with 'txc config profile select'.",
                 ConfigurationResolutionFailureReason.NoProfile);
         }
 

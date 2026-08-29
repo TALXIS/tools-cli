@@ -29,8 +29,6 @@ public sealed class DataverseAccessTokenService : IDataverseAccessTokenService
     private readonly MsalTokenCacheBinder _cacheBinder;
     private readonly ICredentialVault _vault;
     private readonly IEnvironmentReader _env;
-    private readonly IHeadlessDetector _headless;
-    private readonly IBrowserAvailabilityProbe _browserProbe;
     private readonly ILogger<DataverseAccessTokenService> _logger;
     private readonly InMemoryTokenCache _tokenCache = new();
 
@@ -39,16 +37,12 @@ public sealed class DataverseAccessTokenService : IDataverseAccessTokenService
         MsalTokenCacheBinder cacheBinder,
         ICredentialVault vault,
         IEnvironmentReader env,
-        IHeadlessDetector headless,
-        IBrowserAvailabilityProbe browserProbe,
         ILogger<DataverseAccessTokenService>? logger = null)
     {
         _clientFactory = clientFactory ?? throw new ArgumentNullException(nameof(clientFactory));
         _cacheBinder = cacheBinder ?? throw new ArgumentNullException(nameof(cacheBinder));
         _vault = vault ?? throw new ArgumentNullException(nameof(vault));
         _env = env ?? throw new ArgumentNullException(nameof(env));
-        _headless = headless ?? throw new ArgumentNullException(nameof(headless));
-        _browserProbe = browserProbe ?? throw new ArgumentNullException(nameof(browserProbe));
         _logger = logger ?? NullLogger<DataverseAccessTokenService>.Instance;
     }
 
@@ -143,7 +137,8 @@ public sealed class DataverseAccessTokenService : IDataverseAccessTokenService
         {
             throw new InvalidOperationException(
                 $"No cached sign-in found for credential '{credential.Id}'. " +
-                "Run 'txc config auth login' and retry.");
+                "Interactive sign-in requires a human to run it deliberately in their own terminal — " +
+                "ask the user to run 'txc config auth login' themselves, then retry.");
         }
 
         try
@@ -157,71 +152,17 @@ public sealed class DataverseAccessTokenService : IDataverseAccessTokenService
         }
         catch (MsalUiRequiredException ex)
         {
-            // In interactive sessions, attempt automatic re-authentication.
-            // The strategy depends on whether a local browser is reachable:
-            // - Browser available: AcquireTokenInteractive with Dataverse scope
-            // - Browser isolated (Codespaces/SSH): device code flow
-            if (!_headless.IsHeadless)
-            {
-                _logger.LogWarning(
-                    "Token for credential '{CredentialId}' expired or requires consent — attempting re-authentication.",
-                    credential.Id);
-
-                try
-                {
-                    if (_browserProbe.IsBrowserAvailable)
-                    {
-                        // Browser is reachable — use interactive flow with the
-                        // actual Dataverse scope that needs consent.
-                        var interactiveResult = await app
-                            .AcquireTokenInteractive(new[] { scope })
-                            .WithAccount(account)
-                            .WithUseEmbeddedWebView(false)
-                            .ExecuteAsync(ct)
-                            .ConfigureAwait(false);
-                        _tokenCache.Set(cacheKey, interactiveResult);
-                        return interactiveResult.AccessToken;
-                    }
-                    else
-                    {
-                        // Browser-isolated environment (Codespaces, SSH, etc.)
-                        // — use device code flow for re-authentication.
-                        _logger.LogWarning(
-                            "No local browser available ({Reason}). Using device code for re-authentication.",
-                            _browserProbe.UnavailableReason);
-
-                        // Note: AcquireTokenWithDeviceCode does not support WithLoginHint
-                        // (no account pre-selection in device code flow). We log the expected
-                        // account so the user can verify they are signing in as the right identity.
-                        _logger.LogWarning(
-                            "Please sign in as {ExpectedUpn} when completing device code authentication.",
-                            account.Username);
-
-                        var deviceCodeResult = await app
-                            .AcquireTokenWithDeviceCode(new[] { scope }, dcr =>
-                            {
-                                _logger.LogWarning("{DeviceCodeMessage}", dcr.Message);
-                                return Task.CompletedTask;
-                            })
-                            .ExecuteAsync(ct)
-                            .ConfigureAwait(false);
-                        _tokenCache.Set(cacheKey, deviceCodeResult);
-                        return deviceCodeResult.AccessToken;
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    throw; // Propagate Ctrl+C / browser close cancellation.
-                }
-                catch (Exception reAuthEx)
-                {
-                    _logger.LogDebug(reAuthEx, "Automatic re-authentication failed; falling through to original error.");
-                }
-            }
-
+            // Sign-in is always a deliberate, manual action taken by a human in
+            // their own terminal — a command that merely needs a Dataverse token
+            // must never launch an interactive browser or device-code flow on the
+            // caller's behalf, even when a TTY looks available. Silently doing so
+            // here previously stranded unattended callers (e.g. AI agents) on an
+            // unattended device-code prompt nobody would complete. Always fail
+            // fast and hand the human the exact remedy command instead.
             throw new InvalidOperationException(
                 $"Cached token for '{credential.Id}' expired or is missing consent. " +
-                "Run 'txc config auth login' and retry.", ex);
+                "Interactive sign-in requires a human to run it deliberately in their own terminal — " +
+                "ask the user to run 'txc config auth login' themselves, then retry.", ex);
         }
     }
 

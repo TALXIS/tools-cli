@@ -71,6 +71,27 @@ Unpin a repository-level profile with:
 txc config profile unpin
 ```
 
+## Sign-in is manual — including when a coding agent is driving `txc`
+
+`txc` never starts an interactive browser sign-in or a device-code flow on
+anyone's behalf. `txc config auth login` and `txc config profile create --url`
+only run an interactive flow when a human deliberately invokes them, in their
+own terminal, and only when a browser is actually reachable — there is no
+silent fallback to device-code if it isn't. If a token has expired or no
+credential exists yet, every affected command fails fast with an error asking
+for a **manual** `txc config auth login` (or `--device-code` explicitly, if
+that's genuinely what's needed) instead of starting a flow no one is watching.
+
+If you are scripting or delegating work to a coding agent:
+
+- Sign in yourself, once, ahead of time — in a CI runner or agent sandbox, use
+  the [headless workflow](#headless-and-ci-workflow) below instead of
+  interactive sign-in.
+- Before creating a new profile or connection, run `txc config profile list`
+  and `txc config connection list` first — reuse an existing one that already
+  targets the environment you need instead of letting an agent create one
+  speculatively.
+
 ## Headless and CI workflow
 
 For CI runners and other non-interactive environments, isolate config and load the secret from an environment variable:

@@ -20,15 +20,19 @@ namespace TALXIS.CLI.Features.Config.Auth;
 /// <remarks>
 /// Fails fast with exit 1 in headless contexts — interactive browser is
 /// never a permitted headless kind. See <see cref="HeadlessAuthRequiredException"/>.
-/// When a local browser is not available (Codespaces, SSH, no DISPLAY),
-/// the command automatically falls back to device code flow unless
-/// <c>--device-code</c> was already specified.
+/// Sign-in is always a deliberate, manual action taken by a human in their
+/// own terminal — this command never guesses on the caller's behalf. When a
+/// local browser is not available (Codespaces, SSH, no DISPLAY) it does
+/// <b>not</b> silently switch to device code; it fails fast and tells the
+/// human to re-run with <c>--device-code</c> themselves. This mirrors how
+/// real scripted workflows already use this command (they always pass
+/// <c>--device-code</c> explicitly rather than relying on auto-detection).
 /// </remarks>
 [CliIdempotent]
 [McpIgnore]
 [CliCommand(
     Name = "login",
-    Description = "Interactive sign-in. Uses browser login by default; falls back to device code in browser-isolated environments (Codespaces, SSH)."
+    Description = "Interactive sign-in, run manually by a human in their own terminal — never by an automated caller. Uses browser login by default; pass --device-code yourself when no local browser can reach localhost (Codespaces, SSH, containers)."
 )]
 public class AuthLoginCliCommand : TxcLeafCommand
 {
@@ -43,7 +47,7 @@ public class AuthLoginCliCommand : TxcLeafCommand
     [CliOption(Name = "--cloud", Description = "Sovereign cloud. Default: public.", Required = false)]
     public CloudInstance? Cloud { get; set; }
 
-    [CliOption(Name = "--device-code", Description = "Use device code flow instead of browser login. Required when no local browser can reach localhost (Codespaces, SSH, containers).", Required = false)]
+    [CliOption(Name = "--device-code", Description = "Use device code flow instead of browser login. Pass this yourself — deliberately, as the human running this command — when no local browser can reach localhost (Codespaces, SSH, containers). Never inferred automatically.", Required = false)]
     public bool DeviceCode { get; set; }
 
     protected override async Task<int> ExecuteAsync()
@@ -53,15 +57,27 @@ public class AuthLoginCliCommand : TxcLeafCommand
         var browserProbe = TxcServices.Get<IBrowserAvailabilityProbe>();
         var cloud = Cloud ?? CloudInstance.Public;
 
-        // Determine whether to use device code flow: explicit flag or
-        // or automatic detection of browser-isolated environments.
-        var useDeviceCode = DeviceCode || !browserProbe.IsBrowserAvailable;
+        // Sign-in is always a deliberate, manual choice made by a human.
+        // Never silently switch flows on the caller's behalf: if no local
+        // browser is reachable and --device-code wasn't explicitly passed,
+        // fail fast instead of starting an unattended device-code prompt
+        // that nobody will complete (see HeadlessAuthRequiredException for
+        // the equivalent fully-headless case).
+        if (!DeviceCode && !browserProbe.IsBrowserAvailable)
+        {
+            Logger.LogError(
+                "No local browser is available ({Reason}). Interactive sign-in requires a human to run it " +
+                "deliberately in their own terminal. Re-run this command yourself with '--device-code' to sign in " +
+                "using the device code flow. This is never chosen automatically.",
+                browserProbe.UnavailableReason ?? "unknown reason");
+            return ExitError;
+        }
 
-        if (useDeviceCode)
+        if (DeviceCode)
         {
             var deviceCodeLogin = TxcServices.Get<IDeviceCodeLoginService>();
-            Logger.LogInformation("Starting device code sign-in (browser unavailable: {Reason})...",
-                browserProbe.UnavailableReason ?? "--device-code flag");
+            Logger.LogInformation("Starting device code sign-in (requested via --device-code; browser reachable: {BrowserAvailable})...",
+                browserProbe.IsBrowserAvailable);
 
             var result = await DeviceCodeCredentialBootstrapper.AcquireAndPersistAsync(
                 deviceCodeLogin, store, headless, Tenant, cloud, Alias, CancellationToken.None).ConfigureAwait(false);

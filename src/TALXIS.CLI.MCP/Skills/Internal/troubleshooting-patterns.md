@@ -36,6 +36,14 @@ config_profile_validate → result?
   ├─ Invalid → config_profile_get → config_connection_get → fix credentials
   └─ Valid but failing → check security roles in Power Platform admin center (outside txc)
 ```
+→ If the failure is an expired/missing credential (AUTH_REQUIRED-style error), do
+NOT attempt to sign in yourself and do NOT create a new profile/connection to work
+around it. Sign-in is always a manual, human action — `txc` structurally refuses to
+start an interactive or device-code flow on your behalf (there is no headless
+fallback). Run `config_profile_list` / `config_connection_list` to confirm nothing
+existing already covers the target, then STOP and ask the user to run
+`txc config auth login` themselves in their own terminal, and retry once they confirm.
+
 
 ## Diagnostic Priority Order
 When unsure where to start:
@@ -53,3 +61,5 @@ When unsure where to start:
 - ❌ Querying the `asyncoperation` table via `environment_data_query_sql` to check import status → call `environment_deployment_get --async-operation-id <id>` instead — raw SQL gives unstructured statuscodes, the proper tool returns parsed findings and human-readable errors
 - ❌ Jumping to layer inspection before checking basic auth/connectivity
 - ❌ Using environment schema tools to "fix" what should be fixed locally and redeployed
+- ❌ Creating a new profile or connection speculatively on an auth/"no profile" error → list first (`config_profile_list`, `config_connection_list`) and reuse an existing one
+- ❌ Trying to trigger or work around sign-in yourself (interactive browser, device-code, or otherwise) → stop and ask the user to run `txc config auth login` manually
