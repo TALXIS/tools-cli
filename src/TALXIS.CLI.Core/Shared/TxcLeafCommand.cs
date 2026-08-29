@@ -36,6 +36,8 @@ public abstract class TxcLeafCommand
     protected const int ExitError = 1;
     /// <summary>Exit code: input validation error or resource not found.</summary>
     protected const int ExitValidationError = 2;
+    /// <summary>Exit code: authentication required — the user must sign in to the target environment before retrying.</summary>
+    protected const int ExitAuthRequired = 3;
 
     [CliOption(
         Name = "--format",
@@ -103,6 +105,20 @@ public abstract class TxcLeafCommand
                 return exitCode = confirmError.Value;
 
             exitCode = await ExecuteAsync().ConfigureAwait(false);
+            return exitCode;
+        }
+        catch (Exception ex) when (
+            ExceptionHelpers.FindInChain<Headless.EnvironmentAuthRequiredException>(ex) is not null)
+        {
+            exitCode = ExitAuthRequired;
+
+            // Surface the auth exception's own message, not the innermost MSAL error.
+            var authEx = ExceptionHelpers.FindInChain<Headless.EnvironmentAuthRequiredException>(ex)!;
+
+            scope.SetError(exitCode, "auth", authEx.Message);
+            OutputFormatter.WriteResult("failed", authEx.Message, exitCode: exitCode);
+            Logger.LogError(authEx, "Authentication required: {Error}", authEx.Message);
+            LogSupportInfo();
             return exitCode;
         }
         catch (Exception ex) when (ex is Abstractions.ConfigurationResolutionException or ArgumentException)

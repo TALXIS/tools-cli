@@ -41,8 +41,9 @@ txc env entity list --format text
 | `0` (`ExitSuccess`) | Operation completed successfully | Default success path |
 | `1` (`ExitError`) | Runtime/operational error | Service call failed, network error, unexpected exception |
 | `2` (`ExitValidationError`) | Input validation error or resource not found | Bad arguments, missing required input, entity not found |
+| `3` (`ExitAuthRequired`) | Authentication required | A command touched a live environment but there is no usable sign-in (missing token, expired cache, or a headless context that forbids interactive login). The message names the environment URL and the `txc config profile create --url <url>` fix to run manually. |
 
-The base class `TxcLeafCommand.RunAsync()` catches unhandled exceptions and returns `ExitError` (1) automatically. Commands only need explicit exit code handling for validation errors (2).
+The base class `TxcLeafCommand.RunAsync()` catches unhandled exceptions and returns `ExitError` (1) automatically. It maps `EnvironmentAuthRequiredException` (anywhere in the inner-exception chain) to `ExitAuthRequired` (3). Commands only need explicit exit code handling for validation errors (2).
 
 ## Command implementation pattern
 
@@ -81,7 +82,7 @@ public class WidgetListCliCommand : ProfiledCliCommand
 - **`OutputContext` setup** — applies the format flag with TTY auto-detection
 - **Standardized try/catch** — catches `ConfigurationResolutionException`, `OperationCanceledException`, and general exceptions
 - **`ILogger` requirement** — `protected abstract ILogger Logger` ensures every command has logging
-- **Exit code constants** — `ExitSuccess` (0), `ExitError` (1), `ExitValidationError` (2)
+- **Exit code constants** — `ExitSuccess` (0), `ExitError` (1), `ExitValidationError` (2), `ExitAuthRequired` (3)
 
 ### What commands must NOT do
 
