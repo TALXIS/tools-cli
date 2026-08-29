@@ -34,7 +34,7 @@ public class DataModelConverterService
     ///   <item>A <c>.zip</c> file — decoded and parsed as an exported solution package.</item>
     /// </list>
     /// </remarks>
-    public static void ConvertModel(string inputPath, string targetFormat, string outputFilePath)
+    public static void ConvertModel(string inputPath, string targetFormat, string outputFilePath, IReadOnlyCollection<string>? includeAttributes = null)
     {
         if (!SupportedFormats.Contains(targetFormat.ToLower()))
             throw new ArgumentException($"Unsupported target format '{targetFormat}'. Supported formats are: {string.Join(", ", SupportedFormats)}.");
@@ -56,6 +56,11 @@ public class DataModelConverterService
         else
         {
             throw new FileNotFoundException($"Input path '{inputPath}' does not exist.");
+        }
+
+        if (includeAttributes != null && includeAttributes.Count > 0)
+        {
+            AttributeFilter.Apply(parsedModel, includeAttributes);
         }
 
         var resultString = targetFormat.ToLower() switch
