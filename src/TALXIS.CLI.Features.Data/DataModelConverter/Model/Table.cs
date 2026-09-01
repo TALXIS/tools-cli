@@ -1,4 +1,6 @@
-﻿using DocumentFormat.OpenXml.Vml.Office;
+using TALXIS.CLI.Logging;
+using Microsoft.Extensions.Logging;
+using DocumentFormat.OpenXml.Vml.Office;
 using System.Text.Json.Serialization;
 using System;
 using System.Collections.Generic;
@@ -20,6 +22,8 @@ public enum TableType
 
 public class Table
 {
+    private static readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(Table));
+
     public Table() { }
 
     public Table(XElement element)
@@ -58,8 +62,28 @@ public class Table
         foreach (var element in xElements)
         {
             var row = TableRow.ParseXElement(element);
-            if (row != null)
+            if (row == null)
+                continue;
+
+            var existing = Rows.FirstOrDefault(x => string.Equals(x.Name, row.Name, StringComparison.OrdinalIgnoreCase));
+            if (existing == null)
+            {
                 Rows.Add(row);
+            }
+            else if (existing.RowType != row.RowType)
+            {
+                // Several modules extending one shared table is the normal case for a
+                // layered product, so a divergent declaration warns rather than aborting.
+                // First input wins, which makes the result deterministic in input order.
+                _logger.LogWarning(
+                    "Attribute {Table}.{Attribute} is declared as {ExistingType} in one input and {NewType} in another; keeping the first.",
+                    LogicalName, row.Name, existing.RowType, row.RowType);
+            }
+            else if (row.MaxLenght > existing.MaxLenght)
+            {
+                // Widen, never narrow: a consumer breaks on too little room, not too much.
+                existing.MaxLenght = row.MaxLenght;
+            }
         }
     }
 

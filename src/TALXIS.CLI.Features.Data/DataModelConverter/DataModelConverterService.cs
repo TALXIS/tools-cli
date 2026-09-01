@@ -13,12 +13,14 @@ using TALXIS.CLI.Features.Data.DataModelConverter.Model;
 using TALXIS.CLI.Features.Data.DataModelConverter.Translators;
 using TALXIS.CLI.Logging;
 
+using TALXIS.CLI.Features.Data.DataModelConverter.AppScope;
+
 namespace TALXIS.CLI.Features.Data.DataModelConverter;
 
 public class DataModelConverterService
 {
     private static readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(DataModelConverterService));
-    private static readonly string[] SupportedFormats = ["dbml", "sql", "edmx", "ribbon"];
+    private static readonly string[] SupportedFormats = ["dbml", "sql", "plainsql", "edmx", "ribbon"];
 
     /// <summary>
     /// Parses a Power Platform solution from a solution project folder, a declarations
@@ -35,28 +37,58 @@ public class DataModelConverterService
     /// </list>
     /// </remarks>
     public static void ConvertModel(string inputPath, string targetFormat, string outputFilePath)
+        => ConvertModel([inputPath], targetFormat, outputFilePath);
+
+    /// <summary>
+    /// Converts one or more inputs into a single model. Each input is resolved
+    /// independently -- a solution project folder, a declarations folder, or a .zip -- and
+    /// they may be mixed. Earlier inputs take precedence where two declare the same
+    /// attribute differently.
+    /// </summary>
+    public static void ConvertModel(List<string> inputPaths, string targetFormat, string outputFilePath)
+        => ConvertModel(inputPaths, targetFormat, outputFilePath, null, null);
+
+    /// <summary>
+    /// Converts one or more inputs into a single model, optionally narrowed to the tables a
+    /// model-driven app is built on. <paramref name="appSearchRoots"/> is where app modules
+    /// are looked for; apps and entity schema live in different modules, so this is usually
+    /// a repository root rather than a declarations folder.
+    /// </summary>
+    public static void ConvertModel(List<string> inputPaths, string targetFormat, string outputFilePath, string? appUniqueName, List<string>? appSearchRoots)
     {
         if (!SupportedFormats.Contains(targetFormat.ToLower()))
             throw new ArgumentException($"Unsupported target format '{targetFormat}'. Supported formats are: {string.Join(", ", SupportedFormats)}.");
 
-        ParsedModel parsedModel;
+        if (inputPaths is null || inputPaths.Count == 0)
+            throw new ArgumentException("At least one input path is required.");
 
-        if (Directory.Exists(inputPath))
+        List<Module> modules = [];
+        foreach (var inputPath in inputPaths)
         {
-            var declarationsPath = ResolveDeclarationsFolder(inputPath);
-            parsedModel = ParseModelFolder(declarationsPath);
+            if (Directory.Exists(inputPath))
+            {
+                modules.Add(ParseFolderIntoModule(ResolveDeclarationsFolder(inputPath)));
+            }
+            else if (File.Exists(inputPath))
+            {
+                using var fileStream = new FileStream(inputPath, FileMode.Open, FileAccess.Read);
+                using var memoryStream = new MemoryStream();
+                fileStream.CopyTo(memoryStream);
+                modules.Add(ParseZipIntoModule(Convert.ToBase64String(memoryStream.ToArray())));
+            }
+            else
+            {
+                throw new FileNotFoundException($"Input path '{inputPath}' does not exist.");
+            }
         }
-        else if (File.Exists(inputPath))
+
+        ResolvedAppScope? appScope = null;
+        if (!string.IsNullOrWhiteSpace(appUniqueName))
         {
-            using var fileStream = new FileStream(inputPath, FileMode.Open, FileAccess.Read);
-            using var memoryStream = new MemoryStream();
-            fileStream.CopyTo(memoryStream);
-            parsedModel = ParseModel(Convert.ToBase64String(memoryStream.ToArray()));
+            appScope = AppScopeResolver.Resolve(appSearchRoots is { Count: > 0 } ? appSearchRoots : inputPaths, appUniqueName);
         }
-        else
-        {
-            throw new FileNotFoundException($"Input path '{inputPath}' does not exist.");
-        }
+
+        var parsedModel = ParseModules(modules, appScope);
 
         var resultString = targetFormat.ToLower() switch
         {
@@ -255,11 +287,68 @@ public class DataModelConverterService
     }
 
     public static ParsedModel ParseModelFolder(string folderPath)
+        => ParseModelFolders([folderPath]);
+
+    /// <summary>
+    /// Parses several declarations folders into one model, merging attribute-level.
+    /// A project's model is rarely one solution: the base product ships several modules
+    /// that each declare part of a shared table, so converting them separately and
+    /// concatenating the files loses everything but the first declaration of each table.
+    /// </summary>
+    public static ParsedModel ParseModelFolders(List<string> folderPaths)
+        => ParseModules([.. folderPaths.Select(ParseFolderIntoModule)]);
+
+    /// <summary>
+    /// Names a module after the folders that own its declarations, so tables can be
+    /// attributed once several inputs are merged. Several segments are kept because the
+    /// leaf is almost always "Model" -- one segment would give every input the same name
+    /// and, with the colour derived from it, the same colour.
+    /// </summary>
+    private static string ModuleNameFor(string declarationsFolder)
     {
-        Module module = new();
+        var full = Path.GetFullPath(declarationsFolder)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var segments = full.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            .Where(x => x.Length > 0)
+            .ToList();
+
+        // Drop the trailing "Declarations" (or "CDS") folder; it carries no information.
+        if (segments.Count > 1 && (segments[^1].Equals("Declarations", StringComparison.OrdinalIgnoreCase)
+                                   || segments[^1].Equals("CDS", StringComparison.OrdinalIgnoreCase)))
+        {
+            segments.RemoveAt(segments.Count - 1);
+        }
+
+        return string.Join('/', segments.TakeLast(3));
+    }
+
+    /// <summary>
+    /// Finds every declarations folder beneath a root, by looking for the entity
+    /// declarations themselves rather than for a folder name -- modules keep them under
+    /// "Declarations" or, in older ones, "CDS".
+    /// </summary>
+    public static List<string> DiscoverDeclarationFolders(string root)
+    {
+        if (!Directory.Exists(root)) throw new DirectoryNotFoundException($"Root '{root}' does not exist.");
+
+        return [.. Directory.EnumerateFiles(root, "Entity.xml", SearchOption.AllDirectories)
+            .Select(f => Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(f))))
+            .Where(d => !string.IsNullOrEmpty(d))
+            .Select(d => Path.GetFullPath(d!))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(d => d, StringComparer.OrdinalIgnoreCase)];
+    }
+
+    private static Module ParseFolderIntoModule(string folderPath)
+    {
+        Module module = new() { ModuleName = ModuleNameFor(folderPath) };
 
         // Get files named Entity.xml in subfolders
-        var entityFiles = Directory.GetFiles(folderPath, "Entity.xml", SearchOption.AllDirectories);
+        // Ordered: Directory.GetFiles gives no ordering guarantee, so without this the
+        // table, relationship and enum order in the output varies by filesystem and the
+        // result cannot be committed or diffed.
+        var entityFiles = Directory.GetFiles(folderPath, "Entity.xml", SearchOption.AllDirectories)
+            .OrderBy(f => f, StringComparer.Ordinal).ToArray();
 
         foreach (var file in entityFiles)
         {
@@ -284,7 +373,7 @@ public class DataModelConverterService
         // Get files in folder Other/Relationships (directory may not exist in scaffolded solutions)
         var relationshipsDir = Path.Combine(folderPath, "Other", "Relationships");
         var relationshipFiles = Directory.Exists(relationshipsDir)
-            ? Directory.GetFiles(relationshipsDir, "*.xml", SearchOption.AllDirectories)
+            ? [.. Directory.GetFiles(relationshipsDir, "*.xml", SearchOption.AllDirectories).OrderBy(f => f, StringComparer.Ordinal)]
             : Array.Empty<string>();
         foreach (var file in relationshipFiles)
         {
@@ -302,7 +391,7 @@ public class DataModelConverterService
         // Get files in folder called OptionSets (directory may not exist in scaffolded solutions)
         var optionsetsDir = Path.Combine(folderPath, "OptionSets");
         var optionsetFiles = Directory.Exists(optionsetsDir)
-            ? Directory.GetFiles(optionsetsDir, "*.xml", SearchOption.AllDirectories)
+            ? [.. Directory.GetFiles(optionsetsDir, "*.xml", SearchOption.AllDirectories).OrderBy(f => f, StringComparer.Ordinal)]
             : Array.Empty<string>();
         foreach (var file in optionsetFiles)
         {
@@ -317,8 +406,24 @@ public class DataModelConverterService
             }
         }
 
-        return ParseModules([module]);
+        return module;
+    }
 
+    private static Module ParseZipIntoModule(string base64solution)
+    {
+        using ZipArchive archive = new(new MemoryStream(Convert.FromBase64String(base64solution)));
+
+        var customizationsxml = archive.Entries.FirstOrDefault(x => x.FullName.Equals("customizations.xml", StringComparison.OrdinalIgnoreCase));
+        var solutionxml = archive.Entries.FirstOrDefault(x => x.FullName.Equals("solution.xml", StringComparison.OrdinalIgnoreCase));
+
+        if (customizationsxml == null || solutionxml == null)
+        {
+            throw new FileNotFoundException("The solution archive does not contain the required customizations.xml or solution.xml files.");
+        }
+
+        return new Module(
+            XDocument.Load(solutionxml.Open()).Descendants().First(x => x.Name == "UniqueName").Value,
+            XDocument.Load(customizationsxml.Open()));
     }
 
     public static ParsedModel ParseModel(string? base64solution)
@@ -338,39 +443,35 @@ public class DataModelConverterService
 
         foreach (var solution in base64solution)
         {
-            using ZipArchive archive = new(new MemoryStream(Convert.FromBase64String(solution)));
-
-            var customizationsxml = archive.Entries.FirstOrDefault(x => x.FullName.Equals("customizations.xml", StringComparison.OrdinalIgnoreCase));
-            var solutionxml = archive.Entries.FirstOrDefault(x => x.FullName.Equals("solution.xml", StringComparison.OrdinalIgnoreCase));
-
-            if (customizationsxml == null || solutionxml == null)
-            {
-                throw new FileNotFoundException("The solution archive does not contain the required customizations.xml or solution.xml files.");
-            }
-
-            Module foundModule = new(XDocument.Load(solutionxml.Open()).Descendants().First(x => x.Name == "UniqueName").Value, XDocument.Load(customizationsxml.Open()));
-
-            modules.Add(foundModule);
+            modules.Add(ParseZipIntoModule(solution));
         }
 
         return ParseModules(modules);
     }
 
     public static ParsedModel ParseModules(List<Module> modules)
+        => ParseModules(modules, null);
+
+    public static ParsedModel ParseModules(List<Module> modules, ResolvedAppScope? appScope)
     {
 
         List<Table> EntityTables = ParseEntities(modules);
         List<OptionsetEnum> EntityOptionSets = ParseOptionSets(modules);
 
-        // Remove optionset rows without optionsets defined
+        // Downgrade optionset rows whose optionset is not resolvable here (declared with no
+        // options, owned by another module, or platform-owned) rather than dropping the column.
         var validOptionSetNames = EntityOptionSets.Select(x => x.LocalizedName).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (var entity in EntityTables)
+        foreach (var row in EntityTables
+            .SelectMany(entity => entity.Rows)
+            .Where(row =>
+                row.RowType is (RowType.Picklist or RowType.Multiselectoptionset or RowType.State or RowType.Status or RowType.Bit)
+                && !validOptionSetNames.Contains(row.OptionSetName)))
         {
-            entity.Rows = [.. entity.Rows
-                .Where(row =>
-                    row.RowType is not (RowType.Picklist or RowType.Multiselectoptionset or RowType.State or RowType.Status or RowType.Bit)
-                    || validOptionSetNames.Contains(row.OptionSetName)
-                )];
+            // Clearing OptionSetName is enough and is all that is needed: it is what
+            // ToDbDiagramNotation prefers over RowType, so leaving it set would make the
+            // column reference an Enum that was never emitted. RowType is deliberately
+            // left alone so each translator keeps its own handling for the kind.
+            row.OptionSetName = string.Empty;
         }
 
         // Fill in setnames where missing with placeholder logical names
@@ -379,7 +480,27 @@ public class DataModelConverterService
             entity.SetName = entity.LogicalName;
         }
 
-        List<Relationship> EntityRelationships = ParseRelationships(modules, EntityTables);
+        // Before relationships: a table dropped here must not reappear as a stub created
+        // for a relationship that pointed at it.
+        if (appScope != null)
+        {
+            AppScopeFilter.ApplyTableScope(EntityTables, appScope);
+        }
+
+        List<Relationship> EntityRelationships = ParseRelationships(modules, EntityTables, appScope);
+
+        if (appScope != null)
+        {
+            // Option sets belonging to tables the scope removed would otherwise still be
+            // emitted, leaving more enum declarations in the output than columns using them.
+            var referenced = EntityTables
+                .SelectMany(t => t.Rows)
+                .Select(r => r.OptionSetName)
+                .Where(n => !string.IsNullOrEmpty(n))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            EntityOptionSets.RemoveAll(o => !referenced.Contains(o.LocalizedName));
+        }
 
         return new ParsedModel()
         {
@@ -391,6 +512,20 @@ public class DataModelConverterService
     }
 
     public static List<Relationship> ParseRelationships(List<Module> modules, List<Table> EntityTables)
+        => ParseRelationships(modules, EntityTables, null);
+
+    private static bool IsInAppScope(XElement relationship, ResolvedAppScope appScope)
+    {
+        if (relationship.Element("EntityRelationshipType")?.Value == "ManyToMany")
+        {
+            return appScope.TableLogicalNames.Contains(relationship.Element("FirstEntityName")?.Value ?? string.Empty)
+                || appScope.TableLogicalNames.Contains(relationship.Element("SecondEntityName")?.Value ?? string.Empty);
+        }
+
+        return appScope.TableLogicalNames.Contains(relationship.Element("ReferencingEntityName")?.Value ?? string.Empty);
+    }
+
+    public static List<Relationship> ParseRelationships(List<Module> modules, List<Table> EntityTables, ResolvedAppScope? appScope)
     {
 
         List<Relationship> EntityRelationships = new();
@@ -401,6 +536,14 @@ public class DataModelConverterService
 
             foreach (var relationship in module.relationships)
             {
+                // Out of an app's scope, a relationship must be skipped rather than built:
+                // resolving one would synthesise a stub for each end, putting back the very
+                // tables the scope just removed. Kept when the referencing side is in scope,
+                // so a lookup out of the app still terminates somewhere visible.
+                if (appScope != null && !IsInAppScope(relationship, appScope))
+                {
+                    continue;
+                }
 
                 if (relationship.Element("EntityRelationshipType").Value == "ManyToMany")
                 {
@@ -420,6 +563,21 @@ public class DataModelConverterService
 
                     var intersectEntityName = relationship.Element("IntersectEntityName").Value;
 
+                    // A self-referencing N:N resolves both sides to the same column name, which
+                    // emitted the column twice and the same Ref twice -- a DBML parser rejects
+                    // both. Dataverse keeps the real per-side names in metadata
+                    // (Entity1/Entity2IntersectAttribute) and they are author-chosen, not
+                    // derivable: the platform's own example pairs connectionroleid with
+                    // associatedconnectionroleid. Solution XML carries neither, and no intersect
+                    // entity declares its own columns, so the second side is suffixed
+                    // positionally rather than guessed.
+                    var firstRowName = firstEntityTable.LogicalName + "id";
+                    var secondRowName = secondEntityTable.LogicalName + "id";
+                    if (string.Equals(firstRowName, secondRowName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        secondRowName = secondEntityTable.LogicalName + "id2";
+                    }
+
                     var connectionTable = new Table
                     {
                         Type = TableType.ConnectionTable,
@@ -428,28 +586,39 @@ public class DataModelConverterService
                         SetName = intersectEntityName + "s",
                         Rows = {
                                 new TableRow(intersectEntityName + "id", RowType.Primarykey),
-                                new TableRow(firstEntityTable.LogicalName + "id", RowType.Lookup),
-                                new TableRow(secondEntityTable.LogicalName + "id", RowType.Lookup),
+                                new TableRow(firstRowName, RowType.Lookup),
+                                new TableRow(secondRowName, RowType.Lookup),
                             }
                     };
 
 
                     EntityTables.Add(connectionTable);
 
-                    var firstToMid = new Relationship(relationship.Attribute("Name").Value,
+                    // The second leg also needs its own name: both legs otherwise carry the
+                    // relationship name, and EDMX renders the intersect side as
+                    // NavigationProperty Name="{relationship.Name}" plus a matching Partner and
+                    // NavigationPropertyBinding Path, so a self-referencing N:N emits each of
+                    // them twice. Suffixed positionally for the same reason as the column above:
+                    // the real per-side names live in metadata and are author-chosen.
+                    var relationshipName = relationship.Attribute("Name").Value;
+                    var isSelfReferencing = string.Equals(
+                        firstEntityTable.LogicalName, secondEntityTable.LogicalName, StringComparison.OrdinalIgnoreCase);
+                    var secondRelationshipName = isSelfReferencing ? relationshipName + "_2" : relationshipName;
+
+                    var firstToMid = new Relationship(relationshipName,
                                                       "ManyToOne",
                                                       firstEntityTable,
                                                       firstEntityTable.Rows.FirstOrDefault(x => x.RowType == RowType.Primarykey),
                                                       connectionTable,
-                                                      connectionTable.Rows.FirstOrDefault(x => x.Name == firstEntityTable.LogicalName + "id"));
+                                                      connectionTable.Rows.FirstOrDefault(x => x.Name == firstRowName));
 
 
-                    var secondToMid = new Relationship(relationship.Attribute("Name").Value,
+                    var secondToMid = new Relationship(secondRelationshipName,
                                                        "ManyToOne",
                                                        secondEntityTable,
                                                        secondEntityTable.Rows.FirstOrDefault(x => x.RowType == RowType.Primarykey),
                                                        connectionTable,
-                                                       connectionTable.Rows.FirstOrDefault(x => x.Name == secondEntityTable.LogicalName + "id"));
+                                                       connectionTable.Rows.FirstOrDefault(x => x.Name == secondRowName));
 
                     EntityRelationships.Add(firstToMid);
                     EntityRelationships.Add(secondToMid);
@@ -489,7 +658,7 @@ public class DataModelConverterService
                                                           rightSideTable,
                                                           rightSideTable.Rows.FirstOrDefault(x => x.RowType == RowType.Primarykey));
 
-                        if (EntityRelationships.FirstOrDefault(x => x.LeftSideTable == entityRelationship.LeftSideTable && x.RighSideTable == entityRelationship.RighSideTable) == default)
+                        if (EntityRelationships.FirstOrDefault(x => x.LeftSideTable == entityRelationship.LeftSideTable && x.LeftSideRow == entityRelationship.LeftSideRow && x.RighSideTable == entityRelationship.RighSideTable) == default)
                         {
                             EntityRelationships.Add(entityRelationship);
                         }
