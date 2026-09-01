@@ -20,10 +20,10 @@ public class DataModelConvertCliCommand : TxcLeafCommand
     [CliOption(
         Name = "--input",
         Aliases = ["-i"],
-        Description = "Path to the input: a solution project folder (.cdsproj/.csproj with SolutionRootPath), a declarations folder, or a .zip solution file. Defaults to the current directory.",
+        Description = "Path to an input: a solution project folder (.cdsproj/.csproj with SolutionRootPath), a declarations folder, or a .zip solution file. Can be specified multiple times to merge several sources into one model; earlier inputs win where two declare the same attribute differently. Defaults to the current directory.",
         Required = false
     )]
-    public string? InputPath { get; set; }
+    public List<string> InputPaths { get; set; } = [];
 
     [CliOption(
         Name = "--target",
@@ -43,7 +43,7 @@ public class DataModelConvertCliCommand : TxcLeafCommand
 
     protected override Task<int> ExecuteAsync()
     {
-        var inputPath = InputPath ?? Directory.GetCurrentDirectory();
+        var inputPaths = InputPaths.Count > 0 ? InputPaths : [Directory.GetCurrentDirectory()];
         var outputDir = OutputDirectory ?? Path.Combine(Directory.GetCurrentDirectory(), ExportsFolderName);
 
         Directory.CreateDirectory(outputDir);
@@ -52,7 +52,7 @@ public class DataModelConvertCliCommand : TxcLeafCommand
         var extension = TargetFormat!.ToLower() == "plainsql" ? "sql" : TargetFormat.ToLower();
         var outputFilePath = Path.Combine(outputDir, $"solution.{extension}");
 
-        DataModelConverterService.ConvertModel(inputPath, TargetFormat!, outputFilePath);
+        DataModelConverterService.ConvertModel(inputPaths, TargetFormat!, outputFilePath);
 
         OutputFormatter.WriteResult("succeeded", $"Output written to: {outputFilePath}");
         return Task.FromResult(ExitSuccess);
