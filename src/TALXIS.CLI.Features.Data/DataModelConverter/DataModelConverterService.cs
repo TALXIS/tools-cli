@@ -18,7 +18,7 @@ namespace TALXIS.CLI.Features.Data.DataModelConverter;
 public class DataModelConverterService
 {
     private static readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(DataModelConverterService));
-    private static readonly string[] SupportedFormats = ["dbml", "sql", "edmx", "ribbon"];
+    private static readonly string[] SupportedFormats = ["dbml", "sql", "plainsql", "edmx", "ribbon"];
 
     /// <summary>
     /// Parses a Power Platform solution from a solution project folder, a declarations
@@ -259,7 +259,11 @@ public class DataModelConverterService
         Module module = new();
 
         // Get files named Entity.xml in subfolders
-        var entityFiles = Directory.GetFiles(folderPath, "Entity.xml", SearchOption.AllDirectories);
+        // Ordered: Directory.GetFiles gives no ordering guarantee, so without this the
+        // table, relationship and enum order in the output varies by filesystem and the
+        // result cannot be committed or diffed.
+        var entityFiles = Directory.GetFiles(folderPath, "Entity.xml", SearchOption.AllDirectories)
+            .OrderBy(f => f, StringComparer.Ordinal).ToArray();
 
         foreach (var file in entityFiles)
         {
@@ -284,7 +288,7 @@ public class DataModelConverterService
         // Get files in folder Other/Relationships (directory may not exist in scaffolded solutions)
         var relationshipsDir = Path.Combine(folderPath, "Other", "Relationships");
         var relationshipFiles = Directory.Exists(relationshipsDir)
-            ? Directory.GetFiles(relationshipsDir, "*.xml", SearchOption.AllDirectories)
+            ? [.. Directory.GetFiles(relationshipsDir, "*.xml", SearchOption.AllDirectories).OrderBy(f => f, StringComparer.Ordinal)]
             : Array.Empty<string>();
         foreach (var file in relationshipFiles)
         {
@@ -302,7 +306,7 @@ public class DataModelConverterService
         // Get files in folder called OptionSets (directory may not exist in scaffolded solutions)
         var optionsetsDir = Path.Combine(folderPath, "OptionSets");
         var optionsetFiles = Directory.Exists(optionsetsDir)
-            ? Directory.GetFiles(optionsetsDir, "*.xml", SearchOption.AllDirectories)
+            ? [.. Directory.GetFiles(optionsetsDir, "*.xml", SearchOption.AllDirectories).OrderBy(f => f, StringComparer.Ordinal)]
             : Array.Empty<string>();
         foreach (var file in optionsetFiles)
         {
@@ -362,15 +366,20 @@ public class DataModelConverterService
         List<Table> EntityTables = ParseEntities(modules);
         List<OptionsetEnum> EntityOptionSets = ParseOptionSets(modules);
 
-        // Remove optionset rows without optionsets defined
+        // Downgrade optionset rows whose optionset is not resolvable here (declared with no
+        // options, owned by another module, or platform-owned) rather than dropping the column.
         var validOptionSetNames = EntityOptionSets.Select(x => x.LocalizedName).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (var entity in EntityTables)
+        foreach (var row in EntityTables
+            .SelectMany(entity => entity.Rows)
+            .Where(row =>
+                row.RowType is (RowType.Picklist or RowType.Multiselectoptionset or RowType.State or RowType.Status or RowType.Bit)
+                && !validOptionSetNames.Contains(row.OptionSetName)))
         {
-            entity.Rows = [.. entity.Rows
-                .Where(row =>
-                    row.RowType is not (RowType.Picklist or RowType.Multiselectoptionset or RowType.State or RowType.Status or RowType.Bit)
-                    || validOptionSetNames.Contains(row.OptionSetName)
-                )];
+            // Clearing OptionSetName is enough and is all that is needed: it is what
+            // ToDbDiagramNotation prefers over RowType, so leaving it set would make the
+            // column reference an Enum that was never emitted. RowType is deliberately
+            // left alone so each translator keeps its own handling for the kind.
+            row.OptionSetName = string.Empty;
         }
 
         // Fill in setnames where missing with placeholder logical names
@@ -420,6 +429,21 @@ public class DataModelConverterService
 
                     var intersectEntityName = relationship.Element("IntersectEntityName").Value;
 
+                    // A self-referencing N:N resolves both sides to the same column name, which
+                    // emitted the column twice and the same Ref twice -- a DBML parser rejects
+                    // both. Dataverse keeps the real per-side names in metadata
+                    // (Entity1/Entity2IntersectAttribute) and they are author-chosen, not
+                    // derivable: the platform's own example pairs connectionroleid with
+                    // associatedconnectionroleid. Solution XML carries neither, and no intersect
+                    // entity declares its own columns, so the second side is suffixed
+                    // positionally rather than guessed.
+                    var firstRowName = firstEntityTable.LogicalName + "id";
+                    var secondRowName = secondEntityTable.LogicalName + "id";
+                    if (string.Equals(firstRowName, secondRowName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        secondRowName = secondEntityTable.LogicalName + "id2";
+                    }
+
                     var connectionTable = new Table
                     {
                         Type = TableType.ConnectionTable,
@@ -428,28 +452,39 @@ public class DataModelConverterService
                         SetName = intersectEntityName + "s",
                         Rows = {
                                 new TableRow(intersectEntityName + "id", RowType.Primarykey),
-                                new TableRow(firstEntityTable.LogicalName + "id", RowType.Lookup),
-                                new TableRow(secondEntityTable.LogicalName + "id", RowType.Lookup),
+                                new TableRow(firstRowName, RowType.Lookup),
+                                new TableRow(secondRowName, RowType.Lookup),
                             }
                     };
 
 
                     EntityTables.Add(connectionTable);
 
-                    var firstToMid = new Relationship(relationship.Attribute("Name").Value,
+                    // The second leg also needs its own name: both legs otherwise carry the
+                    // relationship name, and EDMX renders the intersect side as
+                    // NavigationProperty Name="{relationship.Name}" plus a matching Partner and
+                    // NavigationPropertyBinding Path, so a self-referencing N:N emits each of
+                    // them twice. Suffixed positionally for the same reason as the column above:
+                    // the real per-side names live in metadata and are author-chosen.
+                    var relationshipName = relationship.Attribute("Name").Value;
+                    var isSelfReferencing = string.Equals(
+                        firstEntityTable.LogicalName, secondEntityTable.LogicalName, StringComparison.OrdinalIgnoreCase);
+                    var secondRelationshipName = isSelfReferencing ? relationshipName + "_2" : relationshipName;
+
+                    var firstToMid = new Relationship(relationshipName,
                                                       "ManyToOne",
                                                       firstEntityTable,
                                                       firstEntityTable.Rows.FirstOrDefault(x => x.RowType == RowType.Primarykey),
                                                       connectionTable,
-                                                      connectionTable.Rows.FirstOrDefault(x => x.Name == firstEntityTable.LogicalName + "id"));
+                                                      connectionTable.Rows.FirstOrDefault(x => x.Name == firstRowName));
 
 
-                    var secondToMid = new Relationship(relationship.Attribute("Name").Value,
+                    var secondToMid = new Relationship(secondRelationshipName,
                                                        "ManyToOne",
                                                        secondEntityTable,
                                                        secondEntityTable.Rows.FirstOrDefault(x => x.RowType == RowType.Primarykey),
                                                        connectionTable,
-                                                       connectionTable.Rows.FirstOrDefault(x => x.Name == secondEntityTable.LogicalName + "id"));
+                                                       connectionTable.Rows.FirstOrDefault(x => x.Name == secondRowName));
 
                     EntityRelationships.Add(firstToMid);
                     EntityRelationships.Add(secondToMid);
@@ -489,7 +524,7 @@ public class DataModelConverterService
                                                           rightSideTable,
                                                           rightSideTable.Rows.FirstOrDefault(x => x.RowType == RowType.Primarykey));
 
-                        if (EntityRelationships.FirstOrDefault(x => x.LeftSideTable == entityRelationship.LeftSideTable && x.RighSideTable == entityRelationship.RighSideTable) == default)
+                        if (EntityRelationships.FirstOrDefault(x => x.LeftSideTable == entityRelationship.LeftSideTable && x.LeftSideRow == entityRelationship.LeftSideRow && x.RighSideTable == entityRelationship.RighSideTable) == default)
                         {
                             EntityRelationships.Add(entityRelationship);
                         }
