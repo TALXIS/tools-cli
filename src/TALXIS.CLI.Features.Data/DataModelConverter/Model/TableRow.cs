@@ -25,6 +25,11 @@ public class TableRow
     public string OptionSetName { get; set; }
     public RowType RowType { get; set; }
 
+    /// <summary>Whether the platform computes this column rather than storing it, from the
+    /// declaration's own <c>IsLogical</c>. <c>OwningUser</c> and <c>OwningTeam</c> are the
+    /// common cases.</summary>
+    public bool? IsLogical { get; set; }
+
     internal static TableRow? ParseXElement(XElement attribute)
     {
         string optionsetName = string.Empty;
@@ -115,7 +120,8 @@ public class TableRow
         return new TableRow(attribute.Attribute("PhysicalName").Value.ToLower(), rowType)
         {
             MaxLenght = maxLength,
-            OptionSetName = optionsetName
+            OptionSetName = optionsetName,
+            IsLogical = attribute.Element("IsLogical") is { } isLogical ? isLogical.Value == "1" : null
         };
 
     }

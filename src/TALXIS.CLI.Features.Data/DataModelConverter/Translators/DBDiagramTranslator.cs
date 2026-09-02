@@ -27,6 +27,11 @@ public static class DBDiagramTranslator
             case TableType.NotInSolution:
                 result += "[headercolor: #c0392b] ";
                 break;
+            case TableType.NotInApp:
+                // Grey, not the red of a table nothing declares: this one is in the
+                // solution, just not in this app, which is a different fact for the reader.
+                result += "[headercolor: #7f8c8d] //declared outside this app \n";
+                break;
             case TableType.ConnectionTable:
                 result += "[headercolor: #27ae60] ";
                 break;

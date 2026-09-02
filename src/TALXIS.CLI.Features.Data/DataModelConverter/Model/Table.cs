@@ -1,4 +1,6 @@
-﻿using DocumentFormat.OpenXml.Vml.Office;
+﻿using TALXIS.CLI.Logging;
+using Microsoft.Extensions.Logging;
+using DocumentFormat.OpenXml.Vml.Office;
 using System.Text.Json.Serialization;
 using System;
 using System.Collections.Generic;
@@ -15,11 +17,20 @@ public enum TableType
 {
     InSolution = 0,
     NotInSolution = 1,
-    ConnectionTable = 2
+    ConnectionTable = 2,
+
+    /// <summary>
+    /// A stub for a table an input does declare, which is only a stub because app scoping
+    /// dropped it. Without this a diagram marks most of its stubs as missing from the
+    /// solution, which is untrue: 13 of 14 in one real app were declared in the same inputs.
+    /// </summary>
+    NotInApp = 3
 }
 
 public class Table
 {
+    private static readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(Table));
+
     public Table() { }
 
     public Table(XElement element)
@@ -58,8 +69,34 @@ public class Table
         foreach (var element in xElements)
         {
             var row = TableRow.ParseXElement(element);
-            if (row != null)
+            if (row == null)
+                continue;
+
+            var existing = Rows.FirstOrDefault(x => string.Equals(x.Name, row.Name, StringComparison.OrdinalIgnoreCase));
+            if (existing == null)
+            {
                 Rows.Add(row);
+                continue;
+            }
+
+            // First non-null wins rather than first input: export styles differ in whether
+            // they emit this at all, so a later, more complete declaration still counts.
+            existing.IsLogical ??= row.IsLogical;
+
+            if (existing.RowType != row.RowType)
+            {
+                // Several modules extending one shared table is the normal case for a
+                // layered product, so a divergent declaration warns rather than aborting.
+                // First input wins, which makes the result deterministic in input order.
+                _logger.LogWarning(
+                    "Attribute {Table}.{Attribute} is declared as {ExistingType} in one input and {NewType} in another; keeping the first.",
+                    LogicalName, row.Name, existing.RowType, row.RowType);
+            }
+            else if (row.MaxLenght > existing.MaxLenght)
+            {
+                // Widen, never narrow: a consumer breaks on too little room, not too much.
+                existing.MaxLenght = row.MaxLenght;
+            }
         }
     }
 
