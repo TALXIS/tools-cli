@@ -23,9 +23,6 @@ public class ComponentApplyScaffoldCliCommand : TxcLeafCommand
     [CliOption(Name = "--component-type", Description = "Component type matching the template's componentType tag (e.g. Attribute)", Required = true)]
     public string ComponentType { get; set; } = null!;
 
-    [CliOption(Name = "--solution-root", Description = "Folder containing the unpacked solution files (Other/, Entities/, OptionSets/)", Required = true)]
-    public string SolutionRoot { get; set; } = null!;
-
     [CliOption(Name = "--file", Description = "Rendered file in role=path format (e.g. attribute=.template.temp/attribute.xml). Can be specified multiple times.")]
     public List<string> File { get; set; } = new();
 
@@ -37,7 +34,6 @@ public class ComponentApplyScaffoldCliCommand : TxcLeafCommand
         var result = ComponentScaffold.Apply(new ComponentScaffoldRequest
         {
             ComponentType = ComponentType,
-            SolutionRootPath = Path.GetFullPath(SolutionRoot),
             Files = ParsePairs(File, "--file").ToDictionary(p => p.Key, p => Path.GetFullPath(p.Value), StringComparer.OrdinalIgnoreCase),
             Parameters = ParsePairs(Param, "--param").ToDictionary(p => p.Key, p => p.Value, StringComparer.OrdinalIgnoreCase),
         });
