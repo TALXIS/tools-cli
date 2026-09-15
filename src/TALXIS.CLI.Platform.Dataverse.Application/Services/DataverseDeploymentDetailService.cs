@@ -12,59 +12,54 @@ namespace TALXIS.CLI.Platform.Dataverse.Application.Services;
 
 internal sealed class DataverseDeploymentDetailService : IDeploymentDetailService
 {
+    private static readonly ILogger Logger = TxcLoggerFactory.CreateLogger(nameof(DataverseDeploymentDetailService));
     private static readonly TimeSpan CorrelationTailBuffer = TimeSpan.FromSeconds(30);
 
     public async Task<DeploymentDetailResult?> GetByPackageRunIdAsync(string? profileName, Guid id, CancellationToken ct)
     {
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
-        var logger = TxcLoggerFactory.CreateLogger(nameof(DataverseDeploymentDetailService));
-        var pkg = await new PackageHistoryReader(conn.Client, logger).GetByIdAsync(id).ConfigureAwait(false);
-        return pkg is null ? null : await BuildPackageAsync(conn.Client, pkg, logger).ConfigureAwait(false);
+        var pkg = await new PackageHistoryReader(conn.Client, Logger).GetByIdAsync(id).ConfigureAwait(false);
+        return pkg is null ? null : await BuildPackageAsync(conn.Client, pkg, Logger).ConfigureAwait(false);
     }
 
     public async Task<DeploymentDetailResult?> GetBySolutionRunIdAsync(string? profileName, Guid id, bool includeFull, CancellationToken ct)
     {
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
-        var logger = TxcLoggerFactory.CreateLogger(nameof(DataverseDeploymentDetailService));
-        var sol = await new SolutionHistoryReader(conn.Client, logger).GetByIdAsync(id).ConfigureAwait(false);
-        return sol is null ? null : await BuildSolutionAsync(conn.Client, sol, includeFull, logger).ConfigureAwait(false);
+        var sol = await new SolutionHistoryReader(conn.Client, Logger).GetByIdAsync(id).ConfigureAwait(false);
+        return sol is null ? null : await BuildSolutionAsync(conn.Client, sol, includeFull, Logger).ConfigureAwait(false);
     }
 
     public async Task<DeploymentDetailResult?> GetByAsyncOperationIdAsync(string? profileName, Guid id, bool includeFull, CancellationToken ct)
     {
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
-        var logger = TxcLoggerFactory.CreateLogger(nameof(DataverseDeploymentDetailService));
-        var solReader = new SolutionHistoryReader(conn.Client, logger);
+        var solReader = new SolutionHistoryReader(conn.Client, Logger);
         var sol = await solReader.GetByActivityIdAsync(id).ConfigureAwait(false);
         if (sol is not null)
         {
-            return await BuildSolutionAsync(conn.Client, sol, includeFull, logger).ConfigureAwait(false);
+            return await BuildSolutionAsync(conn.Client, sol, includeFull, Logger).ConfigureAwait(false);
         }
-        return await TryBuildAsyncOperationAsync(conn.Client, id, includeFull, logger).ConfigureAwait(false);
+        return await TryBuildAsyncOperationAsync(conn.Client, id, includeFull, Logger).ConfigureAwait(false);
     }
 
     public async Task<DeploymentDetailResult?> GetLatestByPackageNameAsync(string? profileName, string packageName, CancellationToken ct)
     {
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
-        var logger = TxcLoggerFactory.CreateLogger(nameof(DataverseDeploymentDetailService));
-        var pkg = await new PackageHistoryReader(conn.Client, logger).GetLatestAsync(packageName).ConfigureAwait(false);
-        return pkg is null ? null : await BuildPackageAsync(conn.Client, pkg, logger).ConfigureAwait(false);
+        var pkg = await new PackageHistoryReader(conn.Client, Logger).GetLatestAsync(packageName).ConfigureAwait(false);
+        return pkg is null ? null : await BuildPackageAsync(conn.Client, pkg, Logger).ConfigureAwait(false);
     }
 
     public async Task<DeploymentDetailResult?> GetLatestBySolutionNameAsync(string? profileName, string solutionName, bool includeFull, CancellationToken ct)
     {
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
-        var logger = TxcLoggerFactory.CreateLogger(nameof(DataverseDeploymentDetailService));
-        var sol = await new SolutionHistoryReader(conn.Client, logger).GetLatestByNameAsync(solutionName).ConfigureAwait(false);
-        return sol is null ? null : await BuildSolutionAsync(conn.Client, sol, includeFull, logger).ConfigureAwait(false);
+        var sol = await new SolutionHistoryReader(conn.Client, Logger).GetLatestByNameAsync(solutionName).ConfigureAwait(false);
+        return sol is null ? null : await BuildSolutionAsync(conn.Client, sol, includeFull, Logger).ConfigureAwait(false);
     }
 
     public async Task<DeploymentDetailResult?> GetLatestAsync(string? profileName, bool includeFull, CancellationToken ct)
     {
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
-        var logger = TxcLoggerFactory.CreateLogger(nameof(DataverseDeploymentDetailService));
-        var pkgReader = new PackageHistoryReader(conn.Client, logger);
-        var solReader = new SolutionHistoryReader(conn.Client, logger);
+        var pkgReader = new PackageHistoryReader(conn.Client, Logger);
+        var solReader = new SolutionHistoryReader(conn.Client, Logger);
         var pkgTask = pkgReader.GetRecentAsync(1);
         var solTask = solReader.GetRecentAsync(1);
         await Task.WhenAll(pkgTask, solTask).ConfigureAwait(false);
@@ -76,9 +71,9 @@ internal sealed class DataverseDeploymentDetailService : IDeploymentDetailServic
         var solTime = sol?.StartedAtUtc ?? DateTime.MinValue;
         if (pkg is not null && (sol is null || pkgTime >= solTime))
         {
-            return await BuildPackageAsync(conn.Client, pkg, logger).ConfigureAwait(false);
+            return await BuildPackageAsync(conn.Client, pkg, Logger).ConfigureAwait(false);
         }
-        return await BuildSolutionAsync(conn.Client, sol!, includeFull, logger).ConfigureAwait(false);
+        return await BuildSolutionAsync(conn.Client, sol!, includeFull, Logger).ConfigureAwait(false);
     }
 
     private static async Task<DeploymentDetailResult> BuildPackageAsync(
@@ -264,6 +259,7 @@ internal sealed class DataverseDeploymentDetailService : IDeploymentDetailServic
         for (int i = 0; i < attempts; i++)
         {
             if (i > 0) await Task.Delay(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+            logger.LogInformation("Waiting for deployment details... attempt {Attempt}", i + 1);
             sol = await historyReader.GetByActivityIdAsync(asyncOpId, nearUtc: pivot).ConfigureAwait(false);
             if (sol is not null) break;
         }

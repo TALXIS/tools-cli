@@ -22,11 +22,11 @@ public class DataPackageImportCliCommand : ProfiledCliCommand
     [CliArgument(Description = "Path to the CMT data package (.zip file or folder containing data.xml and data_schema.xml)")]
     public required string Data { get; set; }
 
-    [CliOption(Name = "--connection-count", Description = "How many parallel connections to open against the environment. More connections = faster import for large datasets. Each connection authenticates separately.", Required = false)]
+    [CliOption(Name = "--connection-count", Description = "Opens 1 primary management connection and N-1 cloned worker connections. Only the cloned connections are used for parallel record import, so the effective parallelism is N-1. To get 4 parallel workers, pass 5.", Required = false)]
     [DefaultValue(1)]
     public int ConnectionCount { get; set; } = 1;
 
-    [CliOption(Name = "--batch-mode", Description = "Send records in batches instead of one-by-one. Much faster for large imports. Batches use ExecuteMultiple or UpsertMultiple depending on org version.", Required = false)]
+    [CliOption(Name = "--batch-mode", Description = "Send records in batches instead of one-by-one. Much faster for large imports. Batches use ExecuteMultiple or UpsertMultiple depending on org version. WARNING: M2M relationship records are skipped in batch mode — omit this flag or run a second pass without it if your package contains M2M relationships.", Required = false)]
     [DefaultValue(false)]
     public bool BatchMode { get; set; }
 

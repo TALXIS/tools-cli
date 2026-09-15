@@ -8,12 +8,14 @@
 
   <ItemGroup>
     <PackageReference Include="DotMake.CommandLine" Version="2.6.7" />
-    <PackageReference Include="TALXIS.Platform.Metadata.Serialization.Xml" Version="0.6.0" />
+    <PackageReference Include="TALXIS.Platform.Metadata.Serialization.Xml" Version="0.9.0" />
+    <PackageReference Include="TALXIS.Platform.Metadata.Packaging" Version="0.9.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\TALXIS.CLI.Core\TALXIS.CLI.Core.csproj" />
     <ProjectReference Include="..\TALXIS.CLI.Logging\TALXIS.CLI.Logging.csproj" />
+    <ProjectReference Include="..\TALXIS.CLI.Features.Workspace\TALXIS.CLI.Features.Workspace.csproj" />
   </ItemGroup>
 
 </Project>

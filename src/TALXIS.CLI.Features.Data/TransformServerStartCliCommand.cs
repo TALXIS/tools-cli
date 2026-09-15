@@ -20,6 +20,8 @@ public class TransformServerStartCliCommand
     [CliOption(Description = "Optional. Port to run the server on (default: 50505)")]
     public int Port { get; set; } = 50505;
 
+    private const int ExitSuccess = 0;
+
     public async Task<int> RunAsync()
     {
         using var cts = new CancellationTokenSource();
@@ -30,6 +32,6 @@ public class TransformServerStartCliCommand
         var server = new DataTransformationServer(Port);
         _logger.LogInformation("Press Ctrl+C to stop the server");
         await server.StartAsync(cts.Token);
-        return 0;
+        return ExitSuccess;
     }
 }

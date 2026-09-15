@@ -35,6 +35,13 @@ public static class TxcServices
 
     public static bool IsInitialized => _provider is not null;
 
+    /// <summary>
+    /// The underlying service provider. Exposed so hosts can wire DI bridges
+    /// (e.g. <c>Cli.Ext.SetServiceProvider(TxcServices.Provider)</c> for DotMake
+    /// constructor injection). Returns null before <see cref="Initialize"/> is called.
+    /// </summary>
+    public static IServiceProvider? Provider => _provider;
+
     public static T Get<T>() where T : notnull
     {
         if (_provider is null)

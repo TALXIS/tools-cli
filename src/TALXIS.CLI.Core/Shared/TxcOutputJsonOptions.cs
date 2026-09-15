@@ -19,7 +19,9 @@ public static class TxcOutputJsonOptions
 
     private static JsonSerializerOptions BuildOptions()
     {
+#pragma warning disable RS0030 // This IS the approved JsonSerializerOptions factory
         var opts = new JsonSerializerOptions
+#pragma warning restore RS0030
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             DictionaryKeyPolicy = JsonNamingPolicy.CamelCase,

@@ -54,10 +54,7 @@ public class GuideHandler
                 var toolDefs = workflowEntries.Select(McpToolRegistry.BuildToolDefinition).ToList();
                 _activeToolSet.InjectTools(toolDefs);
                 var compactResponse = BuildCompactListingResponse(workflowEntries, workflow);
-                return new CallToolResult
-                {
-                    Content = [new TextContentBlock { Text = compactResponse }]
-                };
+                return McpToolResultFactory.BuildTextResult(compactResponse);
             }
         }
         else
@@ -71,10 +68,8 @@ public class GuideHandler
         var entries = matchedEntries.ToList();
         if (entries.Count == 0)
         {
-            return new CallToolResult
-            {
-                Content = [new TextContentBlock { Text = $"No matching tools found for: {query}\n\nAvailable workflows: local-development, environment-inspection, environment-mutation, data-operations, deployment, configuration, changeset-management\n\nTry calling with a workflow parameter to see all tools in a domain." }]
-            };
+            return McpToolResultFactory.BuildTextResult(
+                $"No matching tools found for: {query}\n\nAvailable workflows: local-development, environment-inspection, environment-mutation, data-operations, deployment, configuration, changeset-management\n\nTry calling with a workflow parameter to see all tools in a domain.");
         }
 
         // Inject matched tools into ActiveToolSet for direct calling on subsequent turns
@@ -84,10 +79,7 @@ public class GuideHandler
         // Build structured response (includes recipe when available from sampling)
         var response = BuildGuidanceResponse(entries, query, recipeText);
 
-        return new CallToolResult
-        {
-            Content = [new TextContentBlock { Text = response }]
-        };
+        return McpToolResultFactory.BuildTextResult(response);
     }
 
     /// <summary>
@@ -106,10 +98,7 @@ public class GuideHandler
             var toolDefs = allEntries.Select(McpToolRegistry.BuildToolDefinition).ToList();
             _activeToolSet.InjectTools(toolDefs);
             var compactResponse = BuildCompactListingResponse(allEntries, workflowScope);
-            return new CallToolResult
-            {
-                Content = [new TextContentBlock { Text = compactResponse }]
-            };
+            return McpToolResultFactory.BuildTextResult(compactResponse);
         }
         else
         {
@@ -127,10 +116,7 @@ public class GuideHandler
 
         var response = BuildGuidanceResponse(entries, query, recipeText);
 
-        return new CallToolResult
-        {
-            Content = [new TextContentBlock { Text = response }]
-        };
+        return McpToolResultFactory.BuildTextResult(response);
     }
 
     /// <summary>

@@ -28,6 +28,7 @@ internal sealed class CommandTestHost : IDisposable
 
     public CommandTestHost(
         bool headless = false,
+        bool? browserAvailable = null,
         InteractiveLoginResult? loginResult = null,
         string? currentDirectory = null,
         FakeConnectionProvider? dataverseProvider = null,
@@ -61,6 +62,8 @@ internal sealed class CommandTestHost : IDisposable
         services.AddSingleton<IWorkspaceDiscovery, WorkspaceDiscovery>();
         services.AddSingleton<IConfigurationResolver, ConfigurationResolver>();
         services.AddSingleton<IInteractiveLoginService>(Login);
+        services.AddSingleton<IBrowserAvailabilityProbe>(new FakeBrowserProbe(browserAvailable: browserAvailable ?? !headless));
+        services.AddSingleton<IDeviceCodeLoginService>(Login);
         services.AddSingleton<IPowerPlatformEnvironmentCatalog>(EnvironmentCatalog);
         services.AddSingleton(_ =>
             MsalTokenCacheBinder
@@ -167,7 +170,7 @@ internal sealed class CommandTestHost : IDisposable
             => Task.FromResult(true);
     }
 
-    internal sealed class FakeInteractiveLogin : IInteractiveLoginService
+    internal sealed class FakeInteractiveLogin : IInteractiveLoginService, IDeviceCodeLoginService
     {
         private readonly InteractiveLoginResult _result;
         public int Calls { get; private set; }
@@ -183,6 +186,17 @@ internal sealed class CommandTestHost : IDisposable
             LastCloud = cloud;
             return Task.FromResult(_result);
         }
+    }
+
+    internal sealed class FakeBrowserProbe : IBrowserAvailabilityProbe
+    {
+        public FakeBrowserProbe(bool browserAvailable)
+        {
+            IsBrowserAvailable = browserAvailable;
+            UnavailableReason = browserAvailable ? null : "test harness: browser unavailable";
+        }
+        public bool IsBrowserAvailable { get; }
+        public string? UnavailableReason { get; }
     }
 
     internal sealed class FakePowerPlatformEnvironmentCatalog : IPowerPlatformEnvironmentCatalog

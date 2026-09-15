@@ -402,10 +402,8 @@ public class DataModelConverterService
             foreach (var relationship in module.relationships)
             {
 
-                //Console.WriteLine($"--Relationship {relationship.Attribute("Name").Value} parsing");
                 if (relationship.Element("EntityRelationshipType").Value == "ManyToMany")
                 {
-                    //Console.WriteLine($"---ManyToMany");
                     var firstEntityTable = EntityTables.Find(relationship.Element("FirstEntityName").Value);
                     if (firstEntityTable == null)
                     {
@@ -458,7 +456,6 @@ public class DataModelConverterService
                 }
                 else
                 {
-                    //Console.WriteLine($"---OneToMany");
                     var leftSideTable = EntityTables.Find(relationship.Element("ReferencingEntityName").Value);
                     if (leftSideTable == null)
                     {
@@ -554,7 +551,6 @@ public class DataModelConverterService
                     if (optionsetEnum.Values.Count > 0 && !EntityOptionSets.Where(x => x.LocalizedName == optionsetEnum.LocalizedName).Any()) EntityOptionSets.Add(optionsetEnum);
                 }
 
-                //Console.WriteLine($"-- {optionset.Attribute("Name").Value} parsed");
             }
 
         }
@@ -608,8 +604,6 @@ public class DataModelConverterService
                 {
                     entityTable.Rows.Add(new TableRow(entityTable.LogicalName + "id", RowType.Primarykey));
                 }
-
-                //Console.WriteLine($"-- {entityTable.LocalizedName} parsed");
 
             }
 

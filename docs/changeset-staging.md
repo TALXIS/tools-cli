@@ -8,6 +8,8 @@
 
 A **changeset** is a local collection of staged operations (schema changes, data writes, file uploads) that have not yet been sent to the server. Operations are persisted in `.txc/changeset.json` in the workspace root, so they survive CLI restarts and are scoped to the current working directory.
 
+> Staging is **cross-plane** — schema, data-plane record writes, and file uploads all share the same changeset and are applied through the same 4-phase pipeline. For a data-plane-focused walkthrough see [data-plane.md](data-plane.md#bulk-writes-via-staging).
+
 Every mutating command that extends `StagedCliCommand` exposes two execution-mode flags:
 
 | Flag | Behaviour |
@@ -80,7 +82,7 @@ The `--strategy` flag on `txc env changeset apply` controls how data-plane opera
 |----------|-----------|
 | `batch` | Uses `ExecuteMultiple` with the `ContinueOnError` flag (when `--continue-on-error` is set). Operations are sent in a single round-trip but are not transactional — some may succeed while others fail. |
 | `transaction` | Uses `ExecuteTransaction` — all-or-nothing. If any operation fails, the entire batch is rolled back and the response reports which operations were rolled back. |
-| `bulk` | Groups operations by (entity, operation type) and uses `CreateMultiple` / `UpdateMultiple` for maximum throughput. Best for large data loads. |
+| `bulk` | Groups operations by (entity, operation type) and uses `CreateMultiple` / `UpdateMultiple` for maximum throughput. Best for large data loads. This is the same SDK message used by [`txc env data bulk create\|update\|upsert`](data-plane.md#homogeneous-bulk-writes-via-env-data-bulk) — the difference is that `--strategy bulk` accepts a heterogeneous mix of operations staged across multiple commands, while `env data bulk` is a one-shot for a single entity and operation. |
 
 ---
 

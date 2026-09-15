@@ -27,8 +27,10 @@ public sealed class HeadlessAuthRequiredException : Exception
     public CredentialKind AttemptedKind { get; }
     public string HeadlessReason { get; }
 
+#pragma warning disable RS0030 // Domain-specific exception type — inheriting from Exception is intentional
     public HeadlessAuthRequiredException(CredentialKind attemptedKind, string headlessReason)
         : base(BuildMessage(attemptedKind, headlessReason))
+#pragma warning restore RS0030
     {
         AttemptedKind = attemptedKind;
         HeadlessReason = headlessReason;
@@ -45,9 +47,10 @@ public sealed class HeadlessAuthRequiredException : Exception
             $"Credential kind '{ToKebab(kind)}' requires an interactive TTY, " +
             $"but this process is running in headless mode ({reason}). " +
             $"Permitted headless kinds: {permitted}. " +
-            "To run non-interactively, register a headless-capable credential with " +
+            "To run non-interactively, register a headless-capable credential with either " +
             "`txc config auth add-service-principal --alias <alias> --tenant <tenant> " +
-            "--client-id <app-id> --secret-from-env <ENV_VAR_NAME>` and bind it to the profile, " +
+            "--client-id <app-id> --secret-from-env <ENV_VAR_NAME>` or " +
+            "`txc config auth add-federated --alias <alias> --tenant <tenant> --client-id <app-id>`, and bind it to the profile, " +
             "or supply the credential via environment variables " +
             "(AZURE_CLIENT_ID / AZURE_CLIENT_SECRET / AZURE_TENANT_ID for SPN, " +
             "AZURE_FEDERATED_TOKEN_FILE for workload-identity federation).";

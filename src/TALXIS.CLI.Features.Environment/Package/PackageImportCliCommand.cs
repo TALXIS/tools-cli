@@ -13,7 +13,7 @@ namespace TALXIS.CLI.Features.Environment.Package;
 [CliLongRunning]
 [CliCommand(
     Name = "import",
-    Description = "Import a deployable package into the target environment."
+    Description = "Import a deployable package into the LIVE target environment. Requires an active profile. Build configuration determines solution managed state: Release packs managed solutions, Debug packs unmanaged. A managed package cannot overwrite an existing unmanaged solution (or vice versa) without uninstalling the existing one first."
 )]
 public class PackageImportCliCommand : ProfiledCliCommand
 {
@@ -141,6 +141,14 @@ public class PackageImportCliCommand : ProfiledCliCommand
         if (!string.IsNullOrWhiteSpace(LogFile))
         {
             Logger.LogInformation("Package Deployer log: {LogPath}", Path.GetFullPath(LogFile));
+        }
+        // Next-step hint — points agents at the structured deployment-get path instead of
+        // raw asyncoperation SQL when they want to inspect import findings. Only emitted
+        // for NuGet-resolved packages because local-file imports don't have a stable name
+        // to query packagehistory by.
+        if (!string.IsNullOrWhiteSpace(nugetPackageName))
+        {
+            Logger.LogInformation("Next: txc env deployment get --package-name {PackageName}", nugetPackageName);
         }
         return ExitSuccess;
     }

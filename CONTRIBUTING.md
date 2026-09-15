@@ -57,7 +57,7 @@ Prefer a small, consistent verb vocabulary:
 - `import` — push an artifact into a live environment.
 - `uninstall` — remove an artifact from a live environment.
 - `list` — enumerate artifacts of a noun, with lightweight filtering.
-- `show` — render the details of a single artifact.
+- `get` — render the details of a single artifact.
 - `validate` — check the workspace against the metamodel.
 - `describe` — render a human-readable description of a metamodel entity.
 - `patch` — reserved for incremental push workflows.
@@ -66,13 +66,13 @@ When an artifact is installed into a live environment, `import` and `uninstall` 
 
 ---
 
-## `list` vs `show`
+## `list` vs `get`
 
 Standard list-vs-detail pair. Both are always scoped by the owning noun:
 
 - `environment solution list` — many solutions, brief rows.
 - `environment deployment list` — many deployment runs, brief rows.
-- `environment deployment show --latest` — one run, full detail.
+- `environment deployment get --latest` — one run, full detail.
 
 If a command wants to render many things *and* full detail, it is doing two jobs — split it.
 
@@ -80,9 +80,9 @@ If a command wants to render many things *and* full detail, it is doing two jobs
 
 ## Typed selectors, not generic `--id`
 
-When a `show`-style lookup can resolve against multiple entity shapes, expose **one flag per entity shape** and let the user declare intent. Do **not** accept a generic `--id` that the command probes across entity types behind the user's back.
+When a `get`-style lookup can resolve against multiple entity shapes, expose **one flag per entity shape** and let the user declare intent. Do **not** accept a generic `--id` that the command probes across entity types behind the user's back.
 
-Example — `environment deployment show`:
+Example — `environment deployment get`:
 
 - `--package-run-id <GUID>` — packagehistory record id.
 - `--solution-run-id <GUID>` — msdyn_solutionhistory record id.

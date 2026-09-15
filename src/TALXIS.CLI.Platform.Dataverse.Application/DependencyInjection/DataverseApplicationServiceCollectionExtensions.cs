@@ -1,6 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using TALXIS.CLI.Core.Contracts.Dataverse;
+using TALXIS.CLI.Platform.Dataverse.Application.Pipeline;
 using TALXIS.CLI.Platform.Dataverse.Application.Services;
+using TALXIS.Platform.Metadata.Packaging;
 
 namespace TALXIS.CLI.Platform.Dataverse.Application.DependencyInjection;
 
@@ -24,6 +26,10 @@ public static class DataverseApplicationServiceCollectionExtensions
         services.AddTransient<IDataverseEntityMetadataService, DataverseEntityMetadataService>();
         services.AddTransient<IDataverseRelationshipService, DataverseRelationshipService>();
         services.AddTransient<IDataverseOptionSetService, DataverseOptionSetService>();
+        services.AddSingleton<IDataverseUserService, DataverseUserService>();
+        services.AddSingleton<IDataverseServicePrincipalService, DataverseServicePrincipalService>();
+        services.AddSingleton<IDataverseTeamService, DataverseTeamService>();
+        services.AddSingleton<IDataverseRoleService, DataverseRoleService>();
         services.AddSingleton<ISolutionDetailService, DataverseSolutionDetailService>();
         services.AddSingleton<ISolutionComponentQueryService, DataverseSolutionComponentQueryService>();
         services.AddSingleton<ISolutionDependencyService, DataverseSolutionDependencyService>();
@@ -34,8 +40,10 @@ public static class DataverseApplicationServiceCollectionExtensions
         services.AddSingleton<IPublisherService, DataversePublisherService>();
         services.AddSingleton<IMetadataIdResolver, DataverseMetadataIdResolver>();
         services.AddSingleton<ISolutionLayerMutationService, DataverseSolutionLayerMutationService>();
-        services.AddSingleton<ISolutionPackagerService, Sdk.SolutionPackagerServiceImpl>();
+        services.AddSingleton<ISolutionPackagerService, SolutionPackagerService>();
         services.AddSingleton<ISolutionExportService, DataverseSolutionExportService>();
+        services.AddSingleton<IProjectReferenceMetadataReader, ProjectReferenceMetadataReader>();
+        services.AddSingleton<ISolutionPullService, DataverseSolutionPullService>();
         return services;
     }
 }

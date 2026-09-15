@@ -42,12 +42,27 @@ public class SolutionExportCliCommand : ProfiledCliCommand
             if (resolved is null)
                 return ExitValidationError;
             solutionName = resolved.Value.UniqueName;
-            // Auto-set output to the solution root path so files unpack to the right place
+            // Respect SolutionRootPath from the csproj — that is the authoritative packager output location.
+            // The non-empty-dir guard below will catch the case where it already has solution files and
+            // redirect the user to 'pull' (which does convention restoration + build-artifact exclusion).
             outputPath ??= resolved.Value.SolutionRootPath;
         }
 
         outputPath ??= Directory.GetCurrentDirectory();
         var unpack = !Zip;
+
+        // Guard: refuse to unpack into a non-empty directory — the caller likely meant to use pull.
+        if (unpack && Directory.Exists(outputPath) && Directory.EnumerateFileSystemEntries(outputPath).Any())
+        {
+            Logger.LogError(
+                "Output directory '{OutputPath}' already contains files. Export (unpack) would overwrite them without restoring local conventions or excluding build artifacts.",
+                outputPath);
+#pragma warning disable TXC003
+            OutputWriter.WriteLine($"Error: output directory '{outputPath}' already contains files.");
+            OutputWriter.WriteLine("To integrate Dataverse changes into an existing project, use: txc environment solution pull");
+#pragma warning restore TXC003
+            return ExitValidationError;
+        }
 
         var options = new SolutionExportOptions(solutionName, Managed, outputPath, unpack);
         var service = TxcServices.Get<ISolutionExportService>();

@@ -99,11 +99,11 @@ public sealed class SolutionImporter
     }
 
     /// <summary>
-    /// Whether SmartDiff is expected to apply for the chosen path + options. SmartDiff only
-    /// applies on the upgrade path when force-overwrite is off.
+    /// Whether SmartDiff is expected to apply for the chosen path + options. SmartDiff applies
+    /// on both Update and single-step Upgrade paths when force-overwrite is off.
     /// </summary>
     public static bool SmartDiffExpected(SolutionImportPath path, bool forceOverwrite)
-        => path == SolutionImportPath.Upgrade && !forceOverwrite;
+        => (path == SolutionImportPath.Upgrade || path == SolutionImportPath.Update) && !forceOverwrite;
 
     public async Task<SolutionInfo?> GetExistingSolutionAsync(string uniqueName, CancellationToken cancellationToken = default)
     {
@@ -248,8 +248,11 @@ public sealed class SolutionImporter
         // Poll asyncoperation row until state transitions to Completed. StateCode values:
         // 0 = Ready, 1 = Suspended, 2 = Locked, 3 = Completed.
         var delay = TimeSpan.FromSeconds(3);
+        var pollStart = System.Diagnostics.Stopwatch.StartNew();
         while (!cancellationToken.IsCancellationRequested)
         {
+            _logger?.LogInformation("Waiting for solution import to complete... {ElapsedSeconds}s elapsed", (int)pollStart.Elapsed.TotalSeconds);
+
             var entity = await _service.RetrieveAsync(
                 DataverseSchema.AsyncOperation.EntityName,
                 asyncOperationId,

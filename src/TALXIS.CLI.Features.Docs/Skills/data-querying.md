@@ -7,8 +7,9 @@
 | Analytics, joins, aggregation | SQL | `environment_data_query_sql` |
 | CRUD, filtering, lookup expansion | OData | `environment_data_query_odata` |
 | Complex Dataverse-native queries (linked entities, conditions) | FetchXML | `environment_data_query_fetchxml` |
-| Quick record listing with filters | — | `environment_data_record_list` |
-| Record counts | — | `environment_data_record_count` |
+| Single record by primary key | — | `environment_data_record_get` |
+| Quick record listing with filters | OData | `environment_data_query_odata` (use `$top` to cap results) |
+| Record counts | SQL | `environment_data_query_sql` (`SELECT COUNT(*) FROM <table>`) |
 
 ## OData Query Patterns
 

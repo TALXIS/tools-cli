@@ -51,6 +51,14 @@ public sealed class HeadlessAuthRequiredExceptionTests
     }
 
     [Fact]
+    public void Message_IncludesHeadlessRegistrationCommands()
+    {
+        var ex = new HeadlessAuthRequiredException(CredentialKind.InteractiveBrowser, "CI=true");
+        Assert.Contains("txc config auth add-service-principal", ex.Message);
+        Assert.Contains("txc config auth add-federated", ex.Message);
+    }
+
+    [Fact]
     public void EnsureKindAllowed_NoThrow_WhenInteractive()
     {
         var detector = new StubDetector { IsHeadless = false };

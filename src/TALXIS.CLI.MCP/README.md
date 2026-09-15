@@ -62,7 +62,15 @@ No install needed — [`dnx`](https://learn.microsoft.com/dotnet/core/tools/dotn
 
 ## Developing and Debugging Locally
 
-When developing the MCP server locally, you can run it directly from source and configure VS Code to use your local build. In your `.vscode/mcp.json`, set the server command to launch the project via `dotnet run`:
+When developing the MCP server locally, avoid plain `dotnet run` for stdio MCP sessions. `dotnet run` performs a build first, and build warnings can be written before the MCP transport is ready. MCP clients may then try to parse those warning lines as protocol messages.
+
+Build the project separately, then configure VS Code to start the already-built server with `--no-build`:
+
+```sh
+dotnet build src/TALXIS.CLI.MCP/TALXIS.CLI.MCP.csproj
+```
+
+In your `.vscode/mcp.json`, set the server command like this:
 
 ```json
 {
@@ -73,6 +81,7 @@ When developing the MCP server locally, you can run it directly from source and 
             "command": "dotnet",
             "args": [
                 "run",
+                "--no-build",
                 "--project",
                 "${workspaceFolder}/src/TALXIS.CLI.MCP/TALXIS.CLI.MCP.csproj"
             ]
@@ -82,7 +91,8 @@ When developing the MCP server locally, you can run it directly from source and 
 ```
 
 - Adjust the path in `args` to match your local project location if needed.
-- This setup allows you to test changes without reinstalling the global tool.
+- Rebuild after code changes before restarting the MCP server.
+- For non-local usage, prefer the packaged server via `dnx TALXIS.CLI.MCP --yes`.
 
 ## Testing and Debugging
 
@@ -91,18 +101,22 @@ When developing the MCP server locally, you can run it directly from source and 
 You can use the [Model Context Protocol Inspector](https://www.npmjs.com/package/@modelcontextprotocol/inspector) for interactive inspection:
 
 ```sh
-npx @modelcontextprotocol/inspector dotnet run --project src/TALXIS.CLI.MCP
+dotnet build src/TALXIS.CLI.MCP/TALXIS.CLI.MCP.csproj
+npx @modelcontextprotocol/inspector dotnet run --no-build --project src/TALXIS.CLI.MCP
 ```
 
 > **Note:** The Inspector is an interactive web browser application designed for manual testing and exploration. It is not suitable for automated testing scenarios.
 
 ### Command Line Debugging & Automated Testing
 
-For debugging or automated testing, you can interact with the MCP server using JSON-RPC messages over stdin/stdout:
+For debugging or automated testing, interact with the MCP server using JSON-RPC messages over stdin/stdout. Build first, then run with `--no-build` so stdout stays reserved for MCP traffic:
 
 ```sh
-# Start the server
-dotnet run --project src/TALXIS.CLI.MCP
+# Build once before starting the server
+dotnet build src/TALXIS.CLI.MCP/TALXIS.CLI.MCP.csproj
+
+# Start the server without rebuilding
+dotnet run --no-build --project src/TALXIS.CLI.MCP
 
 # Then send JSON-RPC messages via stdin (one per line):
 # 1. Initialize the connection (required by MCP protocol)
@@ -157,8 +171,11 @@ Prerequisites, before invoking any tool that touches a Dataverse
 environment (or any other Connection-bound tool):
 
 1. On the human's machine, run `txc config auth login` (interactive
-   browser) or `txc config auth add-service-principal` once to register
-   a credential and prime the MSAL token cache.
+   browser), `txc config auth add-service-principal`, or
+   `txc config auth add-federated` once to register a credential entry.
+   Interactive login also primes the MSAL token cache; service-principal
+   and federated entries rely on their configured secret / OIDC
+   assertion source at token-acquisition time.
 2. Run `txc config connection create <name> --provider dataverse ...`
    to register the endpoint.
 3. Run `txc config profile create <name> --auth <alias> --connection <name>`
@@ -166,11 +183,15 @@ environment (or any other Connection-bound tool):
    workspace via `txc config profile pin`).
 
 After that, MCP tool calls resolve the active profile silently via the
-acquired token cache or stored SPN secret. If resolution fails (expired
-refresh token, missing credential, broken config), the subprocess exits
-non-zero and the MCP server surfaces the error through the tool-call
-result; the structured log line includes the fail-fast remedy string
-(`txc config profile validate <name>`).
+acquired token cache, stored SPN secret, or workload-identity
+federation assertion source (`AZURE_FEDERATED_TOKEN_FILE`,
+`ACTIONS_ID_TOKEN_REQUEST_URL` + `ACTIONS_ID_TOKEN_REQUEST_TOKEN`, or
+`TXC_ADO_ID_TOKEN_REQUEST_URL` + `TXC_ADO_ID_TOKEN_REQUEST_TOKEN`;
+legacy `PAC_ADO_*` is also honored). If resolution fails (expired
+refresh token, missing credential, missing assertion source, broken
+config), the subprocess exits non-zero and the MCP server surfaces the
+error through the tool-call result; the structured log line includes the
+fail-fast remedy string (`txc config profile validate <name>`).
 
 ### Per-call profile override
 
@@ -198,9 +219,11 @@ else is ignored:
 | `TXC_ADO_ID_TOKEN_REQUEST_URL`, `TXC_ADO_ID_TOKEN_REQUEST_TOKEN` | Azure DevOps pipelines workload-identity federation (legacy `PAC_ADO_*` also honored). |
 
 Secrets (client secrets, PATs, certificate passwords) are **never**
-accepted as plain MCP tool arguments — they are stored in the OS-level
-secret vault via `txc config auth add-service-principal` and referenced
-from config by `SecretRef` handle only.
+accepted as plain MCP tool arguments — when a secret is needed it is
+stored in the OS-level secret vault via
+`txc config auth add-service-principal` and referenced from config by
+`SecretRef` handle only. Federated credentials registered with
+`txc config auth add-federated` do not persist any secret.
 
 ### Log redaction
 

@@ -7,6 +7,7 @@ using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Core.Resolution;
 using TALXIS.CLI.Logging;
+using TALXIS.Platform.Metadata.Packaging;
 
 namespace TALXIS.CLI.Features.Environment.Solution;
 
@@ -31,8 +32,9 @@ public class SolutionImportCliCommand : ProfiledCliCommand
     [CliOption(Name = "--force-overwrite", Description = "Overwrite unmanaged customizations (disables SmartDiff).", Required = false)]
     public bool ForceOverwrite { get; set; }
 
-    [CliOption(Name = "--publish-workflows", Description = "Activate workflows after import.", Required = false)]
-    public bool PublishWorkflows { get; set; }
+    [CliOption(Name = "--publish-workflows", Description = "Activate plugin steps and classic workflows during import (PublishWorkflows). Defaults to true.", Required = false)]
+    [DefaultValue(true)]
+    public bool PublishWorkflows { get; set; } = true;
 
     [CliOption(Name = "--skip-dependency-check", Description = "Skip product-update dependency checks.", Required = false)]
     public bool SkipDependencyCheck { get; set; }
@@ -153,6 +155,14 @@ public class SolutionImportCliCommand : ProfiledCliCommand
             OutputWriter.WriteLine($"Started (UTC): {result.StartedAtUtc:O}");
             if (result.CompletedAtUtc is { } completed)
                 OutputWriter.WriteLine($"Completed (UTC): {completed:O}");
+
+            // Next-step hint — keeps AI agents from inventing raw SQL queries against the
+            // asyncoperation table when they want to check import status. The structured
+            // deployment-get path returns parsed findings, the SQL path returns raw codes.
+            if (result.AsyncOperationId is { } hintAsyncId)
+                OutputWriter.WriteLine($"Next: txc env deployment get --async-operation-id {hintAsyncId}");
+            else
+                OutputWriter.WriteLine($"Next: txc env deployment get --solution-name {result.Source.UniqueName}");
 #pragma warning restore TXC003
         });
 

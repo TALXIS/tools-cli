@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
@@ -9,7 +10,7 @@ namespace TALXIS.CLI.Features.Workspace;
 [CliReadOnly]
 [CliCommand(
     Name = "validate",
-    Description = "Validates solution workspace files against XSD schemas, checks for structural issues, and loads the metadata model.")]
+    Description = "Validates solution workspace files against XSD schemas, checks for structural issues, and loads the metadata model. Skips well-known throwaway directories (node_modules, bin, obj, ...), files under any Node/TS project (anything next to a package.json), and honors the workspace .gitignore by default.")]
 public sealed class WorkspaceValidateCliCommand : TxcLeafCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(WorkspaceValidateCliCommand));
@@ -19,6 +20,14 @@ public sealed class WorkspaceValidateCliCommand : TxcLeafCommand
 
     [CliOption(Name = "--file", Required = false, Description = "Validate a single file (relative path within the workspace).")]
     public string? File { get; set; }
+
+    [CliOption(Name = "--no-ignore", Required = false, Description = "Disable default ignore rules and skip reading .gitignore. Every file under the workspace will be validated, including node_modules and build output.")]
+    [DefaultValue(false)]
+    public bool NoIgnore { get; set; }
+
+    [CliOption(Name = "--no-gitignore", Required = false, Description = "Apply built-in defaults (node_modules, bin, obj, ...) but ignore the workspace .gitignore.")]
+    [DefaultValue(false)]
+    public bool NoGitignore { get; set; }
 
     protected override async Task<int> ExecuteAsync()
     {
@@ -48,7 +57,13 @@ public sealed class WorkspaceValidateCliCommand : TxcLeafCommand
             // Full workspace validation
             var validator = new WorkspaceValidator();
             var report = validator.ValidateDirectory(fullPath);
-            results = report.Results;
+
+            var allResults = report.Results;
+            results = ApplyIgnoreFilter(fullPath, allResults);
+
+            int skipped = allResults.Count - results.Count;
+            if (skipped > 0)
+                Logger.LogInformation("Skipped {Skipped} result(s) from ignored paths.", skipped);
 
             // Show component summary if model loaded
             if (report.LoadedComponents != null)
@@ -87,5 +102,22 @@ public sealed class WorkspaceValidateCliCommand : TxcLeafCommand
         OutputFormatter.WriteResult(errors > 0 ? "failed" : "succeeded",
             $"Validation complete: {errors} error(s), {warnings} warning(s)");
         return errors > 0 ? ExitError : ExitSuccess;
+    }
+
+    private IReadOnlyList<ValidationResult> ApplyIgnoreFilter(
+        string workspaceRoot, IReadOnlyList<ValidationResult> all)
+    {
+        if (NoIgnore)
+            return all;
+
+        var filter = new WorkspaceFileFilter(workspaceRoot, applyDefaults: true, readGitignore: !NoGitignore);
+        var filtered = new List<ValidationResult>(all.Count);
+        foreach (var result in all)
+        {
+            if (result.FilePath is not null && filter.IsIgnored(result.FilePath))
+                continue;
+            filtered.Add(result);
+        }
+        return filtered;
     }
 }

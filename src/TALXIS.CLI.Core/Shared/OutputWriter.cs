@@ -15,7 +15,9 @@ public static class OutputWriter
     // tool executions do not overwrite each other's output destination.
     private static readonly AsyncLocal<TextWriter?> _writer = new();
 
+#pragma warning disable RS0030 // Approved stdout sink — OutputWriter IS the sanctioned Console.Out abstraction
     private static TextWriter CurrentWriter => _writer.Value ?? Console.Out;
+#pragma warning restore RS0030
 
     /// <summary>
     /// Replaces the output target. Returns a scope that restores the previous writer on dispose.

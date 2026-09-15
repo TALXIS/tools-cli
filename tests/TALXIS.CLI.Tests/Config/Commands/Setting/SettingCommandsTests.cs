@@ -35,27 +35,6 @@ public sealed class SettingCommandsTests
         Assert.Equal("json", cfg.Log.Format);
     }
 
-    [Theory]
-    [InlineData("true", true)]
-    [InlineData("True", true)]
-    [InlineData("1", true)]
-    [InlineData("yes", true)]
-    [InlineData("on", true)]
-    [InlineData("false", false)]
-    [InlineData("0", false)]
-    [InlineData("no", false)]
-    [InlineData("off", false)]
-    public async Task Set_Persists_TelemetryEnabled(string value, bool expected)
-    {
-        using var host = new CommandTestHost();
-
-        var exit = await new SettingSetCliCommand { Key = "telemetry.enabled", Value = value }.RunAsync();
-        Assert.Equal(0, exit);
-
-        var cfg = await TxcServices.Get<IGlobalConfigStore>().LoadAsync(default);
-        Assert.Equal(expected, cfg.Telemetry.Enabled);
-    }
-
     [Fact]
     public async Task Set_ReturnsExit2_ForUnknownKey()
     {
@@ -75,11 +54,11 @@ public sealed class SettingCommandsTests
     }
 
     [Fact]
-    public async Task Set_ReturnsExit2_ForInvalidBoolValue()
+    public async Task Set_ReturnsExit2_ForInvalidEnumValueOnLogFormat()
     {
         using var host = new CommandTestHost();
 
-        var exit = await new SettingSetCliCommand { Key = "telemetry.enabled", Value = "maybe" }.RunAsync();
+        var exit = await new SettingSetCliCommand { Key = "log.format", Value = "xml" }.RunAsync();
         Assert.Equal(2, exit);
     }
 
@@ -146,6 +125,5 @@ public sealed class SettingCommandsTests
         var output = sw.ToString();
         Assert.Contains("log.level", output);
         Assert.Contains("log.format", output);
-        Assert.Contains("telemetry.enabled", output);
     }
 }

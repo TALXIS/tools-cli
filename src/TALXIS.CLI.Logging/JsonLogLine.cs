@@ -29,10 +29,12 @@ public sealed class JsonLogLine
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? Progress { get; set; }
 
+#pragma warning disable RS0030 // Internal log serialization options — not exposed to command output
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
+#pragma warning restore RS0030
 
     public string Serialize() => JsonSerializer.Serialize(this, SerializerOptions);
 

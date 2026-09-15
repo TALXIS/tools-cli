@@ -159,7 +159,9 @@ public static class FederatedAssertionCallbacks
         Uri url, string bearer, HttpClient? http, ILogger log, CancellationToken ct)
     {
         var owned = http is null;
+#pragma warning disable RS0030 // Fallback when no IHttpClientFactory is available in federated auth context
         var client = http ?? new HttpClient();
+#pragma warning restore RS0030
         try
         {
             using var req = new HttpRequestMessage(HttpMethod.Post, url);
@@ -189,7 +191,9 @@ public static class FederatedAssertionCallbacks
         Uri url, string bearer, HttpClient? http, ILogger log, CancellationToken ct)
     {
         var owned = http is null;
+#pragma warning disable RS0030 // Fallback when no IHttpClientFactory is available in federated auth context
         var client = http ?? new HttpClient();
+#pragma warning restore RS0030
         try
         {
             using var req = new HttpRequestMessage(HttpMethod.Get, url);

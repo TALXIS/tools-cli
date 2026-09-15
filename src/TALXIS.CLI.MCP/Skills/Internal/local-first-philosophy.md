@@ -10,7 +10,7 @@
 
 ## User wants to "check what tables/columns exist"
 → IF building/developing: `workspace_explain` (reads local project structure)
-→ IF troubleshooting/comparing with live: `environment_entity_list` or `environment_entity_attribute_list` (needs profile)
+→ IF troubleshooting/comparing with live: `environment_entity_list` (all entities) or `environment_entity_describe <name>` (one entity with its attributes) — both need a profile
 
 ## User wants to "deploy" or "push changes"
 → REQUIRED ORDER: build locally → `environment_solution_pack` → `environment_solution_import` → `environment_solution_publish`
@@ -19,11 +19,11 @@
 
 ## User wants to "delete a table/column"
 → IF local: delete/edit the XML files directly
-→ IF live env: `environment_component_dependency_delete_check` FIRST, then `environment_entity_delete`
+→ IF live env: `environment_component_dependency_delete-check` FIRST, then `environment_entity_delete`
 → NEVER delete in live without checking dependencies
 
 ## User wants to "see solution layers" or "check conflicts"
-→ ALWAYS live environment tools: `environment_component_layer_list` → `environment_component_layer_show`
+→ ALWAYS live environment tools: `environment_component_layer_list` → `environment_component_layer_get`
 → These are inspection-only — local workspace has no layer concept
 
 ## User wants to "query data" or "migrate data"

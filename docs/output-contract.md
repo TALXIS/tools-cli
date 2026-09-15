@@ -128,10 +128,54 @@ In text mode, only the human-readable message is printed.
 
 The MCP server (`txc-mcp`) spawns `txc` as a subprocess with `TXC_LOG_FORMAT=json` and `TXC_NON_INTERACTIVE=1`:
 - **stdout** → captured as the MCP tool result (JSON by default since stdout is redirected)
-- **stderr** → parsed as JSON log lines, forwarded as MCP log notifications
+- **stderr** → parsed as structured JSON log lines, forwarded as MCP log/progress notifications
 - **exit code** → determines `isError` in the MCP tool result
 
 Since commands default to JSON when stdout is redirected, the MCP server gets structured data automatically — no `--json` injection needed.
+
+### Structured execution logs
+
+Every MCP tool call produces a retrievable execution log stored in memory. The MCP client can fetch it via the `get_execution_log` tool using the diagnostics URI returned in the tool response.
+
+**Data flow:** Command → `ILogger` → `JsonStderrLogger` → stderr JSON line → `McpLogForwarder` → `RedactedLogEntry` list → `ToolLogStore` → `get_execution_log`
+
+Each log entry preserves its original structure:
+
+| Field | Description |
+|-------|-------------|
+| `timestamp` | ISO-8601 UTC timestamp |
+| `level` | Log level: `Trace`, `Debug`, `Information`, `Warning`, `Error`, `Critical` |
+| `category` | Logger category (typically `nameof(CommandClass)`) |
+| `message` | Redacted log message |
+| `data` | Structured data dictionary from message template placeholders (nullable) |
+
+The `get_execution_log` tool supports filtering and pagination:
+- `level` — minimum level filter (e.g., `"Error"` returns only Error + Critical)
+- `category` — filter by category substring
+- `search` — full-text search across messages and data values
+- `skip` / `take` — pagination (defaults: skip=0, take=50)
+
+### Progress streaming
+
+Long-running commands should emit frequent `ILogger` messages so MCP clients see real-time progress. `McpLogForwarder` converts each stderr log line into an MCP `notifications/progress` notification (rate-limited to 500ms). If a log entry includes a `Progress` integer property, that semantic value is used instead of the raw line count.
+
+**Good pattern for progress:**
+```csharp
+Logger.LogInformation("Importing solution {Current}/{Total}: {SolutionName}",
+    current, total, name);
+```
+
+### Structured logging requirement
+
+All `ILogger` calls must use **message templates**, not string interpolation. This ensures the `data` dictionary in structured log entries is populated with named values.
+
+```csharp
+// ✅ Correct — populates data: { "Entity": "account", "Error": "..." }
+Logger.LogError("Failed to process {Entity}: {Error}", entityName, ex.Message);
+
+// ❌ Wrong — data dict is empty, structured filtering loses information
+Logger.LogError($"Failed to process {entityName}: {ex.Message}");
+```
 
 ## Enforcement
 
@@ -142,6 +186,7 @@ Since commands default to JSON when stdout is redirected, the MCP server gets st
 | `TXC001` (Roslyn analyzer) | Leaf `[CliCommand]` not inheriting `TxcLeafCommand` | Build time (error) |
 | `TXC002` (Roslyn analyzer) | Leaf command defining own `RunAsync()` | Build time (error) |
 | `TXC003` (Roslyn analyzer) | Direct `OutputWriter` calls in command code (auto-suppresses text-renderer lambdas) | Build time (error) |
+| `TXC014` (Roslyn analyzer) | String interpolation in `ILogger` calls (must use message templates) | Build time (warning) |
 | `CommandConventionTests` | Non-conforming commands, stale `--json` flags, local `JsonSerializerOptions` | Test time |
 | `LayeringTests` | Feature→Feature project references, `--yes` commands missing `[McpIgnore]` | Test time |
 
@@ -150,5 +195,7 @@ Since commands default to JSON when stdout is redirected, the MCP server gets st
 1. Create a class with `[CliCommand]` extending `TxcLeafCommand` (or `ProfiledCliCommand`)
 2. Implement `protected override ILogger Logger { get; }` and `protected override Task<int> ExecuteAsync()`
 3. Use `OutputFormatter` for all output
-4. Return `ExitSuccess`, `ExitError`, or `ExitValidationError`
-5. Run tests to verify convention compliance
+4. Use message templates (not string interpolation) in all `ILogger` calls
+5. For long-running operations, emit periodic `Logger.LogInformation` messages for progress visibility
+6. Return `ExitSuccess`, `ExitError`, or `ExitValidationError`
+7. Run tests to verify convention compliance

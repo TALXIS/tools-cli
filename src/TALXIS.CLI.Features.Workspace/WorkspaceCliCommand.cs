@@ -1,4 +1,5 @@
 using DotMake.CommandLine;
+using TALXIS.CLI.Features.Workspace.Controls;
 
 namespace TALXIS.CLI.Features.Workspace;
 
@@ -8,6 +9,7 @@ namespace TALXIS.CLI.Features.Workspace;
     Children = new[]
     {
         typeof(ComponentCliCommand),
+        typeof(ControlCliCommand),
         typeof(ProjectCliCommand),
         typeof(WorkspaceExplainCliCommand),
         typeof(WorkspaceValidateCliCommand)

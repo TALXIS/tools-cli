@@ -13,7 +13,7 @@ namespace TALXIS.CLI.Features.Docs;
 [CliReadOnly]
 public class DocsGetCliCommand : TxcLeafCommand
 {
-    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger<DocsGetCliCommand>();
+    protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(DocsGetCliCommand));
 
     [CliArgument(Description = "ID of the skill to show (e.g. 'component-creation', 'deployment-workflow')")]
     public string SkillId { get; set; } = "";

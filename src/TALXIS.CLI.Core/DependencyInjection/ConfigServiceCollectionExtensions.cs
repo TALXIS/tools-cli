@@ -31,6 +31,7 @@ public static class ConfigServiceCollectionExtensions
 
         services.AddSingleton<IConfigurationResolver, ConfigurationResolver>();
         services.AddSingleton<IHeadlessDetector, HeadlessDetector>();
+        services.AddSingleton<IBrowserAvailabilityProbe, BrowserAvailabilityProbe>();
         services.AddSingleton<IConfirmationPrompter, ConsoleConfirmationPrompter>();
         services.AddSingleton<TALXIS.CLI.Core.Bootstrapping.ConnectionUpsertService>();
 
@@ -44,9 +45,11 @@ public static class ConfigServiceCollectionExtensions
             var paths = sp.GetRequiredService<ConfigPaths>();
             var env = sp.GetRequiredService<IEnvironmentReader>();
             var logger = sp.GetRequiredService<ILogger<MsalBackedCredentialVault>>();
+#pragma warning disable RS0030 // Synchronous DI factory registration — cannot use await in factory delegate
             return MsalBackedCredentialVault
                 .CreateAsync(paths, env, logger)
                 .GetAwaiter().GetResult();
+#pragma warning restore RS0030
         });
 
         return services;

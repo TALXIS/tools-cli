@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using ModelContextProtocol.Protocol;
 using Xunit;
@@ -27,6 +28,7 @@ public class McpTests
         Assert.Contains("guide_environment", toolNames);
         Assert.Contains("execute_operation", toolNames);
         Assert.Contains("get_skill_details", toolNames);
+        Assert.Contains("get_execution_log", toolNames);
     }
 
     [Fact]
@@ -75,5 +77,49 @@ public class McpTests
         {
             Assert.Contains("Entity", textBlock.Text);
         }
+    }
+
+    [Fact]
+    public async Task ExecuteOperation_FailedTool_ExposesReadableFailureResource()
+    {
+        var client = await McpTestClient.InstanceAsync;
+        var args = new Dictionary<string, object?>
+        {
+            { "operation", "workspace_validate" },
+            { "arguments", new Dictionary<string, object?> { { "Path", "definitely-not-a-real-workspace-path" } } }
+        };
+
+        var result = await client.CallToolAsync("execute_operation", args);
+
+        Assert.True(result.IsError);
+        Assert.NotNull(result.Content);
+        Assert.True(result.Content.Count >= 2);
+
+        var errorText = Assert.IsType<TextContentBlock>(result.Content[0]);
+        var resourceLink = Assert.IsType<ResourceLinkBlock>(result.Content[1]);
+        Assert.Equal("application/json", resourceLink.MimeType);
+        Assert.Contains("get_execution_log", errorText.Text);
+        Assert.Contains(resourceLink.Uri, errorText.Text);
+
+        var readResult = await client.ReadResourceAsync(resourceLink.Uri);
+        var resource = Assert.IsType<TextResourceContents>(Assert.Single(readResult.Contents));
+        Assert.Equal("application/json", resource.MimeType);
+
+        using var document = JsonDocument.Parse(resource.Text);
+        Assert.Equal("workspace_validate", document.RootElement.GetProperty("toolName").GetString());
+        Assert.True(document.RootElement.TryGetProperty("summary", out var summary));
+        Assert.False(string.IsNullOrWhiteSpace(summary.GetString()));
+
+        var detailsResult = await client.CallToolAsync("get_execution_log", new Dictionary<string, object?> { { "uri", resourceLink.Uri } });
+        Assert.True(detailsResult.IsError != true);
+        var detailsText = Assert.IsType<TextContentBlock>(Assert.Single(detailsResult.Content));
+        using var detailsDoc = JsonDocument.Parse(detailsText.Text);
+        Assert.Equal("workspace_validate", detailsDoc.RootElement.GetProperty("toolName").GetString());
+        Assert.True(detailsDoc.RootElement.TryGetProperty("logEntries", out var logEntries));
+        Assert.Equal(JsonValueKind.Array, logEntries.ValueKind);
+        Assert.True(detailsDoc.RootElement.TryGetProperty("totalEntries", out _));
+        Assert.True(detailsDoc.RootElement.TryGetProperty("filteredCount", out _));
+        Assert.True(detailsDoc.RootElement.TryGetProperty("skip", out _));
+        Assert.True(detailsDoc.RootElement.TryGetProperty("take", out _));
     }
 }

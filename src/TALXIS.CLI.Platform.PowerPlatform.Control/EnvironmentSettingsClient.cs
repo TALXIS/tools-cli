@@ -16,6 +16,7 @@ namespace TALXIS.CLI.Platform.PowerPlatform.Control;
 public sealed class EnvironmentSettingsClient
 {
     private const string ApiVersion = "1";
+    private const string UserManagementApiVersion = "2024-10-01";
     private static readonly Uri PowerPlatformApiAudience = new("https://api.powerplatform.com/");
 
     /// <summary>
@@ -165,6 +166,35 @@ public sealed class EnvironmentSettingsClient
 
         throw new InvalidOperationException(
             $"Environment management settings update failed ({patchResponse.StatusCode}): {Truncate(patchResponse.Body, 500)}");
+    }
+
+    /// <summary>
+    /// Applies the environment admin role to the current authenticated caller.
+    /// </summary>
+    public async Task SelfElevateAsync(
+        Connection connection,
+        Credential credential,
+        Guid environmentId,
+        CancellationToken ct)
+    {
+        var baseUri = GetBaseUri(connection.Cloud ?? CloudInstance.Public);
+        var url = $"{baseUri}usermanagement/environments/{environmentId}/user/applyAdminRole?api-version={UserManagementApiVersion}";
+
+        var token = await _tokens.AcquireForResourceAsync(connection, credential, PowerPlatformApiAudience, ct)
+            .ConfigureAwait(false);
+
+        using var http = _httpFactory.Create();
+        using var request = new HttpRequestMessage(HttpMethod.Post, url);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+        using var response = await http.SendAsync(request, HttpCompletionOption.ResponseContentRead, ct)
+            .ConfigureAwait(false);
+        var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException(
+                $"Environment user self-elevation failed ({(int)response.StatusCode} {response.ReasonPhrase}): {Truncate(body, 500)}");
     }
 
     private static async Task<SettingsResponse> SendSettingsRequestAsync(

@@ -1,7 +1,7 @@
-using System.Net.Http.Headers;
 using System.Text.Json;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Model;
+using TALXIS.CLI.Platform.PowerPlatform.Control.Bap;
 
 namespace TALXIS.CLI.Platform.PowerPlatform.Control;
 
@@ -40,18 +40,13 @@ public interface IPowerPlatformEnvironmentCatalog
 /// </summary>
 public sealed class PowerPlatformEnvironmentCatalog : IPowerPlatformEnvironmentCatalog
 {
-    private const string ApiVersion = "2020-10-01";
-    private static readonly Uri PowerAppsAudience = new("https://service.powerapps.com/");
-
-    private readonly IAccessTokenService _tokens;
-    private readonly IHttpClientFactoryWrapper _httpFactory;
+    private readonly BapAdminApiClient _bap;
 
     public PowerPlatformEnvironmentCatalog(
         IAccessTokenService tokens,
         IHttpClientFactoryWrapper? httpFactory = null)
     {
-        _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
-        _httpFactory = httpFactory ?? DefaultHttpClientFactoryWrapper.Instance;
+        _bap = new BapAdminApiClient(tokens, httpFactory);
     }
 
     public async Task<IReadOnlyList<PowerPlatformEnvironmentSummary>> ListAsync(
@@ -62,28 +57,22 @@ public sealed class PowerPlatformEnvironmentCatalog : IPowerPlatformEnvironmentC
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(credential);
 
-        var baseUri = GetAdminApiBaseUri(connection.Cloud ?? CloudInstance.Public);
-        var token = await _tokens.AcquireForResourceAsync(connection, credential, PowerAppsAudience, ct).ConfigureAwait(false);
+        var baseUri = _bap.GetBaseUri(connection);
+        var token = await _bap.AcquireTokenAsync(connection, credential, ct).ConfigureAwait(false);
 
-        using var http = _httpFactory.Create();
         var environments = new List<PowerPlatformEnvironmentSummary>();
-        Uri? nextPage = new(baseUri, $"/providers/Microsoft.BusinessAppPlatform/scopes/admin/environments?api-version={ApiVersion}");
+        Uri? nextPage = new(baseUri, $"/providers/Microsoft.BusinessAppPlatform/scopes/admin/environments?api-version={BapEndpointProvider.ListApiVersion}");
 
         while (nextPage is not null)
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, nextPage);
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
-            using var response = await http.SendAsync(request, HttpCompletionOption.ResponseContentRead, ct).ConfigureAwait(false);
-            var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode)
+            var response = await _bap.SendAsync(HttpMethod.Get, nextPage, token, jsonBody: null, ct).ConfigureAwait(false);
+            if (!response.IsSuccess)
             {
                 throw new InvalidOperationException(
-                    $"Power Platform environment lookup failed ({(int)response.StatusCode} {response.ReasonPhrase}) against '{nextPage}': {Truncate(body, 500)}");
+                    $"Power Platform environment lookup failed ({(int)response.StatusCode} {response.StatusCode}) against '{nextPage}': {BapAdminApiClient.Truncate(response.Body, 500)}");
             }
 
-            using var document = JsonDocument.Parse(body);
+            using var document = JsonDocument.Parse(response.Body);
             var root = document.RootElement;
             if (!root.TryGetProperty("value", out var items) || items.ValueKind != JsonValueKind.Array)
                 throw new InvalidOperationException("Power Platform environment lookup returned a payload without a 'value' array.");
@@ -137,7 +126,7 @@ public sealed class PowerPlatformEnvironmentCatalog : IPowerPlatformEnvironmentC
             UniqueName: TryReadOptionalString(linked, "uniqueName"),
             DomainName: TryReadOptionalString(linked, "domainName"),
             OrganizationId: TryReadOptionalGuid(linked, "resourceId"),
-            EnvironmentType: TryParseEnvironmentSku(properties));
+            EnvironmentType: EnvironmentSkuParser.TryParse(properties));
         return true;
     }
 
@@ -178,22 +167,6 @@ public sealed class PowerPlatformEnvironmentCatalog : IPowerPlatformEnvironmentC
             ? parsed
             : null;
 
-    private static TALXIS.CLI.Core.Model.EnvironmentType? TryParseEnvironmentSku(JsonElement properties)
-    {
-        if (!TryReadString(properties, "environmentSku", out var sku))
-            return null;
-
-        return sku.ToLowerInvariant() switch
-        {
-            "production" => TALXIS.CLI.Core.Model.EnvironmentType.Production,
-            "sandbox" => TALXIS.CLI.Core.Model.EnvironmentType.Sandbox,
-            "trial" => TALXIS.CLI.Core.Model.EnvironmentType.Trial,
-            "developer" => TALXIS.CLI.Core.Model.EnvironmentType.Developer,
-            "default" => TALXIS.CLI.Core.Model.EnvironmentType.Default,
-            _ => null,
-        };
-    }
-
     private static bool UrlEquals(Uri left, Uri right)
         => NormalizeEnvironmentUrl(left).AbsoluteUri.Equals(
             NormalizeEnvironmentUrl(right).AbsoluteUri,
@@ -201,15 +174,4 @@ public sealed class PowerPlatformEnvironmentCatalog : IPowerPlatformEnvironmentC
 
     private static Uri NormalizeEnvironmentUrl(Uri uri)
         => new(uri.GetLeftPart(UriPartial.Path).TrimEnd('/') + "/");
-
-    private static Uri GetAdminApiBaseUri(CloudInstance cloud)
-        => cloud switch
-        {
-            CloudInstance.Public or CloudInstance.Gcc => new Uri("https://api.bap.microsoft.com/"),
-            _ => throw new NotSupportedException(
-                $"Power Platform environment lookup is not wired for cloud '{cloud}' in this release. Pass --name explicitly."),
-        };
-
-    private static string Truncate(string s, int max)
-        => string.IsNullOrEmpty(s) ? string.Empty : (s.Length <= max ? s : s[..max] + "...");
 }
