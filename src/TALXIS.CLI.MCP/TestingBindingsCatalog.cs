@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text;
+using System.Xml.Linq;
 
 namespace TALXIS.CLI.MCP;
 
@@ -11,6 +12,7 @@ public class TestingBindingsCatalog
 {
     private readonly List<StepBindingEntry> _entries = new();
     private string? _cachedCatalogPrompt;
+    private string? _resolvedVersion;
 
     /// <summary>
     /// Loads step bindings from the TALXIS.TestKit.Bindings assembly using reflection.
@@ -21,9 +23,34 @@ public class TestingBindingsCatalog
         var assembly = FindTestKitBindingsAssembly();
         if (assembly is null) return;
 
-        foreach (var type in assembly.GetExportedTypes())
+        _resolvedVersion = assembly.GetName().Version?.ToString() ?? "unknown";
+        var xmlDocs = LoadXmlDocSummaries(assembly);
+
+        // GetExportedTypes() throws (and gives up entirely) the moment ANY type in the assembly
+        // fails to load — e.g. a transitive dependency (YamlDotNet, in practice) resolves to a
+        // version incompatible with one the assembly was built against, for a type we don't even
+        // care about here. GetTypes() + ReflectionTypeLoadException recovery still yields every
+        // type that DID load, so one bad type can't take down the whole catalog — or, since this
+        // runs at MCP server startup, the whole server.
+        Type[] types;
+        try
         {
-            if (!HasBindingAttribute(type))
+            types = assembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException ex)
+        {
+            types = ex.Types.Where(t => t is not null).Cast<Type>().ToArray();
+        }
+        catch (Exception)
+        {
+            // Nothing usable could be loaded from the assembly at all — leave the catalog empty
+            // rather than let a third-party assembly's incompatibility crash the MCP server.
+            return;
+        }
+
+        foreach (var type in types)
+        {
+            if (!type.IsPublic || !HasBindingAttribute(type))
                 continue;
 
             var category = DeriveCategoryFromTypeName(type.Name);
@@ -35,7 +62,8 @@ public class TestingBindingsCatalog
                     var (stepType, pattern) = ExtractStepPattern(attr);
                     if (stepType is null || pattern is null) continue;
 
-                    var description = GetMethodSummary(method);
+                    var description = GetMethodSummary(method, xmlDocs);
+                    var parameterNames = method.GetParameters().Select(p => p.Name ?? "value").ToList();
 
                     _entries.Add(new StepBindingEntry
                     {
@@ -43,7 +71,8 @@ public class TestingBindingsCatalog
                         Pattern = pattern,
                         Category = category,
                         Description = description,
-                        SourceClass = type.Name
+                        SourceClass = type.Name,
+                        ParameterNames = parameterNames
                     });
                 }
             }
@@ -62,10 +91,16 @@ public class TestingBindingsCatalog
             return _cachedCatalogPrompt;
 
         var sb = new StringBuilder();
-        sb.AppendLine("# Available Reqnroll Step Bindings (TALXIS.TestKit.Bindings)");
+        sb.AppendLine($"# Available Reqnroll Step Bindings (TALXIS.TestKit.Bindings v{_resolvedVersion})");
+        sb.AppendLine();
+        sb.AppendLine("This reflects the TestKit version bundled with the MCP server, not necessarily the");
+        sb.AppendLine("version referenced by your workspace's test project — compare against your own");
+        sb.AppendLine("PackageReference if a mapped step fails to bind at build time.");
         sb.AppendLine();
         sb.AppendLine("These are pre-built Gherkin step bindings for Power Apps UI test automation.");
-        sb.AppendLine("Parameters in patterns are denoted by regex groups like '(.*)' — replace with actual values in quotes.");
+        sb.AppendLine("Placeholders like '{value}' or '{fieldName}' mark where a step takes an argument —");
+        sb.AppendLine("replace each with an actual value in quotes. A leading '*' means the step works as");
+        sb.AppendLine("Given, When, or Then depending on context.");
         sb.AppendLine();
 
         var grouped = _entries
@@ -103,19 +138,78 @@ public class TestingBindingsCatalog
 
     /// <summary>
     /// Formats a step binding entry as a Gherkin step line.
-    /// Converts regex patterns to user-friendly placeholder syntax.
+    /// Walks the regex pattern's own parenthesis structure — rather than a fixed string-replace
+    /// chain — so every top-level capturing group becomes a named placeholder (from the bound
+    /// method's parameter name, in capture order, or the group's own name for `(?&lt;name&gt;...)`),
+    /// while non-capturing groups, lookarounds, and anchors are left untouched instead of leaking
+    /// raw regex into the output.
     /// </summary>
     private static string FormatAsGherkin(StepBindingEntry entry)
     {
-        // Convert regex groups like '(.*)' to '{param}' for readability
-        var readablePattern = entry.Pattern
-            .Replace("'(.*)'", "'{value}'")
-            .Replace("([^']+)", "{value}")
-            .Replace("(.*)", "{value}")
-            .Replace(@"(\d+)", "{number}")
-            .Replace(@"(should|should not)", "{should|should not}");
+        var pattern = entry.Pattern;
+        var paramNames = entry.ParameterNames;
+        var sb = new StringBuilder();
+        int paramIndex = 0;
+        int i = 0;
 
-        return $"{entry.StepType} {readablePattern}";
+        while (i < pattern.Length)
+        {
+            var c = pattern[i];
+
+            if (c == '\\' && i + 1 < pattern.Length)
+            {
+                sb.Append(c).Append(pattern[i + 1]);
+                i += 2;
+                continue;
+            }
+
+            if (c != '(')
+            {
+                sb.Append(c);
+                i++;
+                continue;
+            }
+
+            // '(?...)' is non-capturing, a lookaround, or a named group; a bare '(' starts a
+            // capturing group. Named groups '(?<name>...)' still count as capturing.
+            var isSpecial = i + 1 < pattern.Length && pattern[i + 1] == '?';
+            string? namedGroupName = null;
+            if (isSpecial && i + 2 < pattern.Length && pattern[i + 2] == '<'
+                && i + 3 < pattern.Length && pattern[i + 3] != '=' && pattern[i + 3] != '!')
+            {
+                var nameEnd = pattern.IndexOf('>', i + 3);
+                if (nameEnd > i + 3)
+                    namedGroupName = pattern[(i + 3)..nameEnd];
+            }
+            var isCapturing = !isSpecial || namedGroupName is not null;
+
+            // Find the matching close paren, tracking nesting depth and skipping escapes.
+            var depth = 1;
+            var j = i + 1;
+            while (j < pattern.Length && depth > 0)
+            {
+                if (pattern[j] == '\\' && j + 1 < pattern.Length) { j += 2; continue; }
+                if (pattern[j] == '(') depth++;
+                else if (pattern[j] == ')') depth--;
+                j++;
+            }
+
+            if (isCapturing)
+            {
+                var name = namedGroupName ?? (paramIndex < paramNames.Count ? paramNames[paramIndex] : "value");
+                paramIndex++;
+                sb.Append('{').Append(name).Append('}');
+            }
+            else
+            {
+                // Non-capturing group, lookaround, etc. — keep the original regex text as-is.
+                sb.Append(pattern, i, j - i);
+            }
+
+            i = j;
+        }
+
+        return $"{entry.StepType} {sb}";
     }
 
     /// <summary>
@@ -132,7 +226,9 @@ public class TestingBindingsCatalog
             "GivenAttribute" => "Given",
             "WhenAttribute" => "When",
             "ThenAttribute" => "Then",
-            "StepDefinitionAttribute" => "Step",
+            // [StepDefinition] matches Given, When, *and* Then — "Step" isn't a Gherkin keyword,
+            // so a copied line would fail to parse. '*' is Gherkin's own "any step keyword" marker.
+            "StepDefinitionAttribute" => "*",
             _ => null
         };
 
@@ -169,14 +265,80 @@ public class TestingBindingsCatalog
     }
 
     /// <summary>
-    /// Attempts to extract XML documentation summary from the method.
-    /// Falls back to null if not available (XML docs are rarely embedded in NuGet packages).
+    /// Looks up the method's XML documentation summary, if the assembly's doc file was found
+    /// and loaded by <see cref="LoadXmlDocSummaries"/>.
     /// </summary>
-    private static string? GetMethodSummary(MethodInfo method)
+    private static string? GetMethodSummary(MethodInfo method, IReadOnlyDictionary<string, string> xmlDocs)
     {
-        // XML documentation is typically not available via reflection at runtime.
-        // We rely on the Gherkin pattern being self-documenting.
-        return null;
+        return xmlDocs.TryGetValue(BuildXmlDocMemberId(method), out var summary) ? summary : null;
+    }
+
+    /// <summary>
+    /// Loads &lt;summary&gt; text for every member from the assembly's sibling .xml doc file
+    /// (e.g. TALXIS.TestKit.Bindings.xml next to TALXIS.TestKit.Bindings.dll), keyed by XML doc
+    /// member ID. Best-effort: returns an empty map if the file isn't present or fails to parse.
+    /// </summary>
+    private static Dictionary<string, string> LoadXmlDocSummaries(Assembly assembly)
+    {
+        var result = new Dictionary<string, string>();
+        try
+        {
+            if (string.IsNullOrEmpty(assembly.Location))
+                return result;
+
+            var xmlPath = Path.ChangeExtension(assembly.Location, ".xml");
+            if (!File.Exists(xmlPath))
+                return result;
+
+            var doc = XDocument.Load(xmlPath);
+            foreach (var member in doc.Descendants("member"))
+            {
+                var name = (string?)member.Attribute("name");
+                var summary = member.Element("summary")?.Value;
+                if (name is null || summary is null)
+                    continue;
+
+                result[name] = string.Join(' ', summary.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+            }
+        }
+        catch
+        {
+            // XML docs are a best-effort enhancement — fall back to no descriptions.
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Builds the XML doc member ID for a method (e.g. "M:Namespace.Type.Method(System.String)"),
+    /// matching the format used as the "name" attribute in .NET-generated XML documentation.
+    /// </summary>
+    private static string BuildXmlDocMemberId(MethodInfo method)
+    {
+        var sb = new StringBuilder("M:").Append(method.DeclaringType!.FullName).Append('.').Append(method.Name);
+
+        var parameters = method.GetParameters();
+        if (parameters.Length > 0)
+        {
+            sb.Append('(');
+            sb.Append(string.Join(",", parameters.Select(p => GetXmlDocTypeName(p.ParameterType))));
+            sb.Append(')');
+        }
+
+        return sb.ToString();
+    }
+
+    private static string GetXmlDocTypeName(Type type)
+    {
+        if (type.IsGenericType)
+        {
+            var definition = type.GetGenericTypeDefinition();
+            var baseName = definition.FullName![..definition.FullName!.IndexOf('`')];
+            var args = string.Join(",", type.GetGenericArguments().Select(GetXmlDocTypeName));
+            return $"{baseName}{{{args}}}";
+        }
+
+        return type.FullName ?? type.Name;
     }
 
     /// <summary>
@@ -241,4 +403,10 @@ public class StepBindingEntry
     /// The source class name (e.g., "NavigationSteps").
     /// </summary>
     public required string SourceClass { get; init; }
+
+    /// <summary>
+    /// Names of the bound method's parameters, in declaration order. Used to name each regex
+    /// capturing group's placeholder in <c>FormatAsGherkin</c> instead of a generic "{value}".
+    /// </summary>
+    public required IReadOnlyList<string> ParameterNames { get; init; }
 }
