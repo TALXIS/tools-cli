@@ -93,27 +93,6 @@ public class PowerAutomateApiClientTests
     }
 
     [Fact]
-    public async Task SendAsync_AnAudienceOverrideReplacesTheProbe()
-    {
-        var audiences = new List<Uri>();
-        var custom = new Uri("https://contoso.example/");
-        System.Environment.SetEnvironmentVariable(PowerAutomateApiClient.AudienceEnvironmentVariable, custom.AbsoluteUri);
-
-        try
-        {
-            var client = Build(_ => Json(HttpStatusCode.OK, """{ "value": [] }"""), audiences);
-            using var document = await client.SendAsync(
-                HttpMethod.Get, RequestUri, TestConnection(), TestCredential(), null, CancellationToken.None);
-
-            Assert.Equal(custom, Assert.Single(audiences));
-        }
-        finally
-        {
-            System.Environment.SetEnvironmentVariable(PowerAutomateApiClient.AudienceEnvironmentVariable, null);
-        }
-    }
-
-    [Fact]
     public async Task SendAsync_RemembersTheWorkingAudienceForLaterCalls()
     {
         var audiences = new List<Uri>();

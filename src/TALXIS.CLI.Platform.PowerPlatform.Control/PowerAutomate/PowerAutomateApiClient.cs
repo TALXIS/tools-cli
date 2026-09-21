@@ -23,13 +23,6 @@ internal sealed class PowerAutomateApiClient
     private const int InitialRetryDelayMs = 500;
 
     /// <summary>
-    /// Comma-separated audience override for the Power Automate metadata
-    /// endpoints, tried in order instead of the built-in probe. Useful where an
-    /// app registration can reach only one of the candidate resources.
-    /// </summary>
-    public const string AudienceEnvironmentVariable = "TXC_POWERAUTOMATE_AUDIENCE";
-
-    /// <summary>
     /// Which audience the <c>/powerautomate/*</c> endpoints accept, learned at
     /// runtime and remembered per cloud so later calls make one token request
     /// rather than repeating the probe. See
@@ -130,29 +123,13 @@ internal sealed class PowerAutomateApiClient
     /// </summary>
     private static IReadOnlyList<Uri> GetAudienceCandidates(CloudInstance cloud)
     {
-        // An explicit override wins outright, so a tenant whose app registration
-        // only reaches one of these resources can pin it.
-        var configured = Environment.GetEnvironmentVariable(AudienceEnvironmentVariable);
-        if (!string.IsNullOrWhiteSpace(configured))
-        {
-            var overrides = configured
-                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Where(value => Uri.TryCreate(value, UriKind.Absolute, out _))
-                .Select(value => new Uri(value))
-                .ToArray();
-
-            if (overrides.Length > 0)
-                return overrides;
-        }
-
         if (ResolvedAudiences.TryGetValue(cloud, out var known))
             return new[] { known };
 
         // Power Apps service first: it is what these routes actually accept.
         // Microsoft's own tooling uses the Flow service resource instead, but
         // Entra refuses to issue the pinned pac application a token for it
-        // (AADSTS65002), so probing it would only ever cost a round trip. A
-        // tenant with an application that can reach it sets the override.
+        // (AADSTS65002), so probing it would only ever cost a round trip.
         return new[]
         {
             PowerAutomateEndpointProvider.PowerAppsServiceAudience,
