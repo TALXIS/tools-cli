@@ -138,14 +138,18 @@ internal static partial class OperationSchemaReader
             Type: SwaggerOperationIndexer.TryGetString(spec, "type"),
             Required: requiredByParent || requiredHere,
             Description: SwaggerOperationIndexer.TryGetString(spec, "x-ms-summary")
+                ?? SwaggerOperationIndexer.TryGetString(spec, "title")
                 ?? SwaggerOperationIndexer.TryGetString(spec, "summary")
                 ?? SwaggerOperationIndexer.TryGetString(spec, "description"),
             AllowedValues: ReadAllowedValues(spec),
             DefaultValue: ReadScalar(spec, "default"),
             Visibility: SwaggerOperationIndexer.TryGetString(spec, "x-ms-visibility"),
-            DynamicValues: ReadDynamicRef(spec, "x-ms-dynamic-values"),
+            // Two vocabularies are in play: the connector's Swagger uses
+            // x-ms-dynamic-values/-schema, while the operation API returns the
+            // newer x-ms-dynamic-list/-properties for the same concepts.
+            DynamicValues: ReadDynamicRef(spec, "x-ms-dynamic-values", "x-ms-dynamic-list"),
             DynamicTree: ReadDynamicRef(spec, "x-ms-dynamic-tree"),
-            DynamicSchema: ReadDynamicRef(spec, "x-ms-dynamic-schema"));
+            DynamicSchema: ReadDynamicRef(spec, "x-ms-dynamic-schema", "x-ms-dynamic-properties"));
     }
 
     /// <summary>
@@ -182,9 +186,17 @@ internal static partial class OperationSchemaReader
             _ => null,
         };
 
-    private static DynamicValuesRef? ReadDynamicRef(JsonElement spec, string extensionName)
+    private static DynamicValuesRef? ReadDynamicRef(JsonElement spec, params string[] extensionNames)
     {
-        if (SwaggerOperationIndexer.TryGetObject(spec, extensionName) is not { } extension)
+        JsonElement? found = null;
+        foreach (var extensionName in extensionNames)
+        {
+            found = SwaggerOperationIndexer.TryGetObject(spec, extensionName);
+            if (found is not null)
+                break;
+        }
+
+        if (found is not { } extension)
             return null;
 
         // A tree extension nests its resolvers under open/browse; either one
@@ -214,9 +226,29 @@ internal static partial class OperationSchemaReader
         {
             parameters = new Dictionary<string, string?>(StringComparer.Ordinal);
             foreach (var entry in parameterBag.EnumerateObject())
-                parameters[entry.Name] = ToScalarString(entry.Value) ?? entry.Value.GetRawText();
+                parameters[entry.Name] = DescribeResolverArgument(entry.Value);
         }
 
         return new DynamicValuesRef(operationId, parameters);
+    }
+
+    /// <summary>
+    /// Renders one argument of a dynamic resolver. An argument is either a
+    /// literal, or a reference to another parameter of the same operation —
+    /// rendered as <c>$ref:name</c> so a caller can see the resolution order
+    /// (for Teams, the message body schema depends on poster and location).
+    /// </summary>
+    private static string? DescribeResolverArgument(JsonElement argument)
+    {
+        if (argument.ValueKind != JsonValueKind.Object)
+            return ToScalarString(argument) ?? argument.GetRawText();
+
+        if (SwaggerOperationIndexer.TryGetString(argument, "parameterReference") is { } reference)
+            return "$ref:" + reference;
+
+        if (argument.TryGetProperty("value", out var literal))
+            return ToScalarString(literal) ?? literal.GetRawText();
+
+        return argument.GetRawText();
     }
 }

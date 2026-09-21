@@ -30,7 +30,21 @@ public class PowerAutomateApiClientTests
     }
 
     [Fact]
-    public async Task SendAsync_FallsBackToTheFlowAudienceWhenTheFirstIsRejected()
+    public async Task SendAsync_TriesThePowerAppsAudienceFirst()
+    {
+        // Verified against a live tenant: this is the resource the
+        // /powerautomate routes accept, so it must not be behind a probe.
+        var audiences = new List<Uri>();
+        var client = Build(_ => Json(HttpStatusCode.OK, """{ "value": [] }"""), audiences);
+
+        using var document = await client.SendAsync(
+            HttpMethod.Get, RequestUri, TestConnection(), TestCredential(), null, CancellationToken.None);
+
+        Assert.Equal(PowerAutomateEndpointProvider.PowerAppsServiceAudience, Assert.Single(audiences));
+    }
+
+    [Fact]
+    public async Task SendAsync_FallsBackToTheNextAudienceWhenTheFirstIsRejected()
     {
         var audiences = new List<Uri>();
         var calls = 0;
@@ -46,8 +60,57 @@ public class PowerAutomateApiClientTests
 
         Assert.Equal(2, calls);
         Assert.Equal(
-            [PowerAutomateEndpointProvider.PowerPlatformApiAudience, PowerAutomateEndpointProvider.FlowServiceAudience],
+            [
+                PowerAutomateEndpointProvider.PowerAppsServiceAudience,
+                PowerAutomateEndpointProvider.PowerPlatformApiAudience,
+            ],
             audiences);
+    }
+
+    [Fact]
+    public async Task SendAsync_SkipsAnAudienceWhoseTokenCannotBeIssued()
+    {
+        // Entra refuses some application/resource pairs outright
+        // (AADSTS65002). That must rule out the audience, not the request.
+        var audiences = new List<Uri>();
+        var tokens = new RecordingAccessTokenService(audiences)
+        {
+            FailFor = PowerAutomateEndpointProvider.PowerAppsServiceAudience,
+        };
+
+        var client = new PowerAutomateApiClient(
+            tokens, new FakeHttpClientFactoryWrapper(_ => Json(HttpStatusCode.OK, """{ "value": [] }""")));
+
+        using var document = await client.SendAsync(
+            HttpMethod.Get, RequestUri, TestConnection(), TestCredential(), null, CancellationToken.None);
+
+        Assert.Equal(
+            [
+                PowerAutomateEndpointProvider.PowerAppsServiceAudience,
+                PowerAutomateEndpointProvider.PowerPlatformApiAudience,
+            ],
+            audiences);
+    }
+
+    [Fact]
+    public async Task SendAsync_AnAudienceOverrideReplacesTheProbe()
+    {
+        var audiences = new List<Uri>();
+        var custom = new Uri("https://contoso.example/");
+        System.Environment.SetEnvironmentVariable(PowerAutomateApiClient.AudienceEnvironmentVariable, custom.AbsoluteUri);
+
+        try
+        {
+            var client = Build(_ => Json(HttpStatusCode.OK, """{ "value": [] }"""), audiences);
+            using var document = await client.SendAsync(
+                HttpMethod.Get, RequestUri, TestConnection(), TestCredential(), null, CancellationToken.None);
+
+            Assert.Equal(custom, Assert.Single(audiences));
+        }
+        finally
+        {
+            System.Environment.SetEnvironmentVariable(PowerAutomateApiClient.AudienceEnvironmentVariable, null);
+        }
     }
 
     [Fact]
@@ -68,9 +131,9 @@ public class PowerAutomateApiClientTests
         // Probe (rejected), probe (accepted), then straight to the known one.
         Assert.Equal(
             [
+                PowerAutomateEndpointProvider.PowerAppsServiceAudience,
                 PowerAutomateEndpointProvider.PowerPlatformApiAudience,
-                PowerAutomateEndpointProvider.FlowServiceAudience,
-                PowerAutomateEndpointProvider.FlowServiceAudience,
+                PowerAutomateEndpointProvider.PowerPlatformApiAudience,
             ],
             audiences);
     }
@@ -156,10 +219,17 @@ public class PowerAutomateApiClientTests
 
         public RecordingAccessTokenService(List<Uri>? audiences) => _audiences = audiences;
 
+        /// <summary>An audience this identity cannot be issued a token for.</summary>
+        public Uri? FailFor { get; init; }
+
         public Task<string> AcquireForResourceAsync(
             Connection connection, Credential credential, Uri resourceUri, CancellationToken ct)
         {
             _audiences?.Add(resourceUri);
+
+            if (FailFor is not null && FailFor == resourceUri)
+                throw new InvalidOperationException($"AADSTS65002: no preauthorization for {resourceUri}.");
+
             return Task.FromResult($"token-for-{resourceUri.Host}");
         }
     }

@@ -71,6 +71,23 @@ public class ConnectorOperationGetCliCommand : ProfiledCliCommand
 
             if (parameter.AllowedValues is { Count: > 0 } allowed)
                 OutputWriter.WriteLine($"{new string(' ', nameWidth)} | allowed: {string.Join(", ", allowed)}");
+
+            // Without this the parameter looks free-form when in fact its
+            // values, or its whole sub-schema, are resolved by another call.
+            Describe("values from", parameter.DynamicValues);
+            Describe("tree from", parameter.DynamicTree);
+            Describe("sub-schema from", parameter.DynamicSchema);
+
+            void Describe(string label, DynamicValuesRef? reference)
+            {
+                if (reference is null)
+                    return;
+
+                var arguments = reference.Parameters is { Count: > 0 } bag
+                    ? " (" + string.Join(", ", bag.Select(kv => $"{kv.Key}={kv.Value}")) + ")"
+                    : string.Empty;
+                OutputWriter.WriteLine($"{new string(' ', nameWidth)} | {label}: {reference.OperationId}{arguments}");
+            }
         }
     }
 #pragma warning restore TXC003

@@ -53,6 +53,17 @@ A connector action looks like this:
 - **Use `"source": "Embedded"`** in connection references, never `Invoker`.
 - **`kind: "Http"` triggers need Premium.** Use `kind: "Button"` otherwise.
 
+## Dynamically Resolved Parameters
+
+Some parameters are not statically described. `environment_connector_operation_get` reports where their values come from:
+
+- **`values from: <operation>`** — the allowed values are fetched at design time, so there is no static enum to check against.
+- **`sub-schema from: <operation>`** — the parameter is an object whose real fields are resolved per the values of *other* parameters. A `$ref:<name>` argument shows which ones.
+
+Teams `PostMessageToConversation` is the common example. It takes `poster`, `location` and `body`, where `body`'s fields are resolved by `GetUnifiedActionSchema` from the chosen `poster` and `location`. The flattened `body/...` names a finished action uses therefore cannot be read from the operation spec alone — they depend on those choices and require an existing connection to resolve.
+
+When you hit this, do not invent the sub-field names. Copy them from a working flow that already uses the same poster and location combination, or build that one action in the designer once and export it.
+
 ## What NOT to Do
 
 - ❌ Don't write parameter names from memory — call `environment_connector_operation_get` first

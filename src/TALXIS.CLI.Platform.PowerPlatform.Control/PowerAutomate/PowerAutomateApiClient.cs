@@ -23,6 +23,13 @@ internal sealed class PowerAutomateApiClient
     private const int InitialRetryDelayMs = 500;
 
     /// <summary>
+    /// Comma-separated audience override for the Power Automate metadata
+    /// endpoints, tried in order instead of the built-in probe. Useful where an
+    /// app registration can reach only one of the candidate resources.
+    /// </summary>
+    public const string AudienceEnvironmentVariable = "TXC_POWERAUTOMATE_AUDIENCE";
+
+    /// <summary>
     /// Which audience the <c>/powerautomate/*</c> endpoints accept, learned at
     /// runtime and remembered per cloud. The Power Platform API resource is
     /// tried first because txc already uses it against this host; Microsoft's
@@ -75,8 +82,21 @@ internal sealed class PowerAutomateApiClient
             var audience = audiences[i];
             var isLastAudience = i == audiences.Count - 1;
 
-            var token = await _tokens.AcquireForResourceAsync(connection, credential, audience, ct)
-                .ConfigureAwait(false);
+            string token;
+            try
+            {
+                token = await _tokens.AcquireForResourceAsync(connection, credential, audience, ct)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception ex) when (!isLastAudience)
+            {
+                // Some resources cannot be issued a token for this application
+                // at all (Entra AADSTS65002). That rules the audience out; it
+                // must not rule out the ones still untried.
+                _logger.LogDebug(ex, "Could not obtain a token for audience {Audience}; trying the next one.", audience);
+                lastFailure = ex;
+                continue;
+            }
 
             var response = await SendWithRetriesAsync(method, requestUri, token, jsonBody, ct).ConfigureAwait(false);
 
@@ -111,11 +131,34 @@ internal sealed class PowerAutomateApiClient
     /// </summary>
     private static IReadOnlyList<Uri> GetAudienceCandidates(CloudInstance cloud)
     {
+        // An explicit override wins outright, so a tenant whose app registration
+        // only reaches one of these resources can pin it.
+        var configured = Environment.GetEnvironmentVariable(AudienceEnvironmentVariable);
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            var overrides = configured
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(value => Uri.TryCreate(value, UriKind.Absolute, out _))
+                .Select(value => new Uri(value))
+                .ToArray();
+
+            if (overrides.Length > 0)
+                return overrides;
+        }
+
         if (ResolvedAudiences.TryGetValue(cloud, out var known))
             return new[] { known };
 
-        var flow = PowerAutomateEndpointProvider.GetFlowServiceAudience(cloud);
-        return new[] { PowerAutomateEndpointProvider.PowerPlatformApiAudience, flow };
+        // Power Apps service first: it is what these routes actually accept and
+        // what the pinned pac application can obtain. The Flow service is last
+        // because Entra refuses to issue that app a token for it at all, so it
+        // only helps a tenant running a custom client id.
+        return new[]
+        {
+            PowerAutomateEndpointProvider.PowerAppsServiceAudience,
+            PowerAutomateEndpointProvider.PowerPlatformApiAudience,
+            PowerAutomateEndpointProvider.GetFlowServiceAudience(cloud),
+        };
     }
 
     private async Task<RawResponse> SendWithRetriesAsync(

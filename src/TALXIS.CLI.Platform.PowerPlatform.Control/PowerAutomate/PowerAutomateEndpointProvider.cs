@@ -10,8 +10,20 @@ namespace TALXIS.CLI.Platform.PowerPlatform.Control.PowerAutomate;
 internal static class PowerAutomateEndpointProvider
 {
     /// <summary>
-    /// Primary audience. txc already reaches this host with a Power Platform
-    /// API token for the copilot governance surface, so it is tried first.
+    /// Primary audience for the Power Automate metadata endpoints.
+    /// </summary>
+    /// <remarks>
+    /// Verified against a live tenant: the <c>/powerautomate/*</c> routes accept
+    /// a Power Apps service token and reject a Power Platform API token with
+    /// 401, even though the latter works for other routes on the same host.
+    /// This resource is also one the pinned pac application can obtain, unlike
+    /// the Flow service.
+    /// </remarks>
+    public static readonly Uri PowerAppsServiceAudience = new("https://service.powerapps.com/");
+
+    /// <summary>
+    /// Second choice. Correct for the <c>/connectivity/*</c> routes and other
+    /// surfaces on the same host.
     /// </summary>
     public static readonly Uri PowerPlatformApiAudience = new("https://api.powerplatform.com/");
 
