@@ -31,10 +31,9 @@ internal sealed class PowerAutomateApiClient
 
     /// <summary>
     /// Which audience the <c>/powerautomate/*</c> endpoints accept, learned at
-    /// runtime and remembered per cloud. The Power Platform API resource is
-    /// tried first because txc already uses it against this host; Microsoft's
-    /// own tooling uses the Flow service resource, so that is the fallback.
-    /// Populated on first success to keep later calls to one token request.
+    /// runtime and remembered per cloud so later calls make one token request
+    /// rather than repeating the probe. See
+    /// <see cref="GetAudienceCandidates"/> for the order and why.
     /// </summary>
     private static readonly ConcurrentDictionary<CloudInstance, Uri> ResolvedAudiences = new();
 
@@ -149,15 +148,15 @@ internal sealed class PowerAutomateApiClient
         if (ResolvedAudiences.TryGetValue(cloud, out var known))
             return new[] { known };
 
-        // Power Apps service first: it is what these routes actually accept and
-        // what the pinned pac application can obtain. The Flow service is last
-        // because Entra refuses to issue that app a token for it at all, so it
-        // only helps a tenant running a custom client id.
+        // Power Apps service first: it is what these routes actually accept.
+        // Microsoft's own tooling uses the Flow service resource instead, but
+        // Entra refuses to issue the pinned pac application a token for it
+        // (AADSTS65002), so probing it would only ever cost a round trip. A
+        // tenant with an application that can reach it sets the override.
         return new[]
         {
             PowerAutomateEndpointProvider.PowerAppsServiceAudience,
             PowerAutomateEndpointProvider.PowerPlatformApiAudience,
-            PowerAutomateEndpointProvider.GetFlowServiceAudience(cloud),
         };
     }
 

@@ -30,34 +30,6 @@ public sealed class MsalClientFactory
     /// </summary>
     public const string PublicClientId = "9cee029c-6210-4654-90bb-17e6e9d36617";
 
-    /// <summary>
-    /// Environment variable that replaces <see cref="PublicClientId"/> for
-    /// public-client flows.
-    /// </summary>
-    /// <remarks>
-    /// The pac app is not preauthorized for every Power Platform resource — in
-    /// particular Entra refuses to issue it a token for the Microsoft Flow
-    /// Service (AADSTS65002), which the Power Automate connector metadata
-    /// endpoints require. Registering an Entra app with those scopes and
-    /// pointing this variable at it is the supported way out.
-    /// </remarks>
-    public const string ClientIdEnvironmentVariable = "TXC_ENTRA_CLIENT_ID";
-
-    /// <summary>
-    /// The public-client id actually used, honouring
-    /// <see cref="ClientIdEnvironmentVariable"/> when it holds a GUID.
-    /// </summary>
-    public static string EffectivePublicClientId
-    {
-        get
-        {
-            var configured = Environment.GetEnvironmentVariable(ClientIdEnvironmentVariable);
-            return !string.IsNullOrWhiteSpace(configured) && Guid.TryParse(configured.Trim(), out _)
-                ? configured.Trim()
-                : PublicClientId;
-        }
-    }
-
     /// <summary>Redirect URI registered on the <see cref="PublicClientId"/> app.</summary>
     public const string PublicRedirectUri = "http://localhost";
 
@@ -73,7 +45,7 @@ public sealed class MsalClientFactory
         var authority = ResolveAuthority(connection);
 
         return PublicClientApplicationBuilder
-            .Create(EffectivePublicClientId)
+            .Create(PublicClientId)
             .WithRedirectUri(PublicRedirectUri)
             .WithAuthority(authority.AbsoluteUri, validateAuthority: false)
             .Build();
@@ -92,7 +64,7 @@ public sealed class MsalClientFactory
         var authority = EntraCloudMap.BuildAuthorityUri(cloud, tenantId);
 
         return PublicClientApplicationBuilder
-            .Create(EffectivePublicClientId)
+            .Create(PublicClientId)
             .WithRedirectUri(PublicRedirectUri)
             .WithAuthority(authority.AbsoluteUri, validateAuthority: false)
             .Build();

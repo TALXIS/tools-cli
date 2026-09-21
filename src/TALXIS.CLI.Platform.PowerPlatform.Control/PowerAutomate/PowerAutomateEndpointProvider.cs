@@ -1,5 +1,3 @@
-using TALXIS.CLI.Core.Model;
-
 namespace TALXIS.CLI.Platform.PowerPlatform.Control.PowerAutomate;
 
 /// <summary>
@@ -27,13 +25,6 @@ internal static class PowerAutomateEndpointProvider
     /// </summary>
     public static readonly Uri PowerPlatformApiAudience = new("https://api.powerplatform.com/");
 
-    /// <summary>
-    /// Fallback audience. Microsoft's own Power Automate tooling authenticates
-    /// the <c>/powerautomate/*</c> endpoints against the Flow service resource,
-    /// so this is tried if the primary audience is rejected.
-    /// </summary>
-    public static readonly Uri FlowServiceAudience = new("https://service.flow.microsoft.com/");
-
     public const string ApiVersion = "1";
 
     /// <summary>
@@ -41,18 +32,6 @@ internal static class PowerAutomateEndpointProvider
     /// catalog, matching what the Power Automate designer sends.
     /// </summary>
     private const string ConnectorHideKey = "M365Copilot";
-
-    /// <summary>Resolves the Flow service audience for a sovereign cloud.</summary>
-    public static Uri GetFlowServiceAudience(CloudInstance cloud)
-        => cloud switch
-        {
-            CloudInstance.Public => FlowServiceAudience,
-            CloudInstance.Gcc => new Uri("https://gov.service.flow.microsoft.us/"),
-            CloudInstance.GccHigh => new Uri("https://high.service.flow.microsoft.us/"),
-            CloudInstance.Dod => new Uri("https://dod.service.flow.microsoft.us/"),
-            _ => throw new NotSupportedException(
-                $"Power Automate metadata is not wired for cloud '{cloud}' in this release."),
-        };
 
     /// <summary><c>/powerautomate/apis</c> — the connector catalog.</summary>
     public static Uri Connectors(Uri baseUri, int? top)
