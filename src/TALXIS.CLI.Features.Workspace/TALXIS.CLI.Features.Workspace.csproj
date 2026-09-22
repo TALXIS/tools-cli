@@ -22,8 +22,8 @@
          referenced explicitly here because TemplatePackageService consumes NuGetVersion directly
          to correctly rank prerelease/build-metadata versions per SemVer 2.0. -->
     <PackageReference Include="NuGet.Versioning" Version="6.13.2" />
-    <PackageReference Include="TALXIS.Platform.Metadata.Validation" Version="0.9.0" />
-    <PackageReference Include="TALXIS.Platform.Metadata.Serialization.Xml" Version="0.9.0" />
+    <PackageReference Include="TALXIS.Platform.Metadata.Validation" Version="0.10.0" />
+    <PackageReference Include="TALXIS.Platform.Metadata.Serialization.Xml" Version="0.10.0" />
   </ItemGroup>
 
   <ItemGroup>
