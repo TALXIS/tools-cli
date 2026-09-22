@@ -149,25 +149,12 @@ internal sealed class CopilotGovernanceSettingsBackend : ISettingsBackend
     }
 
     /// <summary>
-    /// Builds the environment-scoped API base URL. The hostname format is
-    /// <c>{envId-no-dashes-with-dot}.environment.api.powerplatform.com</c>
-    /// where the GUID is stripped of dashes and a dot is inserted before
-    /// the last two characters.
+    /// Builds the environment-scoped API base URL. Delegates to the shared
+    /// <see cref="PowerPlatformEnvironmentApiEndpoints"/> so this backend and
+    /// the Power Automate connector client derive the host identically.
     /// </summary>
     internal static string BuildEnvironmentApiBaseUri(Guid environmentId, CloudInstance cloud)
-    {
-        var noDashes = environmentId.ToString("N"); // 32 hex chars, no dashes
-        var hostPrefix = noDashes[..^2] + "." + noDashes[^2..];
-
-        var domain = cloud switch
-        {
-            CloudInstance.Public or CloudInstance.Gcc => "environment.api.powerplatform.com",
-            _ => throw new NotSupportedException(
-                $"Copilot governance API is not wired for cloud '{cloud}' in this release."),
-        };
-
-        return $"https://{hostPrefix}.{domain}/";
-    }
+        => PowerPlatformEnvironmentApiEndpoints.BuildBaseUri(environmentId, cloud).ToString();
 
     private static string Truncate(string s, int max)
         => string.IsNullOrEmpty(s) ? string.Empty : (s.Length <= max ? s : s[..max] + "...");
