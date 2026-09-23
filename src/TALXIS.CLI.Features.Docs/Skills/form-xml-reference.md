@@ -47,6 +47,8 @@ Build forms top-down. Each level is a separate template call:
 
 All form fragment templates require `FormId`, `FormType`, and `EntitySchemaName` parameters. Generate the `FormId` GUID once and reuse it across all calls for the same form.
 
+To verify the resulting structure without reading the XML, call `workspace_component_inspect` (`--type Form --id <FormId>`): it returns the tab / section / control tree with data field bindings. Works for entities too (`--type Entity --id <logicalname>` lists attributes with types and required levels).
+
 ### ControlType values for pp-form-control
 `Text`, `MultilineText`, `WholeNumber`, `Decimal`, `Float`, `Currency`, `DateTime`, `Lookup`, `OptionSet`, `SubGrid`, `Button`
 
