@@ -48,12 +48,12 @@ internal static class SolutionComponentQueryReader
                    "&api-version=9.1" +
                    (top.HasValue ? $"&$top={top.Value}" : "");
 
-        var headers = new Dictionary<string, List<string>>
+        static Dictionary<string, List<string>> BuildHeaders() => new()
         {
             ["Prefer"] = new() { "odata.maxpagesize=5000" },
         };
 
-        var response = client.ExecuteWebRequest(HttpMethod.Get, path, string.Empty, headers);
+        var response = client.ExecuteWebRequest(HttpMethod.Get, path, string.Empty, BuildHeaders());
         response.EnsureSuccessStatusCode();
 
         var rows = new List<ComponentSummaryRow>();
@@ -80,7 +80,7 @@ internal static class SolutionComponentQueryReader
                 relativePath = relativePath[(relativePath.IndexOf('/') + 1)..];
 
             response.Dispose();
-            response = client.ExecuteWebRequest(HttpMethod.Get, relativePath, string.Empty, headers);
+            response = client.ExecuteWebRequest(HttpMethod.Get, relativePath, string.Empty, BuildHeaders());
             response.EnsureSuccessStatusCode();
             await ParsePageAsync(response, rows, ct).ConfigureAwait(false);
         }
