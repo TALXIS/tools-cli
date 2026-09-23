@@ -136,49 +136,39 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
             ? null
             : await FindExistingProfileAsync(existingConnection.Id, acquired.Credential.Id, ct).ConfigureAwait(false);
 
+        // Resolve environment metadata on every path (not only when deriving
+        // a name) so EnvironmentType reaches the connection and the
+        // destructive-operation guard can tell dev/test apart from production.
+        var environment = await TryGetEnvironmentAsync(request, environmentUrl, cloud, acquired, ct).ConfigureAwait(false);
+
+        // Fall back to metadata already stored on the connection so a failed
+        // catalog lookup does not wipe values a previous refresh persisted.
+        var resolvedEnvironmentId = environment?.EnvironmentId ?? existingConnection?.EnvironmentId;
+        var resolvedDisplayName = environment?.DisplayName ?? existingConnection?.DisplayName;
+        var resolvedEnvironmentType = environment?.EnvironmentType ?? existingConnection?.EnvironmentType;
+        var resolvedOrganizationId = environment?.OrganizationId;
+        if (resolvedOrganizationId is null && Guid.TryParse(existingConnection?.OrganizationId, out var existingOrgId))
+            resolvedOrganizationId = existingOrgId;
+
         if (!string.IsNullOrEmpty(explicitName))
-            return new BindingNames(explicitName, existingConnection?.Id ?? explicitName);
+        {
+            return new BindingNames(explicitName, existingConnection?.Id ?? explicitName,
+                resolvedEnvironmentId, resolvedDisplayName, resolvedEnvironmentType, resolvedOrganizationId);
+        }
 
         if (existingProfile is not null)
-            return new BindingNames(existingProfile.Id, existingProfile.ConnectionRef!);
+        {
+            return new BindingNames(existingProfile.Id, existingProfile.ConnectionRef!,
+                resolvedEnvironmentId, resolvedDisplayName, resolvedEnvironmentType, resolvedOrganizationId);
+        }
 
         string? preferredBase = null;
-        Guid? resolvedEnvironmentId = null;
-        string? resolvedDisplayName = null;
-        EnvironmentType? resolvedEnvironmentType = null;
-        Guid? resolvedOrganizationId = null;
-        var ephemeralConnection = new Connection
+        if (environment is not null)
         {
-            Id = "(ephemeral)",
-            Provider = request.Provider,
-            EnvironmentUrl = environmentUrl.ToString().TrimEnd('/'),
-            Cloud = cloud,
-            TenantId = request.TenantId ?? acquired.TenantId,
-        };
-
-        try
-        {
-            var environment = await _environmentCatalog
-                .TryGetByEnvironmentUrlAsync(ephemeralConnection, acquired.Credential, environmentUrl, ct)
-                .ConfigureAwait(false);
-            if (environment is not null)
-            {
-                // Include tenant domain in the slug so multi-customer users can
-                // distinguish environments across tenants at a glance.
-                var tenantDomain = CredentialAliasResolver.ExtractTenantShortName(acquired.Upn);
-                preferredBase = ProviderUrlResolver.DeriveDefaultName(environment.DisplayName, request.EnvironmentUrl, tenantDomain);
-                resolvedEnvironmentId = environment.EnvironmentId;
-                resolvedDisplayName = environment.DisplayName;
-                resolvedEnvironmentType = environment.EnvironmentType;
-                resolvedOrganizationId = environment.OrganizationId;
-            }
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException)
-        {
-            _logger.LogWarning(
-                ex,
-                "Could not resolve Power Platform environment metadata for '{Url}'. Falling back to the URL host.",
-                request.EnvironmentUrl);
+            // Include tenant domain in the slug so multi-customer users can
+            // distinguish environments across tenants at a glance.
+            var tenantDomain = CredentialAliasResolver.ExtractTenantShortName(acquired.Upn);
+            preferredBase = ProviderUrlResolver.DeriveDefaultName(environment.DisplayName, request.EnvironmentUrl, tenantDomain);
         }
 
         if (string.IsNullOrEmpty(preferredBase))
@@ -212,6 +202,38 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
 
         return new BindingNames(sharedName, sharedName, resolvedEnvironmentId,
             resolvedDisplayName, resolvedEnvironmentType, resolvedOrganizationId);
+    }
+
+    private async Task<PowerPlatformEnvironmentSummary?> TryGetEnvironmentAsync(
+        ProfileBootstrapRequest request,
+        Uri environmentUrl,
+        CloudInstance cloud,
+        InteractiveCredentialResult acquired,
+        CancellationToken ct)
+    {
+        var ephemeralConnection = new Connection
+        {
+            Id = "(ephemeral)",
+            Provider = request.Provider,
+            EnvironmentUrl = environmentUrl.ToString().TrimEnd('/'),
+            Cloud = cloud,
+            TenantId = request.TenantId ?? acquired.TenantId,
+        };
+
+        try
+        {
+            return await _environmentCatalog
+                .TryGetByEnvironmentUrlAsync(ephemeralConnection, acquired.Credential, environmentUrl, ct)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException)
+        {
+            _logger.LogWarning(
+                ex,
+                "Could not resolve Power Platform environment metadata for '{Url}'. Falling back to the URL host.",
+                request.EnvironmentUrl);
+            return null;
+        }
     }
 
     private async Task<Connection?> FindExistingConnectionAsync(
