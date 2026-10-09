@@ -1,4 +1,4 @@
-﻿using System.Xml.Serialization;
+using System.Xml.Serialization;
 using System.Collections.Generic;
 namespace TALXIS.CLI.Features.Data.DataModelConverter.Model;
 
@@ -260,4 +260,15 @@ public class RibbonDiffXml
             }
         }
     }
+
+    public void RemoveDeclaredIn(RibbonDiffXml other)
+    {
+        RemoveDeclared(CustomActions?.CustomAction, other.CustomActions?.CustomAction, x => x.Id);
+        RemoveDeclared(CommandDefinitions?.CommandDefinition, other.CommandDefinitions?.CommandDefinition, x => x.Id);
+        RemoveDeclared(RuleDefinitions?.EnableRules?.EnableRule, other.RuleDefinitions?.EnableRules?.EnableRule, x => x.Id);
+        RemoveDeclared(LocLabels?.LocLabel, other.LocLabels?.LocLabel, x => x.Id);
+    }
+
+    private static void RemoveDeclared<T>(List<T>? incoming, List<T>? existing, Func<T, string?> id) =>
+        incoming?.RemoveAll(x => !string.IsNullOrEmpty(id(x)) && existing?.Any(y => id(y) == id(x)) == true);
 }
