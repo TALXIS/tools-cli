@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -24,6 +24,7 @@ public class TableRow
     public int MaxLenght { get; set; }
     public string OptionSetName { get; set; }
     public RowType RowType { get; set; }
+    public bool? IsLogical { get; set; }
 
     internal static TableRow? ParseXElement(XElement attribute)
     {
@@ -115,7 +116,8 @@ public class TableRow
         return new TableRow(attribute.Attribute("PhysicalName").Value.ToLower(), rowType)
         {
             MaxLenght = maxLength,
-            OptionSetName = optionsetName
+            OptionSetName = optionsetName,
+            IsLogical = attribute.Element("IsLogical") is { } isLogical ? isLogical.Value == "1" : null
         };
 
     }

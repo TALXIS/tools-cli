@@ -20,10 +20,39 @@ public class DataModelConvertCliCommand : TxcLeafCommand
     [CliOption(
         Name = "--input",
         Aliases = ["-i"],
-        Description = "Path to the input: a solution project folder (.cdsproj/.csproj with SolutionRootPath), a declarations folder, or a .zip solution file. Defaults to the current directory.",
+        Description = "Path to an input: a solution project folder (.cdsproj/.csproj with SolutionRootPath), a declarations folder, or a .zip solution file. Repeat the option to merge several inputs (earlier ones win on conflicts); defaults to the current directory when neither --input nor --root is given.",
         Required = false
     )]
-    public string? InputPath { get; set; }
+    public List<string> InputPaths { get; set; } = [];
+
+    [CliOption(
+        Name = "--root",
+        Description = "Folder to search for declarations folders, each of which becomes an input after any --input. Repeat the option for several folders; a folder with no declarations is an error.",
+        Required = false
+    )]
+    public List<string> Roots { get; set; } = [];
+
+    [CliOption(
+        Name = "--app",
+        Description = "Unique name of a model-driven app, to narrow the output to the tables that app is built on. Its app module is read from unpacked source under --root, or under the inputs when no --root is given.",
+        Required = false
+    )]
+    public string? AppUniqueName { get; set; }
+
+    [CliOption(
+        Name = "--detail",
+        Description = "'full' emits everything the inputs declare; 'minimal' keeps the columns that any form, view, workflow, chart, sitemap or .cs, .ts or .js file under --root (or under the inputs) refers to, plus keys, state columns and relationship columns. 'minimal' drops platform plumbing, keeps an N:N only between tables of the app, and requires --app and --target dbml.",
+        AllowedValues = new[] { "full", "minimal" },
+        Required = false
+    )]
+    public string Detail { get; set; } = "full";
+
+    [CliOption(
+        Name = "--show-dropped",
+        Description = "List every column --detail minimal left out and the reason, instead of only the counts per reason.",
+        Required = false
+    )]
+    public bool ShowDropped { get; set; }
 
     [CliOption(
         Name = "--target",
@@ -41,20 +70,59 @@ public class DataModelConvertCliCommand : TxcLeafCommand
     )]
     public string? OutputDirectory { get; set; }
 
+    [CliOption(
+        Name = "--include-attributes",
+        Description = "Comma-separated attribute name patterns to keep, such as \"contoso_*,ownerid\", where '*' and '?' are wildcards and case is ignored. Full detail keeps only matching columns plus primary keys and relationship columns (every attribute when omitted), while --detail minimal keeps matching columns in addition to the ones that files refer to.",
+        Required = false
+    )]
+    public string? IncludeAttributes { get; set; }
+
     protected override Task<int> ExecuteAsync()
     {
-        var inputPath = InputPath ?? Directory.GetCurrentDirectory();
+        var detail = string.Equals(Detail, "minimal", StringComparison.OrdinalIgnoreCase) ? DetailLevel.Minimal : DetailLevel.Full;
+        DataModelConverterService.ValidateDetail(detail, TargetFormat!, AppUniqueName);
+
+        var inputPaths = new List<string>(InputPaths);
+
+        foreach (var root in Roots)
+        {
+            var discovered = DataModelConverterService.DiscoverDeclarationFolders(root);
+            if (discovered.Count == 0)
+            {
+                throw new ArgumentException($"No declarations were found under root '{root}'. A declarations folder holds Entities/<table>/Entity.xml.");
+            }
+            inputPaths.AddRange(discovered);
+        }
+
+        if (InputPaths.Count == 0 && Roots.Count == 0)
+        {
+            inputPaths.Add(Directory.GetCurrentDirectory());
+        }
+
         var outputDir = OutputDirectory ?? Path.Combine(Directory.GetCurrentDirectory(), ExportsFolderName);
-
-        Directory.CreateDirectory(outputDir);
-        EnsureGitIgnored(outputDir);
-
         var extension = TargetFormat!.ToLower() == "plainsql" ? "sql" : TargetFormat.ToLower();
         var outputFilePath = Path.Combine(outputDir, $"solution.{extension}");
 
-        DataModelConverterService.ConvertModel(inputPath, TargetFormat!, outputFilePath);
+        var includeAttributes = AttributeFilter.ParsePatterns(IncludeAttributes);
 
-        OutputFormatter.WriteResult("succeeded", $"Output written to: {outputFilePath}");
+        var dropped = DataModelConverterService.ConvertModel(inputPaths, TargetFormat!, outputFilePath, AppUniqueName, Roots, includeAttributes, detail);
+        EnsureGitIgnored(outputDir);
+
+        OutputFormatter.WriteData(DataModelConvertResult.For(outputFilePath, detail, dropped, ShowDropped), result =>
+        {
+            OutputWriter.WriteLine(result.Message);
+
+            foreach (var reason in result.DroppedByReason ?? [])
+            {
+                OutputWriter.WriteLine($"  dropped {reason.Count} column(s): {reason.Reason}");
+            }
+
+            foreach (var column in result.DroppedColumns ?? [])
+            {
+                OutputWriter.WriteLine($"    {column.Table}.{column.Column} ({column.Reason})");
+            }
+        });
+
         return Task.FromResult(ExitSuccess);
     }
 

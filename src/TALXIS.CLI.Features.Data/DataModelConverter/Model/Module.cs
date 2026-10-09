@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -9,31 +9,51 @@ namespace TALXIS.CLI.Features.Data.DataModelConverter.Model;
 
 public class Module
 {
-    public Module()
-    {
-        var random = new Random();
-        Colorhex = string.Format("#{0:X6}", random.Next(0x1000000));
-    }
+    public Module() { }
 
     public Module(string module, XDocument xml)
     {
         ModuleName = module;
         XmlDoc = xml;
 
-        var random = new Random();
-        Colorhex = string.Format("#{0:X6}", random.Next(0x1000000));
-
         entities = XmlDoc.Descendants().Where(x => x.Name == "Entity").ToList();
         relationships = XmlDoc.Descendants().Where(x => x.Name == "EntityRelationship").ToList();
         optionsets = XmlDoc.Descendants().Where(x => x.Name == "optionset").ToList();
     }
 
+    public static string? PrefixFrom(XDocument solutionManifest)
+    {
+        var prefix = solutionManifest.Descendants().FirstOrDefault(x => x.Name == "CustomizationPrefix")?.Value.Trim();
+        return string.IsNullOrEmpty(prefix) ? null : prefix;
+    }
+
     public string ModuleName { get; set; } = "";
     public XDocument XmlDoc { get; set; } = new XDocument();
+    public string? CustomizationPrefix { get; set; }
 
     public List<XElement> entities = [];
     public List<XElement> relationships = [];
     public List<XElement> optionsets = [];
 
-    public string Colorhex { get; }
+    /// <summary>Computed, not assigned in the constructor: an object initializer sets
+    /// ModuleName after the constructor body runs, which would colour every module
+    /// from an empty name.</summary>
+    public string Colorhex => ColourFor(ModuleName);
+
+    /// <summary>
+    /// Derives the module colour from its name so the same input always converts to the
+    /// same bytes. A random colour made every conversion a spurious diff, which meant a
+    /// generated diagram could not be committed or compared across a model change.
+    /// FNV-1a rather than string.GetHashCode, which is randomised per process on .NET Core.
+    /// </summary>
+    private static string ColourFor(string moduleName)
+    {
+        uint hash = 2166136261;
+        foreach (var c in moduleName ?? string.Empty)
+        {
+            hash ^= c;
+            hash *= 16777619;
+        }
+        return string.Format("#{0:X6}", hash & 0xFFFFFF);
+    }
 }

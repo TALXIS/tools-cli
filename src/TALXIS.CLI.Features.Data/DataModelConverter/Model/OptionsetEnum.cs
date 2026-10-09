@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -27,14 +27,9 @@ public class OptionsetEnum
     {
         foreach (var newoption in options)
         {
-            OptionsetRow optionsetRow = Values.FirstOrDefault(x => x.Value == newoption.Value);
-            if (optionsetRow == default)
+            if (!Values.Any(x => x.Value == newoption.Value))
             {
                 Values.Add(newoption);
-            }
-            else
-            {
-                if (optionsetRow.Label != newoption.Label) optionsetRow.Label = $"{newoption.Label}";
             }
         }
     }
