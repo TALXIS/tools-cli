@@ -10,7 +10,7 @@ namespace TALXIS.CLI.Features.Config.Profile;
 /// </summary>
 [CliCommand(
     Name = "profile",
-    Description = "Manage profiles (bind one auth to one connection).",
+    Description = "Manage profiles (bind one auth to one connection). Profile = context (\"which environment, as whom\"); Connection = where; Credential = who. Run 'profile list' before 'profile create' — reuse an existing profile instead of guessing a new one.",
     Children = new[]
     {
         typeof(ProfileCreateCliCommand),

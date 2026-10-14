@@ -35,7 +35,7 @@ namespace TALXIS.CLI.Features.Config.Profile;
 [CliIdempotent]
 [CliCommand(
     Name = "create",
-    Description = "Create a profile. Quickstart: --url <env>. Advanced: --auth <alias> --connection <name>."
+    Description = "Create a profile. Check 'txc config profile list' and 'txc config connection list' first — reuse an existing profile/connection when one already targets the environment you need instead of creating a new one. Quickstart: --url <env>. Advanced: --auth <alias> --connection <name>."
 )]
 public class ProfileCreateCliCommand : TxcLeafCommand
 {
