@@ -25,17 +25,47 @@ public class TxcTelemetryLogProviderTests
     }
 
     [Fact]
-    public void LogError_WithException_RecordsExceptionEventWithoutOverwritingErrorMessage()
+    public void LogError_WithException_RecordsExceptionEventAndPromotesContext()
     {
         using var listener = CreateListener();
         using var activity = TxcActivitySource.Instance.StartActivity("workspace_validate");
         using var provider = new TxcTelemetryLogProvider();
         var logger = provider.CreateLogger("test");
 
+        activity?.SetTag(TxcTelemetryTags.EndUserId, "user-123");
+        activity?.SetTag(TxcTelemetryTags.EndUserIdDimension, "user-123");
+        activity?.SetTag(TxcTelemetryTags.EndUserName, "user@example.com");
+        activity?.SetTag(TxcTelemetryTags.EndUserScope, "tenant-456");
+        activity?.SetTag(TxcTelemetryTags.EnvironmentName, "Sandbox");
+
+        logger.LogError(
+            new InvalidOperationException("outer", new InvalidOperationException("boom")),
+            "Command failed");
+
+        Assert.Equal("boom", activity?.GetTagItem(TxcTelemetryTags.ErrorMessage));
+
+        var exceptionEvent = Assert.Single(activity!.Events, e => e.Name == "exception");
+        Assert.Contains(exceptionEvent.Tags, tag => tag.Key == TxcTelemetryTags.EndUserId && Equals(tag.Value, "user-123"));
+        Assert.Contains(exceptionEvent.Tags, tag => tag.Key == TxcTelemetryTags.EndUserIdDimension && Equals(tag.Value, "user-123"));
+        Assert.Contains(exceptionEvent.Tags, tag => tag.Key == TxcTelemetryTags.EndUserName && Equals(tag.Value, "user@example.com"));
+        Assert.Contains(exceptionEvent.Tags, tag => tag.Key == TxcTelemetryTags.EndUserScope && Equals(tag.Value, "tenant-456"));
+        Assert.Contains(exceptionEvent.Tags, tag => tag.Key == TxcTelemetryTags.EnvironmentName && Equals(tag.Value, "Sandbox"));
+        Assert.Contains(exceptionEvent.Tags, tag => tag.Key == TxcTelemetryTags.ErrorMessage && Equals(tag.Value, "boom"));
+    }
+
+    [Fact]
+    public void LogError_WithException_DoesNotOverwriteExistingErrorMessage()
+    {
+        using var listener = CreateListener();
+        using var activity = TxcActivitySource.Instance.StartActivity("workspace_validate");
+        using var provider = new TxcTelemetryLogProvider();
+        var logger = provider.CreateLogger("test");
+
+        activity?.SetTag(TxcTelemetryTags.ErrorMessage, "existing-message");
+
         logger.LogError(new InvalidOperationException("boom"), "Command failed");
 
-        Assert.Null(activity?.GetTagItem(TxcTelemetryTags.ErrorMessage));
-        Assert.Contains(activity!.Events, e => e.Name == "exception");
+        Assert.Equal("existing-message", activity?.GetTagItem(TxcTelemetryTags.ErrorMessage));
     }
 
     private static ActivityListener CreateListener()
