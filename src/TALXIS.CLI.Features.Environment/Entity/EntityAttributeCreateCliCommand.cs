@@ -32,7 +32,7 @@ public class EntityAttributeCreateCliCommand : StagedCliCommand
     [CliOption(Name = "--name", Description = "Schema name for the new column.", Required = true)]
     public string Name { get; set; } = null!;
 
-    [CliOption(Name = "--type", Description = "Column type: string, memo, number, decimal, float, money, bool, datetime, choice, multichoice, lookup, polymorphic-lookup, customer, image, file, bigint.", Required = true)]
+    [CliOption(Name = "--type", Description = "Column type: string, memo, number, decimal, float, money, bool, datetime, choice, multichoice, lookup, polymorphic-lookup, customer, image, file, bigint. Add --formula-definition to make any supported type a formula column.", Required = true)]
     public AttributeTypeArg Type { get; set; }
 
     // === Optional for all types ===
@@ -134,6 +134,11 @@ public class EntityAttributeCreateCliCommand : StagedCliCommand
     [DefaultValue(true)]
     public bool CanStoreFullImage { get; set; } = true;
 
+    // === Formula ===
+
+    [CliOption(Name = "--formula-definition", Description = "Power Fx formula expression. When provided, creates the column as a formula field (SourceType=3). Supported types: string, number, decimal, float, money, bool, datetime, choice, multichoice.", Required = false)]
+    public string? FormulaDefinition { get; set; }
+
     protected override async Task<int> ExecuteAsync()
     {
         ValidateExecutionMode();
@@ -177,6 +182,7 @@ public class EntityAttributeCreateCliCommand : StagedCliCommand
                     ["cascadeDelete"] = options.CascadeDelete,
                     ["maxSizeKb"] = options.MaxSizeKb,
                     ["canStoreFullImage"] = options.CanStoreFullImage,
+                    ["formulaDefinition"] = options.FormulaDefinition,
                     ["isAuditable"] = options.IsAuditable,
                     ["isSearchable"] = options.IsSearchable,
                     ["isSecured"] = options.IsSecured
@@ -272,6 +278,9 @@ public class EntityAttributeCreateCliCommand : StagedCliCommand
             // Image/File
             MaxSizeKb = MaxSizeKb,
             CanStoreFullImage = CanStoreFullImage,
+
+            // Formula
+            FormulaDefinition = FormulaDefinition,
 
             // Shared metadata properties
             IsAuditable = IsAuditable,
