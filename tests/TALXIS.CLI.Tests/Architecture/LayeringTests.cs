@@ -67,7 +67,7 @@ public class LayeringTests
             typeof(TALXIS.CLI.Features.Environment.EnvironmentCliCommand).Assembly,
             typeof(TALXIS.CLI.Features.Workspace.WorkspaceCliCommand).Assembly,
             typeof(TALXIS.CLI.Features.Data.DataCliCommand).Assembly,
-            typeof(TALXIS.CLI.Features.Tenant.TenantCliCommand).Assembly,
+            typeof(TALXIS.CLI.Features.Security.SecurityCliCommand).Assembly,
         };
 
         var violations = commandAssemblies

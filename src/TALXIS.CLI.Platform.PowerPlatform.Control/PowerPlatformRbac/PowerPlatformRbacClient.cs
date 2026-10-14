@@ -59,22 +59,79 @@ public sealed class PowerPlatformRbacClient
         Credential credential,
         CancellationToken ct)
     {
-        var scope = BuildTenantScope(connection);
         var initialRequestUri = BuildUri(
             connection,
-            $"authorization/roleAssignments?api-version={ApiVersion}&scope={Uri.EscapeDataString(scope)}");
+            $"authorization/roleAssignments?api-version={ApiVersion}&scope={Uri.EscapeDataString(BuildTenantScope(connection))}");
+        return await ListRoleAssignmentsCoreAsync(connection, credential, initialRequestUri, ct).ConfigureAwait(false);
+    }
 
-        return await ODataPagingSupport.FetchAllPagesAsync(
+    /// <summary>
+    /// Lists role assignments for an environment group via the dedicated
+    /// <c>authorization/environmentGroups/{id}/roleAssignments</c> route.
+    /// Unlike the tenant-level endpoint, environment-group role assignments
+    /// are NOT reachable through the generic <c>authorization/roleAssignments
+    /// ?scope=</c> query filter - Microsoft exposes a dedicated path-routed
+    /// resource for this scope instead (confirmed via official REST API
+    /// reference docs, see PowerPlatformEnvironmentGroupRoleClient remarks).
+    /// </summary>
+    internal async Task<IReadOnlyList<PowerPlatformRbacRoleAssignment>> ListEnvironmentGroupRoleAssignmentsAsync(
+        Connection connection,
+        Credential credential,
+        Guid environmentGroupId,
+        CancellationToken ct)
+    {
+        var initialRequestUri = BuildUri(
+            connection,
+            $"authorization/environmentGroups/{environmentGroupId}/roleAssignments?api-version={ApiVersion}");
+        return await ListRoleAssignmentsCoreAsync(connection, credential, initialRequestUri, ct).ConfigureAwait(false);
+    }
+
+    private async Task<IReadOnlyList<PowerPlatformRbacRoleAssignment>> ListRoleAssignmentsCoreAsync(
+        Connection connection,
+        Credential credential,
+        Uri initialRequestUri,
+        CancellationToken ct)
+        => await ODataPagingSupport.FetchAllPagesAsync(
             initialRequestUri,
             (requestUri, pageCt) => SendForBodyAsync(connection, credential, HttpMethod.Get, requestUri, jsonBody: null, pageCt),
             item => TryParseRoleAssignment(item, out var assignment) ? assignment : null,
             "Power Platform RBAC role assignment payload did not contain a 'value' array.",
             ct).ConfigureAwait(false);
-    }
 
     internal async Task<PowerPlatformRbacRoleAssignment?> AddTenantRoleAssignmentAsync(
         Connection connection,
         Credential credential,
+        PowerPlatformPrincipalType principalType,
+        Guid principalObjectId,
+        Guid roleDefinitionId,
+        CancellationToken ct)
+    {
+        // The generic tenant-level endpoint requires the target scope in the
+        // request body (confirmed via official RBAC role-assignment tutorial).
+        var body = new
+        {
+            principalObjectId,
+            principalType = principalType.ToString(),
+            roleDefinitionId,
+            scope = BuildTenantScope(connection),
+        };
+
+        return await AddRoleAssignmentCoreAsync(
+            connection, credential, BuildUri(connection, $"authorization/roleAssignments?api-version={ApiVersion}"), body, ct)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Adds a role assignment for an environment group via the dedicated
+    /// <c>authorization/environmentGroups/{id}/roleAssignments</c> route.
+    /// Unlike the tenant-level request body, no <c>scope</c> field is sent -
+    /// the scope is implicit from the environment group id in the URL path
+    /// (confirmed via official REST API reference docs).
+    /// </summary>
+    internal async Task<PowerPlatformRbacRoleAssignment?> AddEnvironmentGroupRoleAssignmentAsync(
+        Connection connection,
+        Credential credential,
+        Guid environmentGroupId,
         PowerPlatformPrincipalType principalType,
         Guid principalObjectId,
         Guid roleDefinitionId,
@@ -85,16 +142,25 @@ public sealed class PowerPlatformRbacClient
             principalObjectId,
             principalType = principalType.ToString(),
             roleDefinitionId,
-            scope = BuildTenantScope(connection),
         };
 
-        var responseBody = await SendForBodyAsync(
+        return await AddRoleAssignmentCoreAsync(
             connection,
             credential,
-            HttpMethod.Post,
-            BuildUri(connection, $"authorization/roleAssignments?api-version={ApiVersion}"),
+            BuildUri(connection, $"authorization/environmentGroups/{environmentGroupId}/roleAssignments?api-version={ApiVersion}"),
             body,
             ct).ConfigureAwait(false);
+    }
+
+    private async Task<PowerPlatformRbacRoleAssignment?> AddRoleAssignmentCoreAsync(
+        Connection connection,
+        Credential credential,
+        Uri requestUri,
+        object body,
+        CancellationToken ct)
+    {
+        var responseBody = await SendForBodyAsync(connection, credential, HttpMethod.Post, requestUri, body, ct)
+            .ConfigureAwait(false);
 
         if (string.IsNullOrWhiteSpace(responseBody))
             return null;
@@ -116,6 +182,29 @@ public sealed class PowerPlatformRbacClient
             credential,
             HttpMethod.Delete,
             BuildUri(connection, $"authorization/roleAssignments/{roleAssignmentId}?api-version={ApiVersion}"),
+            jsonBody: null,
+            ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Removes a role assignment from an environment group via the dedicated
+    /// <c>authorization/environmentGroups/{id}/roleAssignments/{roleAssignmentId}</c>
+    /// route (confirmed via official REST API reference docs).
+    /// </summary>
+    internal async Task RemoveEnvironmentGroupRoleAssignmentAsync(
+        Connection connection,
+        Credential credential,
+        Guid environmentGroupId,
+        string roleAssignmentId,
+        CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(roleAssignmentId);
+
+        await SendForBodyAsync(
+            connection,
+            credential,
+            HttpMethod.Delete,
+            BuildUri(connection, $"authorization/environmentGroups/{environmentGroupId}/roleAssignments/{roleAssignmentId}?api-version={ApiVersion}"),
             jsonBody: null,
             ct).ConfigureAwait(false);
     }
