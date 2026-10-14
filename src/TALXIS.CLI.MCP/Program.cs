@@ -39,7 +39,11 @@ publicSkillLoader.LoadIndex();
 
 // Session-scoped active tool set — starts with always-on tools only
 var activeToolSet = new ActiveToolSet();
-var guideHandler = new GuideHandler(mcpToolRegistry.Catalog, activeToolSet, reasoningEngine);
+// Resolves the workspace root lazily — rootsService is assigned later in startup,
+// so the closure reads it at call time, not now.
+var templateParameterProvider = new SubprocessTemplateParameterProvider(
+    async ct => rootsService is not null ? await rootsService.GetWorkingDirectoryAsync(ct) : null);
+var guideHandler = new GuideHandler(mcpToolRegistry.Catalog, activeToolSet, reasoningEngine, templateParameterProvider);
 
 // Register always-on tools (these are the only tools visible at session start)
 RegisterAlwaysOnTools(activeToolSet, mcpToolRegistry, publicSkillLoader);
