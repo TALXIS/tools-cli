@@ -21,6 +21,7 @@ public sealed record ResolvedConnectorInfo(
 /// </summary>
 public interface IConnectorResolver
 {
-    /// <exception cref="ArgumentException">The connector is unknown or the name is ambiguous.</exception>
+    /// <exception cref="ConnectorNotFoundException">No connector matches.</exception>
+    /// <exception cref="AmbiguousConnectorException">A display name matches several connectors.</exception>
     Task<ResolvedConnectorInfo> ResolveAsync(string? profileName, string connector, CancellationToken ct);
 }

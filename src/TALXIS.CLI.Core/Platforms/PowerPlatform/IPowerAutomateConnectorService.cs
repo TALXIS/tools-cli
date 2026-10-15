@@ -2,13 +2,6 @@ using System.Text.Json;
 
 namespace TALXIS.CLI.Core.Platforms.PowerPlatform;
 
-/// <summary>A connector as it appears in the environment's connector catalog.</summary>
-public sealed record ConnectorSummary(
-    string Name,
-    string? DisplayName,
-    string? Description,
-    string? Tier);
-
 /// <summary>
 /// One entry of a connector's operation index. Deliberately carries no
 /// parameter specs — that is what
@@ -24,11 +17,11 @@ public sealed record ConnectorOperationSummary(
     bool IsDeprecated,
     bool IsTrigger);
 
-/// <summary>A connector plus its operation index.</summary>
+/// <summary>A connector plus its operation index. Named like <see cref="ConnectorListItem"/>.</summary>
 public sealed record ConnectorDetail(
-    string Name,
-    string? DisplayName,
+    string LogicalName,
     string ApiId,
+    string? DisplayName,
     int OperationCount,
     int? MatchedOperations,
     IReadOnlyList<ConnectorOperationSummary> Operations);
@@ -127,19 +120,21 @@ public sealed record FlowValidationReport(
 /// </remarks>
 public interface IPowerAutomateConnectorService
 {
-    /// <summary>Lists connectors available in the environment.</summary>
-    Task<IReadOnlyList<ConnectorSummary>> ListConnectorsAsync(
-        string? profileName, string? query, int? top, CancellationToken ct);
-
-    /// <summary>Gets a connector's operation index, optionally filtered by keyword.</summary>
+    /// <summary>
+    /// Gets a connector's operation index, optionally filtered by keyword.
+    /// <paramref name="connector"/> is resolved like <see cref="IConnectorResolver"/>: logical name, apiId or exact display name.
+    /// </summary>
     Task<ConnectorDetail> GetConnectorAsync(
         string? profileName, string connector, string? query, CancellationToken ct);
 
-    /// <summary>Searches operations across connectors.</summary>
+    /// <summary>Searches operations across connectors, or within one (resolved like <see cref="GetConnectorAsync"/>).</summary>
     Task<IReadOnlyList<OperationSearchHit>> SearchOperationsAsync(
         string? profileName, string? query, string? connector, string? kind, int? top, CancellationToken ct);
 
-    /// <summary>Gets the full parameter specification and action type for one operation.</summary>
+    /// <summary>
+    /// Gets the full parameter specification and action type for one operation.
+    /// <paramref name="connector"/> is resolved like <see cref="GetConnectorAsync"/>.
+    /// </summary>
     Task<OperationDetail> GetOperationDetailsAsync(
         string? profileName, string connector, string operation, CancellationToken ct);
 

@@ -8,8 +8,8 @@ namespace TALXIS.CLI.Core.Platforms.PowerPlatform;
 /// </summary>
 /// <param name="ConnectionId">Opaque connection name (do not normalise).</param>
 /// <param name="ApiId">Short connector id, for example <c>shared_office365users</c>.</param>
-/// <param name="ConnectionStatus">Platform status, for example <c>Connected</c> or <c>Error</c>.</param>
-/// <param name="StatusMessage">Platform error detail when the status is not <c>Connected</c>.</param>
+/// <param name="ConnectionStatus">Platform status, for example <see cref="ConnectionStatusCodes.Connected"/> or <c>Error</c>.</param>
+/// <param name="StatusMessage">Platform error detail when the status is not <see cref="ConnectionStatusCodes.Connected"/>.</param>
 public sealed record ConnectionSummary(
     string ConnectionId,
     string ApiId,
@@ -22,12 +22,12 @@ public sealed record ConnectionSummary(
 
 /// <summary>Result of creating (or finding) a connection.</summary>
 /// <param name="Status">
-/// <c>created</c>, <c>updated</c>, <c>unchanged</c>, <c>consent-required</c>
-/// (the connection exists but needs a person to complete consent) or
-/// <c>failed</c> (the platform rejected the credentials).
+/// <see cref="ConnectionOutcomeStatus.Created"/>, <see cref="ConnectionOutcomeStatus.Updated"/>,
+/// <see cref="ConnectionOutcomeStatus.Unchanged"/>, <see cref="ConnectionOutcomeStatus.ConsentRequired"/> or
+/// <see cref="ConnectionOutcomeStatus.Failed"/>.
 /// </param>
 public sealed record ConnectionCreateOutcome(
-    string Status,
+    ConnectionOutcomeStatus Status,
     string ConnectionId,
     string ApiId,
     string DisplayName,
@@ -40,6 +40,10 @@ public sealed record ConnectionCreateOutcome(
 /// <param name="AuthMethod">Named connection parameter set; null picks the connector's default.</param>
 /// <param name="Parameters">Connection parameter values, secrets included. Never logged.</param>
 /// <param name="AttemptConsent">Try to complete OAuth consent silently for user credentials.</param>
+/// <remarks>
+/// <see cref="Parameters"/> holds secrets in clear text. Services never pass the
+/// options to a log statement or an exception message, and callers must not either.
+/// </remarks>
 public sealed record ConnectionCreateOptions(
     string Connector,
     string DisplayName,
@@ -53,13 +57,19 @@ public sealed record ConnectionTestOutcome(
     string? ConnectionStatus,
     string? Message);
 
-/// <summary>Role a principal holds on a connection. Values are explicit: they are part of the output contract.</summary>
+/// <summary>
+/// Role a principal holds on a connection. Values are explicit: they are part of
+/// the output contract. <see cref="ConnectionRoleNames"/> names them.
+/// </summary>
 public enum ConnectionPermissionRole
 {
     /// <summary>Can use the connection (the portal's "Can use").</summary>
     CanView = 0,
     CanViewWithShare = 1,
     CanEdit = 2,
+
+    /// <summary>The creator. Listed, but never granted or revoked.</summary>
+    Owner = 3,
 }
 
 /// <summary>Kind of principal a connection can be shared with.</summary>
@@ -82,33 +92,31 @@ public sealed record ConnectionPrincipalSpec(ConnectionPrincipalKind Kind, strin
 /// The permission row id. For service principals this is <em>not</em> the
 /// principal's object id; it is what removal is keyed by.
 /// </param>
-/// <param name="Role">Platform role: <c>Owner</c>, <c>CanEdit</c>, <c>CanViewWithShare</c> or <c>CanView</c>.</param>
 public sealed record ConnectionPermission(
     string PermissionId,
     string? PrincipalId,
     string? PrincipalType,
     string? DisplayName,
     string? Email,
-    string Role);
+    ConnectionPermissionRole Role);
 
 /// <summary>Result of granting or revoking a permission.</summary>
-/// <param name="Status"><c>assigned</c>, <c>updated</c>, <c>unchanged</c> or <c>removed</c>.</param>
+/// <param name="Status">
+/// <see cref="ConnectionOutcomeStatus.Assigned"/>, <see cref="ConnectionOutcomeStatus.Updated"/>,
+/// <see cref="ConnectionOutcomeStatus.Unchanged"/> or <see cref="ConnectionOutcomeStatus.Removed"/>.
+/// </param>
 /// <param name="Permission">
-/// The resulting permission; for <c>removed</c> the one that was revoked, and
-/// null when a removal found nothing to revoke.
+/// The resulting permission; for <see cref="ConnectionOutcomeStatus.Removed"/> the one that
+/// was revoked, and null when a removal found nothing to revoke.
 /// </param>
 public sealed record ConnectionPermissionOutcome(
-    string Status,
+    ConnectionOutcomeStatus Status,
     string ConnectionId,
     string ApiId,
     ConnectionPermission? Permission);
 
-/// <summary>
-/// Creates, inspects, tests, shares and deletes connections in the
-/// environment bound to the active profile. Backend choices (connectivity
-/// API, API Hub consent, Dataverse connector table) are internal.
-/// </summary>
-public interface IConnectionService
+/// <summary>Reads the connections the caller owns or can use.</summary>
+public interface IConnectionReader
 {
     /// <summary>
     /// Connections the caller owns or can use. Connections created by another
@@ -117,9 +125,19 @@ public interface IConnectionService
     Task<IReadOnlyList<ConnectionSummary>> ListAsync(
         string? profileName, string? connector, string? filter, CancellationToken ct);
 
+    /// <exception cref="ConnectionNotFoundException">No such connection is visible to the caller.</exception>
+    /// <exception cref="ConnectionAccessDeniedException">The caller may not read the connection.</exception>
     Task<ConnectionSummary> GetAsync(
         string? profileName, string connector, string connectionId, CancellationToken ct);
+}
 
+/// <summary>
+/// Creates, tests and deletes connections in the environment bound to the
+/// active profile. Backend choices (connectivity API, API Hub consent,
+/// Dataverse connector table) are internal.
+/// </summary>
+public interface IConnectionService : IConnectionReader
+{
     /// <summary>
     /// Idempotent by connector and display name: an existing connected
     /// connection is returned unchanged.
@@ -132,7 +150,11 @@ public interface IConnectionService
 
     Task DeleteAsync(
         string? profileName, string connector, string connectionId, CancellationToken ct);
+}
 
+/// <summary>Shares connections with other principals and revokes that access.</summary>
+public interface IConnectionPermissionService
+{
     Task<IReadOnlyList<ConnectionPermission>> ListPermissionsAsync(
         string? profileName, string connector, string connectionId, CancellationToken ct);
 

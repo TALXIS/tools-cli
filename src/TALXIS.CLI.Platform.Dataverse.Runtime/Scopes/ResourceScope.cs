@@ -7,10 +7,8 @@ namespace TALXIS.CLI.Platform.Dataverse.Runtime.Scopes;
 /// </summary>
 /// <remarks>
 /// Dataverse needs the double-slash <c>//.default</c> separator (see
-/// <see cref="DataverseScope"/>). The API Hub resource does not: the consent
-/// service validates the token audience exactly, and the double-slash form
-/// yields <c>aud = https://apihub.azure.com/</c> (trailing slash) which it
-/// rejects with AADSTS500131. Other resources keep the existing behaviour.
+/// <see cref="DataverseScope"/>). API Hub resources take the single-slash form
+/// (see <see cref="ApiHubAudiences"/>). Other resources keep the existing behaviour.
 /// </remarks>
 public static class ResourceScope
 {

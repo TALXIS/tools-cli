@@ -5,6 +5,10 @@ public static class ConnectorKind
 {
     public const string BuiltIn = "built-in";
     public const string Custom = "custom";
+
+    public static string Of(bool isCustom) => isCustom ? Custom : BuiltIn;
+
+    public static bool IsKnown(string? kind) => kind is BuiltIn or Custom;
 }
 
 /// <summary>
@@ -29,6 +33,7 @@ public interface IConnectorService
 {
     /// <param name="filter">Substring of the logical name, apiId or display name.</param>
     /// <param name="kind"><see cref="ConnectorKind"/> value, or null for both.</param>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="kind"/> is not a <see cref="ConnectorKind"/> value.</exception>
     Task<IReadOnlyList<ConnectorListItem>> ListAsync(
         string? profileName, string? filter, string? kind, int? top, CancellationToken ct);
 }

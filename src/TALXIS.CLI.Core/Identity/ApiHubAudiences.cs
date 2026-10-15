@@ -7,12 +7,11 @@ namespace TALXIS.CLI.Core.Identity;
 /// per cloud.
 /// </summary>
 /// <remarks>
-/// The Public value is verified against a live tenant: a user token whose
-/// audience is exactly <c>https://apihub.azure.com</c> (scope
-/// <c>https://apihub.azure.com/.default</c>, single slash) completes the
-/// first-party consent login and is accepted by connection test links. The
-/// sovereign values mirror the Microsoft Power Apps and Managed Apps CLIs and
-/// have not been verified here.
+/// API Hub validates the token audience exactly, so a token for these
+/// resources needs the single-slash scope (<c>https://apihub.azure.com/.default</c>).
+/// The double-slash scope Dataverse needs yields a trailing-slash audience that
+/// API Hub rejects with AADSTS500131. The sovereign hosts follow the Microsoft
+/// Power Apps and Managed Apps CLIs.
 /// </remarks>
 public static class ApiHubAudiences
 {
@@ -42,11 +41,7 @@ public static class ApiHubAudiences
         _ => throw new ArgumentOutOfRangeException(nameof(cloud), cloud, "Unknown cloud instance."),
     });
 
-    /// <summary>
-    /// True when <paramref name="resource"/> is one of the API Hub audiences.
-    /// Those resources expect a single-slash <c>/.default</c> scope, unlike
-    /// Dataverse which needs <c>//.default</c>.
-    /// </summary>
+    /// <summary>True when <paramref name="resource"/> is one of the API Hub audiences.</summary>
     public static bool IsApiHub(Uri resource)
     {
         ArgumentNullException.ThrowIfNull(resource);

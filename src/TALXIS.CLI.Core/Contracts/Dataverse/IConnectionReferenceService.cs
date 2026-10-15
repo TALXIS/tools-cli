@@ -1,3 +1,5 @@
+using TALXIS.CLI.Core.Platforms.PowerPlatform;
+
 namespace TALXIS.CLI.Core.Contracts.Dataverse;
 
 /// <summary>How a connection reference relates to the connection it points at.</summary>
@@ -51,8 +53,11 @@ public sealed record ConnectionReferenceCreateOptions(
     string? ConnectionId,
     string? SolutionUniqueName);
 
-/// <param name="Status"><c>created</c>, <c>updated</c> or <c>unchanged</c>.</param>
-public sealed record ConnectionReferenceOutcome(string Status, ConnectionReferenceRecord Reference);
+/// <param name="Status">
+/// <see cref="ConnectionOutcomeStatus.Created"/>, <see cref="ConnectionOutcomeStatus.Updated"/> or
+/// <see cref="ConnectionOutcomeStatus.Unchanged"/>.
+/// </param>
+public sealed record ConnectionReferenceOutcome(ConnectionOutcomeStatus Status, ConnectionReferenceRecord Reference);
 
 /// <summary>
 /// Connection references in the environment bound to the active profile.
