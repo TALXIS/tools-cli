@@ -60,7 +60,7 @@ public class ConnectorGetCliCommand : ConnectivityCommandBase
 
         foreach (var operation in connector.Operations)
         {
-            var id = EnvironmentPrincipalCommandSupport.Truncate(operation.OperationId, idWidth);
+            var id = TableText.Truncate(operation.OperationId, idWidth);
             var marker = operation.IsDeprecated ? " [deprecated]" : operation.IsTrigger ? " [trigger]" : string.Empty;
             OutputWriter.WriteLine($"{id.PadRight(idWidth)} | {operation.Method.PadRight(6)} | {operation.Summary}{marker}");
         }

@@ -53,9 +53,9 @@ public class ConnectionListCliCommand : ConnectivityCommandBase
         foreach (var c in connections)
         {
             OutputWriter.WriteLine(
-                $"{EnvironmentPrincipalCommandSupport.Truncate(c.DisplayName ?? "-", 30).PadRight(30)} | " +
-                $"{EnvironmentPrincipalCommandSupport.Truncate(c.ApiId, 34).PadRight(34)} | " +
-                $"{EnvironmentPrincipalCommandSupport.Truncate(c.ConnectionStatus ?? "-", 14).PadRight(14)} | {c.ConnectionId}");
+                $"{TableText.Truncate(c.DisplayName ?? "-", 30).PadRight(30)} | " +
+                $"{TableText.Truncate(c.ApiId, 34).PadRight(34)} | " +
+                $"{TableText.Truncate(c.ConnectionStatus ?? "-", 14).PadRight(14)} | {c.ConnectionId}");
         }
     }
 #pragma warning restore TXC003

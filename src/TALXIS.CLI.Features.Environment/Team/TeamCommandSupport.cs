@@ -127,10 +127,10 @@ internal static class TeamCommandSupport
         foreach (var row in rows)
         {
             OutputWriter.WriteLine(
-                $"{EnvironmentPrincipalCommandSupport.Truncate(row.Name, nameWidth).PadRight(nameWidth)} | " +
-                $"{EnvironmentPrincipalCommandSupport.Truncate(ToCliValue(row.TeamType), typeWidth).PadRight(typeWidth)} | " +
-                $"{EnvironmentPrincipalCommandSupport.Truncate(ToCliValue(row.MembershipType) ?? "-", membershipWidth).PadRight(membershipWidth)} | " +
-                $"{EnvironmentPrincipalCommandSupport.Truncate(row.BusinessUnitName ?? "-", businessUnitWidth).PadRight(businessUnitWidth)} | " +
+                $"{TableText.Truncate(row.Name, nameWidth).PadRight(nameWidth)} | " +
+                $"{TableText.Truncate(ToCliValue(row.TeamType), typeWidth).PadRight(typeWidth)} | " +
+                $"{TableText.Truncate(ToCliValue(row.MembershipType) ?? "-", membershipWidth).PadRight(membershipWidth)} | " +
+                $"{TableText.Truncate(row.BusinessUnitName ?? "-", businessUnitWidth).PadRight(businessUnitWidth)} | " +
                 $"{(row.IsDefault ? "true" : "false").PadRight(defaultWidth)} | " +
                 $"{(row.IsSystemManaged ? "true" : "false").PadRight(managedWidth)}");
         }
@@ -166,10 +166,10 @@ internal static class TeamCommandSupport
         foreach (var row in rows)
         {
             OutputWriter.WriteLine(
-                $"{EnvironmentPrincipalCommandSupport.Truncate(row.FullName ?? "-", nameWidth).PadRight(nameWidth)} | " +
-                $"{EnvironmentPrincipalCommandSupport.Truncate(row.UserPrincipalName ?? "-", upnWidth).PadRight(upnWidth)} | " +
-                $"{EnvironmentPrincipalCommandSupport.Truncate(row.PrimaryEmailAddress ?? "-", emailWidth).PadRight(emailWidth)} | " +
-                $"{EnvironmentPrincipalCommandSupport.Truncate(row.BusinessUnitName ?? "-", businessUnitWidth).PadRight(businessUnitWidth)} | " +
+                $"{TableText.Truncate(row.FullName ?? "-", nameWidth).PadRight(nameWidth)} | " +
+                $"{TableText.Truncate(row.UserPrincipalName ?? "-", upnWidth).PadRight(upnWidth)} | " +
+                $"{TableText.Truncate(row.PrimaryEmailAddress ?? "-", emailWidth).PadRight(emailWidth)} | " +
+                $"{TableText.Truncate(row.BusinessUnitName ?? "-", businessUnitWidth).PadRight(businessUnitWidth)} | " +
                 $"{(row.IsDisabled ? "true" : "false").PadRight(disabledWidth)}");
         }
 #pragma warning restore TXC003
@@ -198,8 +198,8 @@ internal static class TeamCommandSupport
         foreach (var row in rows)
         {
             OutputWriter.WriteLine(
-                $"{EnvironmentPrincipalCommandSupport.Truncate(row.Name, nameWidth).PadRight(nameWidth)} | " +
-                $"{EnvironmentPrincipalCommandSupport.Truncate(row.BusinessUnitName ?? "-", businessUnitWidth).PadRight(businessUnitWidth)} | " +
+                $"{TableText.Truncate(row.Name, nameWidth).PadRight(nameWidth)} | " +
+                $"{TableText.Truncate(row.BusinessUnitName ?? "-", businessUnitWidth).PadRight(businessUnitWidth)} | " +
                 row.Id);
         }
 #pragma warning restore TXC003

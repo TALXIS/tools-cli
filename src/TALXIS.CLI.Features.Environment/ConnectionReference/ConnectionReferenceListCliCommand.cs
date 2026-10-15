@@ -65,7 +65,7 @@ public class ConnectionReferenceListCliCommand : ConnectivityCommandBase
         foreach (var r in references)
         {
             OutputWriter.WriteLine(
-                $"{EnvironmentPrincipalCommandSupport.Truncate(r.LogicalName, 36).PadRight(36)} | {EnvironmentPrincipalCommandSupport.Truncate(r.ApiId, 30).PadRight(30)} | {r.BindingStatus.PadRight(8)} | {r.ConnectionId}");
+                $"{TableText.Truncate(r.LogicalName, 36).PadRight(36)} | {TableText.Truncate(r.ApiId, 30).PadRight(30)} | {r.BindingStatus.PadRight(8)} | {r.ConnectionId}");
         }
     }
 

@@ -108,6 +108,16 @@ public sealed record FlowValidationReport(
     int WarningCount,
     IReadOnlyList<FlowValidationFinding> Findings);
 
+/// <summary>Which operations an operation search returns.</summary>
+public static class OperationKinds
+{
+    public const string All = "all";
+    public const string Actions = "actions";
+    public const string Triggers = "triggers";
+
+    public static bool IsKnown(string? kind) => kind is All or Actions or Triggers;
+}
+
 /// <summary>
 /// Reads Power Automate connector metadata from the live environment bound to
 /// the active profile, and checks locally authored flow definitions against it.

@@ -55,8 +55,8 @@ public class ConnectionPermissionListCliCommand : ConnectionCommandBase
         foreach (var r in rows)
         {
             OutputWriter.WriteLine(
-                $"{EnvironmentPrincipalCommandSupport.Truncate(r.DisplayName ?? r.Email ?? "-", 32).PadRight(32)} | " +
-                $"{EnvironmentPrincipalCommandSupport.Truncate(r.PrincipalType ?? "-", 16).PadRight(16)} | " +
+                $"{TableText.Truncate(r.DisplayName ?? r.Email ?? "-", 32).PadRight(32)} | " +
+                $"{TableText.Truncate(r.PrincipalType ?? "-", 16).PadRight(16)} | " +
                 $"{r.Role.PadRight(20)} | {r.PrincipalId}");
         }
     }

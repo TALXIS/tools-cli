@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Abstractions;
@@ -22,6 +23,7 @@ internal sealed class ConnectionCommandTestHost : IDisposable
     public FakePermissions Permissions { get; } = new();
     public FakeReferences References { get; } = new();
     public FakeConnectors Connectors { get; } = new();
+    public FakeOperations Operations { get; } = new();
     public Dictionary<string, string> Environment { get; } = new();
 
     /// <param name="headless">True makes a destructive command without <c>--yes</c> refuse to run.</param>
@@ -33,6 +35,7 @@ internal sealed class ConnectionCommandTestHost : IDisposable
         services.AddSingleton<IConnectionPermissionService>(Permissions);
         services.AddSingleton<IConnectionReferenceService>(References);
         services.AddSingleton<IConnectorService>(Connectors);
+        services.AddSingleton<IPowerAutomateConnectorService>(Operations);
         services.AddSingleton<IEnvironmentReader>(new FakeEnvironment(Environment));
         services.AddSingleton<IHeadlessDetector>(new FakeHeadless(headless));
         _provider = services.BuildServiceProvider();
@@ -201,4 +204,31 @@ internal sealed class FakeConnectors : IConnectorService
         (Listed, LastKind) = (true, kind);
         return Task.FromResult<IReadOnlyList<ConnectorListItem>>([]);
     }
+}
+
+/// <summary>Records operation searches; the other operations are not exercised by command tests.</summary>
+internal sealed class FakeOperations : IPowerAutomateConnectorService
+{
+    public bool Searched { get; private set; }
+    public string? LastKind { get; private set; }
+
+    public Task<IReadOnlyList<OperationSearchHit>> SearchOperationsAsync(
+        string? profileName, string? query, string? connector, string? kind, int? top, CancellationToken ct)
+    {
+        (Searched, LastKind) = (true, kind);
+        return Task.FromResult<IReadOnlyList<OperationSearchHit>>([]);
+    }
+
+    public Task<ConnectorDetail> GetConnectorAsync(string? profileName, string connector, string? query, CancellationToken ct)
+        => throw new NotSupportedException();
+
+    public Task<OperationDetail> GetOperationDetailsAsync(string? profileName, string connector, string operation, CancellationToken ct)
+        => throw new NotSupportedException();
+
+    public Task<IReadOnlyList<FlowConnectionSummary>> ListConnectionsAsync(string? profileName, string? connector, CancellationToken ct)
+        => throw new NotSupportedException();
+
+    public Task<FlowValidationReport> ValidateDefinitionAsync(
+        string? profileName, JsonElement document, bool connectionCheck, bool offline, CancellationToken ct)
+        => throw new NotSupportedException();
 }

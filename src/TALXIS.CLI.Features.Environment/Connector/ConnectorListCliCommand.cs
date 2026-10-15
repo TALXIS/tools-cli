@@ -65,8 +65,8 @@ public class ConnectorListCliCommand : ConnectivityCommandBase
         foreach (var connector in connectors)
         {
             OutputWriter.WriteLine(
-                $"{EnvironmentPrincipalCommandSupport.Truncate(connector.LogicalName, nameWidth).PadRight(nameWidth)} | {connector.Kind.PadRight(8)} | " +
-                $"{EnvironmentPrincipalCommandSupport.Truncate(connector.Tier ?? "-", 10).PadRight(10)} | {connector.DisplayName}");
+                $"{TableText.Truncate(connector.LogicalName, nameWidth).PadRight(nameWidth)} | {connector.Kind.PadRight(8)} | " +
+                $"{TableText.Truncate(connector.Tier ?? "-", 10).PadRight(10)} | {connector.DisplayName}");
         }
     }
 

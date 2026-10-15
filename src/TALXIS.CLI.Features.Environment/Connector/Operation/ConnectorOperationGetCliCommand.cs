@@ -62,7 +62,7 @@ public class ConnectorOperationGetCliCommand : ConnectivityCommandBase
 
         foreach (var parameter in operation.Parameters)
         {
-            var name = EnvironmentPrincipalCommandSupport.Truncate(parameter.Name, nameWidth);
+            var name = TableText.Truncate(parameter.Name, nameWidth);
             var type = (parameter.Type ?? "-").PadRight(10);
             var required = (parameter.Required ? "yes" : "no").PadRight(3);
             OutputWriter.WriteLine($"{name.PadRight(nameWidth)} | {type} | {required} | {parameter.Description}");

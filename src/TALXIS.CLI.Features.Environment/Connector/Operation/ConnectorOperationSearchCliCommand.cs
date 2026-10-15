@@ -28,15 +28,24 @@ public class ConnectorOperationSearchCliCommand : ConnectivityCommandBase
     public string? Connector { get; set; }
 
     [CliOption(Name = "--kind", Description = "Which operations to return: all, actions, or triggers.", Required = false)]
-    public string Kind { get; set; } = "all";
+    public string Kind { get; set; } = OperationKinds.All;
 
     [CliOption(Name = "--top", Description = "Maximum number of results to return.", Required = false)]
     public int Top { get; set; } = 20;
 
     protected override async Task<int> ExecuteAsync()
     {
+        var kind = Kind.Trim().ToLowerInvariant();
+        if (!OperationKinds.IsKnown(kind))
+        {
+            Logger.LogError(
+                "Invalid --kind '{Kind}'. Expected '{All}', '{Actions}' or '{Triggers}'.",
+                Kind, OperationKinds.All, OperationKinds.Actions, OperationKinds.Triggers);
+            return ExitValidationError;
+        }
+
         var service = TxcServices.Get<IPowerAutomateConnectorService>();
-        var hits = await service.SearchOperationsAsync(Profile, Query, Connector, Kind, Top, CancellationToken.None)
+        var hits = await service.SearchOperationsAsync(Profile, Query, Connector, kind, Top, CancellationToken.None)
             .ConfigureAwait(false);
 
         OutputFormatter.WriteList(hits, PrintTable);
@@ -60,8 +69,8 @@ public class ConnectorOperationSearchCliCommand : ConnectivityCommandBase
 
         foreach (var hit in hits)
         {
-            var name = EnvironmentPrincipalCommandSupport.Truncate(hit.Name, nameWidth);
-            var connector = EnvironmentPrincipalCommandSupport.Truncate(hit.ConnectorDisplayName ?? hit.ConnectorName ?? "-", 28);
+            var name = TableText.Truncate(hit.Name, nameWidth);
+            var connector = TableText.Truncate(hit.ConnectorDisplayName ?? hit.ConnectorName ?? "-", 28);
             OutputWriter.WriteLine($"{name.PadRight(nameWidth)} | {connector.PadRight(28)} | {hit.DisplayName}");
         }
     }

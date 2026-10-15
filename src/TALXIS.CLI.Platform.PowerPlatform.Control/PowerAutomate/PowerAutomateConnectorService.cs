@@ -78,20 +78,20 @@ internal sealed class PowerAutomateConnectorService : IPowerAutomateConnectorSer
         // Deprecated operations are always excluded: surfacing them invites
         // authoring against an operation that no longer works.
         var exclude = new JsonArray("Deprecated");
-        switch ((kind ?? "all").ToLowerInvariant())
+        switch ((kind ?? OperationKinds.All).ToLowerInvariant())
         {
-            case "actions":
+            case OperationKinds.Actions:
                 body["allTagsToInclude"] = new JsonArray("Action");
                 exclude.Add("Trigger");
                 break;
-            case "triggers":
+            case OperationKinds.Triggers:
                 body["allTagsToInclude"] = new JsonArray("Trigger");
                 break;
-            case "all":
+            case OperationKinds.All:
                 break;
             default:
                 throw new ArgumentException(
-                    $"Unknown operation kind '{kind}'. Use 'all', 'actions', or 'triggers'.", nameof(kind));
+                    $"Unknown operation kind '{kind}'. Use '{OperationKinds.All}', '{OperationKinds.Actions}', or '{OperationKinds.Triggers}'.", nameof(kind));
         }
 
         body["anyTagsToExclude"] = exclude;
