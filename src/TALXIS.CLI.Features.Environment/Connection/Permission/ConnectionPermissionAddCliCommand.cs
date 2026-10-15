@@ -57,14 +57,14 @@ public class ConnectionPermissionAddCliCommand : ProfiledCliCommand
             return ExitValidationError;
         }
 
-        var service = TxcServices.Get<IConnectionService>();
+        var service = TxcServices.Get<IConnectionPermissionService>();
         var outcome = await service.AddPermissionAsync(
             Profile, Connector, ConnectionId, principal!, role, CancellationToken.None).ConfigureAwait(false);
 
         OutputFormatter.WriteData(
             new
             {
-                status = outcome.Status,
+                status = outcome.Status.ToKebabCase(),
                 connectionId = outcome.ConnectionId,
                 apiId = outcome.ApiId,
                 permission = outcome.Permission is { } p ? ConnectionPermissionListCliCommand.ToRow(p) : null,
@@ -73,10 +73,10 @@ public class ConnectionPermissionAddCliCommand : ProfiledCliCommand
             {
 #pragma warning disable TXC003
                 var who = outcome.Permission?.DisplayName ?? principal!.Identifier;
-                var granted = outcome.Permission is { } given ? ConnectionCommandSupport.FormatRole(given.Role) : ConnectionCommandSupport.FormatRole(role.ToString());
-                OutputWriter.WriteLine(outcome.Status == "unchanged"
+                var granted = outcome.Permission is { } given ? ConnectionRoleNames.ToCli(given.Role) : ConnectionRoleNames.ToCli(role);
+                OutputWriter.WriteLine(outcome.Status == ConnectionOutcomeStatus.Unchanged
                     ? $"{who} already has '{granted}' on connection {outcome.ConnectionId}."
-                    : $"Connection {outcome.ConnectionId}: {who} {outcome.Status} as '{granted}'.");
+                    : $"Connection {outcome.ConnectionId}: {who} {outcome.Status.ToKebabCase()} as '{granted}'.");
 #pragma warning restore TXC003
             });
 

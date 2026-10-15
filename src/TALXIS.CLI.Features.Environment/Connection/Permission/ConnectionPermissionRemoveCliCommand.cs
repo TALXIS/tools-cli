@@ -46,14 +46,14 @@ public class ConnectionPermissionRemoveCliCommand : ProfiledCliCommand, IDestruc
             return ExitValidationError;
         }
 
-        var service = TxcServices.Get<IConnectionService>();
+        var service = TxcServices.Get<IConnectionPermissionService>();
         var outcome = await service.RemovePermissionAsync(
             Profile, Connector, ConnectionId, principal!, CancellationToken.None).ConfigureAwait(false);
 
         OutputFormatter.WriteData(
             new
             {
-                status = outcome.Status,
+                status = outcome.Status.ToKebabCase(),
                 connectionId = outcome.ConnectionId,
                 apiId = outcome.ApiId,
                 permission = outcome.Permission is { } p ? ConnectionPermissionListCliCommand.ToRow(p) : null,
@@ -61,7 +61,7 @@ public class ConnectionPermissionRemoveCliCommand : ProfiledCliCommand, IDestruc
             _ =>
             {
 #pragma warning disable TXC003
-                OutputWriter.WriteLine(outcome.Status == "unchanged"
+                OutputWriter.WriteLine(outcome.Status == ConnectionOutcomeStatus.Unchanged
                     ? $"{principal!.Identifier} had no access to connection {outcome.ConnectionId}."
                     : $"Removed {outcome.Permission?.DisplayName ?? principal!.Identifier} from connection {outcome.ConnectionId}.");
 #pragma warning restore TXC003

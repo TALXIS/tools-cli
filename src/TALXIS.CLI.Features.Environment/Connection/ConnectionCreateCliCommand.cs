@@ -77,7 +77,7 @@ public class ConnectionCreateCliCommand : ProfiledCliCommand
         OutputFormatter.WriteData(
             new
             {
-                status = outcome.Status,
+                status = outcome.Status.ToKebabCase(),
                 connectionId = outcome.ConnectionId,
                 apiId = outcome.ApiId,
                 displayName = outcome.DisplayName,
@@ -87,11 +87,11 @@ public class ConnectionCreateCliCommand : ProfiledCliCommand
             },
             _ => PrintOutcome(outcome));
 
-        if (outcome.Status is "created" or "updated" or "unchanged")
+        if (outcome.Status is ConnectionOutcomeStatus.Created or ConnectionOutcomeStatus.Updated or ConnectionOutcomeStatus.Unchanged)
             return ExitSuccess;
 
         Logger.LogError("Connection '{DisplayName}' is not usable ({Status}): {Message}",
-            outcome.DisplayName, outcome.Status, outcome.Message ?? "see the consent link");
+            outcome.DisplayName, outcome.Status.ToKebabCase(), outcome.Message ?? "see the consent link");
         return ExitError;
     }
 
@@ -101,19 +101,19 @@ public class ConnectionCreateCliCommand : ProfiledCliCommand
     {
         switch (outcome.Status)
         {
-            case "unchanged":
+            case ConnectionOutcomeStatus.Unchanged:
                 OutputWriter.WriteLine($"Connection '{outcome.DisplayName}' already exists for {outcome.ApiId} (id: {outcome.ConnectionId}, status: {outcome.ConnectionStatus}).");
                 break;
-            case "consent-required":
+            case ConnectionOutcomeStatus.ConsentRequired:
                 OutputWriter.WriteLine($"Connection '{outcome.DisplayName}' was created (id: {outcome.ConnectionId}) but needs sign-in.");
                 if (!string.IsNullOrEmpty(outcome.ConsentLink))
                     OutputWriter.WriteLine($"Open this link to complete sign-in: {outcome.ConsentLink}");
                 break;
-            case "failed":
+            case ConnectionOutcomeStatus.Failed:
                 OutputWriter.WriteLine($"Connection '{outcome.DisplayName}' could not be created: {outcome.Message}");
                 break;
             default:
-                OutputWriter.WriteLine($"Connection '{outcome.DisplayName}' {outcome.Status} (id: {outcome.ConnectionId}, connector: {outcome.ApiId}, status: {outcome.ConnectionStatus}).");
+                OutputWriter.WriteLine($"Connection '{outcome.DisplayName}' {outcome.Status.ToKebabCase()} (id: {outcome.ConnectionId}, connector: {outcome.ApiId}, status: {outcome.ConnectionStatus}).");
                 break;
         }
     }

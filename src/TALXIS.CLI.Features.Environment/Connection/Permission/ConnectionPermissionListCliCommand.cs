@@ -29,7 +29,7 @@ public class ConnectionPermissionListCliCommand : ProfiledCliCommand
 
     protected override async Task<int> ExecuteAsync()
     {
-        var service = TxcServices.Get<IConnectionService>();
+        var service = TxcServices.Get<IConnectionPermissionService>();
         var permissions = await service.ListPermissionsAsync(Profile, Connector, ConnectionId, CancellationToken.None).ConfigureAwait(false);
 
         var rows = permissions.Select(ToRow).ToList();
@@ -38,7 +38,7 @@ public class ConnectionPermissionListCliCommand : ProfiledCliCommand
     }
 
     internal static PermissionRow ToRow(ConnectionPermission p)
-        => new(p.PermissionId, p.PrincipalId, p.PrincipalType, p.DisplayName, p.Email, ConnectionCommandSupport.FormatRole(p.Role));
+        => new(p.PermissionId, p.PrincipalId, p.PrincipalType, p.DisplayName, p.Email, ConnectionRoleNames.ToCli(p.Role));
 
     /// <summary>Row shape of the permission list: the role in the CLI's vocabulary.</summary>
     internal sealed record PermissionRow(

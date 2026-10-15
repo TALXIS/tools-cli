@@ -1,5 +1,6 @@
 using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Contracts.Dataverse;
+using TALXIS.CLI.Core.Platforms.PowerPlatform;
 
 namespace TALXIS.CLI.Features.Environment.ConnectionReference;
 
@@ -12,7 +13,7 @@ internal static class ConnectionReferenceOutput
         OutputFormatter.WriteData(
             new
             {
-                status = outcome.Status,
+                status = outcome.Status.ToKebabCase(),
                 logicalName = r.LogicalName,
                 displayName = r.DisplayName,
                 apiId = r.ApiId,
@@ -24,8 +25,8 @@ internal static class ConnectionReferenceOutput
             {
 #pragma warning disable TXC003
                 OutputWriter.WriteLine(r.ConnectionId is null
-                    ? $"Connection reference '{r.LogicalName}' {outcome.Status}; it is not bound to a connection."
-                    : $"Connection reference '{r.LogicalName}' {outcome.Status}; bound to connection {r.ConnectionId} ({r.BindingStatus}).");
+                    ? $"Connection reference '{r.LogicalName}' {outcome.Status.ToKebabCase()}; it is not bound to a connection."
+                    : $"Connection reference '{r.LogicalName}' {outcome.Status.ToKebabCase()}; bound to connection {r.ConnectionId} ({r.BindingStatus}).");
 #pragma warning restore TXC003
             });
     }
