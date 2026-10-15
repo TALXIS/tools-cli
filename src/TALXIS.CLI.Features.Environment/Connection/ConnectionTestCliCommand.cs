@@ -15,7 +15,7 @@ namespace TALXIS.CLI.Features.Environment.Connection;
 [CliWorkflow("environment-inspection")]
 [CliCommand(
     Name = "test",
-    Description = "Tests a connection in the LIVE connected environment, calling the connector's test endpoint when it has one. Requires an active profile."
+    Description = "Tests a connection in the LIVE connected environment, calling the connector's test endpoint when it has one. Requires an active profile. Result: status is healthy or unhealthy; exit code 1 is returned with the payload when unhealthy, 2 for invalid input or an unknown connection."
 )]
 public class ConnectionTestCliCommand : ConnectionCommandBase
 {

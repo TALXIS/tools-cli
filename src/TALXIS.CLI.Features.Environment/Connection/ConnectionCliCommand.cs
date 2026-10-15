@@ -1,4 +1,5 @@
 using DotMake.CommandLine;
+using TALXIS.CLI.Features.Environment.Connector;
 using TALXIS.CLI.Features.Environment.Connection.Permission;
 
 namespace TALXIS.CLI.Features.Environment.Connection;
@@ -10,7 +11,7 @@ namespace TALXIS.CLI.Features.Environment.Connection;
 /// </summary>
 [CliCommand(
     Name = "connection",
-    Description = "Manage connections (the stored sign-in of a connector) in the LIVE connected environment. Not 'config connection', which stores local environment endpoints.",
+    Description = "Manage connections (the stored sign-in of a connector) in the LIVE connected environment. Not 'config connection', which stores local environment endpoints. " + ConnectorDescriptions.Workflow,
     Children = new[]
     {
         typeof(ConnectionCreateCliCommand),

@@ -17,7 +17,7 @@ namespace TALXIS.CLI.Features.Environment.Connection;
 [CliIdempotent]
 [CliCommand(
     Name = "create",
-    Description = "Creates a connection for a connector in the LIVE connected environment. Requires an active profile. Idempotent by connector and display name: an existing connected connection is returned unchanged. For OAuth connectors a user credential signs in silently when the connector supports it; otherwise a consent link is returned."
+    Description = "Creates a connection for a connector in the LIVE connected environment. Requires an active profile. Idempotent by connector and display name: an existing connected connection is returned unchanged. For OAuth connectors only a user credential (not a service principal) can sign in silently, when the connector supports it; otherwise a consent link is returned. A connection created by one identity must be shared ('connection permission add') before another, such as a pipeline service principal, can bind it. Result: status is created, updated, unchanged, consent-required or failed; exit code 1 is returned with the payload for consent-required and failed, 2 for invalid input or an unknown connector. Example: txc environment connection create --connector shared_office365users --display-name \"Mail\""
 )]
 public class ConnectionCreateCliCommand : ConnectivityCommandBase
 {

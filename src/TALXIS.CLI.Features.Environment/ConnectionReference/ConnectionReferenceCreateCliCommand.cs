@@ -15,7 +15,7 @@ namespace TALXIS.CLI.Features.Environment.ConnectionReference;
 [CliIdempotent]
 [CliCommand(
     Name = "create",
-    Description = "Creates a connection reference for a connector in the LIVE connected environment. Requires an active profile. Idempotent by logical name. A custom connector must already be deployed in the environment (import its solution first)."
+    Description = "Creates a connection reference for a connector in the LIVE connected environment. Requires an active profile. Idempotent by logical name. A custom connector must already be deployed in the environment (import its solution first). Example: txc environment connection-reference create new_mail --connector shared_office365users --display-name \"Mail\" --solution MySolution --connection-id <connection-id>"
 )]
 public class ConnectionReferenceCreateCliCommand : ConnectivityCommandBase
 {

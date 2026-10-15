@@ -15,7 +15,7 @@ namespace TALXIS.CLI.Features.Environment.ConnectionReference;
 [CliIdempotent]
 [CliCommand(
     Name = "update",
-    Description = "Binds a connection reference to a connection, or renames it, in the LIVE connected environment. Requires an active profile. Idempotent. Binding fails unless you own the connection or it is shared with you (see 'txc environment connection permission add'). A binding cannot be cleared."
+    Description = "Binds a connection reference to a connection, or renames it, in the LIVE connected environment. Requires an active profile. Idempotent. Binding fails unless you own the connection or it is shared with you (see 'txc environment connection permission add'). A binding cannot be cleared. Example: txc environment connection-reference update new_mail --connection-id <connection-id>"
 )]
 public class ConnectionReferenceUpdateCliCommand : ConnectivityCommandBase
 {

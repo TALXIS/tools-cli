@@ -1,4 +1,5 @@
 using DotMake.CommandLine;
+using TALXIS.CLI.Features.Environment.Connector;
 
 namespace TALXIS.CLI.Features.Environment.ConnectionReference;
 
@@ -8,7 +9,7 @@ namespace TALXIS.CLI.Features.Environment.ConnectionReference;
 /// </summary>
 [CliCommand(
     Name = "connection-reference",
-    Description = "Manage connection references (the stable placeholder flows bind to instead of a connection) in the LIVE connected environment.",
+    Description = "Manage connection references (the stable placeholder flows bind to instead of a connection) in the LIVE connected environment. " + ConnectorDescriptions.Workflow,
     Children = new[]
     {
         typeof(ConnectionReferenceListCliCommand),

@@ -2,13 +2,7 @@
 
 `txc env connector`, `txc env connection` and `txc env connection-reference` manage the three things a Power Platform integration is made of. They work against the live environment of the active profile (see [profiles-and-authentication.md](profiles-and-authentication.md)) and are not related to `txc config connection`, which stores *local* environment endpoints.
 
-| Concept | What it is | Lifecycle |
-|---|---|---|
-| Connector | The type of integration, built-in or custom. | Shipped by the platform or deployed in a solution. |
-| Connection | A stored sign-in for one connector, owned by a person or service principal. | Per environment. Never exported; its id differs everywhere. |
-| Connection reference | A solution component with a stable logical name that points at a connection. | Travels in solutions; bound to a connection after import. |
-
-Flows bind to connection references so a solution never carries connection ids or credentials.
+A **connector** is the type of integration, a **connection** is a stored sign-in for one connector (per environment, never exported, its id differs everywhere), and a **connection reference** is a solution component with a stable logical name that points at a connection. Flows bind to connection references so a solution never carries connection ids or credentials.
 
 ## Connectors
 
@@ -78,12 +72,14 @@ txc env connection-reference delete <logical-name> --yes
 
 ### Deploying with references
 
-1. Import the solution containing a custom connector first (references to it cannot exist before it).
-2. `connection create` the environment's connection.
-3. If another identity will bind or run, `connection permission add` it.
-4. Import the solution, then `connection-reference update <name> --connection-id <id>` for each reference.
-5. `connection-reference list --unbound` must come back empty.
+The step-by-step recipe (connector import order, sharing with the pipeline identity, binding, verifying nothing is unbound) lives in the agent skill [`connection-management.md`](../src/TALXIS.CLI.Features.Docs/Skills/connection-management.md), which is the single authoritative copy.
 
 ## Output and exit codes
 
-All commands support `--format json|text`. Mutating commands report a `status` (`connection test` too: `healthy` or `unhealthy`, exit 1 when unhealthy) and the same fields as the matching `get`; `create` exits 1 with its payload when consent or the credentials need attention, and 2 for invalid input (unknown connector or parameter, ambiguous name, missing environment variable).
+All commands support `--format json|text`. Every mutating command reports a `status` (`created`, `updated`, `unchanged`, `assigned`, `removed`; `connection test` reports `healthy` or `unhealthy`), a `statusMessage` when there is something to explain, and the same fields as the matching `get`; connection-reference `create` and `update` include the reference `id`. `connector get` lists operations under `logicalName` and `apiId`.
+
+| Exit | Meaning |
+|---|---|
+| 0 | Done (including `unchanged`). |
+| 1 | Consent required, failed or unhealthy; the payload is still written. |
+| 2 | Invalid input or not found: unknown connector, connection or reference, ambiguous name, bad `--param`, missing environment variable. |

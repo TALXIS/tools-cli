@@ -1,4 +1,5 @@
 using DotMake.CommandLine;
+using TALXIS.CLI.Features.Environment.Connector;
 
 namespace TALXIS.CLI.Features.Environment.Connection.Permission;
 
@@ -9,7 +10,7 @@ namespace TALXIS.CLI.Features.Environment.Connection.Permission;
 /// </summary>
 [CliCommand(
     Name = "permission",
-    Description = "Manage who can use a connection (share it) in the LIVE connected environment.",
+    Description = "Manage who can use a connection (share it) in the LIVE connected environment. " + ConnectorDescriptions.Workflow,
     Children = new[]
     {
         typeof(ConnectionPermissionListCliCommand),

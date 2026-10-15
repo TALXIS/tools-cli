@@ -14,7 +14,7 @@ This is not the `config_connection_create` family, which stores *local* environm
 
 ## Naming a Connector
 
-Pass the connector's **logical name** wherever a command takes `connector`. For a custom connector it is stable across environments (for example `almlab_connectorsopenfoodfacts`); for a built-in connector it is the apiId (`shared_office365users`). `environment_connector_list` shows both the logical name and the environment's apiId, which for a custom connector carries an environment-specific hash that you should not hard-code. An apiId or an exact display name also works.
+Pass the connector's **logical name** to `--connector` (optional on commands that act on an existing connection id; needed only when the same id exists under several connectors). For a custom connector it is stable across environments (for example `almlab_connectorsopenfoodfacts`); for a built-in connector it is the apiId (`shared_office365users`). `environment_connector_list` and `environment_connector_get` show both as `logicalName` and `apiId`; the apiId which for a custom connector carries an environment-specific hash that you should not hard-code. An apiId or an exact display name also works.
 
 ## Creating a Connection
 
@@ -22,13 +22,17 @@ Pass the connector's **logical name** wherever a command takes `connector`. For 
 
 | Connector needs | How |
 |---|---|
-| Nothing (a no-auth custom connector) | `connector` and `display-name` only. |
+| Nothing (a no-auth custom connector) | `--connector` and `--display-name` only. |
 | A user to sign in (OAuth) | Same. With a user credential (browser or device code) it signs in silently when the connector supports it. Otherwise it returns `status: consent-required` with a `consentLink` and exits 1; a person must open the link. `--no-consent` skips the silent attempt. |
-| A service principal | `auth-method` (see `environment_connector_get`), `--param name=value` for non-secrets and `--secret-from-env name=ENV_VAR` for secrets. The platform validates the credentials immediately; wrong ones fail with the platform's message and leave nothing behind. |
+| A service principal | `--auth-method` (see `environment_connector_get`), `--param name=value` for non-secrets and `--secret-from-env name=ENV_VAR` for secrets. The platform validates the credentials immediately; wrong ones fail with the platform's message and leave nothing behind. |
 
 Secrets are never accepted on the command line. A freshly created client secret can take up to a minute to propagate; a connection created too early fails with `AADSTS7000215` and succeeds on retry.
 
 A service-principal profile cannot sign in to a user-delegated OAuth connector: consent needs a user. Either use a service-principal authentication method, or have a person create the connection and **share** it (below).
+
+## Results and Exit Codes
+
+Every mutating command returns a `status` (`created`, `updated`, `unchanged`, `assigned`, `removed`, ...) and, when something needs attention, a `statusMessage`; `environment_connection_test` returns `healthy` or `unhealthy`. Exit code `1` means consent-required, failed or unhealthy and **still carries the payload** (read it before retrying); `2` means invalid input or not found (unknown connector, connection or reference, ambiguous name, missing environment variable). `connection-reference` create and update return the reference including its `id`.
 
 ## Deployment Recipe (connection references)
 
@@ -45,7 +49,7 @@ Create a reference by hand with `environment_connection-reference_create` (use `
 `environment_connection_permission_add` grants a principal a role; `environment_connection_permission_list` shows who has access; `environment_connection_permission_remove` revokes it.
 
 - Principals: `--user` (UPN or object id), `--service-principal` (client id or object id), `--group` (object id). Exactly one.
-- Roles: `can-view` (can use the connection; the default and the least needed for a pipeline), `can-view-with-share`, `can-edit`. The owner always keeps access and cannot be removed.
+- Roles (kebab-case only): `can-view` (can use the connection; the default and the least needed for a pipeline), `can-view-with-share`, `can-edit`. The owner always keeps access and cannot be removed.
 - Without sharing, binding a reference or enabling a flow as another identity fails with `ConnectionAuthorizationFailed`.
 - A connection owned by another identity does not appear in `environment_connection_list` until it is shared with you.
 

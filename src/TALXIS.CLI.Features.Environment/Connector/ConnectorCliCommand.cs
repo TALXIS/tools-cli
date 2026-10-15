@@ -8,7 +8,7 @@ namespace TALXIS.CLI.Features.Environment.Connector;
 /// </summary>
 [CliCommand(
     Name = "connector",
-    Description = "Browse Power Automate connectors and their operations in the connected environment.",
+    Description = "Browse Power Automate connectors and their operations in the connected environment. " + ConnectorDescriptions.Workflow,
     Children = new[]
     {
         typeof(ConnectorListCliCommand),

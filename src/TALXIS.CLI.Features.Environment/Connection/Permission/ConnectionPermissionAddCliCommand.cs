@@ -16,7 +16,7 @@ namespace TALXIS.CLI.Features.Environment.Connection.Permission;
 [CliIdempotent]
 [CliCommand(
     Name = "add",
-    Description = "Shares a connection with a user, service principal or group in the LIVE connected environment. Requires an active profile. Idempotent: a principal that already has the role is left unchanged."
+    Description = "Shares a connection with a user, service principal or group in the LIVE connected environment. Requires an active profile. Idempotent: a principal that already has the role is left unchanged. Example: txc environment connection permission add <connection-id> --service-principal <client-id>"
 )]
 public class ConnectionPermissionAddCliCommand : ConnectionPrincipalCommandBase
 {
