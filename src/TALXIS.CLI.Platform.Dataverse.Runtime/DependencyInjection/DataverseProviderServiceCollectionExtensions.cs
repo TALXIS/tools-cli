@@ -7,6 +7,7 @@ using TALXIS.CLI.Platform.Dataverse.Runtime.Authority;
 using TALXIS.CLI.Platform.Dataverse.Runtime;
 using TALXIS.CLI.Platform.Dataverse.Runtime.Msal;
 using TALXIS.CLI.Platform.PowerPlatform.Control;
+using TALXIS.CLI.Platform.PowerPlatform.Control.DependencyInjection;
 using TALXIS.CLI.Platform.PowerPlatform.Control.Graph;
 using TALXIS.CLI.Platform.PowerPlatform.Control.PowerPlatformRbac;
 using TALXIS.CLI.Platform.PowerPlatform.Control.Strategies;
@@ -69,15 +70,7 @@ public static class DataverseProviderServiceCollectionExtensions
             EnvironmentSettingsService>();
         services.AddSingleton<TALXIS.CLI.Core.Platforms.PowerPlatform.IEnvironmentManagementService,
             EnvironmentManagementService>();
-        services.AddSingleton<TALXIS.CLI.Core.Platforms.PowerPlatform.IPowerAutomateConnectorService,
-            TALXIS.CLI.Platform.PowerPlatform.Control.PowerAutomate.PowerAutomateConnectorService>();
-        services.AddSingleton<TALXIS.CLI.Core.Platforms.PowerPlatform.IConnectionService,
-            TALXIS.CLI.Platform.PowerPlatform.Control.Connectivity.ConnectionService>();
-        services.AddSingleton<TALXIS.CLI.Platform.PowerPlatform.Control.Connectivity.ConnectorResolutionService>();
-        services.AddSingleton<TALXIS.CLI.Core.Platforms.PowerPlatform.IConnectorResolver>(sp =>
-            sp.GetRequiredService<TALXIS.CLI.Platform.PowerPlatform.Control.Connectivity.ConnectorResolutionService>());
-        services.AddSingleton<TALXIS.CLI.Core.Platforms.PowerPlatform.IConnectorService>(sp =>
-            sp.GetRequiredService<TALXIS.CLI.Platform.PowerPlatform.Control.Connectivity.ConnectorResolutionService>());
+        services.AddTxcPowerPlatformConnectivity();
         services.AddSingleton<TALXIS.CLI.Core.Platforms.PowerPlatform.IEnvironmentUserProvisioningService,
             EnvironmentUserProvisioningService>();
         services.AddSingleton<IDataverseLiveChecker, DataverseLiveChecker>();

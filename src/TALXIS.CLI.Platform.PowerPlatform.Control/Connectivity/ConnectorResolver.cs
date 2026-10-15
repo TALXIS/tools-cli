@@ -1,227 +1,77 @@
-using System.Collections.Concurrent;
-using System.Text.Json;
-using Microsoft.Extensions.Logging;
-using TALXIS.CLI.Core.Contracts.Dataverse;
+using TALXIS.CLI.Core.Platforms.PowerPlatform;
 
 namespace TALXIS.CLI.Platform.PowerPlatform.Control.Connectivity;
 
-/// <summary>A connector the environment knows, as the connectivity API names it.</summary>
-/// <param name="ApiId">Short connector id the connectivity routes take.</param>
-/// <param name="LogicalName">
-/// Solution-aware logical name of a custom connector (stable across
-/// environments); for a built-in connector the logical name is the apiId.
-/// </param>
-internal sealed record ResolvedConnector(string ApiId, string LogicalName, string? DisplayName, bool IsCustom, Guid? XrmConnectorId = null);
-
 /// <summary>
-/// Turns what a person types for <c>--connector</c> into the environment's
-/// apiId. A custom connector's apiId carries an environment-specific hash, so
-/// the stable logical name (Dataverse <c>connector.name</c>) is the canonical
-/// input; the apiId in either form and an exact display name also work.
+/// Turns what a person types for a connector into the environment's connector.
+/// A custom connector's apiId carries an environment-specific hash, so the
+/// stable logical name (Dataverse <c>connector.name</c>) is the canonical
+/// input. The rule, in order: the apiId (either form), the logical name, an
+/// exact display name.
 /// </summary>
-internal sealed class ConnectorResolver
+internal sealed class ConnectorResolver : IConnectorResolver
 {
-    private static readonly TimeSpan CatalogLifetime = TimeSpan.FromMinutes(5);
+    private readonly ConnectivityTargetResolver _targets;
+    private readonly ConnectorCatalogClient _catalog;
+    private readonly ConnectorLogicalNameLookup _logicalNames;
 
-    private readonly ConnectivityApiClient _client;
-    private readonly IDataverseQueryService _query;
-    private readonly ILogger _logger;
-    private readonly ConcurrentDictionary<Guid, CatalogEntry> _catalogs = new();
-
-    public ConnectorResolver(ConnectivityApiClient client, IDataverseQueryService query, ILogger logger)
+    public ConnectorResolver(
+        ConnectivityTargetResolver targets,
+        ConnectorCatalogClient catalog,
+        ConnectorLogicalNameLookup logicalNames)
     {
-        _client = client ?? throw new ArgumentNullException(nameof(client));
-        _query = query ?? throw new ArgumentNullException(nameof(query));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _targets = targets ?? throw new ArgumentNullException(nameof(targets));
+        _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
+        _logicalNames = logicalNames ?? throw new ArgumentNullException(nameof(logicalNames));
     }
 
-    /// <exception cref="ArgumentException">Unknown or ambiguous connector.</exception>
-    public async Task<ResolvedConnector> ResolveAsync(ConnectivityTarget target, string connector, CancellationToken ct)
+    public async Task<ResolvedConnectorInfo> ResolveAsync(string? profileName, string connector, CancellationToken ct)
+    {
+        var target = await _targets.ResolveAsync(profileName, ct).ConfigureAwait(false);
+        return await ResolveAsync(target, connector, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Resolves against a target that is already known.</summary>
+    public async Task<ResolvedConnectorInfo> ResolveAsync(ConnectivityTarget target, string connector, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connector);
 
         var input = connector.Trim();
-        var shortId = ConnectivityEndpoints.ToShortApiId(input);
-        var catalog = await GetCatalogAsync(target, ct).ConfigureAwait(false);
+        var shortId = ConnectorIds.ToShort(input);
+        var catalog = await _catalog.GetAsync(target, ct).ConfigureAwait(false);
 
-        // 1. The apiId itself (short or path form).
-        var byId = catalog.FirstOrDefault(c => string.Equals(c.ApiId, shortId, StringComparison.OrdinalIgnoreCase));
-        if (byId is not null)
-            return ToResolved(byId);
+        var byApiId = FindByApiId(catalog, shortId);
+        if (byApiId is not null)
+            return ToInfo(byApiId, null);
 
-        // 2. The logical name of a custom connector, through Dataverse.
-        var apiId = await TryResolveLogicalNameAsync(target, shortId, ct).ConfigureAwait(false);
+        var apiId = await _logicalNames.TryFindApiIdAsync(target.ProfileName, shortId, ct).ConfigureAwait(false);
         if (apiId is not null)
         {
-            var known = catalog.FirstOrDefault(c => string.Equals(c.ApiId, apiId, StringComparison.OrdinalIgnoreCase));
-            return known is not null
-                ? ToResolved(known) with { LogicalName = shortId }
-                : new ResolvedConnector(apiId, shortId, null, true);
+            return FindByApiId(catalog, apiId) is { } known
+                ? ToInfo(known, shortId)
+                : new ResolvedConnectorInfo(apiId, shortId, null, true, null);
         }
 
-        // 3. An exact display name.
-        var byName = catalog
-            .Where(c => string.Equals(c.DisplayName, input, StringComparison.OrdinalIgnoreCase))
+        return ToInfo(FindByDisplayName(catalog, input), null);
+    }
+
+    private static CatalogConnector? FindByApiId(IReadOnlyList<CatalogConnector> catalog, string apiId)
+        => catalog.FirstOrDefault(c => string.Equals(c.ApiId, apiId, StringComparison.OrdinalIgnoreCase));
+
+    private static CatalogConnector FindByDisplayName(IReadOnlyList<CatalogConnector> catalog, string displayName)
+    {
+        var matches = catalog
+            .Where(c => string.Equals(c.DisplayName, displayName, StringComparison.OrdinalIgnoreCase))
             .ToList();
-        if (byName.Count == 1)
-            return ToResolved(byName[0]);
-        if (byName.Count > 1)
-        {
-            throw new ArgumentException(
-                $"The display name '{input}' matches {byName.Count} connectors: " +
-                string.Join(", ", byName.Select(c => c.ApiId)) +
-                ". Use the connector's logical name or apiId.");
-        }
 
-        throw new ArgumentException(
-            $"Connector '{input}' was not found in this environment. Use 'txc environment connector list' to see what is available.");
+        return matches.Count switch
+        {
+            1 => matches[0],
+            0 => throw new ConnectorNotFoundException(displayName),
+            _ => throw new AmbiguousConnectorException(displayName, matches.Select(c => c.ApiId).ToList()),
+        };
     }
 
-    /// <summary>
-    /// The whole catalog, each custom connector paired with its stable logical
-    /// name from the Dataverse <c>connector</c> table.
-    /// </summary>
-    public async Task<IReadOnlyList<(CatalogConnector Connector, string LogicalName)>> ListAsync(
-        ConnectivityTarget target, CancellationToken ct)
-    {
-        var catalog = await GetCatalogAsync(target, ct).ConfigureAwait(false);
-        var names = catalog.Any(c => c.IsCustom)
-            ? await ReadLogicalNamesAsync(target, ct).ConfigureAwait(false)
-            : new LogicalNames(new Dictionary<Guid, string>(), new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
-
-        return catalog
-            .Select(c => (c, LogicalNameOf(c, names)))
-            .ToList();
-    }
-
-    private static string LogicalNameOf(CatalogConnector connector, LogicalNames names)
-    {
-        if (!connector.IsCustom)
-            return connector.ApiId;
-        if (connector.XrmConnectorId is { } rowId && names.ByRowId.TryGetValue(rowId, out var byRow))
-            return byRow;
-        return names.ByApiId.TryGetValue(connector.ApiId, out var byApi) ? byApi : connector.ApiId;
-    }
-
-    private async Task<LogicalNames> ReadLogicalNamesAsync(ConnectivityTarget target, CancellationToken ct)
-    {
-        var byRow = new Dictionary<Guid, string>();
-        var byApi = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        try
-        {
-            var result = await _query.QueryODataAsync(
-                target.ProfileName, "connectors", "connectorid,name,connectorinternalid",
-                filter: null, orderBy: null, top: null, includeAnnotations: false, ct).ConfigureAwait(false);
-
-            foreach (var record in result.Records)
-            {
-                var name = GetString(record, "name");
-                if (string.IsNullOrWhiteSpace(name))
-                    continue;
-                if (Guid.TryParse(GetString(record, "connectorid"), out var rowId))
-                    byRow[rowId] = name;
-                if (GetString(record, "connectorinternalid") is { Length: > 0 } internalId)
-                    byApi[internalId] = name;
-            }
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            _logger.LogDebug(ex, "Could not read connector logical names from Dataverse.");
-        }
-
-        return new LogicalNames(byRow, byApi);
-    }
-
-    private sealed record LogicalNames(IReadOnlyDictionary<Guid, string> ByRowId, IReadOnlyDictionary<string, string> ByApiId);
-
-    private static ResolvedConnector ToResolved(CatalogConnector c)
-        => new(c.ApiId, c.ApiId, c.DisplayName, c.IsCustom, c.XrmConnectorId);
-
-    private async Task<string?> TryResolveLogicalNameAsync(ConnectivityTarget target, string logicalName, CancellationToken ct)
-    {
-        try
-        {
-            var escaped = logicalName.Replace("'", "''", StringComparison.Ordinal);
-            var result = await _query.QueryODataAsync(
-                target.ProfileName,
-                "connectors",
-                "connectorid,name,connectorinternalid",
-                $"name eq '{escaped}'",
-                orderBy: null,
-                top: 2,
-                includeAnnotations: false,
-                ct).ConfigureAwait(false);
-
-            foreach (var record in result.Records)
-            {
-                if (record.ValueKind == JsonValueKind.Object
-                    && record.TryGetProperty("connectorinternalid", out var id)
-                    && id.ValueKind == JsonValueKind.String
-                    && !string.IsNullOrWhiteSpace(id.GetString()))
-                {
-                    return id.GetString();
-                }
-            }
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            // A profile without Dataverse access, or an environment without the
-            // connector table, simply has no logical names to resolve.
-            _logger.LogDebug(ex, "Could not look up connector logical name '{LogicalName}' in Dataverse.", logicalName);
-        }
-
-        return null;
-    }
-
-    private async Task<IReadOnlyList<CatalogConnector>> GetCatalogAsync(ConnectivityTarget target, CancellationToken ct)
-    {
-        if (_catalogs.TryGetValue(target.EnvironmentId, out var cached) && cached.ExpiresAt > DateTimeOffset.UtcNow)
-            return cached.Connectors;
-
-        using var response = await _client.SendAsync(
-            HttpMethod.Get,
-            ConnectivityEndpoints.Connectors(target.BaseUri, target.EnvironmentId),
-            target.Connection,
-            target.Credential,
-            null,
-            ct).ConfigureAwait(false);
-
-        var connectors = new List<CatalogConnector>();
-        if (response.Body is { } doc
-            && doc.RootElement.TryGetProperty("value", out var value)
-            && value.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var item in value.EnumerateArray())
-            {
-                var name = GetString(item, "name");
-                if (string.IsNullOrWhiteSpace(name))
-                    continue;
-
-                var props = item.TryGetProperty("properties", out var p) ? p : default;
-                connectors.Add(new CatalogConnector(
-                    name,
-                    GetString(props, "displayName"),
-                    props.ValueKind == JsonValueKind.Object
-                        && props.TryGetProperty("isCustomApi", out var custom)
-                        && custom.ValueKind == JsonValueKind.True,
-                    Guid.TryParse(GetString(props, "xrmConnectorId"), out var rowId) ? rowId : null,
-                    GetString(props, "tier"),
-                    GetString(props, "description")));
-            }
-        }
-
-        _catalogs[target.EnvironmentId] = new CatalogEntry(connectors, DateTimeOffset.UtcNow + CatalogLifetime);
-        return connectors;
-    }
-
-    private static string? GetString(JsonElement element, string name)
-        => element.ValueKind == JsonValueKind.Object
-            && element.TryGetProperty(name, out var v)
-            && v.ValueKind == JsonValueKind.String
-                ? v.GetString()
-                : null;
-
-    internal sealed record CatalogConnector(string ApiId, string? DisplayName, bool IsCustom, Guid? XrmConnectorId, string? Tier = null, string? Description = null);
-
-    private sealed record CatalogEntry(IReadOnlyList<CatalogConnector> Connectors, DateTimeOffset ExpiresAt);
+    private static ResolvedConnectorInfo ToInfo(CatalogConnector connector, string? logicalName)
+        => new(connector.ApiId, logicalName ?? connector.ApiId, connector.DisplayName, connector.IsCustom, connector.XrmConnectorId);
 }

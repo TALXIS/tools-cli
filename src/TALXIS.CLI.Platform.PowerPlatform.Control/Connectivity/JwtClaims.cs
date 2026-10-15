@@ -1,4 +1,4 @@
-using System.Text.Json;
+using TALXIS.CLI.Core.Identity;
 
 namespace TALXIS.CLI.Platform.PowerPlatform.Control.Connectivity;
 
@@ -12,25 +12,7 @@ internal static class JwtClaims
 
     public static string? GetString(string accessToken, string claim)
     {
-        if (string.IsNullOrWhiteSpace(accessToken))
-            return null;
-
-        var parts = accessToken.Split('.');
-        if (parts.Length < 2)
-            return null;
-
-        try
-        {
-            var payload = parts[1].Replace('-', '+').Replace('_', '/');
-            payload = payload.PadRight(payload.Length + (4 - payload.Length % 4) % 4, '=');
-            using var doc = JsonDocument.Parse(Convert.FromBase64String(payload));
-            return doc.RootElement.TryGetProperty(claim, out var value) && value.ValueKind == JsonValueKind.String
-                ? value.GetString()
-                : null;
-        }
-        catch (Exception ex) when (ex is FormatException or JsonException)
-        {
-            return null;
-        }
+        using var payload = JwtPayload.TryParse(accessToken);
+        return payload is null ? null : JsonElementReader.TryGetString(payload.RootElement, claim);
     }
 }

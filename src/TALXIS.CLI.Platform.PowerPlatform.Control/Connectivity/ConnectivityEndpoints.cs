@@ -5,9 +5,9 @@ namespace TALXIS.CLI.Platform.PowerPlatform.Control.Connectivity;
 /// Power Platform API (<c>{env}.environment.api.powerplatform.com</c>).
 /// </summary>
 /// <remarks>
-/// Verified against a live tenant: every route here takes api-version 1 and an
-/// <c>environment eq '{id}'</c> filter, and accepts a Power Platform API token
-/// (audience <c>https://api.powerplatform.com</c>).
+/// Every route here takes api-version 1 and an <c>environment eq '{id}'</c>
+/// filter, and accepts a Power Platform API token (audience
+/// <c>https://api.powerplatform.com</c>).
 /// </remarks>
 internal static class ConnectivityEndpoints
 {
@@ -15,23 +15,6 @@ internal static class ConnectivityEndpoints
 
     /// <summary>The audience every connectivity route accepts.</summary>
     public static readonly Uri Audience = new("https://api.powerplatform.com/");
-
-    /// <summary>Prefix of the path-form connector id.</summary>
-    public const string ApiIdPrefix = "/providers/Microsoft.PowerApps/apis/";
-
-    /// <summary>
-    /// Reduces a connector reference to the short name the connectivity routes
-    /// take. Accepts the path form <c>/providers/Microsoft.PowerApps/apis/shared_x</c>.
-    /// </summary>
-    public static string ToShortApiId(string connector)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(connector);
-        var trimmed = connector.Trim().TrimEnd('/');
-        var slash = trimmed.LastIndexOf('/');
-        return slash >= 0 ? trimmed[(slash + 1)..] : trimmed;
-    }
-
-    public static string ToPathApiId(string shortApiId) => ApiIdPrefix + ToShortApiId(shortApiId);
 
     /// <summary><c>/connectivity/connectors</c> — the connector catalog.</summary>
     public static Uri Connectors(Uri baseUri, Guid environmentId)

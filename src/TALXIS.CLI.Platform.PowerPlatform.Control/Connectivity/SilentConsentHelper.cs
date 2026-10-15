@@ -2,9 +2,11 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Identity;
 using TALXIS.CLI.Core.Model;
+using TALXIS.CLI.Platform.PowerPlatform.Control.Http;
 
 namespace TALXIS.CLI.Platform.PowerPlatform.Control.Connectivity;
 
@@ -12,17 +14,18 @@ namespace TALXIS.CLI.Platform.PowerPlatform.Control.Connectivity;
 internal sealed record ConsentAttempt(bool Completed, string? Failure);
 
 /// <summary>
-/// Completes OAuth consent for a user-delegated connection without a browser.
+/// Completes OAuth consent for a user-delegated connection without a browser,
+/// and calls a connection's test link, both with an API Hub token.
 /// </summary>
 /// <remarks>
-/// Observed against a live tenant, not documented by Microsoft: when the new
-/// connection's <c>consentInfo</c> carries a <c>firstPartyLoginUri</c> (the
-/// connector's OAuth setting supports on-behalf-of login), POSTing the signed-in
-/// user's API Hub access token as <c>{"accessToken": ...}</c> to that URI — with
-/// no Authorization header — lets the consent service exchange it on the user's
-/// behalf and authenticate the connection. It only accepts user assertions, so
-/// it is attempted for interactive and device-code credentials only, never for
-/// a service principal.
+/// The first-party consent flow is not documented by Microsoft and may change.
+/// When the new connection's <c>consentInfo</c> carries a <c>firstPartyLoginUri</c>
+/// (the connector's OAuth setting supports on-behalf-of login), POSTing the
+/// signed-in user's API Hub access token as <c>{"accessToken": ...}</c> to that
+/// URI, with no Authorization header, lets the consent service exchange it on
+/// the user's behalf and authenticate the connection. It only accepts user
+/// assertions, so it is attempted for interactive and device-code credentials
+/// only, never for a service principal.
 /// </remarks>
 internal sealed class SilentConsentHelper
 {
@@ -30,11 +33,14 @@ internal sealed class SilentConsentHelper
     private readonly IHttpClientFactoryWrapper _httpFactory;
     private readonly ILogger _logger;
 
-    public SilentConsentHelper(IAccessTokenService tokens, IHttpClientFactoryWrapper httpFactory, ILogger logger)
+    public SilentConsentHelper(
+        IAccessTokenService tokens,
+        IHttpClientFactoryWrapper? httpFactory = null,
+        ILogger<SilentConsentHelper>? logger = null)
     {
         _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
-        _httpFactory = httpFactory ?? throw new ArgumentNullException(nameof(httpFactory));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _httpFactory = httpFactory ?? DefaultHttpClientFactoryWrapper.Instance;
+        _logger = logger ?? NullLogger<SilentConsentHelper>.Instance;
     }
 
     /// <summary>True for credentials that represent a person, which consent requires.</summary>
@@ -50,8 +56,7 @@ internal sealed class SilentConsentHelper
         string token;
         try
         {
-            token = await _tokens.AcquireForResourceAsync(
-                connection, credential, ApiHubAudiences.For(connection.Cloud ?? CloudInstance.Public), ct).ConfigureAwait(false);
+            token = await AcquireApiHubTokenAsync(connection, credential, ct).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -73,12 +78,11 @@ internal sealed class SilentConsentHelper
 
         var text = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
         return new ConsentAttempt(false,
-            $"The consent service rejected the sign-in ({(int)response.StatusCode}): {ConnectivityApiClient.Truncate(text, 300)}");
+            $"The consent service rejected the sign-in ({(int)response.StatusCode}): {HttpErrorText.Truncate(text, 300)}");
     }
 
     /// <summary>
-    /// Calls a connection's test link with an API Hub token. Healthy when the
-    /// connector answers 200 or 204.
+    /// Calls a connection's test link. Healthy when the connector answers 200 or 204.
     /// </summary>
     public async Task<(bool Healthy, string? Message)> RunTestLinkAsync(
         Connection connection, Credential credential, Uri testLink, CancellationToken ct)
@@ -86,11 +90,11 @@ internal sealed class SilentConsentHelper
         string token;
         try
         {
-            token = await _tokens.AcquireForResourceAsync(
-                connection, credential, ApiHubAudiences.For(connection.Cloud ?? CloudInstance.Public), ct).ConfigureAwait(false);
+            token = await AcquireApiHubTokenAsync(connection, credential, ct).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            _logger.LogDebug(ex, "Could not acquire an API Hub token for the connection test.");
             return (false, "Could not acquire an API Hub token for the test call: " + ex.Message);
         }
 
@@ -105,6 +109,10 @@ internal sealed class SilentConsentHelper
             return (true, null);
 
         var text = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-        return (false, $"The connection test returned {code}: {ConnectivityApiClient.Truncate(text, 300)}");
+        return (false, $"The connection test returned {code}: {HttpErrorText.Truncate(text, 300)}");
     }
+
+    private Task<string> AcquireApiHubTokenAsync(Connection connection, Credential credential, CancellationToken ct)
+        => _tokens.AcquireForResourceAsync(
+            connection, credential, ApiHubAudiences.For(connection.Cloud ?? CloudInstance.Public), ct);
 }

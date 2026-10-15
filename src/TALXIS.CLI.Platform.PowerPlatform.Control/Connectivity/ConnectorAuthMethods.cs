@@ -66,11 +66,11 @@ internal static class ConnectorAuthMethodReader
         {
             foreach (var set in values.EnumerateArray())
             {
-                var name = GetString(set, "name");
+                var name = JsonElementReader.TryGetString(set, "name");
                 if (string.IsNullOrWhiteSpace(name))
                     continue;
 
-                var display = set.TryGetProperty("uiDefinition", out var ui) ? GetString(ui, "displayName") : null;
+                var display = set.TryGetProperty("uiDefinition", out var ui) ? JsonElementReader.TryGetString(ui, "displayName") : null;
                 var parameters = set.TryGetProperty("parameters", out var p) ? ReadParameters(p) : [];
                 methods.Add(new AuthMethod(name, display, true, parameters));
             }
@@ -95,7 +95,7 @@ internal static class ConnectorAuthMethodReader
         foreach (var parameter in parameters.EnumerateObject())
         {
             var value = parameter.Value;
-            var type = GetString(value, "type") ?? "string";
+            var type = JsonElementReader.TryGetString(value, "type") ?? "string";
             var constraints = value.TryGetProperty("uiDefinition", out var ui)
                 && ui.TryGetProperty("constraints", out var c) ? c : default;
             list.Add(new AuthParameter(
@@ -120,13 +120,6 @@ internal static class ConnectorAuthMethodReader
             _ => false,
         };
     }
-
-    private static string? GetString(JsonElement element, string name)
-        => element.ValueKind == JsonValueKind.Object
-            && element.TryGetProperty(name, out var v)
-            && v.ValueKind == JsonValueKind.String
-                ? v.GetString()
-                : null;
 }
 
 /// <summary>Chooses an authentication method and builds the create request body.</summary>

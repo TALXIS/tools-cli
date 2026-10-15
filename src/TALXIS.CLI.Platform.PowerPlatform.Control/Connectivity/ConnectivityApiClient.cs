@@ -1,12 +1,9 @@
 using System.Net;
-using System.Net.Http.Headers;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using TALXIS.CLI.Core.Abstractions;
-using TALXIS.CLI.Core.Model;
+using TALXIS.CLI.Core.Platforms.PowerPlatform;
+using TALXIS.CLI.Platform.PowerPlatform.Control.Http;
 
 namespace TALXIS.CLI.Platform.PowerPlatform.Control.Connectivity;
 
@@ -16,11 +13,20 @@ internal sealed record ConnectivityResponse(HttpStatusCode StatusCode, JsonDocum
     public void Dispose() => Body?.Dispose();
 }
 
+/// <summary>A connectivity request the platform answered with a failure status.</summary>
+internal sealed class ConnectivityRequestException : InvalidOperationException
+{
+    public ConnectivityRequestException(string message, HttpStatusCode statusCode)
+        : base(message)
+        => StatusCode = statusCode;
+
+    public HttpStatusCode StatusCode { get; }
+}
+
 /// <summary>
 /// Authenticated JSON transport for the <c>/connectivity/*</c> routes. It uses
-/// the Power Platform API audience only — these routes reject the Power Apps
-/// service audience with 401 — so there is no audience probe and nothing to
-/// cache across route families.
+/// the Power Platform API audience only: these routes reject the Power Apps
+/// service audience with 401.
 /// </summary>
 /// <remarks>
 /// Several routes answer success with an empty body (delete, modifyPermissions,
@@ -28,62 +34,61 @@ internal sealed record ConnectivityResponse(HttpStatusCode StatusCode, JsonDocum
 /// </remarks>
 internal sealed class ConnectivityApiClient
 {
-    private const int MaxRetries = 2;
-    private const int InitialRetryDelayMs = 500;
-
     private readonly IAccessTokenService _tokens;
-    private readonly IHttpClientFactoryWrapper _httpFactory;
-    private readonly ILogger _logger;
+    private readonly RetryingHttpSender _sender;
 
-    public ConnectivityApiClient(
-        IAccessTokenService tokens,
-        IHttpClientFactoryWrapper? httpFactory = null,
-        ILogger? logger = null)
+    public ConnectivityApiClient(IAccessTokenService tokens, RetryingHttpSender sender)
     {
         _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
-        _httpFactory = httpFactory ?? DefaultHttpClientFactoryWrapper.Instance;
-        _logger = logger ?? NullLogger.Instance;
+        _sender = sender ?? throw new ArgumentNullException(nameof(sender));
     }
 
     /// <summary>
-    /// Sends a request and returns the response. A 404 surfaces as
-    /// <see cref="ArgumentException"/> (bad input, exit 2); any other failure as
-    /// <see cref="InvalidOperationException"/> carrying the platform's own
-    /// error code and message.
+    /// Sends a request and returns the response. Any failure status surfaces as
+    /// <see cref="ConnectivityRequestException"/> carrying the platform's own
+    /// error code and message; the status alone says nothing about which
+    /// resource was missing, so callers that know translate it.
     /// </summary>
     public async Task<ConnectivityResponse> SendAsync(
+        HttpMethod method, Uri requestUri, ConnectivityTarget target, JsonNode? jsonBody, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+
+        var token = await AcquireTokenAsync(target, ct).ConfigureAwait(false);
+        var result = await _sender.SendAsync(method, requestUri, token, jsonBody, ct).ConfigureAwait(false);
+
+        if (!result.IsSuccess)
+            throw Failure(result, method, requestUri);
+
+        return new ConnectivityResponse(result.StatusCode, TryParse(result.Body));
+    }
+
+    /// <summary>
+    /// <see cref="SendAsync"/> for a request about one connection: a 404 means
+    /// that connection does not exist, and a refused read (403) means the
+    /// caller may not use it. Other failures stay as they are.
+    /// </summary>
+    public async Task<ConnectivityResponse> SendForConnectionAsync(
         HttpMethod method,
         Uri requestUri,
-        Connection connection,
-        Credential credential,
+        ConnectivityTarget target,
         JsonNode? jsonBody,
+        string apiId,
+        string connectionId,
         CancellationToken ct)
     {
-        ArgumentNullException.ThrowIfNull(connection);
-        ArgumentNullException.ThrowIfNull(credential);
-
-        var token = await _tokens.AcquireForResourceAsync(connection, credential, ConnectivityEndpoints.Audience, ct)
-            .ConfigureAwait(false);
-
-        RawResponse raw = default;
-        for (var attempt = 0; attempt <= MaxRetries; attempt++)
+        try
         {
-            raw = await SendOnceAsync(method, requestUri, token, jsonBody, ct).ConfigureAwait(false);
-
-            var transient = raw.StatusCode == HttpStatusCode.TooManyRequests || (int)raw.StatusCode >= 500;
-            if (!transient || attempt == MaxRetries)
-                break;
-
-            var delay = InitialRetryDelayMs * (int)Math.Pow(2, attempt);
-            _logger.LogDebug("Connectivity request to {Uri} returned {Status}; retrying in {Delay}ms.",
-                requestUri, (int)raw.StatusCode, delay);
-            await Task.Delay(delay, ct).ConfigureAwait(false);
+            return await SendAsync(method, requestUri, target, jsonBody, ct).ConfigureAwait(false);
         }
-
-        if ((int)raw.StatusCode is < 200 or >= 300)
-            throw Failure(raw, method, requestUri);
-
-        return new ConnectivityResponse(raw.StatusCode, TryParse(raw.Body));
+        catch (ConnectivityRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+        {
+            throw new ConnectionNotFoundException(connectionId, apiId);
+        }
+        catch (ConnectivityRequestException ex) when (ex.StatusCode == HttpStatusCode.Forbidden && method == HttpMethod.Get)
+        {
+            throw new ConnectionAccessDeniedException(connectionId, apiId);
+        }
     }
 
     /// <summary>
@@ -92,30 +97,16 @@ internal sealed class ConnectivityApiClient
     /// owns: the platform only returns another identity's connection when the
     /// permissions expand names the caller.
     /// </summary>
-    public async Task<string> GetCallerObjectIdAsync(Connection connection, Credential credential, CancellationToken ct)
+    public async Task<string> GetCallerObjectIdAsync(ConnectivityTarget target, CancellationToken ct)
     {
-        var token = await _tokens.AcquireForResourceAsync(connection, credential, ConnectivityEndpoints.Audience, ct)
-            .ConfigureAwait(false);
+        var token = await AcquireTokenAsync(target, ct).ConfigureAwait(false);
         return JwtClaims.GetObjectId(token)
             ?? throw new InvalidOperationException(
                 "The access token for the Power Platform API carries no 'oid' claim, so the caller's connections cannot be listed.");
     }
 
-    private async Task<RawResponse> SendOnceAsync(
-        HttpMethod method, Uri requestUri, string token, JsonNode? jsonBody, CancellationToken ct)
-    {
-        using var http = _httpFactory.Create();
-        using var request = new HttpRequestMessage(method, requestUri);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        if (jsonBody is not null)
-            request.Content = new StringContent(jsonBody.ToJsonString(), Encoding.UTF8, "application/json");
-
-        using var response = await http.SendAsync(request, HttpCompletionOption.ResponseContentRead, ct)
-            .ConfigureAwait(false);
-        var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-        return new RawResponse(response.StatusCode, body);
-    }
+    private Task<string> AcquireTokenAsync(ConnectivityTarget target, CancellationToken ct)
+        => _tokens.AcquireForResourceAsync(target.Connection, target.Credential, ConnectivityEndpoints.Audience, ct);
 
     private static JsonDocument? TryParse(string body)
     {
@@ -131,17 +122,16 @@ internal sealed class ConnectivityApiClient
         }
     }
 
-    private static Exception Failure(RawResponse raw, HttpMethod method, Uri requestUri)
+    private static ConnectivityRequestException Failure(HttpResult result, HttpMethod method, Uri requestUri)
     {
-        var (code, message) = ReadError(raw.Body);
+        var (code, message) = ReadError(result.Body);
         var detail = string.IsNullOrEmpty(code) && string.IsNullOrEmpty(message)
-            ? Truncate(raw.Body, 500)
+            ? HttpErrorText.Truncate(result.Body, 500)
             : $"{code}: {message}".Trim(' ', ':');
-        var text = $"{method} {requestUri.AbsolutePath} failed ({(int)raw.StatusCode} {raw.StatusCode}): {detail}";
 
-        return raw.StatusCode == HttpStatusCode.NotFound
-            ? new ArgumentException(text)
-            : new InvalidOperationException(text);
+        return new ConnectivityRequestException(
+            $"{method} {requestUri.AbsolutePath} failed ({(int)result.StatusCode} {result.StatusCode}): {detail}",
+            result.StatusCode);
     }
 
     /// <summary>Reads <c>error.code</c> and <c>error.message</c> from a platform error body.</summary>
@@ -155,10 +145,8 @@ internal sealed class ConnectivityApiClient
             var root = doc.RootElement;
             if (root.ValueKind == JsonValueKind.Object)
             {
-                var error = root.TryGetProperty("error", out var e) && e.ValueKind == JsonValueKind.Object ? e : root;
-                string? Read(string name) =>
-                    error.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
-                return (Read("code"), Read("message"));
+                var error = JsonElementReader.TryGetObject(root, "error") ?? root;
+                return (JsonElementReader.TryGetString(error, "code"), JsonElementReader.TryGetString(error, "message"));
             }
         }
         catch (JsonException)
@@ -167,9 +155,4 @@ internal sealed class ConnectivityApiClient
         }
         return (null, null);
     }
-
-    internal static string Truncate(string s, int max)
-        => string.IsNullOrEmpty(s) ? string.Empty : (s.Length <= max ? s : s[..max] + "...");
-
-    private readonly record struct RawResponse(HttpStatusCode StatusCode, string Body);
 }
