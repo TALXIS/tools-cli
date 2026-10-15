@@ -64,6 +64,24 @@ public class McpToolRegistryTests
     }
 
     [Fact]
+    public void ListTools_ContainsPowerAutomateMetadataTools()
+    {
+        var tools = GetAllTools();
+        var names = tools.Select(t => t.Name).ToList();
+
+        Assert.Contains("environment_connector_list", names);
+        Assert.Contains("environment_connector_get", names);
+        Assert.Contains("environment_connector_operation_search", names);
+        Assert.Contains("environment_connector_operation_get", names);
+        Assert.Contains("environment_connection_list", names);
+        Assert.Contains("environment_flow_validate", names);
+
+        // The group routers are not leaves, so they are not tools themselves.
+        Assert.DoesNotContain("environment_connector", names);
+        Assert.DoesNotContain("environment_flow", names);
+    }
+
+    [Fact]
     public void ListTools_ContainsDataTools()
     {
         var tools = GetAllTools();
