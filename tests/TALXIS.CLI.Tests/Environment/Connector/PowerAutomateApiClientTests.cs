@@ -44,6 +44,34 @@ public class PowerAutomateApiClientTests
     }
 
     [Fact]
+    public async Task SendAsync_ConnectivityRoutesTryThePowerPlatformAudienceFirst()
+    {
+        var audiences = new List<Uri>();
+        var client = Build(_ => Json(HttpStatusCode.OK, """{ "value": [] }"""), audiences);
+        var uri = new Uri("https://abc.de.environment.api.powerplatform.com/connectivity/connections?api-version=1");
+
+        using var document = await client.SendAsync(
+            HttpMethod.Get, uri, TestConnection(), TestCredential(), null, CancellationToken.None);
+
+        Assert.Equal(PowerAutomateEndpointProvider.PowerPlatformApiAudience, Assert.Single(audiences));
+    }
+
+    [Fact]
+    public async Task SendAsync_AConnectivityCallDoesNotChangeTheAudienceUsedForPowerAutomateRoutes()
+    {
+        var audiences = new List<Uri>();
+        var client = Build(_ => Json(HttpStatusCode.OK, """{ "value": [] }"""), audiences);
+        var connectivity = new Uri("https://abc.de.environment.api.powerplatform.com/connectivity/connections?api-version=1");
+
+        using (await client.SendAsync(HttpMethod.Get, connectivity, TestConnection(), TestCredential(), null, CancellationToken.None)) { }
+        using (await client.SendAsync(HttpMethod.Get, RequestUri, TestConnection(), TestCredential(), null, CancellationToken.None)) { }
+
+        Assert.Equal(
+            [PowerAutomateEndpointProvider.PowerPlatformApiAudience, PowerAutomateEndpointProvider.PowerAppsServiceAudience],
+            audiences);
+    }
+
+    [Fact]
     public async Task SendAsync_FallsBackToTheNextAudienceWhenTheFirstIsRejected()
     {
         var audiences = new List<Uri>();

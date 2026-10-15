@@ -28,7 +28,7 @@ internal sealed class PowerAutomateApiClient
     /// rather than repeating the probe. See
     /// <see cref="GetAudienceCandidates"/> for the order and why.
     /// </summary>
-    private static readonly ConcurrentDictionary<CloudInstance, Uri> ResolvedAudiences = new();
+    private static readonly ConcurrentDictionary<(CloudInstance Cloud, bool Connectivity), Uri> ResolvedAudiences = new();
 
     private readonly IAccessTokenService _tokens;
     private readonly IHttpClientFactoryWrapper _httpFactory;
@@ -65,7 +65,8 @@ internal sealed class PowerAutomateApiClient
         ArgumentNullException.ThrowIfNull(credential);
 
         var cloud = connection.Cloud ?? CloudInstance.Public;
-        var audiences = GetAudienceCandidates(cloud);
+        var connectivity = IsConnectivityRoute(requestUri);
+        var audiences = GetAudienceCandidates(cloud, connectivity);
 
         Exception? lastFailure = null;
 
@@ -96,7 +97,7 @@ internal sealed class PowerAutomateApiClient
             {
                 // Remember the audience that worked so subsequent calls in this
                 // process skip the probe entirely.
-                ResolvedAudiences[cloud] = audience;
+                ResolvedAudiences[(cloud, connectivity)] = audience;
                 return Parse(response.Body, requestUri);
             }
 
@@ -118,24 +119,40 @@ internal sealed class PowerAutomateApiClient
     }
 
     /// <summary>
-    /// Audience order for a cloud: the one already proven to work, else the
-    /// Power Platform API resource followed by the Flow service resource.
+    /// Audience order for a route family on a cloud: the one already proven to
+    /// work, else the family's expected audience followed by the other.
     /// </summary>
-    private static IReadOnlyList<Uri> GetAudienceCandidates(CloudInstance cloud)
+    /// <remarks>
+    /// The two families accept different audiences on the same host:
+    /// <c>/powerautomate/*</c> takes the Power Apps service token and rejects a
+    /// Power Platform API token, while <c>/connectivity/*</c> takes the Power
+    /// Platform API token and rejects the Power Apps one with 401. A single
+    /// per-cloud cache would let one family's probe poison the other.
+    /// </remarks>
+    private static IReadOnlyList<Uri> GetAudienceCandidates(CloudInstance cloud, bool connectivity)
     {
-        if (ResolvedAudiences.TryGetValue(cloud, out var known))
+        if (ResolvedAudiences.TryGetValue((cloud, connectivity), out var known))
             return new[] { known };
 
-        // Power Apps service first: it is what these routes actually accept.
-        // Microsoft's own tooling uses the Flow service resource instead, but
-        // Entra refuses to issue the pinned pac application a token for it
-        // (AADSTS65002), so probing it would only ever cost a round trip.
-        return new[]
-        {
-            PowerAutomateEndpointProvider.PowerAppsServiceAudience,
-            PowerAutomateEndpointProvider.PowerPlatformApiAudience,
-        };
+        // Microsoft's own tooling uses the Flow service resource for the
+        // powerautomate routes, but Entra refuses to issue the pinned pac
+        // application a token for it (AADSTS65002), so probing it would only
+        // ever cost a round trip.
+        return connectivity
+            ? new[]
+            {
+                PowerAutomateEndpointProvider.PowerPlatformApiAudience,
+                PowerAutomateEndpointProvider.PowerAppsServiceAudience,
+            }
+            : new[]
+            {
+                PowerAutomateEndpointProvider.PowerAppsServiceAudience,
+                PowerAutomateEndpointProvider.PowerPlatformApiAudience,
+            };
     }
+
+    private static bool IsConnectivityRoute(Uri requestUri)
+        => requestUri.AbsolutePath.StartsWith("/connectivity/", StringComparison.OrdinalIgnoreCase);
 
     private async Task<RawResponse> SendWithRetriesAsync(
         HttpMethod method,
