@@ -79,7 +79,7 @@ public sealed class DataverseAccessTokenService : IDataverseAccessTokenService
         // Always derive the scope from the actual resource URI. Credential.Scopes
         // is for diagnostics only — using it here would break non-Dataverse
         // resources (e.g. Power Platform admin API) and multi-environment credentials.
-        var scope = DataverseScope.BuildDefault(resourceUri);
+        var scope = ResourceScope.Build(resourceUri);
         var cacheKey = InMemoryTokenCache.BuildKey(credential.Id, credential.TenantId, resourceUri.GetLeftPart(UriPartial.Authority));
 
         // Fast path: return a cached token that is still valid beyond the
