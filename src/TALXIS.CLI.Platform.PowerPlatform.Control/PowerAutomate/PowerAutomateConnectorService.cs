@@ -16,7 +16,7 @@ namespace TALXIS.CLI.Platform.PowerPlatform.Control.PowerAutomate;
 /// components, and this service exists so those definitions can be checked
 /// against connectors that actually exist.
 /// </summary>
-public sealed class PowerAutomateConnectorService : IPowerAutomateConnectorService
+internal sealed class PowerAutomateConnectorService : IPowerAutomateConnectorService
 {
     /// <summary>
     /// Connector and operation payloads are stable across an authoring session
@@ -26,7 +26,8 @@ public sealed class PowerAutomateConnectorService : IPowerAutomateConnectorServi
     private static readonly TimeSpan CacheLifetime = TimeSpan.FromMinutes(5);
 
     private readonly IConfigurationResolver _resolver;
-    private readonly IPowerPlatformEnvironmentCatalog _catalog;
+    private readonly IEnvironmentIdResolver _environmentIds;
+    private readonly IConnectorResolver _connectors;
     private readonly IDataverseQueryService _query;
     private readonly PowerAutomateApiClient _client;
     private readonly ILogger<PowerAutomateConnectorService> _logger;
@@ -34,56 +35,18 @@ public sealed class PowerAutomateConnectorService : IPowerAutomateConnectorServi
 
     public PowerAutomateConnectorService(
         IConfigurationResolver resolver,
-        IPowerPlatformEnvironmentCatalog catalog,
+        IEnvironmentIdResolver environmentIds,
+        IConnectorResolver connectors,
         IDataverseQueryService query,
-        IAccessTokenService tokens,
-        IHttpClientFactoryWrapper? httpFactory = null,
-        ILoggerFactory? loggerFactory = null)
+        PowerAutomateApiClient client,
+        ILogger<PowerAutomateConnectorService>? logger = null)
     {
         _resolver = resolver ?? throw new ArgumentNullException(nameof(resolver));
-        _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
+        _environmentIds = environmentIds ?? throw new ArgumentNullException(nameof(environmentIds));
+        _connectors = connectors ?? throw new ArgumentNullException(nameof(connectors));
         _query = query ?? throw new ArgumentNullException(nameof(query));
-        _logger = loggerFactory?.CreateLogger<PowerAutomateConnectorService>()
-            ?? NullLogger<PowerAutomateConnectorService>.Instance;
-        _client = new PowerAutomateApiClient(
-            tokens ?? throw new ArgumentNullException(nameof(tokens)),
-            httpFactory,
-            loggerFactory?.CreateLogger<PowerAutomateApiClient>());
-    }
-
-    public async Task<IReadOnlyList<ConnectorSummary>> ListConnectorsAsync(
-        string? profileName, string? query, int? top, CancellationToken ct)
-    {
-        var target = await ResolveTargetAsync(profileName, ct).ConfigureAwait(false);
-        var uri = PowerAutomateEndpointProvider.Connectors(target.BaseUri, top);
-
-        using var document = await SendAsync(HttpMethod.Get, uri, target, null, ct).ConfigureAwait(false);
-
-        var connectors = new List<ConnectorSummary>();
-        foreach (var item in EnumerateValue(document.RootElement))
-        {
-            var name = SwaggerOperationIndexer.TryGetString(item, "name");
-            if (string.IsNullOrWhiteSpace(name))
-                continue;
-
-            var properties = SwaggerOperationIndexer.TryGetObject(item, "properties");
-            connectors.Add(new ConnectorSummary(
-                Name: name,
-                DisplayName: properties is { } p ? SwaggerOperationIndexer.TryGetString(p, "displayName") : null,
-                Description: properties is { } d ? SwaggerOperationIndexer.TryGetString(d, "description") : null,
-                Tier: properties is { } t ? SwaggerOperationIndexer.TryGetString(t, "tier") : null));
-        }
-
-        if (!string.IsNullOrWhiteSpace(query))
-        {
-            connectors = connectors
-                .Where(c => c.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
-                    || (c.DisplayName?.Contains(query, StringComparison.OrdinalIgnoreCase) ?? false))
-                .ToList();
-        }
-
-        connectors.Sort(static (a, b) => string.CompareOrdinal(a.Name, b.Name));
-        return connectors;
+        _client = client ?? throw new ArgumentNullException(nameof(client));
+        _logger = logger ?? NullLogger<PowerAutomateConnectorService>.Instance;
     }
 
     public async Task<ConnectorDetail> GetConnectorAsync(
@@ -91,9 +54,10 @@ public sealed class PowerAutomateConnectorService : IPowerAutomateConnectorServi
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connector);
 
+        var resolved = await _connectors.ResolveAsync(profileName, connector, ct).ConfigureAwait(false);
         var target = await ResolveTargetAsync(profileName, ct).ConfigureAwait(false);
-        var payload = await GetConnectorPayloadAsync(target, connector, ct).ConfigureAwait(false);
-        return SwaggerOperationIndexer.Index(payload, connector, query);
+        var payload = await GetConnectorPayloadAsync(target, resolved.ApiId, ct).ConfigureAwait(false);
+        return SwaggerOperationIndexer.Index(payload, resolved, query);
     }
 
     public async Task<IReadOnlyList<OperationSearchHit>> SearchOperationsAsync(
@@ -106,7 +70,10 @@ public sealed class PowerAutomateConnectorService : IPowerAutomateConnectorServi
         if (!string.IsNullOrWhiteSpace(query))
             body["searchText"] = query;
         if (!string.IsNullOrWhiteSpace(connector))
-            body["operationGroupName"] = connector;
+        {
+            var resolved = await _connectors.ResolveAsync(profileName, connector, ct).ConfigureAwait(false);
+            body["operationGroupName"] = resolved.ApiId;
+        }
 
         // Deprecated operations are always excluded: surfacing them invites
         // authoring against an operation that no longer works.
@@ -134,20 +101,20 @@ public sealed class PowerAutomateConnectorService : IPowerAutomateConnectorServi
         var hits = new List<OperationSearchHit>();
         foreach (var item in EnumerateValue(document.RootElement))
         {
-            var name = SwaggerOperationIndexer.TryGetString(item, "name");
+            var name = JsonElementReader.TryGetString(item, "name");
             if (string.IsNullOrWhiteSpace(name))
                 continue;
 
-            var properties = SwaggerOperationIndexer.TryGetObject(item, "properties");
-            var group = properties is { } p ? SwaggerOperationIndexer.TryGetObject(p, "operationGroup") : null;
+            var properties = JsonElementReader.TryGetObject(item, "properties");
+            var group = properties is { } p ? JsonElementReader.TryGetObject(p, "operationGroup") : null;
 
             hits.Add(new OperationSearchHit(
                 Name: name,
-                DisplayName: properties is { } s ? SwaggerOperationIndexer.TryGetString(s, "summary") : null,
-                Description: properties is { } d ? SwaggerOperationIndexer.TryGetString(d, "description") : null,
-                Usage: properties is { } u ? SwaggerOperationIndexer.TryGetString(u, "usage") : null,
-                ConnectorName: group is { } g ? SwaggerOperationIndexer.TryGetString(g, "name") : null,
-                ConnectorDisplayName: group is { } gd ? SwaggerOperationIndexer.TryGetString(gd, "displayName") : null));
+                DisplayName: properties is { } s ? JsonElementReader.TryGetString(s, "summary") : null,
+                Description: properties is { } d ? JsonElementReader.TryGetString(d, "description") : null,
+                Usage: properties is { } u ? JsonElementReader.TryGetString(u, "usage") : null,
+                ConnectorName: group is { } g ? JsonElementReader.TryGetString(g, "name") : null,
+                ConnectorDisplayName: group is { } gd ? JsonElementReader.TryGetString(gd, "displayName") : null));
 
             if (top is > 0 && hits.Count >= top.Value)
                 break;
@@ -162,9 +129,10 @@ public sealed class PowerAutomateConnectorService : IPowerAutomateConnectorServi
         ArgumentException.ThrowIfNullOrWhiteSpace(connector);
         ArgumentException.ThrowIfNullOrWhiteSpace(operation);
 
+        var resolved = await _connectors.ResolveAsync(profileName, connector, ct).ConfigureAwait(false);
         var target = await ResolveTargetAsync(profileName, ct).ConfigureAwait(false);
-        var payload = await GetOperationPayloadAsync(target, connector, operation, ct).ConfigureAwait(false);
-        return OperationSchemaReader.Read(connector, operation, payload);
+        var payload = await GetOperationPayloadAsync(target, resolved.ApiId, operation, ct).ConfigureAwait(false);
+        return OperationSchemaReader.Read(resolved, operation, payload);
     }
 
     public async Task<IReadOnlyList<FlowConnectionSummary>> ListConnectionsAsync(
@@ -186,12 +154,12 @@ public sealed class PowerAutomateConnectorService : IPowerAutomateConnectorServi
         var connections = new List<FlowConnectionSummary>();
         foreach (var item in EnumerateValue(document.RootElement))
         {
-            var name = SwaggerOperationIndexer.TryGetString(item, "name");
+            var name = JsonElementReader.TryGetString(item, "name");
             if (string.IsNullOrWhiteSpace(name))
                 continue;
 
-            var properties = SwaggerOperationIndexer.TryGetObject(item, "properties");
-            var api = properties is { } p ? SwaggerOperationIndexer.TryGetObject(p, "api") : null;
+            var properties = JsonElementReader.TryGetObject(item, "properties");
+            var api = properties is { } p ? JsonElementReader.TryGetObject(p, "api") : null;
             var statuses = properties is { } sp && sp.TryGetProperty("statuses", out var s)
                 && s.ValueKind == JsonValueKind.Array
                     ? s
@@ -200,11 +168,11 @@ public sealed class PowerAutomateConnectorService : IPowerAutomateConnectorServi
             connections.Add(new FlowConnectionSummary(
                 ConnectionName: name,
                 ConnectorId: api is { } a
-                    ? SwaggerOperationIndexer.TryGetString(a, "name") is { } apiName
+                    ? JsonElementReader.TryGetString(a, "name") is { } apiName
                         ? PowerAutomateEndpointProvider.BuildApiId(apiName)
-                        : SwaggerOperationIndexer.TryGetString(a, "id") ?? string.Empty
+                        : JsonElementReader.TryGetString(a, "id") ?? string.Empty
                     : string.Empty,
-                DisplayName: properties is { } dn ? SwaggerOperationIndexer.TryGetString(dn, "displayName") : null,
+                DisplayName: properties is { } dn ? JsonElementReader.TryGetString(dn, "displayName") : null,
                 Status: ReadFirstStatus(statuses),
                 ConnectionReferenceLogicalName: null,
                 Source: "ppapi"));
@@ -268,14 +236,14 @@ public sealed class PowerAutomateConnectorService : IPowerAutomateConnectorServi
         var connections = new List<FlowConnectionSummary>();
         foreach (var record in result.Records)
         {
-            var logicalName = SwaggerOperationIndexer.TryGetString(record, "connectionreferencelogicalname");
+            var logicalName = JsonElementReader.TryGetString(record, "connectionreferencelogicalname");
             if (string.IsNullOrWhiteSpace(logicalName))
                 continue;
 
             connections.Add(new FlowConnectionSummary(
-                ConnectionName: SwaggerOperationIndexer.TryGetString(record, "connectionid") ?? logicalName,
-                ConnectorId: SwaggerOperationIndexer.TryGetString(record, "connectorid") ?? string.Empty,
-                DisplayName: SwaggerOperationIndexer.TryGetString(record, "connectionreferencedisplayname"),
+                ConnectionName: JsonElementReader.TryGetString(record, "connectionid") ?? logicalName,
+                ConnectorId: JsonElementReader.TryGetString(record, "connectorid") ?? string.Empty,
+                DisplayName: JsonElementReader.TryGetString(record, "connectionreferencedisplayname"),
                 Status: null,
                 ConnectionReferenceLogicalName: logicalName,
                 Source: "dataverse"));
@@ -291,7 +259,7 @@ public sealed class PowerAutomateConnectorService : IPowerAutomateConnectorServi
 
         foreach (var status in array.EnumerateArray())
         {
-            if (SwaggerOperationIndexer.TryGetString(status, "status") is { } value)
+            if (JsonElementReader.TryGetString(status, "status") is { } value)
                 return value;
         }
 
@@ -359,45 +327,14 @@ public sealed class PowerAutomateConnectorService : IPowerAutomateConnectorServi
                 : [];
     }
 
-    /// <summary>
-    /// Resolves the profile to a connection, credential and per-environment API
-    /// host. Mirrors <c>EnvironmentSettingsService.ResolveEnvironmentIdAsync</c>:
-    /// the stored environment ID first, the platform catalog second.
-    /// </summary>
     private async Task<EnvironmentTarget> ResolveTargetAsync(string? profileName, CancellationToken ct)
     {
         var ctx = await _resolver.ResolveAsync(profileName, ct).ConfigureAwait(false);
-        var environmentId = await ResolveEnvironmentIdAsync(ctx, ct).ConfigureAwait(false);
+        var environmentId = await _environmentIds.ResolveAsync(ctx.Connection, ctx.Credential, ct).ConfigureAwait(false);
         var baseUri = PowerPlatformEnvironmentApiEndpoints.BuildBaseUri(
             environmentId, ctx.Connection.Cloud ?? CloudInstance.Public);
 
         return new EnvironmentTarget(ctx.Connection, ctx.Credential, environmentId, baseUri);
-    }
-
-    private async Task<Guid> ResolveEnvironmentIdAsync(ResolvedProfileContext ctx, CancellationToken ct)
-    {
-        if (ctx.Connection.EnvironmentId.HasValue)
-            return ctx.Connection.EnvironmentId.Value;
-
-        if (string.IsNullOrWhiteSpace(ctx.Connection.EnvironmentUrl)
-            || !Uri.TryCreate(ctx.Connection.EnvironmentUrl, UriKind.Absolute, out var environmentUrl))
-        {
-            throw new InvalidOperationException(
-                $"Connection '{ctx.Connection.Id}' has no EnvironmentId and no usable EnvironmentUrl to resolve one from.");
-        }
-
-        _logger.LogDebug(
-            "EnvironmentId not stored on connection '{ConnectionId}'. Resolving via the Power Platform catalog...",
-            ctx.Connection.Id);
-
-        var environment = await _catalog
-            .TryGetByEnvironmentUrlAsync(ctx.Connection, ctx.Credential, environmentUrl, ct)
-            .ConfigureAwait(false)
-            ?? throw new InvalidOperationException(
-                $"Could not resolve a Power Platform environment for '{environmentUrl}'. " +
-                "Set the environment ID on the connection, or re-run the connection live check.");
-
-        return environment.EnvironmentId;
     }
 
     private sealed record CacheEntry(JsonElement Payload, DateTimeOffset ExpiresAt);

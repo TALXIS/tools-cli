@@ -1,5 +1,6 @@
 using System.Text.Json;
 using TALXIS.CLI.Core.Platforms.PowerPlatform;
+using static TALXIS.CLI.Platform.PowerPlatform.Control.JsonElementReader;
 
 namespace TALXIS.CLI.Platform.PowerPlatform.Control.PowerAutomate;
 
@@ -17,11 +18,10 @@ internal static class SwaggerOperationIndexer
     /// Builds the index from a <c>/powerautomate/apis/{connector}?$expand=swagger</c>
     /// payload, optionally keeping only operations matching <paramref name="query"/>.
     /// </summary>
-    public static ConnectorDetail Index(JsonElement connectorPayload, string fallbackName, string? query)
+    public static ConnectorDetail Index(JsonElement connectorPayload, ResolvedConnectorInfo connector, string? query)
     {
-        var name = TryGetString(connectorPayload, "name") ?? fallbackName;
         var properties = TryGetObject(connectorPayload, "properties");
-        var displayName = properties is { } p ? TryGetString(p, "displayName") : null;
+        var displayName = (properties is { } p ? TryGetString(p, "displayName") : null) ?? connector.DisplayName;
 
         var operations = new List<ConnectorOperationSummary>();
 
@@ -69,9 +69,9 @@ internal static class SwaggerOperationIndexer
         }
 
         return new ConnectorDetail(
-            Name: name,
+            LogicalName: connector.LogicalName,
+            ApiId: connector.ApiId,
             DisplayName: displayName,
-            ApiId: PowerAutomateEndpointProvider.BuildApiId(name),
             OperationCount: total,
             MatchedOperations: matched,
             Operations: result);
@@ -133,18 +133,4 @@ internal static class SwaggerOperationIndexer
 
         return count;
     }
-
-    internal static JsonElement? TryGetObject(JsonElement parent, string name)
-        => parent.ValueKind == JsonValueKind.Object
-            && parent.TryGetProperty(name, out var value)
-            && value.ValueKind == JsonValueKind.Object
-                ? value
-                : null;
-
-    internal static string? TryGetString(JsonElement parent, string name)
-        => parent.ValueKind == JsonValueKind.Object
-            && parent.TryGetProperty(name, out var value)
-            && value.ValueKind == JsonValueKind.String
-                ? value.GetString()
-                : null;
 }

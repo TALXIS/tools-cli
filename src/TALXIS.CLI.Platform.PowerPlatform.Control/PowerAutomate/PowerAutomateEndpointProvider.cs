@@ -1,3 +1,5 @@
+using TALXIS.CLI.Core.Platforms.PowerPlatform;
+
 namespace TALXIS.CLI.Platform.PowerPlatform.Control.PowerAutomate;
 
 /// <summary>
@@ -11,11 +13,10 @@ internal static class PowerAutomateEndpointProvider
     /// Primary audience for the Power Automate metadata endpoints.
     /// </summary>
     /// <remarks>
-    /// Verified against a live tenant: the <c>/powerautomate/*</c> routes accept
-    /// a Power Apps service token and reject a Power Platform API token with
-    /// 401, even though the latter works for other routes on the same host.
-    /// This resource is also one the pinned pac application can obtain, unlike
-    /// the Flow service.
+    /// The <c>/powerautomate/*</c> routes accept a Power Apps service token and
+    /// reject a Power Platform API token with 401, even though the latter works
+    /// for other routes on the same host. This resource is also one the pinned
+    /// pac application can obtain, unlike the Flow service.
     /// </remarks>
     public static readonly Uri PowerAppsServiceAudience = new("https://service.powerapps.com/");
 
@@ -70,8 +71,7 @@ internal static class PowerAutomateEndpointProvider
             : new Uri(baseUri, $"connectivity/connectors/{Uri.EscapeDataString(connector)}/connections?api-version={ApiVersion}");
 
     /// <summary>The platform id a flow definition uses to reference a connector.</summary>
-    public static string BuildApiId(string connector)
-        => $"/providers/Microsoft.PowerApps/apis/{connector}";
+    public static string BuildApiId(string connector) => ConnectorIds.PathPrefix + connector;
 
     /// <summary>
     /// Extracts the connector name from an <c>apiId</c> such as

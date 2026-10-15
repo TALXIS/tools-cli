@@ -16,20 +16,20 @@ namespace TALXIS.CLI.Platform.PowerPlatform.Control;
 public sealed class EnvironmentSettingsService : IEnvironmentSettingsService
 {
     private readonly IConfigurationResolver _resolver;
-    private readonly IPowerPlatformEnvironmentCatalog _catalog;
+    private readonly IEnvironmentIdResolver _environmentIds;
     private readonly ISettingsBackend[] _backends;
     private readonly ILogger<EnvironmentSettingsService> _logger;
 
     public EnvironmentSettingsService(
         IConfigurationResolver resolver,
-        IPowerPlatformEnvironmentCatalog catalog,
+        IEnvironmentIdResolver environmentIds,
         EnvironmentSettingsClient controlPlaneClient,
         IAccessTokenService tokens,
         IHttpClientFactoryWrapper? httpFactory = null,
         ILoggerFactory? loggerFactory = null)
     {
         _resolver = resolver ?? throw new ArgumentNullException(nameof(resolver));
-        _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
+        _environmentIds = environmentIds ?? throw new ArgumentNullException(nameof(environmentIds));
         _logger = loggerFactory?.CreateLogger<EnvironmentSettingsService>()
             ?? NullLogger<EnvironmentSettingsService>.Instance;
 
@@ -48,7 +48,7 @@ public sealed class EnvironmentSettingsService : IEnvironmentSettingsService
         string? profileName, CancellationToken ct)
     {
         var ctx = await _resolver.ResolveAsync(profileName, ct).ConfigureAwait(false);
-        var envId = await ResolveEnvironmentIdAsync(ctx, ct).ConfigureAwait(false);
+        var envId = await _environmentIds.ResolveAsync(ctx.Connection, ctx.Credential, ct).ConfigureAwait(false);
 
         _logger.LogDebug("Listing environment settings from all backends for environment {EnvironmentId}.", envId);
 
@@ -76,7 +76,7 @@ public sealed class EnvironmentSettingsService : IEnvironmentSettingsService
         string? profileName, string settingName, string value, CancellationToken ct)
     {
         var ctx = await _resolver.ResolveAsync(profileName, ct).ConfigureAwait(false);
-        var envId = await ResolveEnvironmentIdAsync(ctx, ct).ConfigureAwait(false);
+        var envId = await _environmentIds.ResolveAsync(ctx.Connection, ctx.Credential, ct).ConfigureAwait(false);
 
         _logger.LogDebug(
             "Updating setting '{Setting}' to '{Value}' for environment {EnvironmentId}.",
@@ -116,31 +116,5 @@ public sealed class EnvironmentSettingsService : IEnvironmentSettingsService
                 backend.GetType().Name);
             return Array.Empty<EnvironmentSetting>();
         }
-    }
-
-    private async Task<Guid> ResolveEnvironmentIdAsync(ResolvedProfileContext ctx, CancellationToken ct)
-    {
-        if (ctx.Connection.EnvironmentId.HasValue)
-            return ctx.Connection.EnvironmentId.Value;
-
-        if (string.IsNullOrWhiteSpace(ctx.Connection.EnvironmentUrl)
-            || !Uri.TryCreate(ctx.Connection.EnvironmentUrl, UriKind.Absolute, out var envUri))
-            throw new InvalidOperationException(
-                $"Connection '{ctx.Connection.Id}' has no EnvironmentUrl or EnvironmentId.");
-
-        _logger.LogInformation(
-            "EnvironmentId not stored on connection '{ConnectionId}'. Resolving via Power Platform catalog...",
-            ctx.Connection.Id);
-
-        var env = await _catalog
-            .TryGetByEnvironmentUrlAsync(ctx.Connection, ctx.Credential, envUri, ct)
-            .ConfigureAwait(false);
-
-        if (env is null)
-            throw new InvalidOperationException(
-                $"Could not resolve Power Platform environment for URL '{ctx.Connection.EnvironmentUrl}'.");
-
-        _logger.LogInformation("Resolved EnvironmentId {EnvironmentId}.", env.EnvironmentId);
-        return env.EnvironmentId;
     }
 }
