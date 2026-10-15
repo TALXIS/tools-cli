@@ -50,7 +50,10 @@ internal static class ConnectorAuthMethodReader
     /// <summary>
     /// Reads <c>properties.connectionParameterSets.values[]</c>, or the flat
     /// <c>properties.connectionParameters</c> when the connector has no sets.
-    /// A connector with neither is an authentication-free connector.
+    /// A connector with neither is an authentication-free connector. In flat
+    /// parameters an OAuth setting makes the sibling inputs optional: connectors
+    /// such as SharePoint list username and password as required only for the
+    /// other <c>authType</c> values, and consent signs the person in without them.
     /// </summary>
     public static IReadOnlyList<AuthMethod> Read(JsonElement connector)
     {
@@ -79,6 +82,9 @@ internal static class ConnectorAuthMethodReader
         if (methods.Count == 0 && props.TryGetProperty("connectionParameters", out var flat))
         {
             var parameters = ReadParameters(flat);
+            if (parameters.Any(p => p.IsOAuth))
+                parameters = parameters.ConvertAll(p => p.IsOAuth ? p : p with { Required = false });
+
             if (parameters.Count > 0)
                 methods.Add(new AuthMethod("default", null, false, parameters));
         }

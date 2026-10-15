@@ -42,7 +42,7 @@ internal sealed class ConnectorResolver : IConnectorResolver
 
         var byApiId = FindByApiId(catalog, shortId);
         if (byApiId is not null)
-            return ToInfo(byApiId, null);
+            return await ToInfoAsync(target, byApiId, ct).ConfigureAwait(false);
 
         var apiId = await _logicalNames.TryFindApiIdAsync(target.ProfileName, shortId, ct).ConfigureAwait(false);
         if (apiId is not null)
@@ -52,7 +52,18 @@ internal sealed class ConnectorResolver : IConnectorResolver
                 : new ResolvedConnectorInfo(apiId, shortId, null, true, null);
         }
 
-        return ToInfo(FindByDisplayName(catalog, input), null);
+        return await ToInfoAsync(target, FindByDisplayName(catalog, input), ct).ConfigureAwait(false);
+    }
+
+    // A custom connector's logical name exists only in Dataverse, so it is looked up
+    // when the caller named the connector some other way.
+    private async Task<ResolvedConnectorInfo> ToInfoAsync(ConnectivityTarget target, CatalogConnector connector, CancellationToken ct)
+    {
+        if (!connector.IsCustom)
+            return ToInfo(connector, null);
+
+        var logicalNames = await _logicalNames.ReadAllAsync(target.ProfileName, ct).ConfigureAwait(false);
+        return ToInfo(connector, logicalNames.LogicalNameOf(connector));
     }
 
     private static CatalogConnector? FindByApiId(IReadOnlyList<CatalogConnector> catalog, string apiId)

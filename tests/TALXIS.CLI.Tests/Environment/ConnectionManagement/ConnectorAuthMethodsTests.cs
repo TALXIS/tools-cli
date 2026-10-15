@@ -45,6 +45,26 @@ public class ConnectorAuthMethodsTests
     }
 
     [Fact]
+    public void Read_FlatOAuthWithConditionallyRequiredInputs_IsStillInteractiveOAuth()
+    {
+        // SharePoint-style: the OAuth token plus username/password that are only
+        // required for the other authType values.
+        const string connector = """
+            { "properties": { "connectionParameters": {
+              "token": { "type": "oauthSetting" },
+              "username": { "type": "securestring", "uiDefinition": { "constraints": { "required": "true" } } },
+              "password": { "type": "securestring", "uiDefinition": { "constraints": { "required": "true" } } }
+            } } }
+            """;
+
+        var method = Assert.Single(Read(connector));
+
+        Assert.True(method.IsInteractiveOAuth);
+        Assert.False(method.RequiresInput);
+        ConnectionRequestBuilder.Validate(method, P(), "shared_sharepointonline");
+    }
+
+    [Fact]
     public void Read_FlagsSecretsAndRequiredInputs()
     {
         var sp = Read(ConnectionFixtures.DataverseConnector()).Single(m => m.Name == "ServicePrincipalOauth");
