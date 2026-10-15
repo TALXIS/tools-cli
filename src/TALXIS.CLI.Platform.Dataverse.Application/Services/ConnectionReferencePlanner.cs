@@ -59,6 +59,38 @@ internal static class ConnectionReferencePlanner
                 : CreateAction.Unchanged;
     }
 
+    /// <summary>
+    /// Turns the platform's binding failures into actionable messages. Binding is
+    /// validated as the caller, so the two failures people hit are a connection id
+    /// that does not exist and a connection they have not been given access to.
+    /// </summary>
+    /// <returns>True when <paramref name="exception"/> was a binding failure.</returns>
+    public static bool TryTranslateBindingFailure(
+        Exception exception, string? connectionId, string apiId, out Exception translated)
+    {
+        translated = exception;
+        var text = exception.ToString();
+
+        if (text.Contains("ConnectionNotFound", StringComparison.Ordinal))
+        {
+            translated = new ArgumentException(
+                $"Connection '{connectionId}' was not found for connector '{apiId}'. " +
+                $"List the connections you can use with: txc environment connection list --connector {apiId}. " +
+                "A connection created by another identity is only visible once it is shared with you.");
+            return true;
+        }
+
+        if (text.Contains("ConnectionAuthorizationFailed", StringComparison.Ordinal))
+        {
+            translated = new InvalidOperationException(
+                $"You do not have permission to use connection '{connectionId}'. Ask its owner to share it with you: " +
+                $"txc environment connection permission add {connectionId} --connector {apiId} --service-principal <client id> (or --user <upn>).");
+            return true;
+        }
+
+        return false;
+    }
+
     /// <summary>True when an update would change nothing.</summary>
     public static bool IsNoOp(ConnectionReferenceRecord existing, string? connectionId, string? displayName)
         => (string.IsNullOrWhiteSpace(connectionId) || string.Equals(existing.ConnectionId, connectionId, StringComparison.Ordinal))

@@ -23,13 +23,13 @@ public class ConnectorGetCliCommand : ProfiledCliCommand
     [CliArgument(Description = "Connector name, for example shared_teams or shared_commondataserviceforapps.")]
     public string Connector { get; set; } = string.Empty;
 
-    [CliOption(Name = "--query", Description = "Show only operations whose ID or summary contains this text.", Required = false)]
-    public string? Query { get; set; }
+    [CliOption(Name = "--filter", Aliases = ["--search"], Description = "Show only operations whose ID or summary contains this text.", Required = false)]
+    public string? Filter { get; set; }
 
     protected override async Task<int> ExecuteAsync()
     {
         var service = TxcServices.Get<IPowerAutomateConnectorService>();
-        var connector = await service.GetConnectorAsync(Profile, Connector, Query, CancellationToken.None)
+        var connector = await service.GetConnectorAsync(Profile, Connector, Filter, CancellationToken.None)
             .ConfigureAwait(false);
 
         OutputFormatter.WriteData(connector, PrintConnector);

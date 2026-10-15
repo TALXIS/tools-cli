@@ -77,6 +77,63 @@ internal sealed class ConnectorResolver
             $"Connector '{input}' was not found in this environment. Use 'txc environment connector list' to see what is available.");
     }
 
+    /// <summary>
+    /// The whole catalog, each custom connector paired with its stable logical
+    /// name from the Dataverse <c>connector</c> table.
+    /// </summary>
+    public async Task<IReadOnlyList<(CatalogConnector Connector, string LogicalName)>> ListAsync(
+        ConnectivityTarget target, CancellationToken ct)
+    {
+        var catalog = await GetCatalogAsync(target, ct).ConfigureAwait(false);
+        var names = catalog.Any(c => c.IsCustom)
+            ? await ReadLogicalNamesAsync(target, ct).ConfigureAwait(false)
+            : new LogicalNames(new Dictionary<Guid, string>(), new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+
+        return catalog
+            .Select(c => (c, LogicalNameOf(c, names)))
+            .ToList();
+    }
+
+    private static string LogicalNameOf(CatalogConnector connector, LogicalNames names)
+    {
+        if (!connector.IsCustom)
+            return connector.ApiId;
+        if (connector.XrmConnectorId is { } rowId && names.ByRowId.TryGetValue(rowId, out var byRow))
+            return byRow;
+        return names.ByApiId.TryGetValue(connector.ApiId, out var byApi) ? byApi : connector.ApiId;
+    }
+
+    private async Task<LogicalNames> ReadLogicalNamesAsync(ConnectivityTarget target, CancellationToken ct)
+    {
+        var byRow = new Dictionary<Guid, string>();
+        var byApi = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            var result = await _query.QueryODataAsync(
+                target.ProfileName, "connectors", "connectorid,name,connectorinternalid",
+                filter: null, orderBy: null, top: null, includeAnnotations: false, ct).ConfigureAwait(false);
+
+            foreach (var record in result.Records)
+            {
+                var name = GetString(record, "name");
+                if (string.IsNullOrWhiteSpace(name))
+                    continue;
+                if (Guid.TryParse(GetString(record, "connectorid"), out var rowId))
+                    byRow[rowId] = name;
+                if (GetString(record, "connectorinternalid") is { Length: > 0 } internalId)
+                    byApi[internalId] = name;
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogDebug(ex, "Could not read connector logical names from Dataverse.");
+        }
+
+        return new LogicalNames(byRow, byApi);
+    }
+
+    private sealed record LogicalNames(IReadOnlyDictionary<Guid, string> ByRowId, IReadOnlyDictionary<string, string> ByApiId);
+
     private static ResolvedConnector ToResolved(CatalogConnector c)
         => new(c.ApiId, c.ApiId, c.DisplayName, c.IsCustom, c.XrmConnectorId);
 
@@ -147,7 +204,9 @@ internal sealed class ConnectorResolver
                     props.ValueKind == JsonValueKind.Object
                         && props.TryGetProperty("isCustomApi", out var custom)
                         && custom.ValueKind == JsonValueKind.True,
-                    Guid.TryParse(GetString(props, "xrmConnectorId"), out var rowId) ? rowId : null));
+                    Guid.TryParse(GetString(props, "xrmConnectorId"), out var rowId) ? rowId : null,
+                    GetString(props, "tier"),
+                    GetString(props, "description")));
             }
         }
 
@@ -162,7 +221,7 @@ internal sealed class ConnectorResolver
                 ? v.GetString()
                 : null;
 
-    private sealed record CatalogConnector(string ApiId, string? DisplayName, bool IsCustom, Guid? XrmConnectorId);
+    internal sealed record CatalogConnector(string ApiId, string? DisplayName, bool IsCustom, Guid? XrmConnectorId, string? Tier = null, string? Description = null);
 
     private sealed record CatalogEntry(IReadOnlyList<CatalogConnector> Connectors, DateTimeOffset ExpiresAt);
 }

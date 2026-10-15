@@ -75,7 +75,8 @@ internal sealed class DataverseConnectionReferenceService : IConnectionReference
                 return new ConnectionReferenceOutcome("unchanged", existing!);
 
             case ConnectionReferencePlanner.CreateAction.Bind:
-                await ConnectionReferenceManager.UpdateAsync(conn.Client, existing!.Id, options.ConnectionId, null, ct).ConfigureAwait(false);
+                await WriteAsync(connector.ApiId, options.ConnectionId, () =>
+                    ConnectionReferenceManager.UpdateAsync(conn.Client, existing!.Id, options.ConnectionId, null, ct)).ConfigureAwait(false);
                 return new ConnectionReferenceOutcome("updated", await GetAsync(profileName, options.LogicalName, ct).ConfigureAwait(false));
 
             default:
@@ -86,12 +87,13 @@ internal sealed class DataverseConnectionReferenceService : IConnectionReference
                         "Import the solution that contains the connector before creating references to it.");
                 }
 
-                await ConnectionReferenceManager.CreateAsync(
-                    conn.Client,
-                    options,
-                    ConnectionReferencePlanner.ToStoredConnectorId(connector.ApiId),
-                    connector.IsCustom ? connector.ConnectorRowId : null,
-                    ct).ConfigureAwait(false);
+                await WriteAsync(connector.ApiId, options.ConnectionId, () =>
+                    ConnectionReferenceManager.CreateAsync(
+                        conn.Client,
+                        options,
+                        ConnectionReferencePlanner.ToStoredConnectorId(connector.ApiId),
+                        connector.IsCustom ? connector.ConnectorRowId : null,
+                        ct)).ConfigureAwait(false);
 
                 return new ConnectionReferenceOutcome("created", await GetAsync(profileName, options.LogicalName, ct).ConfigureAwait(false));
         }
@@ -113,7 +115,8 @@ internal sealed class DataverseConnectionReferenceService : IConnectionReference
 
         // The platform validates the binding as the caller and rejects a connection
         // that does not exist or is not shared with them (ConnectionAuthorizationFailed).
-        await ConnectionReferenceManager.UpdateAsync(conn.Client, row.Id, connectionId, displayName, ct).ConfigureAwait(false);
+        await WriteAsync(current.ApiId, connectionId, () =>
+            ConnectionReferenceManager.UpdateAsync(conn.Client, row.Id, connectionId, displayName, ct)).ConfigureAwait(false);
         return new ConnectionReferenceOutcome("updated", await GetAsync(profileName, logicalName, ct).ConfigureAwait(false));
     }
 
@@ -191,6 +194,19 @@ internal sealed class DataverseConnectionReferenceService : IConnectionReference
         ConnectionBindingStatus.Unknown => "The connection was not found or is not visible to you.",
         _ => null,
     };
+
+    /// <summary>Runs a write and replaces the platform's binding failures with actionable messages.</summary>
+    private static async Task WriteAsync(string apiId, string? connectionId, Func<Task> write)
+    {
+        try
+        {
+            await write().ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ConnectionReferencePlanner.TryTranslateBindingFailure(ex, connectionId, apiId, out var friendly))
+        {
+            throw friendly;
+        }
+    }
 
     private static ArgumentException NotFound(string logicalName)
         => new($"No connection reference named '{logicalName}' was found.");

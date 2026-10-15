@@ -81,4 +81,36 @@ public class ConnectionReferencePlannerTests
     [InlineData(null, null, true)]
     public void IsNoOp_ComparesOnlyWhatWasProvided(string? connectionId, string? displayName, bool expected)
         => Assert.Equal(expected, ConnectionReferencePlanner.IsNoOp(Reference(connectionId: "c1"), connectionId, displayName));
+
+    [Fact]
+    public void TryTranslateBindingFailure_ConnectionNotFound_BecomesAValidationError()
+    {
+        var raw = new InvalidOperationException("Request failed with: 404 {\"error\":{\"code\":\"ConnectionNotFound\"}}");
+
+        Assert.True(ConnectionReferencePlanner.TryTranslateBindingFailure(raw, "c9", "shared_x", out var friendly));
+
+        var ex = Assert.IsType<ArgumentException>(friendly);
+        Assert.Contains("'c9'", ex.Message);
+        Assert.Contains("connection list --connector shared_x", ex.Message);
+    }
+
+    [Fact]
+    public void TryTranslateBindingFailure_AuthorizationFailed_PointsAtSharing()
+    {
+        var raw = new InvalidOperationException("... ConnectionAuthorizationFailed: the caller does not have the minimum required permission");
+
+        Assert.True(ConnectionReferencePlanner.TryTranslateBindingFailure(raw, "c9", "shared_x", out var friendly));
+
+        var ex = Assert.IsType<InvalidOperationException>(friendly);
+        Assert.Contains("connection permission add c9 --connector shared_x", ex.Message);
+    }
+
+    [Fact]
+    public void TryTranslateBindingFailure_LeavesOtherErrorsAlone()
+    {
+        var raw = new InvalidOperationException("The server is on fire.");
+
+        Assert.False(ConnectionReferencePlanner.TryTranslateBindingFailure(raw, "c9", "shared_x", out var friendly));
+        Assert.Same(raw, friendly);
+    }
 }
