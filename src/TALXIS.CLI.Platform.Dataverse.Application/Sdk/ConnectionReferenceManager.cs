@@ -22,7 +22,10 @@ internal static class ConnectionReferenceManager
 {
     private const string Table = "connectionreference";
 
-    /// <summary>The solution component type of a connection reference.</summary>
+    /// <summary>
+    /// The solution component type of a connection reference. It is not in the
+    /// component registry of the metadata package, so it is named here.
+    /// </summary>
     public const int ComponentType = 10164;
 
     private static readonly ColumnSet Columns = new(
@@ -84,6 +87,27 @@ internal static class ConnectionReferenceManager
         var result = await service.RetrieveMultipleAsync(query, ct).ConfigureAwait(false);
         return result.Entities.Count > 0 ? ToRow(result.Entities[0]) : null;
     }
+
+    public static async Task<bool> IsInSolutionAsync(
+        IOrganizationServiceAsync2 service, Guid id, string solutionUniqueName, CancellationToken ct)
+    {
+        var query = new QueryExpression("solutioncomponent") { ColumnSet = new ColumnSet(false), TopCount = 1 };
+        query.Criteria.AddCondition("objectid", ConditionOperator.Equal, id);
+        query.Criteria.AddCondition("componenttype", ConditionOperator.Equal, ComponentType);
+        var solution = query.AddLink("solution", "solutionid", "solutionid", JoinOperator.Inner);
+        solution.LinkCriteria.AddCondition("uniquename", ConditionOperator.Equal, solutionUniqueName);
+
+        var result = await service.RetrieveMultipleAsync(query, ct).ConfigureAwait(false);
+        return result.Entities.Count > 0;
+    }
+
+    public static Task AddToSolutionAsync(
+        IOrganizationServiceAsync2 service, Guid id, string solutionUniqueName, CancellationToken ct)
+        => SolutionComponentMutator.AddAsync(
+            service,
+            new ComponentAddOptions(
+                solutionUniqueName, id, ComponentType, AddRequiredComponents: false, DoNotIncludeSubcomponents: false),
+            ct);
 
     /// <summary>
     /// Creates the reference. The platform requires the path-form connector id

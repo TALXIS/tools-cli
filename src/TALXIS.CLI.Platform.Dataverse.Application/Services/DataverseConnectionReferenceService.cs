@@ -1,3 +1,4 @@
+using Microsoft.PowerPlatform.Dataverse.Client;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.Platforms.PowerPlatform;
 using TALXIS.CLI.Platform.Dataverse.Application.Sdk;
@@ -14,9 +15,9 @@ namespace TALXIS.CLI.Platform.Dataverse.Application.Services;
 internal sealed class DataverseConnectionReferenceService : IConnectionReferenceService
 {
     private readonly IConnectorResolver _connectors;
-    private readonly IConnectionService _connections;
+    private readonly IConnectionReader _connections;
 
-    public DataverseConnectionReferenceService(IConnectorResolver connectors, IConnectionService connections)
+    public DataverseConnectionReferenceService(IConnectorResolver connectors, IConnectionReader connections)
     {
         _connectors = connectors ?? throw new ArgumentNullException(nameof(connectors));
         _connections = connections ?? throw new ArgumentNullException(nameof(connections));
@@ -35,7 +36,7 @@ internal sealed class DataverseConnectionReferenceService : IConnectionReference
         var rows = await ConnectionReferenceManager.ListAsync(
             conn.Client,
             options.Solution,
-            connector is null ? null : ConnectionReferencePlanner.ToStoredConnectorId(connector.ApiId),
+            connector is null ? null : ConnectorIds.ToPath(connector.ApiId),
             connector?.ConnectorRowId,
             options.ConnectionId,
             options.Filter,
@@ -50,10 +51,9 @@ internal sealed class DataverseConnectionReferenceService : IConnectionReference
     public async Task<ConnectionReferenceRecord> GetAsync(string? profileName, string logicalName, CancellationToken ct)
     {
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
-        var row = await ConnectionReferenceManager.FindAsync(conn.Client, logicalName, ct).ConfigureAwait(false)
-            ?? throw NotFound(logicalName);
+        var row = await FindRequiredAsync(conn.Client, logicalName, ct).ConfigureAwait(false);
 
-        return (await ToRecordsAsync(profileName, [row], ct).ConfigureAwait(false))[0];
+        return await ToRecordAsync(profileName, row, ct).ConfigureAwait(false);
     }
 
     public async Task<ConnectionReferenceOutcome> CreateAsync(
@@ -67,36 +67,12 @@ internal sealed class DataverseConnectionReferenceService : IConnectionReference
 
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
         var existingRow = await ConnectionReferenceManager.FindAsync(conn.Client, options.LogicalName, ct).ConfigureAwait(false);
-        var existing = existingRow is null ? null : (await ToRecordsAsync(profileName, [existingRow], ct).ConfigureAwait(false))[0];
+        var existing = existingRow is null ? null : await ToRecordAsync(profileName, existingRow, ct).ConfigureAwait(false);
 
-        switch (ConnectionReferencePlanner.PlanCreate(existing, connector.ApiId, options.ConnectionId))
-        {
-            case ConnectionReferencePlanner.CreateAction.Unchanged:
-                return new ConnectionReferenceOutcome("unchanged", existing!);
-
-            case ConnectionReferencePlanner.CreateAction.Bind:
-                await WriteAsync(connector.ApiId, options.ConnectionId, () =>
-                    ConnectionReferenceManager.UpdateAsync(conn.Client, existing!.Id, options.ConnectionId, null, ct)).ConfigureAwait(false);
-                return new ConnectionReferenceOutcome("updated", await GetAsync(profileName, options.LogicalName, ct).ConfigureAwait(false));
-
-            default:
-                if (connector.IsCustom && connector.ConnectorRowId is null)
-                {
-                    throw new ArgumentException(
-                        $"The custom connector '{connector.LogicalName}' is not deployed in this environment yet. " +
-                        "Import the solution that contains the connector before creating references to it.");
-                }
-
-                await WriteAsync(connector.ApiId, options.ConnectionId, () =>
-                    ConnectionReferenceManager.CreateAsync(
-                        conn.Client,
-                        options,
-                        ConnectionReferencePlanner.ToStoredConnectorId(connector.ApiId),
-                        connector.IsCustom ? connector.ConnectorRowId : null,
-                        ct)).ConfigureAwait(false);
-
-                return new ConnectionReferenceOutcome("created", await GetAsync(profileName, options.LogicalName, ct).ConfigureAwait(false));
-        }
+        var action = ConnectionReferencePlanner.PlanCreate(existing, connector.ApiId, options.ConnectionId);
+        return action == ConnectionReferencePlanner.CreateAction.Create
+            ? await CreateNewAsync(profileName, conn.Client, connector, options, ct).ConfigureAwait(false)
+            : await ReconcileExistingAsync(profileName, conn.Client, existingRow!, existing!, action, options, ct).ConfigureAwait(false);
     }
 
     public async Task<ConnectionReferenceOutcome> UpdateAsync(
@@ -106,28 +82,129 @@ internal sealed class DataverseConnectionReferenceService : IConnectionReference
             throw new ArgumentException("Nothing to update: pass a connection id and/or a display name.");
 
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
-        var row = await ConnectionReferenceManager.FindAsync(conn.Client, logicalName, ct).ConfigureAwait(false)
-            ?? throw NotFound(logicalName);
-        var current = (await ToRecordsAsync(profileName, [row], ct).ConfigureAwait(false))[0];
+        var row = await FindRequiredAsync(conn.Client, logicalName, ct).ConfigureAwait(false);
+        var current = await ToRecordAsync(profileName, row, ct).ConfigureAwait(false);
 
         if (ConnectionReferencePlanner.IsNoOp(current, connectionId, displayName))
-            return new ConnectionReferenceOutcome("unchanged", current);
+            return new ConnectionReferenceOutcome(ConnectionOutcomeStatus.Unchanged, current);
 
         // The platform validates the binding as the caller and rejects a connection
-        // that does not exist or is not shared with them (ConnectionAuthorizationFailed).
-        await WriteAsync(current.ApiId, connectionId, () =>
-            ConnectionReferenceManager.UpdateAsync(conn.Client, row.Id, connectionId, displayName, ct)).ConfigureAwait(false);
-        return new ConnectionReferenceOutcome("updated", await GetAsync(profileName, logicalName, ct).ConfigureAwait(false));
+        // that does not exist or is not shared with them.
+        await ConnectionBindingErrors.TranslateAsync(current.ApiId, connectionId, async () =>
+        {
+            await ConnectionReferenceManager.UpdateAsync(conn.Client, row.Id, connectionId, displayName, ct).ConfigureAwait(false);
+            return true;
+        }).ConfigureAwait(false);
+
+        var updated = await ApplyAsync(profileName, row, current, connectionId, displayName, ct).ConfigureAwait(false);
+        return new ConnectionReferenceOutcome(ConnectionOutcomeStatus.Updated, updated);
     }
 
     public async Task DeleteAsync(string? profileName, string logicalName, CancellationToken ct)
     {
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
-        var row = await ConnectionReferenceManager.FindAsync(conn.Client, logicalName, ct).ConfigureAwait(false)
-            ?? throw NotFound(logicalName);
+        var row = await FindRequiredAsync(conn.Client, logicalName, ct).ConfigureAwait(false);
 
         await ConnectionReferenceManager.DeleteAsync(conn.Client, row.Id, ct).ConfigureAwait(false);
     }
+
+    private async Task<ConnectionReferenceOutcome> CreateNewAsync(
+        string? profileName,
+        IOrganizationServiceAsync2 client,
+        ResolvedConnectorInfo connector,
+        ConnectionReferenceCreateOptions options,
+        CancellationToken ct)
+    {
+        if (connector.IsCustom && connector.ConnectorRowId is null)
+        {
+            throw new ArgumentException(
+                $"The custom connector '{connector.LogicalName}' is not deployed in this environment yet. " +
+                "Import the solution that contains the connector before creating references to it.");
+        }
+
+        var storedConnectorId = ConnectorIds.ToPath(connector.ApiId);
+        var customConnectorId = connector.IsCustom ? connector.ConnectorRowId : null;
+        var id = await ConnectionBindingErrors.TranslateAsync(connector.ApiId, options.ConnectionId, () =>
+            ConnectionReferenceManager.CreateAsync(client, options, storedConnectorId, customConnectorId, ct)).ConfigureAwait(false);
+
+        var row = new ConnectionReferenceRow(
+            id, options.LogicalName, options.DisplayName, storedConnectorId, customConnectorId,
+            options.ConnectionId, IsManaged: false, Owner: null);
+        return new ConnectionReferenceOutcome(
+            ConnectionOutcomeStatus.Created, await ToRecordAsync(profileName, row, ct).ConfigureAwait(false));
+    }
+
+    /// <summary>
+    /// The reference exists already: bind it when a different connection was
+    /// asked for, and add it to the requested solution when that does not
+    /// contain it yet.
+    /// </summary>
+    private async Task<ConnectionReferenceOutcome> ReconcileExistingAsync(
+        string? profileName,
+        IOrganizationServiceAsync2 client,
+        ConnectionReferenceRow row,
+        ConnectionReferenceRecord existing,
+        ConnectionReferencePlanner.CreateAction action,
+        ConnectionReferenceCreateOptions options,
+        CancellationToken ct)
+    {
+        var record = existing;
+        if (action == ConnectionReferencePlanner.CreateAction.Bind)
+        {
+            await ConnectionBindingErrors.TranslateAsync(existing.ApiId, options.ConnectionId, async () =>
+            {
+                await ConnectionReferenceManager.UpdateAsync(client, existing.Id, options.ConnectionId, null, ct).ConfigureAwait(false);
+                return true;
+            }).ConfigureAwait(false);
+            record = await ApplyAsync(profileName, row, existing, options.ConnectionId, null, ct).ConfigureAwait(false);
+        }
+
+        var addedToSolution = await EnsureInSolutionAsync(client, existing.Id, options.SolutionUniqueName, ct).ConfigureAwait(false);
+        return new ConnectionReferenceOutcome(ConnectionReferencePlanner.OutcomeOf(action, addedToSolution), record);
+    }
+
+    /// <returns>True when the reference had to be added to the solution.</returns>
+    private static async Task<bool> EnsureInSolutionAsync(
+        IOrganizationServiceAsync2 client, Guid id, string? solutionUniqueName, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(solutionUniqueName)
+            || await ConnectionReferenceManager.IsInSolutionAsync(client, id, solutionUniqueName, ct).ConfigureAwait(false))
+        {
+            return false;
+        }
+
+        await ConnectionReferenceManager.AddToSolutionAsync(client, id, solutionUniqueName, ct).ConfigureAwait(false);
+        return true;
+    }
+
+    /// <summary>
+    /// The record after a successful write, built from the values written. The
+    /// binding status is read again only when the connection changed.
+    /// </summary>
+    private async Task<ConnectionReferenceRecord> ApplyAsync(
+        string? profileName,
+        ConnectionReferenceRow row,
+        ConnectionReferenceRecord current,
+        string? connectionId,
+        string? displayName,
+        CancellationToken ct)
+    {
+        var renamed = string.IsNullOrWhiteSpace(displayName) ? current : current with { DisplayName = displayName };
+        if (string.IsNullOrWhiteSpace(connectionId) || string.Equals(current.ConnectionId, connectionId, StringComparison.Ordinal))
+            return renamed;
+
+        return await ToRecordAsync(profileName, row with { ConnectionId = connectionId, DisplayName = renamed.DisplayName }, ct)
+            .ConfigureAwait(false);
+    }
+
+    private static async Task<ConnectionReferenceRow> FindRequiredAsync(
+        IOrganizationServiceAsync2 client, string logicalName, CancellationToken ct)
+        => await ConnectionReferenceManager.FindAsync(client, logicalName, ct).ConfigureAwait(false)
+            ?? throw new ArgumentException($"No connection reference named '{logicalName}' was found.");
+
+    private async Task<ConnectionReferenceRecord> ToRecordAsync(
+        string? profileName, ConnectionReferenceRow row, CancellationToken ct)
+        => (await ToRecordsAsync(profileName, [row], ct).ConfigureAwait(false))[0];
 
     /// <summary>
     /// Adds each reference's binding status by reading the bound connection once
@@ -141,7 +218,7 @@ internal sealed class DataverseConnectionReferenceService : IConnectionReference
 
         foreach (var row in rows)
         {
-            var apiId = ConnectionReferencePlanner.ToShortApiId(row.StoredConnectorId);
+            var apiId = ConnectorIds.ToShortOrEmpty(row.StoredConnectorId);
             string? status = null;
             var readable = false;
 
@@ -159,15 +236,8 @@ internal sealed class DataverseConnectionReferenceService : IConnectionReference
 
             var binding = ConnectionReferencePlanner.Classify(row.ConnectionId, status, readable);
             records.Add(new ConnectionReferenceRecord(
-                row.Id,
-                row.LogicalName,
-                row.DisplayName,
-                apiId,
-                row.ConnectionId,
-                binding,
-                BindingMessage(binding, status),
-                row.IsManaged,
-                row.Owner));
+                row.Id, row.LogicalName, row.DisplayName, apiId, row.ConnectionId,
+                binding, BindingMessage(binding, status), row.IsManaged, row.Owner));
         }
 
         return records;
@@ -181,7 +251,7 @@ internal sealed class DataverseConnectionReferenceService : IConnectionReference
             var connection = await _connections.GetAsync(profileName, apiId, connectionId, ct).ConfigureAwait(false);
             return (connection.ConnectionStatus, true);
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        catch (Exception ex) when (ex is ConnectionNotFoundException or ConnectionAccessDeniedException or ConnectorNotFoundException)
         {
             // Deleted, or owned by someone it has not been shared with.
             return (null, false);
@@ -194,20 +264,4 @@ internal sealed class DataverseConnectionReferenceService : IConnectionReference
         ConnectionBindingStatus.Unknown => "The connection was not found or is not visible to you.",
         _ => null,
     };
-
-    /// <summary>Runs a write and replaces the platform's binding failures with actionable messages.</summary>
-    private static async Task WriteAsync(string apiId, string? connectionId, Func<Task> write)
-    {
-        try
-        {
-            await write().ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ConnectionReferencePlanner.TryTranslateBindingFailure(ex, connectionId, apiId, out var friendly))
-        {
-            throw friendly;
-        }
-    }
-
-    private static ArgumentException NotFound(string logicalName)
-        => new($"No connection reference named '{logicalName}' was found.");
 }
