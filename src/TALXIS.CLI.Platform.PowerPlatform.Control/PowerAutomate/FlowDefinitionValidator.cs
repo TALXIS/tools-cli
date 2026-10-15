@@ -83,21 +83,21 @@ internal static class FlowDefinitionValidator
     /// <summary>Checks the definition header that the Logic Apps runtime requires.</summary>
     private static void ValidateEnvelope(JsonElement definition, List<FlowValidationFinding> findings)
     {
-        if (SwaggerOperationIndexer.TryGetString(definition, "$schema") is null)
+        if (JsonElementReader.TryGetString(definition, "$schema") is null)
         {
             findings.Add(new FlowValidationFinding(
                 FlowValidationSeverity.Warning, "/definition/$schema", "missing-schema",
                 "The definition declares no $schema. Use the Logic Apps workflow definition schema."));
         }
 
-        if (SwaggerOperationIndexer.TryGetString(definition, "contentVersion") is null)
+        if (JsonElementReader.TryGetString(definition, "contentVersion") is null)
         {
             findings.Add(new FlowValidationFinding(
                 FlowValidationSeverity.Warning, "/definition/contentVersion", "missing-content-version",
                 "The definition declares no contentVersion. Use \"1.0.0.0\"."));
         }
 
-        if (SwaggerOperationIndexer.TryGetObject(definition, "triggers") is not { } triggers
+        if (JsonElementReader.TryGetObject(definition, "triggers") is not { } triggers
             || !triggers.EnumerateObject().Any())
         {
             findings.Add(new FlowValidationFinding(
@@ -112,14 +112,14 @@ internal static class FlowDefinitionValidator
     /// </summary>
     private static void ValidateDefinitionParameters(JsonElement definition, List<FlowValidationFinding> findings)
     {
-        var parameters = SwaggerOperationIndexer.TryGetObject(definition, "parameters");
+        var parameters = JsonElementReader.TryGetObject(definition, "parameters");
 
         Check("$authentication", "SecureObject");
         Check("$connections", "Object");
 
         void Check(string name, string expectedType)
         {
-            var declared = parameters is { } p ? SwaggerOperationIndexer.TryGetObject(p, name) : null;
+            var declared = parameters is { } p ? JsonElementReader.TryGetObject(p, name) : null;
             if (declared is null)
             {
                 findings.Add(new FlowValidationFinding(
@@ -128,7 +128,7 @@ internal static class FlowDefinitionValidator
                 return;
             }
 
-            var type = SwaggerOperationIndexer.TryGetString(declared.Value, "type");
+            var type = JsonElementReader.TryGetString(declared.Value, "type");
             if (!string.Equals(type, expectedType, StringComparison.OrdinalIgnoreCase))
             {
                 findings.Add(new FlowValidationFinding(
@@ -147,8 +147,8 @@ internal static class FlowDefinitionValidator
         List<FlowValidationFinding> findings,
         CancellationToken ct)
     {
-        var inputs = SwaggerOperationIndexer.TryGetObject(action.Element, "inputs");
-        var host = inputs is { } i ? SwaggerOperationIndexer.TryGetObject(i, "host") : null;
+        var inputs = JsonElementReader.TryGetObject(action.Element, "inputs");
+        var host = inputs is { } i ? JsonElementReader.TryGetObject(i, "host") : null;
 
         if (host is null)
         {
@@ -167,9 +167,9 @@ internal static class FlowDefinitionValidator
                 $"Action '{action.Name}' declares 'authentication' in its inputs. Remove it — the platform injects it on save."));
         }
 
-        var apiId = SwaggerOperationIndexer.TryGetString(host.Value, "apiId");
+        var apiId = JsonElementReader.TryGetString(host.Value, "apiId");
         var connector = PowerAutomateEndpointProvider.TryParseConnectorFromApiId(apiId);
-        var operationId = SwaggerOperationIndexer.TryGetString(host.Value, "operationId");
+        var operationId = JsonElementReader.TryGetString(host.Value, "operationId");
 
         if (connector is null)
         {
@@ -253,7 +253,7 @@ internal static class FlowDefinitionValidator
         OperationDetail operation,
         List<FlowValidationFinding> findings)
     {
-        var supplied = inputs is { } i ? SwaggerOperationIndexer.TryGetObject(i, "parameters") : null;
+        var supplied = inputs is { } i ? JsonElementReader.TryGetObject(i, "parameters") : null;
         var suppliedNames = new HashSet<string>(StringComparer.Ordinal);
 
         if (supplied is { } parameters)
@@ -336,7 +336,7 @@ internal static class FlowDefinitionValidator
         IReadOnlyList<FlowConnectionSummary> connections,
         List<FlowValidationFinding> findings)
     {
-        var connectionName = SwaggerOperationIndexer.TryGetString(host, "connectionName");
+        var connectionName = JsonElementReader.TryGetString(host, "connectionName");
         if (string.IsNullOrWhiteSpace(connectionName))
         {
             findings.Add(new FlowValidationFinding(
@@ -353,7 +353,7 @@ internal static class FlowDefinitionValidator
             return;
         }
 
-        if (SwaggerOperationIndexer.TryGetObject(references, connectionName) is not { } reference)
+        if (JsonElementReader.TryGetObject(references, connectionName) is not { } reference)
         {
             findings.Add(new FlowValidationFinding(
                 FlowValidationSeverity.Error,
@@ -363,7 +363,7 @@ internal static class FlowDefinitionValidator
             return;
         }
 
-        var source = SwaggerOperationIndexer.TryGetString(reference, "source");
+        var source = JsonElementReader.TryGetString(reference, "source");
         if (source is not null && !string.Equals(source, "Embedded", StringComparison.OrdinalIgnoreCase))
         {
             findings.Add(new FlowValidationFinding(
@@ -376,7 +376,7 @@ internal static class FlowDefinitionValidator
         if (!connectionCheck)
             return;
 
-        var logicalName = SwaggerOperationIndexer.TryGetString(reference, "connectionReferenceLogicalName");
+        var logicalName = JsonElementReader.TryGetString(reference, "connectionReferenceLogicalName");
         if (string.IsNullOrWhiteSpace(logicalName))
         {
             findings.Add(new FlowValidationFinding(
@@ -411,7 +411,7 @@ internal static class FlowDefinitionValidator
         List<FlowAction> actions,
         List<FlowValidationFinding> findings)
     {
-        if (SwaggerOperationIndexer.TryGetObject(parent, propertyName) is not { } bag)
+        if (JsonElementReader.TryGetObject(parent, propertyName) is not { } bag)
             return;
 
         foreach (var entry in bag.EnumerateObject())
@@ -420,7 +420,7 @@ internal static class FlowDefinitionValidator
                 continue;
 
             var actionPath = $"{path}/{EscapePointer(entry.Name)}";
-            var type = SwaggerOperationIndexer.TryGetString(entry.Value, "type");
+            var type = JsonElementReader.TryGetString(entry.Value, "type");
 
             if (type is null)
             {
@@ -437,10 +437,10 @@ internal static class FlowDefinitionValidator
 
             CollectActions(entry.Value, "actions", $"{actionPath}/actions", actions, findings);
 
-            if (SwaggerOperationIndexer.TryGetObject(entry.Value, "else") is { } elseBranch)
+            if (JsonElementReader.TryGetObject(entry.Value, "else") is { } elseBranch)
                 CollectActions(elseBranch, "actions", $"{actionPath}/else/actions", actions, findings);
 
-            if (SwaggerOperationIndexer.TryGetObject(entry.Value, "cases") is { } cases)
+            if (JsonElementReader.TryGetObject(entry.Value, "cases") is { } cases)
             {
                 foreach (var branch in cases.EnumerateObject())
                 {
@@ -450,7 +450,7 @@ internal static class FlowDefinitionValidator
                 }
             }
 
-            if (SwaggerOperationIndexer.TryGetObject(entry.Value, "default") is { } defaultBranch)
+            if (JsonElementReader.TryGetObject(entry.Value, "default") is { } defaultBranch)
                 CollectActions(defaultBranch, "actions", $"{actionPath}/default/actions", actions, findings);
         }
     }

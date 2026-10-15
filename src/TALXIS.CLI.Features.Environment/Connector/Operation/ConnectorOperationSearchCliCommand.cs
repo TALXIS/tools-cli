@@ -8,8 +8,8 @@ using TALXIS.CLI.Logging;
 namespace TALXIS.CLI.Features.Environment.Connector.Operation;
 
 /// <summary>
-/// <c>txc environment connector operation search</c> — cross-connector
-/// operation search, for when the connector is not yet known.
+/// Searches operations across connectors, for when the connector is not yet known.
+/// Usage: <c>txc environment connector operation search [--query &lt;text&gt;] [--connector &lt;name&gt;] [--kind all|actions|triggers] [--top &lt;n&gt;]</c>
 /// </summary>
 [CliReadOnly]
 [CliWorkflow("environment-inspection")]
@@ -17,26 +17,35 @@ namespace TALXIS.CLI.Features.Environment.Connector.Operation;
     Name = "search",
     Description = "Searches Power Automate operations across connectors in the LIVE connected environment. Requires an active profile. Deprecated operations are excluded."
 )]
-public class ConnectorOperationSearchCliCommand : ProfiledCliCommand
+public class ConnectorOperationSearchCliCommand : ConnectivityCommandBase
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ConnectorOperationSearchCliCommand));
 
     [CliOption(Name = "--query", Description = "Text to search for in operation names and descriptions.", Required = false)]
     public string? Query { get; set; }
 
-    [CliOption(Name = "--connector", Description = "Limit the search to one connector, for example shared_teams.", Required = false)]
+    [CliOption(Name = "--connector", Description = "Limit the search to one connector. " + ConnectorDescriptions.Identifier, Required = false)]
     public string? Connector { get; set; }
 
     [CliOption(Name = "--kind", Description = "Which operations to return: all, actions, or triggers.", Required = false)]
-    public string Kind { get; set; } = "all";
+    public string Kind { get; set; } = OperationKinds.All;
 
     [CliOption(Name = "--top", Description = "Maximum number of results to return.", Required = false)]
     public int Top { get; set; } = 20;
 
     protected override async Task<int> ExecuteAsync()
     {
+        var kind = Kind.Trim().ToLowerInvariant();
+        if (!OperationKinds.IsKnown(kind))
+        {
+            Logger.LogError(
+                "Invalid --kind '{Kind}'. Expected '{All}', '{Actions}' or '{Triggers}'.",
+                Kind, OperationKinds.All, OperationKinds.Actions, OperationKinds.Triggers);
+            return ExitValidationError;
+        }
+
         var service = TxcServices.Get<IPowerAutomateConnectorService>();
-        var hits = await service.SearchOperationsAsync(Profile, Query, Connector, Kind, Top, CancellationToken.None)
+        var hits = await service.SearchOperationsAsync(Profile, Query, Connector, kind, Top, CancellationToken.None)
             .ConfigureAwait(false);
 
         OutputFormatter.WriteList(hits, PrintTable);
@@ -60,13 +69,11 @@ public class ConnectorOperationSearchCliCommand : ProfiledCliCommand
 
         foreach (var hit in hits)
         {
-            var name = Fit(hit.Name, nameWidth);
-            var connector = Fit(hit.ConnectorDisplayName ?? hit.ConnectorName ?? "-", 28);
+            var name = TableText.Truncate(hit.Name, nameWidth);
+            var connector = TableText.Truncate(hit.ConnectorDisplayName ?? hit.ConnectorName ?? "-", 28);
             OutputWriter.WriteLine($"{name.PadRight(nameWidth)} | {connector.PadRight(28)} | {hit.DisplayName}");
         }
     }
 
-    private static string Fit(string value, int width)
-        => value.Length > width ? value[..(width - 1)] + "." : value;
 #pragma warning restore TXC003
 }

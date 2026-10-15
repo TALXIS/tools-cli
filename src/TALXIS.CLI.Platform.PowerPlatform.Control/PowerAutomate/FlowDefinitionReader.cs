@@ -54,13 +54,13 @@ internal static class FlowDefinitionReader
                 break;
 
             // The client-data envelope: definition and bindings side by side.
-            if (SwaggerOperationIndexer.TryGetObject(current, "properties") is { } properties)
+            if (JsonElementReader.TryGetObject(current, "properties") is { } properties)
             {
-                if (SwaggerOperationIndexer.TryGetObject(properties, "definition") is { } wrapped)
+                if (JsonElementReader.TryGetObject(properties, "definition") is { } wrapped)
                 {
                     flow = new FlowDocument(
                         wrapped,
-                        SwaggerOperationIndexer.TryGetObject(properties, "connectionReferences"));
+                        JsonElementReader.TryGetObject(properties, "connectionReferences"));
                     return true;
                 }
             }
@@ -70,7 +70,7 @@ internal static class FlowDefinitionReader
             {
                 flow = new FlowDocument(
                     current,
-                    SwaggerOperationIndexer.TryGetObject(current, "connectionReferences"));
+                    JsonElementReader.TryGetObject(current, "connectionReferences"));
                 return true;
             }
 
@@ -82,11 +82,11 @@ internal static class FlowDefinitionReader
                 continue;
             }
 
-            if (SwaggerOperationIndexer.TryGetObject(current, "definition") is { } definition)
+            if (JsonElementReader.TryGetObject(current, "definition") is { } definition)
             {
                 flow = new FlowDocument(
                     definition,
-                    SwaggerOperationIndexer.TryGetObject(current, "connectionReferences"));
+                    JsonElementReader.TryGetObject(current, "connectionReferences"));
                 return true;
             }
 

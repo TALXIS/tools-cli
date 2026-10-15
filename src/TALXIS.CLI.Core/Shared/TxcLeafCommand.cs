@@ -112,7 +112,7 @@ public abstract class TxcLeafCommand
             var message = root != ex && !string.Equals(root.Message, ex.Message, StringComparison.Ordinal)
                 ? root.Message : ex.Message;
             scope.SetError(exitCode, "validation", message);
-            Logger.LogError(ex, "{Error}", message);
+            Logger.LogError(ex, "{Error}", GetValidationHint(ex) is { } hint ? $"{message} {hint}" : message);
             LogSupportInfo();
             return exitCode;
         }
@@ -159,6 +159,13 @@ public abstract class TxcLeafCommand
         if (!string.IsNullOrEmpty(info))
             Logger.LogInformation("{SupportInfo}", info);
     }
+
+    /// <summary>
+    /// The next step to suggest when <paramref name="ex"/> ends the command as a
+    /// validation error (exit 2), appended to the error message. Override in a command
+    /// group whose errors have a CLI remedy the platform layer must not name.
+    /// </summary>
+    protected virtual string? GetValidationHint(Exception ex) => null;
 
     /// <summary>
     /// Pre-execution hook called before <see cref="ExecuteAsync"/>. Override

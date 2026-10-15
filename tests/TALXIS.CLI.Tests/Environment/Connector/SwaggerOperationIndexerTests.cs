@@ -54,9 +54,9 @@ public class SwaggerOperationIndexerTests
     {
         var connector = Index();
 
-        Assert.Equal("shared_teams", connector.Name);
+        Assert.Equal("shared_teams", connector.LogicalName);
         Assert.Equal("Microsoft Teams", connector.DisplayName);
-        Assert.Equal("/providers/Microsoft.PowerApps/apis/shared_teams", connector.ApiId);
+        Assert.Equal("shared_teams", connector.ApiId);
         Assert.Equal(3, connector.OperationCount);
 
         var post = Assert.Single(connector.Operations, o => o.OperationId == "PostMessageToConversation");
@@ -113,7 +113,7 @@ public class SwaggerOperationIndexerTests
     public void Index_ToleratesAConnectorWithNoSwagger()
     {
         using var document = JsonDocument.Parse("""{ "name": "shared_bare", "properties": {} }""");
-        var connector = SwaggerOperationIndexer.Index(document.RootElement, "shared_bare", null);
+        var connector = SwaggerOperationIndexer.Index(document.RootElement, Resolved("shared_bare"), null);
 
         Assert.Equal(0, connector.OperationCount);
         Assert.Empty(connector.Operations);
@@ -134,14 +134,17 @@ public class SwaggerOperationIndexerTests
             }
             """);
 
-        var connector = SwaggerOperationIndexer.Index(document.RootElement, "shared_x", null);
+        var connector = SwaggerOperationIndexer.Index(document.RootElement, Resolved("shared_x"), null);
 
         Assert.Equal("Real", Assert.Single(connector.Operations).OperationId);
     }
 
+    private static Core.Platforms.PowerPlatform.ResolvedConnectorInfo Resolved(string apiId)
+        => new(apiId, apiId, null, false, null);
+
     private static Core.Platforms.PowerPlatform.ConnectorDetail Index(string? query = null)
     {
         using var document = JsonDocument.Parse(ConnectorPayload);
-        return SwaggerOperationIndexer.Index(document.RootElement, "shared_teams", query);
+        return SwaggerOperationIndexer.Index(document.RootElement, Resolved("shared_teams"), query);
     }
 }

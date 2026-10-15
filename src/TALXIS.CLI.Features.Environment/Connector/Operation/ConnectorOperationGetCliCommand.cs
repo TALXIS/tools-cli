@@ -8,8 +8,8 @@ using TALXIS.CLI.Logging;
 namespace TALXIS.CLI.Features.Environment.Connector.Operation;
 
 /// <summary>
-/// <c>txc environment connector operation get</c> — the authoritative
-/// parameter specification for one operation.
+/// Gets the authoritative parameter specification for one operation.
+/// Usage: <c>txc environment connector operation get &lt;connector&gt; &lt;operation&gt;</c>
 /// </summary>
 [CliReadOnly]
 [CliWorkflow("environment-inspection")]
@@ -17,15 +17,15 @@ namespace TALXIS.CLI.Features.Environment.Connector.Operation;
     Name = "get",
     Description = "Gets the exact parameter names, types, allowed values and required action type for one connector operation from the LIVE connected environment. Requires an active profile. Call this before writing a connector action instead of recalling parameter names."
 )]
-public class ConnectorOperationGetCliCommand : ProfiledCliCommand
+public class ConnectorOperationGetCliCommand : ConnectivityCommandBase
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ConnectorOperationGetCliCommand));
 
-    [CliArgument(Description = "Connector name, for example shared_teams.")]
-    public string Connector { get; set; } = string.Empty;
+    [CliArgument(Description = ConnectorDescriptions.Identifier)]
+    public string Connector { get; set; } = null!;
 
     [CliArgument(Description = "Operation ID, for example PostMessageToConversation.")]
-    public string Operation { get; set; } = string.Empty;
+    public string Operation { get; set; } = null!;
 
     protected override async Task<int> ExecuteAsync()
     {
@@ -62,9 +62,7 @@ public class ConnectorOperationGetCliCommand : ProfiledCliCommand
 
         foreach (var parameter in operation.Parameters)
         {
-            var name = parameter.Name.Length > nameWidth
-                ? parameter.Name[..(nameWidth - 1)] + "."
-                : parameter.Name;
+            var name = TableText.Truncate(parameter.Name, nameWidth);
             var type = (parameter.Type ?? "-").PadRight(10);
             var required = (parameter.Required ? "yes" : "no").PadRight(3);
             OutputWriter.WriteLine($"{name.PadRight(nameWidth)} | {type} | {required} | {parameter.Description}");

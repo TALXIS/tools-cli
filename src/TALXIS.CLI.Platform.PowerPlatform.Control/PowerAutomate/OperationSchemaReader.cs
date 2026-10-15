@@ -22,26 +22,26 @@ internal static partial class OperationSchemaReader
     [GeneratedRegex("^(StartAndWait|WaitFor|Subscribe)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex WebhookOperationNameRegex { get; }
 
-    public static OperationDetail Read(string connector, string operationId, JsonElement payload)
+    public static OperationDetail Read(ResolvedConnectorInfo connector, string operationId, JsonElement payload)
     {
-        var properties = SwaggerOperationIndexer.TryGetObject(payload, "properties") ?? payload;
-        var inputs = SwaggerOperationIndexer.TryGetObject(properties, "inputsDefinition");
+        var properties = JsonElementReader.TryGetObject(payload, "properties") ?? payload;
+        var inputs = JsonElementReader.TryGetObject(properties, "inputsDefinition");
 
         var parameters = ReadParameters(inputs);
 
         JsonElement? responseSchema = null;
-        if (SwaggerOperationIndexer.TryGetObject(properties, "responsesDefinition") is { } responses)
+        if (JsonElementReader.TryGetObject(properties, "responsesDefinition") is { } responses)
         {
             // Clone: the owning JsonDocument is disposed by the caller.
             responseSchema = responses.Clone();
         }
 
         return new OperationDetail(
-            Connector: connector,
-            ApiId: PowerAutomateEndpointProvider.BuildApiId(connector),
+            Connector: connector.LogicalName,
+            ApiId: ConnectorIds.ToPath(connector.ApiId),
             OperationId: operationId,
-            Summary: SwaggerOperationIndexer.TryGetString(properties, "summary"),
-            Description: SwaggerOperationIndexer.TryGetString(properties, "description"),
+            Summary: JsonElementReader.TryGetString(properties, "summary"),
+            Description: JsonElementReader.TryGetString(properties, "description"),
             ActionType: InferActionType(properties, operationId),
             IsDeprecated: IsDeprecated(properties),
             Parameters: parameters,
@@ -56,8 +56,8 @@ internal static partial class OperationSchemaReader
     /// </summary>
     public static string InferActionType(JsonElement properties, string operationId)
     {
-        var annotation = SwaggerOperationIndexer.TryGetObject(properties, "annotation");
-        var family = annotation is { } a ? SwaggerOperationIndexer.TryGetString(a, "family") : null;
+        var annotation = JsonElementReader.TryGetObject(properties, "annotation");
+        var family = annotation is { } a ? JsonElementReader.TryGetString(a, "family") : null;
 
         // An explicit family is authoritative, including when it says this is a
         // plain connection despite a webhook-sounding name.
@@ -79,7 +79,7 @@ internal static partial class OperationSchemaReader
             return true;
 
         return string.Equals(
-            SwaggerOperationIndexer.TryGetString(properties, "status"),
+            JsonElementReader.TryGetString(properties, "status"),
             "Deprecated",
             StringComparison.OrdinalIgnoreCase);
     }
@@ -91,8 +91,8 @@ internal static partial class OperationSchemaReader
 
         // The payload uses "properties" for JSON-schema-shaped inputs and
         // "parameters" for the flattened form; both appear in the wild.
-        var bag = SwaggerOperationIndexer.TryGetObject(definition, "properties")
-            ?? SwaggerOperationIndexer.TryGetObject(definition, "parameters");
+        var bag = JsonElementReader.TryGetObject(definition, "properties")
+            ?? JsonElementReader.TryGetObject(definition, "parameters");
 
         if (bag is not { } parameters)
             return [];
@@ -135,15 +135,15 @@ internal static partial class OperationSchemaReader
 
         return new OperationParameter(
             Name: name,
-            Type: SwaggerOperationIndexer.TryGetString(spec, "type"),
+            Type: JsonElementReader.TryGetString(spec, "type"),
             Required: requiredByParent || requiredHere,
-            Description: SwaggerOperationIndexer.TryGetString(spec, "x-ms-summary")
-                ?? SwaggerOperationIndexer.TryGetString(spec, "title")
-                ?? SwaggerOperationIndexer.TryGetString(spec, "summary")
-                ?? SwaggerOperationIndexer.TryGetString(spec, "description"),
+            Description: JsonElementReader.TryGetString(spec, "x-ms-summary")
+                ?? JsonElementReader.TryGetString(spec, "title")
+                ?? JsonElementReader.TryGetString(spec, "summary")
+                ?? JsonElementReader.TryGetString(spec, "description"),
             AllowedValues: ReadAllowedValues(spec),
             DefaultValue: ReadScalar(spec, "default"),
-            Visibility: SwaggerOperationIndexer.TryGetString(spec, "x-ms-visibility"),
+            Visibility: JsonElementReader.TryGetString(spec, "x-ms-visibility"),
             // Two vocabularies are in play: the connector's Swagger uses
             // x-ms-dynamic-values/-schema, while the operation API returns the
             // newer x-ms-dynamic-list/-properties for the same concepts.
@@ -191,7 +191,7 @@ internal static partial class OperationSchemaReader
         JsonElement? found = null;
         foreach (var extensionName in extensionNames)
         {
-            found = SwaggerOperationIndexer.TryGetObject(spec, extensionName);
+            found = JsonElementReader.TryGetObject(spec, extensionName);
             if (found is not null)
                 break;
         }
@@ -201,15 +201,15 @@ internal static partial class OperationSchemaReader
 
         // A tree extension nests its resolvers under open/browse; either one
         // identifies the operation that supplies values.
-        var operationId = SwaggerOperationIndexer.TryGetString(extension, "operationId");
+        var operationId = JsonElementReader.TryGetString(extension, "operationId");
         var source = extension;
 
         if (operationId is null)
         {
             foreach (var nested in (ReadOnlySpan<string>)["open", "browse"])
             {
-                if (SwaggerOperationIndexer.TryGetObject(extension, nested) is { } child
-                    && SwaggerOperationIndexer.TryGetString(child, "operationId") is { } childOperation)
+                if (JsonElementReader.TryGetObject(extension, nested) is { } child
+                    && JsonElementReader.TryGetString(child, "operationId") is { } childOperation)
                 {
                     operationId = childOperation;
                     source = child;
@@ -222,7 +222,7 @@ internal static partial class OperationSchemaReader
             return null;
 
         Dictionary<string, string?>? parameters = null;
-        if (SwaggerOperationIndexer.TryGetObject(source, "parameters") is { } parameterBag)
+        if (JsonElementReader.TryGetObject(source, "parameters") is { } parameterBag)
         {
             parameters = new Dictionary<string, string?>(StringComparer.Ordinal);
             foreach (var entry in parameterBag.EnumerateObject())
@@ -243,7 +243,7 @@ internal static partial class OperationSchemaReader
         if (argument.ValueKind != JsonValueKind.Object)
             return ToScalarString(argument) ?? argument.GetRawText();
 
-        if (SwaggerOperationIndexer.TryGetString(argument, "parameterReference") is { } reference)
+        if (JsonElementReader.TryGetString(argument, "parameterReference") is { } reference)
             return "$ref:" + reference;
 
         if (argument.TryGetProperty("value", out var literal))

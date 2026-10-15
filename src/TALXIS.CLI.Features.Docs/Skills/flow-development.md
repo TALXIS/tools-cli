@@ -12,11 +12,11 @@ So: never write a connector action from memory, and never skip validation.
 
 1. **Scaffold** → `workspace_component_create` with `componentType: "Workflow"` (the alias `Flow` resolves to the same template).
 2. **Find the operation**:
-   - Know the connector → `environment_connector_get` with a `query` to filter its operation index.
+   - Know the connector → `environment_connector_get` with a `filter` to narrow its operation index.
    - Don't know it → `environment_connector_operation_search` across connectors.
    - Browsing what exists → `environment_connector_list`.
 3. **Read the exact spec** → `environment_connector_operation_get` for every operation you are about to use. Copy the parameter names, types, allowed values and the returned `actionType` verbatim.
-4. **Bind connections** → `environment_connection_list`. A solution-aware flow binds by connection reference logical name, not by a raw connection.
+4. **Bind connections** → `environment_connection-reference_list`. A solution-aware flow binds by connection reference logical name, never by a raw connection id (see the connection-management skill).
 5. **Validate** → `environment_flow_validate` against the component. Fix every error before continuing.
 6. **Deploy** → the normal solution pipeline (`environment_solution_import`). There is no flow-create API step.
 

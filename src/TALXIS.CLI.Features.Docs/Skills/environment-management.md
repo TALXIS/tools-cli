@@ -8,6 +8,8 @@
 Auth (credentials) → Connection (auth + environment URL) → Profile (active config)
 ```
 
+A `config_connection_create` *connection* here is a local record of where to connect (an environment URL). It is unrelated to a Power Platform *connector connection* (the stored sign-in of a connector such as Teams), which lives in the environment and is managed with `environment_connection_create` and the other `environment_connection_*` tools listed in the connection-management skill.
+
 ## First-Time Setup
 
 ### 1. Add Authentication

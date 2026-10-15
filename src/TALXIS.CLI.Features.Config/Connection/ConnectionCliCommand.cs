@@ -12,7 +12,7 @@ namespace TALXIS.CLI.Features.Config.Connection;
 /// </summary>
 [CliCommand(
     Name = "connection",
-    Description = "Manage service endpoint metadata (Dataverse environments, etc.).",
+    Description = "Manage LOCAL service endpoint metadata (Dataverse environments, etc.) that profiles refer to. For Power Platform connector connections in the live environment, use 'environment connection' instead.",
     Children = new[]
     {
         typeof(ConnectionCreateCliCommand),

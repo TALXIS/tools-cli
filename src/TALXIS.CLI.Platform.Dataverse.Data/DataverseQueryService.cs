@@ -64,7 +64,7 @@ internal sealed class DataverseQueryService : IDataverseQueryService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            throw new InvalidOperationException(
+            throw new DataverseQueryException(
                 $"SQL query against '{entitySetName}' failed: {ex.Message}", ex);
         }
 
@@ -156,7 +156,7 @@ internal sealed class DataverseQueryService : IDataverseQueryService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            throw new InvalidOperationException(
+            throw new DataverseQueryException(
                 $"OData query against '{entitySetOrPath}' failed: {ex.Message}", ex);
         }
 

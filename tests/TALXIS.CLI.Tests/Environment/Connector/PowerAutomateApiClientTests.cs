@@ -1,6 +1,7 @@
 using System.Net;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Model;
+using TALXIS.CLI.Platform.PowerPlatform.Control.Http;
 using TALXIS.CLI.Platform.PowerPlatform.Control.PowerAutomate;
 using Xunit;
 
@@ -32,8 +33,8 @@ public class PowerAutomateApiClientTests
     [Fact]
     public async Task SendAsync_TriesThePowerAppsAudienceFirst()
     {
-        // Verified against a live tenant: this is the resource the
-        // /powerautomate routes accept, so it must not be behind a probe.
+        // This is the resource the /powerautomate routes accept, so it must not
+        // be behind a probe.
         var audiences = new List<Uri>();
         var client = Build(_ => Json(HttpStatusCode.OK, """{ "value": [] }"""), audiences);
 
@@ -41,6 +42,34 @@ public class PowerAutomateApiClientTests
             HttpMethod.Get, RequestUri, TestConnection(), TestCredential(), null, CancellationToken.None);
 
         Assert.Equal(PowerAutomateEndpointProvider.PowerAppsServiceAudience, Assert.Single(audiences));
+    }
+
+    [Fact]
+    public async Task SendAsync_ConnectivityRoutesTryThePowerPlatformAudienceFirst()
+    {
+        var audiences = new List<Uri>();
+        var client = Build(_ => Json(HttpStatusCode.OK, """{ "value": [] }"""), audiences);
+        var uri = new Uri("https://abc.de.environment.api.powerplatform.com/connectivity/connections?api-version=1");
+
+        using var document = await client.SendAsync(
+            HttpMethod.Get, uri, TestConnection(), TestCredential(), null, CancellationToken.None);
+
+        Assert.Equal(PowerAutomateEndpointProvider.PowerPlatformApiAudience, Assert.Single(audiences));
+    }
+
+    [Fact]
+    public async Task SendAsync_AConnectivityCallDoesNotChangeTheAudienceUsedForPowerAutomateRoutes()
+    {
+        var audiences = new List<Uri>();
+        var client = Build(_ => Json(HttpStatusCode.OK, """{ "value": [] }"""), audiences);
+        var connectivity = new Uri("https://abc.de.environment.api.powerplatform.com/connectivity/connections?api-version=1");
+
+        using (await client.SendAsync(HttpMethod.Get, connectivity, TestConnection(), TestCredential(), null, CancellationToken.None)) { }
+        using (await client.SendAsync(HttpMethod.Get, RequestUri, TestConnection(), TestCredential(), null, CancellationToken.None)) { }
+
+        Assert.Equal(
+            [PowerAutomateEndpointProvider.PowerPlatformApiAudience, PowerAutomateEndpointProvider.PowerAppsServiceAudience],
+            audiences);
     }
 
     [Fact]
@@ -79,7 +108,7 @@ public class PowerAutomateApiClientTests
         };
 
         var client = new PowerAutomateApiClient(
-            tokens, new FakeHttpClientFactoryWrapper(_ => Json(HttpStatusCode.OK, """{ "value": [] }""")));
+            tokens, new RetryingHttpSender(new FakeHttpClientFactoryWrapper(_ => Json(HttpStatusCode.OK, """{ "value": [] }"""))));
 
         using var document = await client.SendAsync(
             HttpMethod.Get, RequestUri, TestConnection(), TestCredential(), null, CancellationToken.None);
@@ -177,7 +206,7 @@ public class PowerAutomateApiClientTests
     private static PowerAutomateApiClient Build(
         Func<HttpRequestMessage, HttpResponseMessage> handler,
         List<Uri>? audiences = null)
-        => new(new RecordingAccessTokenService(audiences), new FakeHttpClientFactoryWrapper(handler));
+        => new(new RecordingAccessTokenService(audiences), new RetryingHttpSender(new FakeHttpClientFactoryWrapper(handler)));
 
     private static HttpResponseMessage Json(HttpStatusCode status, string body)
         => new(status) { Content = new StringContent(body) };

@@ -7,6 +7,7 @@ using TALXIS.CLI.Platform.Dataverse.Runtime.Authority;
 using TALXIS.CLI.Platform.Dataverse.Runtime;
 using TALXIS.CLI.Platform.Dataverse.Runtime.Msal;
 using TALXIS.CLI.Platform.PowerPlatform.Control;
+using TALXIS.CLI.Platform.PowerPlatform.Control.DependencyInjection;
 using TALXIS.CLI.Platform.PowerPlatform.Control.Graph;
 using TALXIS.CLI.Platform.PowerPlatform.Control.PowerPlatformRbac;
 using TALXIS.CLI.Platform.PowerPlatform.Control.Strategies;
@@ -69,8 +70,7 @@ public static class DataverseProviderServiceCollectionExtensions
             EnvironmentSettingsService>();
         services.AddSingleton<TALXIS.CLI.Core.Platforms.PowerPlatform.IEnvironmentManagementService,
             EnvironmentManagementService>();
-        services.AddSingleton<TALXIS.CLI.Core.Platforms.PowerPlatform.IPowerAutomateConnectorService,
-            TALXIS.CLI.Platform.PowerPlatform.Control.PowerAutomate.PowerAutomateConnectorService>();
+        services.AddTxcPowerPlatformConnectivity();
         services.AddSingleton<TALXIS.CLI.Core.Platforms.PowerPlatform.IEnvironmentUserProvisioningService,
             EnvironmentUserProvisioningService>();
         services.AddSingleton<IDataverseLiveChecker, DataverseLiveChecker>();

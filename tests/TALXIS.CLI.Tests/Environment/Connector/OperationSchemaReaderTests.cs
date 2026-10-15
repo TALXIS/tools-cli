@@ -1,4 +1,5 @@
 using System.Text.Json;
+using TALXIS.CLI.Core.Platforms.PowerPlatform;
 using TALXIS.CLI.Platform.PowerPlatform.Control.PowerAutomate;
 using Xunit;
 
@@ -167,6 +168,7 @@ public class OperationSchemaReaderTests
         string payload, string operationId = "PostMessageToConversation")
     {
         using var document = JsonDocument.Parse(payload);
-        return OperationSchemaReader.Read("shared_teams", operationId, document.RootElement);
+        return OperationSchemaReader.Read(
+            new ResolvedConnectorInfo("shared_teams", "shared_teams", "Microsoft Teams", false, null), operationId, document.RootElement);
     }
 }

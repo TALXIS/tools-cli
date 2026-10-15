@@ -8,7 +8,8 @@ using TALXIS.CLI.Logging;
 namespace TALXIS.CLI.Features.Environment.Connector;
 
 /// <summary>
-/// <c>txc environment connector get</c> — a connector's operation index.
+/// Gets a connector's operation index.
+/// Usage: <c>txc environment connector get &lt;connector&gt; [--filter &lt;text&gt;]</c>
 /// </summary>
 [CliReadOnly]
 [CliWorkflow("environment-inspection")]
@@ -16,20 +17,20 @@ namespace TALXIS.CLI.Features.Environment.Connector;
     Name = "get",
     Description = "Gets the operation index for one Power Automate connector from the LIVE connected environment. Requires an active profile. Returns operation IDs only; use 'connector operation get' for exact parameter specs before writing an action."
 )]
-public class ConnectorGetCliCommand : ProfiledCliCommand
+public class ConnectorGetCliCommand : ConnectivityCommandBase
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ConnectorGetCliCommand));
 
-    [CliArgument(Description = "Connector name, for example shared_teams or shared_commondataserviceforapps.")]
-    public string Connector { get; set; } = string.Empty;
+    [CliArgument(Description = ConnectorDescriptions.Identifier)]
+    public string Connector { get; set; } = null!;
 
-    [CliOption(Name = "--query", Description = "Show only operations whose ID or summary contains this text.", Required = false)]
-    public string? Query { get; set; }
+    [CliOption(Name = "--filter", Description = "Show only operations whose ID or summary contains this text.", Required = false)]
+    public string? Filter { get; set; }
 
     protected override async Task<int> ExecuteAsync()
     {
         var service = TxcServices.Get<IPowerAutomateConnectorService>();
-        var connector = await service.GetConnectorAsync(Profile, Connector, Query, CancellationToken.None)
+        var connector = await service.GetConnectorAsync(Profile, Connector, Filter, CancellationToken.None)
             .ConfigureAwait(false);
 
         OutputFormatter.WriteData(connector, PrintConnector);
@@ -40,7 +41,7 @@ public class ConnectorGetCliCommand : ProfiledCliCommand
 #pragma warning disable TXC003
     private static void PrintConnector(ConnectorDetail connector)
     {
-        OutputWriter.WriteLine($"{connector.DisplayName ?? connector.Name} ({connector.Name})");
+        OutputWriter.WriteLine($"{connector.DisplayName ?? connector.LogicalName} ({connector.LogicalName})");
         OutputWriter.WriteLine(connector.MatchedOperations is { } matched
             ? $"{matched} of {connector.OperationCount} operations matched"
             : $"{connector.OperationCount} operations");
@@ -59,9 +60,7 @@ public class ConnectorGetCliCommand : ProfiledCliCommand
 
         foreach (var operation in connector.Operations)
         {
-            var id = operation.OperationId.Length > idWidth
-                ? operation.OperationId[..(idWidth - 1)] + "."
-                : operation.OperationId;
+            var id = TableText.Truncate(operation.OperationId, idWidth);
             var marker = operation.IsDeprecated ? " [deprecated]" : operation.IsTrigger ? " [trigger]" : string.Empty;
             OutputWriter.WriteLine($"{id.PadRight(idWidth)} | {operation.Method.PadRight(6)} | {operation.Summary}{marker}");
         }
