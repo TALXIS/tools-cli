@@ -85,6 +85,20 @@ public class McpToolRegistryTests
     }
 
     [Fact]
+    public void ListTools_ContainsConnectionReferenceTools()
+    {
+        var tools = GetAllTools();
+        var names = tools.Select(t => t.Name).ToList();
+
+        Assert.Contains("environment_connection-reference_list", names);
+        Assert.Contains("environment_connection-reference_get", names);
+        Assert.Contains("environment_connection-reference_create", names);
+        Assert.Contains("environment_connection-reference_update", names);
+        Assert.Contains("environment_connection-reference_delete", names);
+        Assert.DoesNotContain("environment_connection-reference", names);
+    }
+
+    [Fact]
     public void ListTools_ContainsPowerAutomateMetadataTools()
     {
         var tools = GetAllTools();

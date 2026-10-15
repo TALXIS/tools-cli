@@ -11,7 +11,7 @@ namespace TALXIS.CLI.Platform.PowerPlatform.Control.Connectivity;
 /// Solution-aware logical name of a custom connector (stable across
 /// environments); for a built-in connector the logical name is the apiId.
 /// </param>
-internal sealed record ResolvedConnector(string ApiId, string LogicalName, string? DisplayName, bool IsCustom);
+internal sealed record ResolvedConnector(string ApiId, string LogicalName, string? DisplayName, bool IsCustom, Guid? XrmConnectorId = null);
 
 /// <summary>
 /// Turns what a person types for <c>--connector</c> into the environment's
@@ -78,7 +78,7 @@ internal sealed class ConnectorResolver
     }
 
     private static ResolvedConnector ToResolved(CatalogConnector c)
-        => new(c.ApiId, c.ApiId, c.DisplayName, c.IsCustom);
+        => new(c.ApiId, c.ApiId, c.DisplayName, c.IsCustom, c.XrmConnectorId);
 
     private async Task<string?> TryResolveLogicalNameAsync(ConnectivityTarget target, string logicalName, CancellationToken ct)
     {
@@ -146,7 +146,8 @@ internal sealed class ConnectorResolver
                     GetString(props, "displayName"),
                     props.ValueKind == JsonValueKind.Object
                         && props.TryGetProperty("isCustomApi", out var custom)
-                        && custom.ValueKind == JsonValueKind.True));
+                        && custom.ValueKind == JsonValueKind.True,
+                    Guid.TryParse(GetString(props, "xrmConnectorId"), out var rowId) ? rowId : null));
             }
         }
 
@@ -161,7 +162,7 @@ internal sealed class ConnectorResolver
                 ? v.GetString()
                 : null;
 
-    private sealed record CatalogConnector(string ApiId, string? DisplayName, bool IsCustom);
+    private sealed record CatalogConnector(string ApiId, string? DisplayName, bool IsCustom, Guid? XrmConnectorId);
 
     private sealed record CatalogEntry(IReadOnlyList<CatalogConnector> Connectors, DateTimeOffset ExpiresAt);
 }
