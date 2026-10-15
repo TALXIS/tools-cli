@@ -52,10 +52,15 @@ public sealed record ConnectionCreateOptions(
     bool AttemptConsent);
 
 /// <summary>Outcome of <see cref="IConnectionService.TestAsync"/>.</summary>
+/// <param name="Tested">
+/// False when the platform's connection test was not run because it only accepts
+/// a user credential; <paramref name="Healthy"/> then reflects the platform status alone.
+/// </param>
 public sealed record ConnectionTestOutcome(
     bool Healthy,
     string? ConnectionStatus,
-    string? Message);
+    string? Message,
+    bool Tested = true);
 
 /// <summary>
 /// Role a principal holds on a connection. Values are explicit: they are part of

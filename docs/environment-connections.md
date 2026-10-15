@@ -58,6 +58,8 @@ txc env connection permission remove <connection-id> [--connector <c>] (same pri
 
 Binding a connection reference, or turning on a flow, is checked as the acting identity: it must own the connection or have it shared (`ConnectionAuthorizationFailed` otherwise). A pipeline that runs as a service principal therefore needs the connection shared with it. `can-view` ("can use") is enough. The owner cannot be removed.
 
+A profile that uses a service principal needs the environment id stored on its connection, because an application identity usually cannot list environments. Run `txc config profile validate <profile> --refresh-env-type` once with a user credential to store it.
+
 ## Connection references
 
 ```sh
@@ -76,7 +78,7 @@ The step-by-step recipe (connector import order, sharing with the pipeline ident
 
 ## Output and exit codes
 
-All commands support `--format json|text`. Every mutating command reports a `status` (`created`, `updated`, `unchanged`, `assigned`, `removed`; `connection test` reports `healthy` or `unhealthy`), a `statusMessage` when there is something to explain, and the same fields as the matching `get`; connection-reference `create` and `update` include the reference `id`. `connector get` lists operations under `logicalName` and `apiId`.
+All commands support `--format json|text`. Every mutating command reports a `status` (`created`, `updated`, `unchanged`, `assigned`, `removed`; `connection test` reports `healthy`, `unhealthy` or `untested`; the platform runs its test only for a user credential), a `statusMessage` when there is something to explain, and the same fields as the matching `get`; connection-reference `create` and `update` include the reference `id`. `connector get` lists operations under `logicalName` and `apiId`.
 
 | Exit | Meaning |
 |---|---|

@@ -62,6 +62,35 @@ public class EnvironmentIdResolverTests
         Assert.Contains("Could not resolve a Power Platform environment", ex.Message);
     }
 
+    private sealed class FailingCatalog : IPowerPlatformEnvironmentCatalog
+    {
+        public Task<IReadOnlyList<PowerPlatformEnvironmentSummary>> ListAsync(Connection connection, Credential credential, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        public Task<PowerPlatformEnvironmentSummary?> TryGetByEnvironmentUrlAsync(
+            Connection connection, Credential credential, Uri environmentUrl, CancellationToken ct)
+            => throw new InvalidOperationException("Power Platform environment lookup failed (403 Forbidden).");
+    }
+
+    [Fact]
+    public async Task ADeniedLookupForAnApplicationCredential_SaysHowToStoreTheId()
+    {
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => new EnvironmentIdResolver(new FailingCatalog())
+            .ResolveAsync(WithoutStoredId(), ConnectionFixtures.ServicePrincipal(), CancellationToken.None));
+
+        Assert.Contains("403 Forbidden", ex.Message);
+        Assert.Contains("store the environment ID", ex.Message);
+    }
+
+    [Fact]
+    public async Task ADeniedLookupForAUser_IsNotRewritten()
+    {
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => new EnvironmentIdResolver(new FailingCatalog())
+            .ResolveAsync(WithoutStoredId(), ConnectionFixtures.User(), CancellationToken.None));
+
+        Assert.DoesNotContain("store the environment ID", ex.Message);
+    }
+
     [Fact]
     public async Task ADataverseUrlThatIsNotAUri_IsAnError()
     {

@@ -185,6 +185,19 @@ public sealed class ConnectionCliCommandTests
     }
 
     [Fact]
+    public async Task Test_NotRunnableForTheCredential_IsUntestedAndSucceeds()
+    {
+        using var host = new ConnectionCommandTestHost();
+        host.Connections.TestOutcome = new ConnectionTestOutcome(true, "Connected", "Only for a user credential.", Tested: false);
+
+        var (exit, output) = await ConnectionCommandTestHost.RunAsync(new ConnectionTestCliCommand { ConnectionId = "c1" });
+
+        Assert.Equal(0, exit);
+        Assert.Contains("\"status\": \"untested\"", output);
+        Assert.Contains("\"connectionStatus\": \"Connected\"", output);
+    }
+
+    [Fact]
     public async Task Delete_WithoutYes_RefusesInANonInteractiveRun()
     {
         using var host = new ConnectionCommandTestHost(headless: true);

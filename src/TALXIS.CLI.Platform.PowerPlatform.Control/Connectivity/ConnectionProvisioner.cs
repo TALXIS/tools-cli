@@ -111,6 +111,14 @@ internal sealed class ConnectionProvisioner
         var method = await SelectMethodAsync(target, pending.Connector, options, ct).ConfigureAwait(false);
         ConnectionRequestBuilder.Validate(method, options.Parameters, pending.Connector.LogicalName);
 
+        if (method.IsInteractiveOAuth && !SilentConsentHelper.IsUserCredential(target.Credential))
+        {
+            throw new ArgumentException(
+                $"Authentication method '{method.Name}' of connector '{pending.Connector.LogicalName}' signs in as a person, " +
+                "which an application credential cannot do. Use a user credential, or an authentication method that takes " +
+                "application credentials (for example ServicePrincipalOauth).");
+        }
+
         var wantsConsentLink = method.IsInteractiveOAuth;
         var body = ConnectionRequestBuilder.BuildBody(
             pending.DisplayName, target.EnvironmentId, method, options.Parameters, wantsConsentLink);

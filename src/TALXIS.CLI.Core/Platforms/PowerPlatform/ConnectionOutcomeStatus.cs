@@ -30,6 +30,9 @@ public enum ConnectionOutcomeStatus
 
     /// <summary>A connection test failed.</summary>
     Unhealthy = 9,
+
+    /// <summary>The platform reports the connection as connected, but its test cannot be run for this credential.</summary>
+    Untested = 10,
 }
 
 public static class ConnectionOutcomeStatusExtensions
@@ -47,6 +50,7 @@ public static class ConnectionOutcomeStatusExtensions
         ConnectionOutcomeStatus.Deleted => "deleted",
         ConnectionOutcomeStatus.Healthy => "healthy",
         ConnectionOutcomeStatus.Unhealthy => "unhealthy",
+        ConnectionOutcomeStatus.Untested => "untested",
         _ => throw new ArgumentOutOfRangeException(nameof(status), status, "Unknown connection outcome status."),
     };
 }

@@ -12,7 +12,7 @@ internal static class ConnectionCommandSupport
     internal static string? HintFor(Exception ex) => ex switch
     {
         ConnectionNotFoundException => "Run 'txc environment connection list' to see the connections you can use.",
-        ConnectionAccessDeniedException => "Its owner can share it with 'txc environment connection permission add'.",
+        ConnectionAccessDeniedException => "The owner can share it with 'txc environment connection permission add'.",
         AmbiguousConnectionException => "Pass --connector to choose one.",
         ConnectorNotFoundException => "Run 'txc environment connector list' to see what is available.",
         _ => null,

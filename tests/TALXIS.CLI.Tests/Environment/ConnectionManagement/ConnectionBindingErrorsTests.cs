@@ -27,7 +27,7 @@ public class ConnectionBindingErrorsTests
 
         var ex = Assert.IsType<ConnectionAccessDeniedException>(translated);
         Assert.Contains("'c9'", ex.Message);
-        Assert.Contains("share it with the calling identity", ex.Message);
+        Assert.Contains("shared with the calling identity", ex.Message);
         Assert.DoesNotContain("txc ", ex.Message);
     }
 

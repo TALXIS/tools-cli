@@ -101,6 +101,25 @@ public class ConnectionReaderTests
     }
 
     [Fact]
+    public async Task Test_ApplicationCredential_DoesNotRunThePlatformTest()
+    {
+        const string connectedWithTestLink = """
+            {"name":"c1","properties":{"apiId":"/providers/Microsoft.PowerApps/apis/shared_office365users","displayName":"Mail",
+              "statuses":[{"status":"Connected"}],
+              "testLinks":[{"requestUri":"https://env.example/connectors/runtime/invoke/apis/office365users/connections/c1/testconnection","method":"get"}]}}
+            """;
+        var platform = Platform().On(Get, ConnectionRoute, HttpStatusCode.OK, connectedWithTestLink);
+        var service = ConnectionFixtures.Service(platform, new FakeTokens(), ConnectionFixtures.ServicePrincipal());
+
+        var outcome = await service.TestAsync(null, "shared_office365users", "c1", CancellationToken.None);
+
+        Assert.False(outcome.Tested);
+        Assert.True(outcome.Healthy);
+        Assert.Equal("Connected", outcome.ConnectionStatus);
+        Assert.Empty(platform.Sent(Get, "testconnection"));
+    }
+
+    [Fact]
     public async Task Test_AnUnauthenticatedConnection_IsReportedWithThePlatformMessage()
     {
         var platform = Platform().On(Get, ConnectionRoute, HttpStatusCode.OK,

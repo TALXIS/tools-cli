@@ -180,6 +180,20 @@ public class ConnectionServiceTests
     }
 
     [Fact]
+    public async Task Create_UserSignInMethodWithAnApplicationCredential_IsRejectedBeforeAnythingIsCreated()
+    {
+        var platform = ConnectionFixtures.Platform("shared_office365users", ConnectionFixtures.OAuthConnector());
+        var service = ConnectionFixtures.Service(platform, new FakeTokens(), ConnectionFixtures.ServicePrincipal());
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => service.CreateAsync(
+            null, new ConnectionCreateOptions("shared_office365users", "Mail", null, NoParameters(), true), CancellationToken.None));
+
+        Assert.Contains("application credential", ex.Message);
+        Assert.Empty(platform.Sent(Put, "/connections/"));
+        Assert.Empty(platform.Sent(Post, "firstPartyLogin"));
+    }
+
+    [Fact]
     public async Task Create_UnknownParameter_IsRejectedBeforeAnythingIsSent()
     {
         var platform = ConnectionFixtures.Platform("shared_commondataserviceforapps", ConnectionFixtures.DataverseConnector());
@@ -237,23 +251,6 @@ public class ConnectionServiceTests
         Assert.StartsWith("https://usa.consent.azure-apihub.net/login", outcome.ConsentLink);
         Assert.Empty(platform.Sent(Post, "firstPartyLogin"));
         Assert.Empty(platform.Sent(Delete, "/connections/"));
-    }
-
-    [Fact]
-    public async Task Create_OAuthConnectorForAServicePrincipal_NeverAttemptsConsent()
-    {
-        var tokens = new FakeTokens();
-        var platform = ConnectionFixtures.Platform("shared_office365users", ConnectionFixtures.OAuthConnector())
-            .On(Put, "/connections/", HttpStatusCode.Created, ConnectionFixtures.Unauthenticated("c1", "shared_office365users", true));
-        var service = ConnectionFixtures.Service(platform, tokens, ConnectionFixtures.ServicePrincipal());
-
-        var outcome = await service.CreateAsync(
-            null, new ConnectionCreateOptions("shared_office365users", "Mail", null, NoParameters(), true), CancellationToken.None);
-
-        Assert.Equal(ConnectionOutcomeStatus.ConsentRequired, outcome.Status);
-        Assert.Contains("user credential", outcome.Message);
-        Assert.Empty(platform.Sent(Post, "firstPartyLogin"));
-        Assert.DoesNotContain(ApiHubAudiences.For(CloudInstance.Public), tokens.Audiences);
     }
 
     [Fact]

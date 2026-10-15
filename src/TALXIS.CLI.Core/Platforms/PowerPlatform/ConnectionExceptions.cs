@@ -41,7 +41,7 @@ public sealed class ConnectionAccessDeniedException : ArgumentException
 {
     public ConnectionAccessDeniedException(string connectionId, string apiId)
         : base($"You do not have permission to use connection '{connectionId}' for connector '{apiId}'. " +
-               "Ask its owner to share it with the calling identity.")
+               "It has to be shared with the calling identity.")
     {
         ConnectionId = connectionId;
         ApiId = apiId;

@@ -103,6 +103,15 @@ internal sealed class ConnectionReader : IConnectionReader
         if (testLink is null)
             return new ConnectionTestOutcome(true, summary.ConnectionStatus, null);
 
+        // The platform's token exchange for the test call accepts user callers only.
+        if (!SilentConsentHelper.IsUserCredential(target.Credential))
+        {
+            return new ConnectionTestOutcome(
+                true, summary.ConnectionStatus,
+                "The platform runs the connection test only for a user credential; this is the platform's connection status.",
+                Tested: false);
+        }
+
         var (healthy, message) = await _consent.RunTestLinkAsync(target.Connection, target.Credential, testLink, ct)
             .ConfigureAwait(false);
         return new ConnectionTestOutcome(healthy, summary.ConnectionStatus, message);

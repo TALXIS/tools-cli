@@ -32,7 +32,7 @@ A service-principal profile cannot sign in to a user-delegated OAuth connector: 
 
 ## Results and Exit Codes
 
-Every mutating command returns a `status` (`created`, `updated`, `unchanged`, `assigned`, `removed`, ...) and, when something needs attention, a `statusMessage`; `environment_connection_test` returns `healthy` or `unhealthy`. Exit code `1` means consent-required, failed or unhealthy and **still carries the payload** (read it before retrying); `2` means invalid input or not found (unknown connector, connection or reference, ambiguous name, missing environment variable). `connection-reference` create and update return the reference including its `id`.
+Every mutating command returns a `status` (`created`, `updated`, `unchanged`, `assigned`, `removed`, ...) and, when something needs attention, a `statusMessage`; `environment_connection_test` returns `healthy`, `unhealthy` or `untested` (an application credential cannot run the platform's test, so the connection status is reported as is). Exit code `1` means consent-required, failed or unhealthy and **still carries the payload** (read it before retrying); `2` means invalid input or not found (unknown connector, connection or reference, ambiguous name, missing environment variable). `connection-reference` create and update return the reference including its `id`.
 
 ## Deployment Recipe (connection references)
 
