@@ -112,7 +112,7 @@ public class ConnectionServiceTests
     }
 
     [Fact]
-    public async Task Create_UnknownConnector_ListsHowToFindOne()
+    public async Task Create_UnknownConnector_IsAConnectorNotFound()
     {
         var platform = ConnectionFixtures.Platform("x", "{}");
         var service = ConnectionFixtures.Service(platform, new FakeTokens(), ConnectionFixtures.User());
@@ -120,7 +120,7 @@ public class ConnectionServiceTests
         var ex = await Assert.ThrowsAsync<ConnectorNotFoundException>(() => service.CreateAsync(
             null, new ConnectionCreateOptions("nope", "N", null, NoParameters(), true), CancellationToken.None));
 
-        Assert.Contains("connector list", ex.Message);
+        Assert.Contains("nope", ex.Message);
     }
 
 

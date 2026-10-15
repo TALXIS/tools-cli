@@ -24,6 +24,12 @@ public enum ConnectionOutcomeStatus
     Removed = 6,
 
     Deleted = 7,
+
+    /// <summary>A connection test passed.</summary>
+    Healthy = 8,
+
+    /// <summary>A connection test failed.</summary>
+    Unhealthy = 9,
 }
 
 public static class ConnectionOutcomeStatusExtensions
@@ -39,6 +45,8 @@ public static class ConnectionOutcomeStatusExtensions
         ConnectionOutcomeStatus.Assigned => "assigned",
         ConnectionOutcomeStatus.Removed => "removed",
         ConnectionOutcomeStatus.Deleted => "deleted",
+        ConnectionOutcomeStatus.Healthy => "healthy",
+        ConnectionOutcomeStatus.Unhealthy => "unhealthy",
         _ => throw new ArgumentOutOfRangeException(nameof(status), status, "Unknown connection outcome status."),
     };
 }

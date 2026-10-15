@@ -125,10 +125,15 @@ public interface IConnectionReader
     Task<IReadOnlyList<ConnectionSummary>> ListAsync(
         string? profileName, string? connector, string? filter, CancellationToken ct);
 
+    /// <param name="connector">
+    /// The connector of the connection; optional. When null the connection is located by id
+    /// among the connections the caller owns or can use.
+    /// </param>
     /// <exception cref="ConnectionNotFoundException">No such connection is visible to the caller.</exception>
     /// <exception cref="ConnectionAccessDeniedException">The caller may not read the connection.</exception>
+    /// <exception cref="AmbiguousConnectionException">No connector was named and the id exists under several.</exception>
     Task<ConnectionSummary> GetAsync(
-        string? profileName, string connector, string connectionId, CancellationToken ct);
+        string? profileName, string? connector, string connectionId, CancellationToken ct);
 }
 
 /// <summary>
@@ -145,23 +150,29 @@ public interface IConnectionService : IConnectionReader
     Task<ConnectionCreateOutcome> CreateAsync(
         string? profileName, ConnectionCreateOptions options, CancellationToken ct);
 
+    /// <inheritdoc cref="IConnectionReader.GetAsync"/>
     Task<ConnectionTestOutcome> TestAsync(
-        string? profileName, string connector, string connectionId, CancellationToken ct);
+        string? profileName, string? connector, string connectionId, CancellationToken ct);
 
+    /// <inheritdoc cref="IConnectionReader.GetAsync"/>
     Task DeleteAsync(
-        string? profileName, string connector, string connectionId, CancellationToken ct);
+        string? profileName, string? connector, string connectionId, CancellationToken ct);
 }
 
-/// <summary>Shares connections with other principals and revokes that access.</summary>
+/// <summary>
+/// Shares connections with other principals and revokes that access. Like
+/// <see cref="IConnectionReader.GetAsync"/>, every method takes an optional connector
+/// that only disambiguates the connection id.
+/// </summary>
 public interface IConnectionPermissionService
 {
     Task<IReadOnlyList<ConnectionPermission>> ListPermissionsAsync(
-        string? profileName, string connector, string connectionId, CancellationToken ct);
+        string? profileName, string? connector, string connectionId, CancellationToken ct);
 
     /// <summary>Grants or changes a principal's role. Idempotent.</summary>
     Task<ConnectionPermissionOutcome> AddPermissionAsync(
         string? profileName,
-        string connector,
+        string? connector,
         string connectionId,
         ConnectionPrincipalSpec principal,
         ConnectionPermissionRole role,
@@ -170,7 +181,7 @@ public interface IConnectionPermissionService
     /// <summary>Revokes a principal's access. The owner cannot be revoked.</summary>
     Task<ConnectionPermissionOutcome> RemovePermissionAsync(
         string? profileName,
-        string connector,
+        string? connector,
         string connectionId,
         ConnectionPrincipalSpec principal,
         CancellationToken ct);

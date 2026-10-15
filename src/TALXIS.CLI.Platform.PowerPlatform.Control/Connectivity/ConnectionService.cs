@@ -24,17 +24,17 @@ internal sealed class ConnectionService : IConnectionService
         => _reader.ListAsync(profileName, connector, filter, ct);
 
     public Task<ConnectionSummary> GetAsync(
-        string? profileName, string connector, string connectionId, CancellationToken ct)
+        string? profileName, string? connector, string connectionId, CancellationToken ct)
         => _reader.GetAsync(profileName, connector, connectionId, ct);
 
     public Task<ConnectionTestOutcome> TestAsync(
-        string? profileName, string connector, string connectionId, CancellationToken ct)
+        string? profileName, string? connector, string connectionId, CancellationToken ct)
         => _reader.TestAsync(profileName, connector, connectionId, ct);
 
     public Task<ConnectionCreateOutcome> CreateAsync(
         string? profileName, ConnectionCreateOptions options, CancellationToken ct)
         => _provisioner.CreateAsync(profileName, options, ct);
 
-    public Task DeleteAsync(string? profileName, string connector, string connectionId, CancellationToken ct)
+    public Task DeleteAsync(string? profileName, string? connector, string connectionId, CancellationToken ct)
         => _provisioner.DeleteAsync(profileName, connector, connectionId, ct);
 }

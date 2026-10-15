@@ -34,7 +34,7 @@ internal sealed class ConnectionConsentFlow
         if (consent.FirstPartyLoginUri is null)
             return RequiresPerson(pending, state, consent, "This connector needs a person to sign in; open the consent link.");
         if (!attemptSilently)
-            return RequiresPerson(pending, state, consent, "Consent was not attempted; open the consent link or run without --no-consent.");
+            return RequiresPerson(pending, state, consent, "Consent was not attempted.");
 
         var attempt = await _silent.TryCompleteAsync(
             target.Connection, target.Credential, consent.FirstPartyLoginUri, ct).ConfigureAwait(false);

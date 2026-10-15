@@ -50,12 +50,38 @@ internal sealed class ConnectionReader : IConnectionReader
     }
 
     public async Task<ConnectionSummary> GetAsync(
-        string? profileName, string connector, string connectionId, CancellationToken ct)
+        string? profileName, string? connector, string connectionId, CancellationToken ct)
     {
         var target = await _targets.ResolveAsync(profileName, ct).ConfigureAwait(false);
-        var resolved = await _connectors.ResolveAsync(target, connector, ct).ConfigureAwait(false);
-        using var document = await GetDocumentAsync(target, resolved.ApiId, connectionId, ct).ConfigureAwait(false);
-        return ConnectionJsonParser.ParseConnection(document.RootElement, resolved.ApiId);
+        var apiId = await ResolveApiIdAsync(target, connector, connectionId, ct).ConfigureAwait(false);
+        using var document = await GetDocumentAsync(target, apiId, connectionId, ct).ConfigureAwait(false);
+        return ConnectionJsonParser.ParseConnection(document.RootElement, apiId);
+    }
+
+    /// <summary>
+    /// The apiId a connection id lives under: the named connector's, or, when none is
+    /// named, the connector of the one connection the caller can see with this id.
+    /// </summary>
+    /// <exception cref="ConnectionNotFoundException">No connection with this id is visible to the caller.</exception>
+    /// <exception cref="AmbiguousConnectionException">Several connectors have a connection with this id.</exception>
+    public async Task<string> ResolveApiIdAsync(
+        ConnectivityTarget target, string? connector, string connectionId, CancellationToken ct)
+    {
+        if (!string.IsNullOrWhiteSpace(connector))
+            return (await _connectors.ResolveAsync(target, connector, ct).ConfigureAwait(false)).ApiId;
+
+        var apiIds = (await ListOwnedAsync(target, ct).ConfigureAwait(false))
+            .Where(c => string.Equals(c.ConnectionId, connectionId, StringComparison.Ordinal))
+            .Select(c => c.ApiId)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return apiIds.Count switch
+        {
+            0 => throw new ConnectionNotFoundException(connectionId),
+            1 => apiIds[0],
+            _ => throw new AmbiguousConnectionException(connectionId, apiIds),
+        };
     }
 
     /// <summary>
@@ -63,12 +89,12 @@ internal sealed class ConnectionReader : IConnectionReader
     /// connector that exposes a test link, the live call succeeds.
     /// </summary>
     public async Task<ConnectionTestOutcome> TestAsync(
-        string? profileName, string connector, string connectionId, CancellationToken ct)
+        string? profileName, string? connector, string connectionId, CancellationToken ct)
     {
         var target = await _targets.ResolveAsync(profileName, ct).ConfigureAwait(false);
-        var resolved = await _connectors.ResolveAsync(target, connector, ct).ConfigureAwait(false);
-        using var document = await GetDocumentAsync(target, resolved.ApiId, connectionId, ct).ConfigureAwait(false);
-        var summary = ConnectionJsonParser.ParseConnection(document.RootElement, resolved.ApiId);
+        var apiId = await ResolveApiIdAsync(target, connector, connectionId, ct).ConfigureAwait(false);
+        using var document = await GetDocumentAsync(target, apiId, connectionId, ct).ConfigureAwait(false);
+        var summary = ConnectionJsonParser.ParseConnection(document.RootElement, apiId);
 
         if (!ConnectionStatusCodes.IsConnected(summary.ConnectionStatus))
             return new ConnectionTestOutcome(false, summary.ConnectionStatus, summary.StatusMessage);

@@ -4,8 +4,7 @@ namespace TALXIS.CLI.Core.Platforms.PowerPlatform;
 public sealed class ConnectorNotFoundException : ArgumentException
 {
     public ConnectorNotFoundException(string connector)
-        : base($"Connector '{connector}' was not found in this environment. " +
-               "Use 'txc environment connector list' to see what is available.")
+        : base($"Connector '{connector}' was not found in this environment.")
         => Connector = connector;
 
     public string Connector { get; }

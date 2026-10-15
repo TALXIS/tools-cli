@@ -120,4 +120,84 @@ public class ConnectionReaderTests
         await Assert.ThrowsAsync<ConnectionNotFoundException>(
             () => Service(platform).DeleteAsync(null, "shared_office365users", "c1", CancellationToken.None));
     }
+
+    private static string TwoConnectionsWithTheSameId() => ConnectionFixtures.Wrap(
+        ConnectionFixtures.Connected("c1", "shared_office365users", "Mail"),
+        ConnectionFixtures.Connected("c1", "shared_commondataserviceforapps", "Dataverse"));
+
+    [Fact]
+    public async Task Get_WithoutAConnector_FindsTheConnectionById()
+    {
+        var platform = Platform()
+            .On(Get, "connectivity/connections?", HttpStatusCode.OK,
+                ConnectionFixtures.Wrap(ConnectionFixtures.Connected("c1", "shared_office365users", "Mail")))
+            .On(Get, ConnectionRoute, HttpStatusCode.OK, ConnectionFixtures.Connected("c1", "shared_office365users", "Mail"));
+
+        var summary = await Service(platform).GetAsync(null, null, "c1", CancellationToken.None);
+
+        Assert.Equal("shared_office365users", summary.ApiId);
+    }
+
+    [Fact]
+    public async Task Get_WithoutAConnector_AnUnknownId_IsAConnectionNotFoundWithoutAConnector()
+    {
+        var platform = Platform();
+
+        var ex = await Assert.ThrowsAsync<ConnectionNotFoundException>(
+            () => Service(platform).GetAsync(null, null, "c1", CancellationToken.None));
+
+        Assert.Equal("c1", ex.ConnectionId);
+        Assert.Null(ex.ApiId);
+        Assert.DoesNotContain("for connector", ex.Message);
+    }
+
+    [Fact]
+    public async Task Get_WithoutAConnector_AnIdUnderSeveralConnectors_IsAmbiguous()
+    {
+        var platform = Platform().On(Get, "connectivity/connections?", HttpStatusCode.OK, TwoConnectionsWithTheSameId());
+
+        var ex = await Assert.ThrowsAsync<AmbiguousConnectionException>(
+            () => Service(platform).GetAsync(null, null, "c1", CancellationToken.None));
+
+        Assert.Equal(["shared_commondataserviceforapps", "shared_office365users"], ex.ApiIds.Order().ToArray());
+    }
+
+    [Fact]
+    public async Task Get_NamingTheConnector_DisambiguatesWithoutListing()
+    {
+        var platform = Platform()
+            .On(Get, "connectivity/connections?", HttpStatusCode.OK, TwoConnectionsWithTheSameId())
+            .On(Get, ConnectionRoute, HttpStatusCode.OK, ConnectionFixtures.Connected("c1", "shared_office365users", "Mail"));
+
+        var summary = await Service(platform).GetAsync(null, "shared_office365users", "c1", CancellationToken.None);
+
+        Assert.Equal("Mail", summary.DisplayName);
+        Assert.Empty(platform.Sent(Get, "connectivity/connections?"));
+    }
+
+    [Fact]
+    public async Task Test_WithoutAConnector_FindsTheConnectionById()
+    {
+        var platform = Platform()
+            .On(Get, "connectivity/connections?", HttpStatusCode.OK,
+                ConnectionFixtures.Wrap(ConnectionFixtures.Connected("c1", "shared_office365users", "Mail")))
+            .On(Get, ConnectionRoute, HttpStatusCode.OK, ConnectionFixtures.Connected("c1", "shared_office365users", "Mail"));
+
+        var outcome = await Service(platform).TestAsync(null, null, "c1", CancellationToken.None);
+
+        Assert.True(outcome.Healthy);
+    }
+
+    [Fact]
+    public async Task Delete_WithoutAConnector_DeletesTheConnectionFoundById()
+    {
+        var platform = Platform()
+            .On(Get, "connectivity/connections?", HttpStatusCode.OK,
+                ConnectionFixtures.Wrap(ConnectionFixtures.Connected("c1", "shared_office365users", "Mail")))
+            .On(HttpMethod.Delete, ConnectionRoute, HttpStatusCode.OK);
+
+        await Service(platform).DeleteAsync(null, null, "c1", CancellationToken.None);
+
+        Assert.Single(platform.Sent(HttpMethod.Delete, "/connections/c1"));
+    }
 }

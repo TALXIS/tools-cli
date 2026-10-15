@@ -202,4 +202,26 @@ public class ConnectionPermissionServiceTests
 
         Assert.Contains("nope", ex.Message);
     }
+
+    [Fact]
+    public async Task ListPermissions_WithoutAConnector_FindsTheConnectionById()
+    {
+        var platform = PermissionPlatform("CanView")
+            .On(Get, "connectivity/connections?", HttpStatusCode.OK,
+                ConnectionFixtures.Wrap(ConnectionFixtures.Connected("c1", "shared_office365users", "Mail")));
+        var service = ConnectionFixtures.PermissionService(platform, new FakeTokens(), ConnectionFixtures.User());
+
+        var permissions = await service.ListPermissionsAsync(null, null, "c1", CancellationToken.None);
+
+        Assert.Equal(2, permissions.Count);
+    }
+
+    [Fact]
+    public async Task AddPermission_WithoutAConnector_AnUnknownId_IsAConnectionNotFound()
+    {
+        var service = ConnectionFixtures.PermissionService(PermissionPlatform("CanView"), new FakeTokens(), ConnectionFixtures.User());
+
+        await Assert.ThrowsAsync<ConnectionNotFoundException>(() => service.AddPermissionAsync(
+            null, null, "c1", Spn, ConnectionPermissionRole.CanView, CancellationToken.None));
+    }
 }

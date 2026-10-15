@@ -76,12 +76,12 @@ internal sealed class ConnectionProvisioner
         return pending.Outcome(ConnectionOutcomeStatus.Failed, state.Status, null, state.Error);
     }
 
-    public async Task DeleteAsync(string? profileName, string connector, string connectionId, CancellationToken ct)
+    public async Task DeleteAsync(string? profileName, string? connector, string connectionId, CancellationToken ct)
     {
         var target = await _targets.ResolveAsync(profileName, ct).ConfigureAwait(false);
-        var resolved = await _connectors.ResolveAsync(target, connector, ct).ConfigureAwait(false);
+        var apiId = await _reader.ResolveApiIdAsync(target, connector, connectionId, ct).ConfigureAwait(false);
 
-        await DeleteConnectionAsync(target, resolved.ApiId, connectionId, ct).ConfigureAwait(false);
+        await DeleteConnectionAsync(target, apiId, connectionId, ct).ConfigureAwait(false);
     }
 
     /// <summary>The caller's connection with this display name for the connector, if there is exactly one.</summary>
