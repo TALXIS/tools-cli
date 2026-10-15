@@ -8,8 +8,8 @@ using TALXIS.CLI.Logging;
 namespace TALXIS.CLI.Features.Environment.Connection;
 
 /// <summary>
-/// <c>txc environment connection list</c> — the connections the caller owns or
-/// can use. Connection references are a separate concept.
+/// Lists the connections the caller owns or can use. Connection references are a separate concept.
+/// Usage: <c>txc environment connection list [--connector &lt;name&gt;] [--filter &lt;text&gt;]</c>
 /// </summary>
 [CliReadOnly]
 [CliWorkflow("environment-inspection")]
@@ -17,14 +17,14 @@ namespace TALXIS.CLI.Features.Environment.Connection;
     Name = "list",
     Description = "Lists the connections you own or can use in the LIVE connected environment. Requires an active profile. A connection created by another identity only appears once it is shared with you."
 )]
-public class ConnectionListCliCommand : ProfiledCliCommand
+public class ConnectionListCliCommand : ConnectivityCommandBase
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ConnectionListCliCommand));
 
     [CliOption(Name = "--connector", Description = "Show only connections of this connector (logical name, apiId or exact display name).", Required = false)]
     public string? Connector { get; set; }
 
-    [CliOption(Name = "--filter", Aliases = ["--search"], Description = "Show only connections whose display name contains this text (case-insensitive).", Required = false)]
+    [CliOption(Name = "--filter", Description = "Show only connections whose display name contains this text (case-insensitive).", Required = false)]
     public string? Filter { get; set; }
 
     protected override async Task<int> ExecuteAsync()
@@ -53,9 +53,9 @@ public class ConnectionListCliCommand : ProfiledCliCommand
         foreach (var c in connections)
         {
             OutputWriter.WriteLine(
-                $"{ConnectionCommandSupport.Fit(c.DisplayName, 30).PadRight(30)} | " +
-                $"{ConnectionCommandSupport.Fit(c.ApiId, 34).PadRight(34)} | " +
-                $"{ConnectionCommandSupport.Fit(c.ConnectionStatus, 14).PadRight(14)} | {c.ConnectionId}");
+                $"{EnvironmentPrincipalCommandSupport.Truncate(c.DisplayName ?? "-", 30).PadRight(30)} | " +
+                $"{EnvironmentPrincipalCommandSupport.Truncate(c.ApiId, 34).PadRight(34)} | " +
+                $"{EnvironmentPrincipalCommandSupport.Truncate(c.ConnectionStatus ?? "-", 14).PadRight(14)} | {c.ConnectionId}");
         }
     }
 #pragma warning restore TXC003

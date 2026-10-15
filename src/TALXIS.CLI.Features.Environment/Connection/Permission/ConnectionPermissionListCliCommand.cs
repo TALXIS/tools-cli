@@ -8,8 +8,8 @@ using TALXIS.CLI.Logging;
 namespace TALXIS.CLI.Features.Environment.Connection.Permission;
 
 /// <summary>
-/// <c>txc environment connection permission list</c> — the owner and everyone
-/// the connection is shared with.
+/// Lists the owner and everyone the connection is shared with.
+/// Usage: <c>txc environment connection permission list &lt;connection-id&gt; [--connector &lt;name&gt;]</c>
 /// </summary>
 [CliReadOnly]
 [CliWorkflow("environment-inspection")]
@@ -17,15 +17,9 @@ namespace TALXIS.CLI.Features.Environment.Connection.Permission;
     Name = "list",
     Description = "Lists who can use a connection in the LIVE connected environment. Requires an active profile."
 )]
-public class ConnectionPermissionListCliCommand : ProfiledCliCommand
+public class ConnectionPermissionListCliCommand : ConnectionCommandBase
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ConnectionPermissionListCliCommand));
-
-    [CliArgument(Name = "connection-id", Description = "Connection id, exactly as shown by 'environment connection list'.")]
-    public string ConnectionId { get; set; } = null!;
-
-    [CliOption(Name = "--connector", Description = "Connector of the connection (logical name, apiId or exact display name).", Required = true)]
-    public string Connector { get; set; } = null!;
 
     protected override async Task<int> ExecuteAsync()
     {
@@ -61,8 +55,8 @@ public class ConnectionPermissionListCliCommand : ProfiledCliCommand
         foreach (var r in rows)
         {
             OutputWriter.WriteLine(
-                $"{ConnectionCommandSupport.Fit(r.DisplayName ?? r.Email, 32).PadRight(32)} | " +
-                $"{ConnectionCommandSupport.Fit(r.PrincipalType, 16).PadRight(16)} | " +
+                $"{EnvironmentPrincipalCommandSupport.Truncate(r.DisplayName ?? r.Email ?? "-", 32).PadRight(32)} | " +
+                $"{EnvironmentPrincipalCommandSupport.Truncate(r.PrincipalType ?? "-", 16).PadRight(16)} | " +
                 $"{r.Role.PadRight(20)} | {r.PrincipalId}");
         }
     }

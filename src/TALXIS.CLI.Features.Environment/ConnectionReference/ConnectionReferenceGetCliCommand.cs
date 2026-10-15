@@ -8,7 +8,8 @@ using TALXIS.CLI.Logging;
 namespace TALXIS.CLI.Features.Environment.ConnectionReference;
 
 /// <summary>
-/// <c>txc environment connection-reference get</c> — one reference and its binding.
+/// Gets one reference and its binding.
+/// Usage: <c>txc environment connection-reference get &lt;logical-name&gt;</c>
 /// </summary>
 [CliReadOnly]
 [CliWorkflow("environment-inspection")]
@@ -16,7 +17,7 @@ namespace TALXIS.CLI.Features.Environment.ConnectionReference;
     Name = "get",
     Description = "Gets one connection reference, including the connection it is bound to and that connection's health, in the LIVE connected environment. Requires an active profile."
 )]
-public class ConnectionReferenceGetCliCommand : ProfiledCliCommand
+public class ConnectionReferenceGetCliCommand : ConnectivityCommandBase
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ConnectionReferenceGetCliCommand));
 

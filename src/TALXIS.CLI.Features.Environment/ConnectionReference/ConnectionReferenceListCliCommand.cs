@@ -8,8 +8,8 @@ using TALXIS.CLI.Logging;
 namespace TALXIS.CLI.Features.Environment.ConnectionReference;
 
 /// <summary>
-/// <c>txc environment connection-reference list</c> — references with their
-/// binding status; <c>--unbound</c> is the deployment gate.
+/// Lists references with their binding status; <c>--unbound</c> is the deployment gate.
+/// Usage: <c>txc environment connection-reference list [--solution &lt;unique-name&gt;] [--connector &lt;name&gt;] [--connection-id &lt;id&gt;] [--unbound] [--filter &lt;text&gt;]</c>
 /// </summary>
 [CliReadOnly]
 [CliWorkflow("environment-inspection")]
@@ -17,7 +17,7 @@ namespace TALXIS.CLI.Features.Environment.ConnectionReference;
     Name = "list",
     Description = "Lists connection references in the LIVE connected environment with their binding status (bound, unbound, broken or unknown). Requires an active profile. Use --unbound after an import to find references that still need a connection."
 )]
-public class ConnectionReferenceListCliCommand : ProfiledCliCommand
+public class ConnectionReferenceListCliCommand : ConnectivityCommandBase
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ConnectionReferenceListCliCommand));
 
@@ -33,7 +33,7 @@ public class ConnectionReferenceListCliCommand : ProfiledCliCommand
     [CliOption(Name = "--unbound", Description = "Show only references that have no connection.", Required = false)]
     public bool Unbound { get; set; }
 
-    [CliOption(Name = "--filter", Aliases = ["--search"], Description = "Show only references whose logical name or display name contains this text.", Required = false)]
+    [CliOption(Name = "--filter", Description = "Show only references whose logical name or display name contains this text.", Required = false)]
     public string? Filter { get; set; }
 
     protected override async Task<int> ExecuteAsync()
@@ -65,11 +65,9 @@ public class ConnectionReferenceListCliCommand : ProfiledCliCommand
         foreach (var r in references)
         {
             OutputWriter.WriteLine(
-                $"{Fit(r.LogicalName, 36).PadRight(36)} | {Fit(r.ApiId, 30).PadRight(30)} | {r.BindingStatus.PadRight(8)} | {r.ConnectionId}");
+                $"{EnvironmentPrincipalCommandSupport.Truncate(r.LogicalName, 36).PadRight(36)} | {EnvironmentPrincipalCommandSupport.Truncate(r.ApiId, 30).PadRight(30)} | {r.BindingStatus.PadRight(8)} | {r.ConnectionId}");
         }
     }
 
-    private static string Fit(string value, int width)
-        => value.Length > width ? value[..(width - 1)] + "." : value;
 #pragma warning restore TXC003
 }

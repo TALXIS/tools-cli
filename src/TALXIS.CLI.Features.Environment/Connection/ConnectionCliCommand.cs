@@ -10,7 +10,7 @@ namespace TALXIS.CLI.Features.Environment.Connection;
 /// </summary>
 [CliCommand(
     Name = "connection",
-    Description = "Manage Power Platform connections (the stored sign-in of a connector, such as Teams or a custom connector) in the LIVE connected environment. Not to be confused with 'config connection', which stores local environment endpoints.",
+    Description = "Manage connections (the stored sign-in of a connector) in the LIVE connected environment. Not 'config connection', which stores local environment endpoints.",
     Children = new[]
     {
         typeof(ConnectionCreateCliCommand),

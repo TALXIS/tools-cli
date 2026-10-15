@@ -8,7 +8,7 @@ namespace TALXIS.CLI.Features.Environment.ConnectionReference;
 /// </summary>
 [CliCommand(
     Name = "connection-reference",
-    Description = "Manage connection references in the LIVE connected environment. A connection reference is a solution component with a stable logical name that points at a connection of a connector; flows bind to it so a solution never carries connection ids, which differ on every environment.",
+    Description = "Manage connection references (the stable placeholder flows bind to instead of a connection) in the LIVE connected environment.",
     Children = new[]
     {
         typeof(ConnectionReferenceListCliCommand),

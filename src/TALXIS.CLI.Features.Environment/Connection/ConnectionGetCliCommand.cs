@@ -8,7 +8,8 @@ using TALXIS.CLI.Logging;
 namespace TALXIS.CLI.Features.Environment.Connection;
 
 /// <summary>
-/// <c>txc environment connection get</c> — one connection and its platform status.
+/// Gets one connection and its platform status.
+/// Usage: <c>txc environment connection get &lt;connection-id&gt; [--connector &lt;name&gt;]</c>
 /// </summary>
 [CliReadOnly]
 [CliWorkflow("environment-inspection")]
@@ -16,15 +17,9 @@ namespace TALXIS.CLI.Features.Environment.Connection;
     Name = "get",
     Description = "Gets one connection, including its platform status, in the LIVE connected environment. Requires an active profile."
 )]
-public class ConnectionGetCliCommand : ProfiledCliCommand
+public class ConnectionGetCliCommand : ConnectionCommandBase
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ConnectionGetCliCommand));
-
-    [CliArgument(Name = "connection-id", Description = "Connection id, exactly as shown by 'environment connection list'.")]
-    public string ConnectionId { get; set; } = null!;
-
-    [CliOption(Name = "--connector", Description = "Connector of the connection (logical name, apiId or exact display name).", Required = true)]
-    public string Connector { get; set; } = null!;
 
     protected override async Task<int> ExecuteAsync()
     {

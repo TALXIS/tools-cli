@@ -4,19 +4,21 @@ using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
+using TALXIS.CLI.Core.Platforms.PowerPlatform;
 using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.ConnectionReference;
 
 /// <summary>
-/// <c>txc environment connection-reference delete</c> — removes a reference.
+/// Removes a reference.
+/// Usage: <c>txc environment connection-reference delete &lt;logical-name&gt; [--yes]</c>
 /// </summary>
 [CliDestructive("Permanently deletes the connection reference. Flows and apps that bind to it can no longer find their connection.")]
 [CliCommand(
     Name = "delete",
-    Description = "Delete a connection reference from the LIVE connected environment. Requires an active profile."
+    Description = "Deletes a connection reference from the LIVE connected environment. Requires an active profile."
 )]
-public class ConnectionReferenceDeleteCliCommand : ProfiledCliCommand, IDestructiveCommand
+public class ConnectionReferenceDeleteCliCommand : ConnectivityCommandBase, IDestructiveCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ConnectionReferenceDeleteCliCommand));
 
@@ -32,13 +34,8 @@ public class ConnectionReferenceDeleteCliCommand : ProfiledCliCommand, IDestruct
         await service.DeleteAsync(Profile, LogicalName, CancellationToken.None).ConfigureAwait(false);
 
         OutputFormatter.WriteData(
-            new { status = "deleted", logicalName = LogicalName },
-            _ =>
-            {
-#pragma warning disable TXC003
-                OutputWriter.WriteLine($"Deleted connection reference '{LogicalName}'.");
-#pragma warning restore TXC003
-            });
+            new { status = ConnectionOutcomeStatus.Deleted.ToKebabCase(), logicalName = LogicalName },
+            _ => OutputWriter.WriteLine($"Deleted connection reference '{LogicalName}'."));
 
         return ExitSuccess;
     }

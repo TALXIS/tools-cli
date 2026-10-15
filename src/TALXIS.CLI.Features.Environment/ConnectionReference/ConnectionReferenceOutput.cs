@@ -4,30 +4,33 @@ using TALXIS.CLI.Core.Platforms.PowerPlatform;
 
 namespace TALXIS.CLI.Features.Environment.ConnectionReference;
 
-/// <summary>Output shared by the create and update commands.</summary>
-internal static class ConnectionReferenceOutput
+/// <summary>
+/// What <c>connection-reference create</c> and <c>update</c> print: the outcome
+/// <c>status</c> followed by the fields of <c>connection-reference get</c>, under the same names.
+/// </summary>
+internal sealed record ConnectionReferenceResult(
+    string Status,
+    Guid Id,
+    string LogicalName,
+    string? DisplayName,
+    string ApiId,
+    string? ConnectionId,
+    string BindingStatus,
+    string? BindingMessage,
+    bool IsManaged,
+    string? Owner)
 {
-    public static void Write(ConnectionReferenceOutcome outcome)
+    public static ConnectionReferenceResult From(ConnectionReferenceOutcome outcome)
     {
         var r = outcome.Reference;
-        OutputFormatter.WriteData(
-            new
-            {
-                status = outcome.Status.ToKebabCase(),
-                logicalName = r.LogicalName,
-                displayName = r.DisplayName,
-                apiId = r.ApiId,
-                connectionId = r.ConnectionId,
-                bindingStatus = r.BindingStatus,
-                bindingMessage = r.BindingMessage,
-            },
-            _ =>
-            {
-#pragma warning disable TXC003
-                OutputWriter.WriteLine(r.ConnectionId is null
-                    ? $"Connection reference '{r.LogicalName}' {outcome.Status.ToKebabCase()}; it is not bound to a connection."
-                    : $"Connection reference '{r.LogicalName}' {outcome.Status.ToKebabCase()}; bound to connection {r.ConnectionId} ({r.BindingStatus}).");
-#pragma warning restore TXC003
-            });
+        return new ConnectionReferenceResult(
+            outcome.Status.ToKebabCase(), r.Id, r.LogicalName, r.DisplayName, r.ApiId, r.ConnectionId,
+            r.BindingStatus, r.BindingMessage, r.IsManaged, r.Owner);
     }
+
+    /// <summary>One line for text output.</summary>
+    public string Describe()
+        => ConnectionId is null
+            ? $"Connection reference '{LogicalName}' {Status}; it is not bound to a connection."
+            : $"Connection reference '{LogicalName}' {Status}; bound to connection {ConnectionId} ({BindingStatus}).";
 }

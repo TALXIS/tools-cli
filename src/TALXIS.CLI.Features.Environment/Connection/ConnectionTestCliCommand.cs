@@ -8,46 +8,36 @@ using TALXIS.CLI.Logging;
 namespace TALXIS.CLI.Features.Environment.Connection;
 
 /// <summary>
-/// <c>txc environment connection test</c> — checks that a connection works,
-/// calling the connector's test endpoint when it has one.
+/// Checks that a connection works, calling the connector's test endpoint when it has one.
+/// Usage: <c>txc environment connection test &lt;connection-id&gt; [--connector &lt;name&gt;]</c>
 /// </summary>
 [CliReadOnly]
 [CliWorkflow("environment-inspection")]
 [CliCommand(
     Name = "test",
-    Description = "Tests a connection in the LIVE connected environment. Requires an active profile. Exits 1 when the connection is not healthy."
+    Description = "Tests a connection in the LIVE connected environment, calling the connector's test endpoint when it has one. Requires an active profile."
 )]
-public class ConnectionTestCliCommand : ProfiledCliCommand
+public class ConnectionTestCliCommand : ConnectionCommandBase
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ConnectionTestCliCommand));
-
-    [CliArgument(Name = "connection-id", Description = "Connection id, exactly as shown by 'environment connection list'.")]
-    public string ConnectionId { get; set; } = null!;
-
-    [CliOption(Name = "--connector", Description = "Connector of the connection (logical name, apiId or exact display name).", Required = true)]
-    public string Connector { get; set; } = null!;
 
     protected override async Task<int> ExecuteAsync()
     {
         var service = TxcServices.Get<IConnectionService>();
         var outcome = await service.TestAsync(Profile, Connector, ConnectionId, CancellationToken.None).ConfigureAwait(false);
 
+        var status = outcome.Healthy ? ConnectionOutcomeStatus.Healthy : ConnectionOutcomeStatus.Unhealthy;
         OutputFormatter.WriteData(
             new
             {
+                status = status.ToKebabCase(),
                 connectionId = ConnectionId,
-                healthy = outcome.Healthy,
                 connectionStatus = outcome.ConnectionStatus,
-                message = outcome.Message,
+                statusMessage = outcome.Message,
             },
-            _ =>
-            {
-#pragma warning disable TXC003
-                OutputWriter.WriteLine(outcome.Healthy
-                    ? $"Connection {ConnectionId} is healthy ({outcome.ConnectionStatus})."
-                    : $"Connection {ConnectionId} is not healthy ({outcome.ConnectionStatus}): {outcome.Message}");
-#pragma warning restore TXC003
-            });
+            _ => OutputWriter.WriteLine(outcome.Healthy
+                ? $"Connection {ConnectionId} is healthy ({outcome.ConnectionStatus})."
+                : $"Connection {ConnectionId} is not healthy ({outcome.ConnectionStatus}): {outcome.Message}"));
 
         if (outcome.Healthy)
             return ExitSuccess;

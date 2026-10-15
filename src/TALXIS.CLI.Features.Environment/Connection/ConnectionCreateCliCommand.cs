@@ -4,37 +4,38 @@ using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Core.Platforms.PowerPlatform;
 using TALXIS.CLI.Core.Resolution;
+using TALXIS.CLI.Features.Environment.Connector;
 using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.Connection;
 
 /// <summary>
-/// <c>txc environment connection create</c> — creates the stored sign-in of a
-/// connector. Works for any connector: no authentication, API key, service
-/// principal, certificate, or user-delegated OAuth.
+/// Creates the stored sign-in of a connector. Works for any connector: no
+/// authentication, API key, service principal, certificate, or user-delegated OAuth.
+/// Usage: <c>txc environment connection create --connector &lt;name&gt; --display-name &lt;name&gt; [--auth-method &lt;method&gt;] [--param &lt;name=value&gt;]... [--secret-from-env &lt;name=ENV_VAR&gt;]... [--no-consent]</c>
 /// </summary>
 [CliIdempotent]
 [CliCommand(
     Name = "create",
-    Description = "Create a connection for a connector in the LIVE connected environment. Requires an active profile. Idempotent by connector and display name: an existing connected connection is returned unchanged. For OAuth connectors a user credential signs in silently when the connector supports it; otherwise a consent link is returned and the command exits 1."
+    Description = "Creates a connection for a connector in the LIVE connected environment. Requires an active profile. Idempotent by connector and display name: an existing connected connection is returned unchanged. For OAuth connectors a user credential signs in silently when the connector supports it; otherwise a consent link is returned."
 )]
-public class ConnectionCreateCliCommand : ProfiledCliCommand
+public class ConnectionCreateCliCommand : ConnectivityCommandBase
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ConnectionCreateCliCommand));
 
-    [CliOption(Name = "--connector", Description = "Connector logical name (for example almlab_connectorsopenfoodfacts or shared_office365users), apiId or exact display name. See 'environment connector list'.", Required = true)]
+    [CliOption(Name = "--connector", Description = ConnectorDescriptions.Identifier + " See 'txc environment connector list'.", Required = true)]
     public string Connector { get; set; } = null!;
 
     [CliOption(Name = "--display-name", Description = "Display name of the connection. It identifies an existing connection, so repeating the command changes nothing.", Required = true)]
     public string DisplayName { get; set; } = null!;
 
-    [CliOption(Name = "--auth-method", Description = "Authentication method (connection parameter set), for example ServicePrincipalOauth. Defaults to the connector's only method, or its OAuth method.", Required = false)]
+    [CliOption(Name = "--auth-method", Description = "Authentication method, for example ServicePrincipalOauth. The names are defined by the connector (see 'txc environment connector get'). Defaults to the connector's only method, or its OAuth method.", Required = false)]
     public string? AuthMethod { get; set; }
 
-    [CliOption(Name = "--parameter", Description = "Connection parameter as name=value. Repeat for several. Do not pass secrets here; use --secret-from-env.", Required = false)]
-    public List<string>? Parameter { get; set; }
+    [CliOption(Name = "--param", Description = "Connection parameter as name=value. Repeat for several. Do not pass secrets here; use --secret-from-env.", Required = false)]
+    public List<string>? Param { get; set; }
 
-    [CliOption(Name = "--secret-from-env", Description = "Secret connection parameter as name=ENV_VAR; the value is read from that environment variable and never echoed. Repeat for several.", Required = false)]
+    [CliOption(Name = "--secret-from-env", Description = "Secret connection parameter as name=ENV_VAR: the parameter name and the environment variable that holds its value (unlike 'config auth add-service-principal', which takes only the variable name). The value is never echoed. Repeat for several.", Required = false)]
     public List<string>? SecretFromEnv { get; set; }
 
     [CliOption(Name = "--no-consent", Description = "Do not try to complete OAuth consent; create the connection and return the consent link.", Required = false)]
@@ -42,30 +43,11 @@ public class ConnectionCreateCliCommand : ProfiledCliCommand
 
     protected override async Task<int> ExecuteAsync()
     {
-        if (!ConnectionCommandSupport.TryParsePairs(Parameter, "--parameter", out var parameters, out var error)
-            || !ConnectionCommandSupport.TryParsePairs(SecretFromEnv, "--secret-from-env", out var secretSources, out error))
+        var assembler = new ConnectionParameterAssembler(TxcServices.Get<IEnvironmentReader>());
+        if (!assembler.TryAssemble(Param, SecretFromEnv, out var parameters, out var error))
         {
             Logger.LogError("{Error}", error);
             return ExitValidationError;
-        }
-
-        var environment = TxcServices.Get<IEnvironmentReader>();
-        foreach (var (name, variable) in secretSources)
-        {
-            if (parameters.ContainsKey(name))
-            {
-                Logger.LogError("Parameter '{Name}' was given by both --parameter and --secret-from-env.", name);
-                return ExitValidationError;
-            }
-
-            var value = environment.Get(variable);
-            if (string.IsNullOrEmpty(value))
-            {
-                Logger.LogError("Environment variable '{Variable}' for secret parameter '{Name}' is not set or empty.", variable, name);
-                return ExitValidationError;
-            }
-
-            parameters[name] = value;
         }
 
         var service = TxcServices.Get<IConnectionService>();
@@ -74,6 +56,7 @@ public class ConnectionCreateCliCommand : ProfiledCliCommand
             new ConnectionCreateOptions(Connector, DisplayName, AuthMethod, parameters, AttemptConsent: !NoConsent),
             CancellationToken.None).ConfigureAwait(false);
 
+        // The first five properties are the ones 'connection get' prints, under the same names.
         OutputFormatter.WriteData(
             new
             {
@@ -82,13 +65,16 @@ public class ConnectionCreateCliCommand : ProfiledCliCommand
                 apiId = outcome.ApiId,
                 displayName = outcome.DisplayName,
                 connectionStatus = outcome.ConnectionStatus,
+                statusMessage = outcome.Message,
                 consentLink = outcome.ConsentLink,
-                message = outcome.Message,
             },
             _ => PrintOutcome(outcome));
 
         if (outcome.Status is ConnectionOutcomeStatus.Created or ConnectionOutcomeStatus.Updated or ConnectionOutcomeStatus.Unchanged)
             return ExitSuccess;
+
+        if (NoConsent && outcome.Status == ConnectionOutcomeStatus.ConsentRequired)
+            Logger.LogInformation("Run without --no-consent to complete the sign-in automatically where the connector supports it.");
 
         Logger.LogError("Connection '{DisplayName}' is not usable ({Status}): {Message}",
             outcome.DisplayName, outcome.Status.ToKebabCase(), outcome.Message ?? "see the consent link");
