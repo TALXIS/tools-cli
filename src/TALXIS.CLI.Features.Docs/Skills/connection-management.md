@@ -24,7 +24,7 @@ Pass the connector's **logical name** wherever a command takes `connector`. For 
 |---|---|
 | Nothing (a no-auth custom connector) | `connector` and `display-name` only. |
 | A user to sign in (OAuth) | Same. With a user credential (browser or device code) it signs in silently when the connector supports it. Otherwise it returns `status: consent-required` with a `consentLink` and exits 1; a person must open the link. `--no-consent` skips the silent attempt. |
-| A service principal | `auth-method` (see `environment_connector_get`), `--parameter name=value` for non-secrets and `--secret-from-env name=ENV_VAR` for secrets. The platform validates the credentials immediately; wrong ones fail with the platform's message and leave nothing behind. |
+| A service principal | `auth-method` (see `environment_connector_get`), `--param name=value` for non-secrets and `--secret-from-env name=ENV_VAR` for secrets. The platform validates the credentials immediately; wrong ones fail with the platform's message and leave nothing behind. |
 
 Secrets are never accepted on the command line. A freshly created client secret can take up to a minute to propagate; a connection created too early fails with `AADSTS7000215` and succeeds on retry.
 

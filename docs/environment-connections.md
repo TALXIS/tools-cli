@@ -17,18 +17,20 @@ txc env connector list [--filter <text>] [--kind built-in|custom] [--top <n>]
 txc env connector get <connector> [--filter <text>]
 ```
 
+Commands that act on an existing connection take its id; `--connector` is then optional and only needed when the same id exists under several connectors.
+
 Use the **logical name** shown by `connector list` wherever a command takes `--connector`. For a custom connector it is the same in every environment, unlike its apiId, which carries an environment-specific hash. An apiId or an exact display name also works.
 
 ## Connections
 
 ```sh
 txc env connection create --connector <c> --display-name <name> \
-    [--auth-method <name>] [--parameter name=value ...] \
+    [--auth-method <name>] [--param name=value ...] \
     [--secret-from-env name=ENV_VAR ...] [--no-consent]
 txc env connection list [--connector <c>] [--filter <text>]
-txc env connection get <connection-id> --connector <c>
-txc env connection test <connection-id> --connector <c>
-txc env connection delete <connection-id> --connector <c> --yes
+txc env connection get <connection-id> [--connector <c>]
+txc env connection test <connection-id> [--connector <c>]
+txc env connection delete <connection-id> [--connector <c>] --yes
 ```
 
 `create` is idempotent by connector and display name and works without a browser:
@@ -43,7 +45,7 @@ txc env connection create --connector shared_office365users --display-name "Mail
 # A service principal; the secret is read from the environment, never from the command line
 txc env connection create --connector shared_commondataserviceforapps --display-name "Dataverse (deploy)" \
     --auth-method ServicePrincipalOauth \
-    --parameter token:clientId=<app id> --parameter token:TenantId=<tenant id> \
+    --param token:clientId=<app id> --param token:TenantId=<tenant id> \
     --secret-from-env token:clientSecret=DEPLOY_SECRET
 ```
 
@@ -54,10 +56,10 @@ The `status` of `create` is `created`, `updated`, `unchanged`, `consent-required
 ## Sharing a connection
 
 ```sh
-txc env connection permission list <connection-id> --connector <c>
-txc env connection permission add <connection-id> --connector <c> \
+txc env connection permission list <connection-id> [--connector <c>]
+txc env connection permission add <connection-id> [--connector <c>] \
     (--user <upn|id> | --service-principal <client id|object id> | --group <id>) [--role can-view|can-view-with-share|can-edit]
-txc env connection permission remove <connection-id> --connector <c> (same principal options) --yes
+txc env connection permission remove <connection-id> [--connector <c>] (same principal options) --yes
 ```
 
 Binding a connection reference, or turning on a flow, is checked as the acting identity: it must own the connection or have it shared (`ConnectionAuthorizationFailed` otherwise). A pipeline that runs as a service principal therefore needs the connection shared with it. `can-view` ("can use") is enough. The owner cannot be removed.
@@ -84,4 +86,4 @@ txc env connection-reference delete <logical-name> --yes
 
 ## Output and exit codes
 
-All commands support `--format json|text`. Mutating commands report a `status`; `create` exits 1 with its payload when consent or the credentials need attention, and 2 for invalid input (unknown connector or parameter, ambiguous name, missing environment variable).
+All commands support `--format json|text`. Mutating commands report a `status` (`connection test` too: `healthy` or `unhealthy`, exit 1 when unhealthy) and the same fields as the matching `get`; `create` exits 1 with its payload when consent or the credentials need attention, and 2 for invalid input (unknown connector or parameter, ambiguous name, missing environment variable).
