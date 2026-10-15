@@ -185,6 +185,47 @@ public class ConnectorCatalogServiceTests
     }
 
     [Fact]
+    public async Task Resolve_AnExactDisplayName_FindsTheConnector_WhenNoLogicalNameMatches()
+    {
+        var resolver = Provider(new RowQuery()).GetRequiredService<IConnectorResolver>();
+
+        var resolved = await resolver.ResolveAsync(null, "office 365 users", CancellationToken.None);
+
+        Assert.Equal("shared_office365users", resolved.ApiId);
+        Assert.Equal("Office 365 Users", resolved.DisplayName);
+    }
+
+    [Fact]
+    public async Task Resolve_ALogicalNameDataverseKnowsButTheCatalogDoesNot_IsACustomConnectorWithoutARow()
+    {
+        var resolver = Provider(new FakeConnectorQuery(new Dictionary<string, string>
+        {
+            ["almlab_notyetlisted"] = "shared_almlab-5fnotyetlisted",
+        })).GetRequiredService<IConnectorResolver>();
+
+        var resolved = await resolver.ResolveAsync(null, "almlab_notyetlisted", CancellationToken.None);
+
+        Assert.True(resolved.IsCustom);
+        Assert.Equal("shared_almlab-5fnotyetlisted", resolved.ApiId);
+        Assert.Equal("almlab_notyetlisted", resolved.LogicalName);
+        Assert.Null(resolved.ConnectorRowId);
+    }
+
+    [Fact]
+    public async Task Resolve_AnApiIdWinsOverALogicalNameLookup()
+    {
+        // Were the logical name consulted first, this query would redirect the apiId elsewhere.
+        var resolver = Provider(new FakeConnectorQuery(new Dictionary<string, string>
+        {
+            ["shared_office365users"] = "shared_something-5felse",
+        })).GetRequiredService<IConnectorResolver>();
+
+        var resolved = await resolver.ResolveAsync(null, "shared_office365users", CancellationToken.None);
+
+        Assert.Equal("shared_office365users", resolved.ApiId);
+    }
+
+    [Fact]
     public async Task Resolve_ADisplayNameSharedByTwoConnectors_ListsTheCandidates()
     {
         var catalog = """

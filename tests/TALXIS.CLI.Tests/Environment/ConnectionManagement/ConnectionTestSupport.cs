@@ -6,10 +6,12 @@ using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Core.Platforms.PowerPlatform;
+using TALXIS.CLI.Core.Resolution;
 using TALXIS.CLI.Platform.PowerPlatform.Control;
 using TALXIS.CLI.Platform.PowerPlatform.Control.Connectivity;
 using TALXIS.CLI.Platform.PowerPlatform.Control.DependencyInjection;
 using TALXIS.CLI.Platform.PowerPlatform.Control.Graph;
+using TALXIS.CLI.Tests.Shared;
 
 namespace TALXIS.CLI.Tests.Environment.ConnectionManagement;
 
@@ -90,12 +92,6 @@ internal sealed class FakeTokens : IAccessTokenService
             .TrimEnd('=').Replace('+', '-').Replace('/', '_');
         return Task.FromResult($"header.{payload}.signature");
     }
-}
-
-internal sealed class FakeConfigurationResolver(Connection connection, Credential credential) : IConfigurationResolver
-{
-    public Task<ResolvedProfileContext> ResolveAsync(string? profileName, CancellationToken ct)
-        => Task.FromResult(new ResolvedProfileContext(null, connection, credential, ResolutionSource.CommandLine));
 }
 
 /// <summary>The environment id is stored on the connection, so the catalog is never consulted.</summary>
@@ -232,7 +228,7 @@ internal static class ConnectionFixtures
         TimeSpan? catalogLifetime = null)
     {
         var services = new ServiceCollection();
-        services.AddSingleton<IConfigurationResolver>(new FakeConfigurationResolver(Connection(), credential));
+        services.AddSingleton<IConfigurationResolver>(new FixedConfigurationResolver(new ResolvedProfileContext(null, Connection(), credential, ResolutionSource.CommandLine)));
         services.AddSingleton<IPowerPlatformEnvironmentCatalog>(new UnusedCatalog());
         services.AddSingleton(query ?? new FakeConnectorQuery());
         services.AddSingleton<IAccessTokenService>(tokens);
