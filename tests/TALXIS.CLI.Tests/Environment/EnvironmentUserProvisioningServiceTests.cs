@@ -59,7 +59,7 @@ public sealed class EnvironmentUserProvisioningServiceTests
 
         var sut = new EnvironmentUserProvisioningService(
             resolver,
-            new CapturingCatalog(),
+            new EnvironmentIdResolver(new CapturingCatalog()),
             new MicrosoftGraphClient(new FakeAccessTokenService(), http),
             new EnvironmentSettingsClient(new FakeAccessTokenService(), http),
             new FakeAccessTokenService(),
@@ -103,7 +103,7 @@ public sealed class EnvironmentUserProvisioningServiceTests
 
         var sut = new EnvironmentUserProvisioningService(
             resolver,
-            new CapturingCatalog(),
+            new EnvironmentIdResolver(new CapturingCatalog()),
             new MicrosoftGraphClient(new FakeAccessTokenService(), http),
             new EnvironmentSettingsClient(new FakeAccessTokenService(), http),
             new FakeAccessTokenService(),
@@ -146,7 +146,7 @@ public sealed class EnvironmentUserProvisioningServiceTests
 
         var sut = new EnvironmentUserProvisioningService(
             resolver,
-            new CapturingCatalog(),
+            new EnvironmentIdResolver(new CapturingCatalog()),
             new MicrosoftGraphClient(new FakeAccessTokenService(), http),
             new EnvironmentSettingsClient(new FakeAccessTokenService(), http),
             new FakeAccessTokenService(),
@@ -185,7 +185,7 @@ public sealed class EnvironmentUserProvisioningServiceTests
 
         var sut = new EnvironmentUserProvisioningService(
             resolver,
-            new CapturingCatalog(),
+            new EnvironmentIdResolver(new CapturingCatalog()),
             new MicrosoftGraphClient(new FakeAccessTokenService(), http),
             new EnvironmentSettingsClient(new FakeAccessTokenService(), http),
             new FakeAccessTokenService(),
@@ -222,7 +222,7 @@ public sealed class EnvironmentUserProvisioningServiceTests
 
         var sut = new EnvironmentUserProvisioningService(
             resolver,
-            new CapturingCatalog(),
+            new EnvironmentIdResolver(new CapturingCatalog()),
             new MicrosoftGraphClient(new FakeAccessTokenService(), http),
             new EnvironmentSettingsClient(new FakeAccessTokenService(), http),
             new FakeAccessTokenService(),

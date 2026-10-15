@@ -8,13 +8,6 @@ public class ConnectivityEndpointsTests
     private static readonly Uri Base = new("https://abc.de.environment.api.powerplatform.com/");
     private static readonly Guid Env = new("72946668-bfcc-e9a8-9056-b023c2381946");
 
-    [Theory]
-    [InlineData("shared_teams", "shared_teams")]
-    [InlineData("/providers/Microsoft.PowerApps/apis/shared_teams", "shared_teams")]
-    [InlineData("/providers/Microsoft.PowerApps/apis/shared_teams/", "shared_teams")]
-    public void ToShortApiId_AcceptsBothForms(string input, string expected)
-        => Assert.Equal(expected, ConnectivityEndpoints.ToShortApiId(input));
-
     [Fact]
     public void Connection_PutHasNoExpandUnlessConsentIsWanted()
     {

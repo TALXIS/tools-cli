@@ -1,11 +1,14 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.Model;
+using TALXIS.CLI.Core.Platforms.PowerPlatform;
 using TALXIS.CLI.Platform.PowerPlatform.Control;
 using TALXIS.CLI.Platform.PowerPlatform.Control.Connectivity;
+using TALXIS.CLI.Platform.PowerPlatform.Control.DependencyInjection;
 using TALXIS.CLI.Platform.PowerPlatform.Control.Graph;
 
 namespace TALXIS.CLI.Tests.Environment.ConnectionManagement;
@@ -215,16 +218,56 @@ internal static class ConnectionFixtures
         """, ("ID", id), ("API", apiId),
         ("FIRST", withFirstParty ? ",\"firstPartyLoginUri\":\"https://usa.consent.azure-apihub.net/firstPartyLogin?data=abc\"" : ""));
 
-    public static ConnectionService Service(
-        FakePlatform platform, FakeTokens tokens, Credential credential, IReadOnlyDictionary<string, string>? logicalNames = null)
+    /// <summary>
+    /// The connectivity services wired the way the host wires them, over the
+    /// fake platform. <paramref name="clock"/> and <paramref name="catalogLifetime"/>
+    /// control the connector catalog cache.
+    /// </summary>
+    public static ServiceProvider Provider(
+        FakePlatform platform,
+        FakeTokens tokens,
+        Credential credential,
+        IDataverseQueryService? query = null,
+        TimeProvider? clock = null,
+        TimeSpan? catalogLifetime = null)
     {
-        var graph = new MicrosoftGraphClient(tokens, platform.Http);
-        return new ConnectionService(
-            new FakeConfigurationResolver(Connection(), credential),
-            new UnusedCatalog(),
-            new FakeConnectorQuery(logicalNames),
-            tokens,
-            graph,
-            platform.Http);
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfigurationResolver>(new FakeConfigurationResolver(Connection(), credential));
+        services.AddSingleton<IPowerPlatformEnvironmentCatalog>(new UnusedCatalog());
+        services.AddSingleton(query ?? new FakeConnectorQuery());
+        services.AddSingleton<IAccessTokenService>(tokens);
+        services.AddSingleton<IHttpClientFactoryWrapper>(platform.Http);
+        services.AddSingleton(new MicrosoftGraphClient(tokens, platform.Http));
+        if (clock is not null)
+            services.AddSingleton(clock);
+        if (catalogLifetime is { } lifetime)
+            services.AddSingleton(new ConnectorCatalogOptions(lifetime));
+        services.AddTxcPowerPlatformConnectivity();
+        return services.BuildServiceProvider();
     }
+
+    public static IConnectionService Service(
+        FakePlatform platform, FakeTokens tokens, Credential credential, IReadOnlyDictionary<string, string>? logicalNames = null)
+        => Provider(platform, tokens, credential, new FakeConnectorQuery(logicalNames)).GetRequiredService<IConnectionService>();
+
+    public static IConnectionPermissionService PermissionService(
+        FakePlatform platform, FakeTokens tokens, Credential credential)
+        => Provider(platform, tokens, credential).GetRequiredService<IConnectionPermissionService>();
+
+    /// <summary>A platform that serves the catalog, the connection list and one connector definition.</summary>
+    public static FakePlatform Platform(string connectorApiId, string connectorDefinition, string existingConnections = "{\"value\":[]}")
+        => new FakePlatform()
+            .On(HttpMethod.Get, "connectivity/connectors?", HttpStatusCode.OK, Catalog())
+            .On(HttpMethod.Get, "connectivity/connections?", HttpStatusCode.OK, existingConnections)
+            .On(HttpMethod.Get, $"connectivity/connectors/{connectorApiId}?", HttpStatusCode.OK, connectorDefinition);
+}
+
+/// <summary>A clock tests advance by hand.</summary>
+internal sealed class ManualTimeProvider : TimeProvider
+{
+    private DateTimeOffset _now = new(2026, 10, 15, 12, 0, 0, TimeSpan.Zero);
+
+    public override DateTimeOffset GetUtcNow() => _now;
+
+    public void Advance(TimeSpan by) => _now += by;
 }

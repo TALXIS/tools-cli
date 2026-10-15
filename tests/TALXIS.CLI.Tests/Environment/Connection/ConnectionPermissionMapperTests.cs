@@ -7,8 +7,7 @@ namespace TALXIS.CLI.Tests.Environment.ConnectionManagement;
 
 public class ConnectionPermissionMapperTests
 {
-    // Shape captured from a live tenant: a service principal's permission id
-    // is NOT its object id.
+    // A service principal's permission id is NOT its object id.
     private const string PermissionList = """
         {"value":[
           {"name":"9fe11834-e8c9-4387-9854-2aad4296e231","id":"/providers/Microsoft.PowerApps/apis/shared_office365users/connections/c1/permissions/9fe11834-e8c9-4387-9854-2aad4296e231",
@@ -27,7 +26,7 @@ public class ConnectionPermissionMapperTests
         var permissions = ConnectionPermissionMapper.ParseList(doc.RootElement);
 
         Assert.Equal(2, permissions.Count);
-        Assert.Equal("Owner", permissions[0].Role);
+        Assert.Equal(ConnectionPermissionRole.Owner, permissions[0].Role);
         var spn = permissions[1];
         Assert.Equal("9c5dbf38-1a9e-4306-94b3-2c3ef5df67d7", spn.PermissionId);
         Assert.Equal("25a5f191-c862-4e69-a24f-643a6b73bd46", spn.PrincipalId);
@@ -42,17 +41,18 @@ public class ConnectionPermissionMapperTests
         Assert.Empty(ConnectionPermissionMapper.ParseList(doc.RootElement));
     }
 
-    [Theory]
-    [InlineData(ConnectionPermissionRole.CanView, "CanView")]
-    [InlineData(ConnectionPermissionRole.CanViewWithShare, "CanViewWithShare")]
-    [InlineData(ConnectionPermissionRole.CanEdit, "CanEdit")]
-    public void ToPlatformRole_UsesTheNamesThePlatformAccepts(ConnectionPermissionRole role, string expected)
-        => Assert.Equal(expected, ConnectionPermissionMapper.ToPlatformRole(role));
+    [Fact]
+    public void ParseList_IgnoresRolesTheCliDoesNotKnow()
+    {
+        using var doc = JsonDocument.Parse("""{"value":[{"name":"x","properties":{"roleName":"CanDance"}}]}""");
+
+        Assert.Empty(ConnectionPermissionMapper.ParseList(doc.RootElement));
+    }
 
     [Fact]
     public void BuildPut_ByObjectId_ProducesAnUpsertWithoutNotification()
     {
-        var body = ConnectionPermissionMapper.BuildPut("25a5f191-c862-4e69-a24f-643a6b73bd46", null, "ServicePrincipal", "tenant", "CanView");
+        var body = ConnectionPermissionMapper.BuildPut("25a5f191-c862-4e69-a24f-643a6b73bd46", null, "ServicePrincipal", "tenant", ConnectionPermissionRole.CanView);
 
         var entry = body["put"]![0]!["properties"]!;
         Assert.Equal("CanView", (string?)entry["roleName"]);
@@ -66,7 +66,7 @@ public class ConnectionPermissionMapperTests
     [Fact]
     public void BuildPut_ByEmail_OmitsTheId()
     {
-        var body = ConnectionPermissionMapper.BuildPut(null, "dev@contoso.com", "User", null, "CanEdit");
+        var body = ConnectionPermissionMapper.BuildPut(null, "dev@contoso.com", "User", null, ConnectionPermissionRole.CanEdit);
 
         var principal = body["put"]![0]!["properties"]!["principal"]!;
         Assert.Equal("dev@contoso.com", (string?)principal["email"]);
