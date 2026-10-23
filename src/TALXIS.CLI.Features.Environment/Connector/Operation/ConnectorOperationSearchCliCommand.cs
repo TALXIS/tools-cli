@@ -43,8 +43,8 @@ public class ConnectorOperationSearchCliCommand : ProfiledCliCommand
     {
         if (hits.Count == 0) { OutputWriter.WriteLine("No operations matched."); return; }
 
-        var nameWidth = Math.Clamp(hits.Max(h => h.Name.Length), 20, 45);
-        var connectorWidth = Math.Clamp(hits.Max(h => (h.ConnectorName ?? "-").Length), 15, 40);
+        var nameWidth = Math.Max(hits.Max(h => h.Name.Length), 20);
+        var connectorWidth = Math.Max(hits.Max(h => (h.ConnectorName ?? "-").Length), 15);
         var header = $"{"Operation".PadRight(nameWidth)} | {"Connector".PadRight(connectorWidth)} | Summary";
         OutputWriter.WriteLine(header);
         OutputWriter.WriteLine(new string('-', header.Length));

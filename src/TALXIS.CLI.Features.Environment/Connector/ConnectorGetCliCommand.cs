@@ -43,7 +43,7 @@ public class ConnectorGetCliCommand : ProfiledCliCommand
 
         if (connector.Operations.Count == 0) { OutputWriter.WriteLine("No operations matched."); return; }
 
-        var idWidth = Math.Clamp(connector.Operations.Max(o => o.OperationId.Length), 20, 50);
+        var idWidth = Math.Max(connector.Operations.Max(o => o.OperationId.Length), 20);
         var header = $"{"Operation".PadRight(idWidth)} | {"Kind".PadRight(15)} | Summary";
         OutputWriter.WriteLine(header);
         OutputWriter.WriteLine(new string('-', header.Length));

@@ -73,9 +73,10 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
         ArgumentException.ThrowIfNullOrWhiteSpace(connector);
 
         var target = await ResolveTargetAsync(profileName, ct).ConfigureAwait(false);
-        using var document = await _client.SendAsync(
-            HttpMethod.Get, PowerAutomateEndpointProvider.Connector(target.BaseUri, connector), target.Token, null, ct)
-            .ConfigureAwait(false);
+        using var document = await SendForLookupAsync(
+            PowerAutomateEndpointProvider.Connector(target.BaseUri, connector), target.Token,
+            $"Connector '{connector}' does not exist in this environment. Find the connector name with 'environment connector list --search <text>'.",
+            ct).ConfigureAwait(false);
 
         return SwaggerOperationIndexer.Index(document.RootElement, connector, search);
     }
@@ -123,11 +124,31 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
         ArgumentException.ThrowIfNullOrWhiteSpace(operation);
 
         var target = await ResolveTargetAsync(profileName, ct).ConfigureAwait(false);
-        using var document = await _client.SendAsync(
-            HttpMethod.Get, PowerAutomateEndpointProvider.Operation(target.BaseUri, connector, operation), target.Token, null, ct)
-            .ConfigureAwait(false);
+        using var document = await SendForLookupAsync(
+            PowerAutomateEndpointProvider.Operation(target.BaseUri, connector, operation), target.Token,
+            $"Operation '{operation}' does not exist on connector '{connector}'. List its operations with 'environment connector get {connector}'.",
+            ct).ConfigureAwait(false);
 
         return OperationSchemaReader.Read(connector, operation, document.RootElement);
+    }
+
+    /// <summary>
+    /// A GET of a named connector or operation, where a 404 means the caller
+    /// passed a name that does not exist; the message says how to find the right one.
+    /// </summary>
+    private async Task<JsonDocument> SendForLookupAsync(Uri uri, string token, string notFoundMessage, CancellationToken ct)
+    {
+        try
+        {
+            return await _client.SendAsync(HttpMethod.Get, uri, token, null, ct).ConfigureAwait(false);
+        }
+        catch (ArgumentException ex)
+        {
+            // Not chained: commands report the innermost message, and the
+            // raw 404 body is less useful to the caller than where to look.
+            _logger.LogDebug(ex, "Metadata lookup returned not found.");
+            throw new ArgumentException(notFoundMessage);
+        }
     }
 
     /// <summary>

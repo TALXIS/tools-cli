@@ -43,7 +43,7 @@ internal static class SwaggerOperationIndexer
 
                     var operation = methodEntry.Value;
                     var operationId = JsonRead.String(operation, "operationId");
-                    if (string.IsNullOrWhiteSpace(operationId))
+                    if (string.IsNullOrWhiteSpace(operationId) || IsInternal(operation))
                         continue;
 
                     operations.Add(new ConnectorOperationSummary(
@@ -93,6 +93,14 @@ internal static class SwaggerOperationIndexer
                 ? ConnectorOperationKind.WebhookTrigger
                 : ConnectorOperationKind.Trigger;
     }
+
+    /// <summary>
+    /// Internal operations are plumbing behind other operations (e.g. the
+    /// Outlook <c>Create...PokeSubscription</c> calls a webhook trigger makes);
+    /// the designer never offers them and a flow must not call them.
+    /// </summary>
+    private static bool IsInternal(JsonElement operation)
+        => string.Equals(JsonRead.String(operation, "x-ms-visibility"), "internal", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsDeprecated(JsonElement operation)
         => (operation.TryGetProperty("deprecated", out var deprecated) && deprecated.ValueKind == JsonValueKind.True)

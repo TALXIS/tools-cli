@@ -45,8 +45,10 @@ public class ConnectorMetadataServiceTests
     {
         var fake = new Fake(_ => Json(HttpStatusCode.NotFound, """{ "error": "no such operation" }"""));
 
-        await Assert.ThrowsAsync<ArgumentException>(
+        var ex = await Assert.ThrowsAsync<ArgumentException>(
             () => fake.Service.GetOperationAsync(null, "shared_teams", "MadeUpOperation", CancellationToken.None));
+
+        Assert.Contains("environment connector get shared_teams", ex.Message);
     }
 
     [Fact]

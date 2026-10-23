@@ -13,6 +13,7 @@ public class SwaggerOperationIndexerTests
             "get": { "operationId": "GetItems", "summary": "Get items" },
             "post": { "operationId": "PostItem", "summary": "Create item", "deprecated": true }
           },
+          "/subscriptions": { "post": { "operationId": "CreateOnNewItemPokeSubscription", "x-ms-visibility": "internal" } },
           "/trigger/items": { "get": { "operationId": "GetOnNewItems", "summary": "When an item is created", "x-ms-trigger": "batch" } },
           "/hooks": {
             "x-ms-notification-content": { "schema": {} },
@@ -32,6 +33,14 @@ public class SwaggerOperationIndexerTests
         Assert.Equal(ConnectorOperationKind.WebhookTrigger, Op(detail, "OnNewFile").Kind);
         Assert.True(Op(detail, "PostItem").IsDeprecated);
         Assert.Equal("/providers/Microsoft.PowerApps/apis/shared_sharepointonline", detail.ApiId);
+    }
+
+    [Fact]
+    public void Index_LeavesOutInternalPlumbingOperations()
+    {
+        // Seen live on Outlook: Create...PokeSubscription calls are internal
+        // helpers of webhook triggers that the designer never offers.
+        Assert.DoesNotContain(Index(search: null).Operations, o => o.OperationId == "CreateOnNewItemPokeSubscription");
     }
 
     [Fact]

@@ -45,7 +45,7 @@ public class ConnectorOperationGetCliCommand : ProfiledCliCommand
 
         if (operation.Parameters.Count == 0) { OutputWriter.WriteLine("This operation takes no parameters."); return; }
 
-        var nameWidth = Math.Clamp(operation.Parameters.Max(p => p.Name.Length), 20, 45);
+        var nameWidth = Math.Max(operation.Parameters.Max(p => p.Name.Length), 20);
         var indent = new string(' ', nameWidth);
         var header = $"{"Parameter".PadRight(nameWidth)} | {"Type".PadRight(8)} | Req | Description";
         OutputWriter.WriteLine(header);

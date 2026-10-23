@@ -33,8 +33,8 @@ public class ConnectionReferenceListCliCommand : ProfiledCliCommand
     {
         if (rows.Count == 0) { OutputWriter.WriteLine("No connection references found."); return; }
 
-        var nameWidth = Math.Clamp(rows.Max(r => r.LogicalName.Length), 20, 60);
-        var connectorWidth = Math.Clamp(rows.Max(r => ConnectorName(r).Length), 15, 45);
+        var nameWidth = Math.Max(rows.Max(r => r.LogicalName.Length), 20);
+        var connectorWidth = Math.Max(rows.Max(r => ConnectorName(r).Length), 15);
         var header = $"{"Logical name".PadRight(nameWidth)} | {"Connector".PadRight(connectorWidth)} | Bound";
         OutputWriter.WriteLine(header);
         OutputWriter.WriteLine(new string('-', header.Length));

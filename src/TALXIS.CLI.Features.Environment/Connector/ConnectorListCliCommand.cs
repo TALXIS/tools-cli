@@ -34,7 +34,7 @@ public class ConnectorListCliCommand : ProfiledCliCommand
     {
         if (connectors.Count == 0) { OutputWriter.WriteLine("No connectors found."); return; }
 
-        var nameWidth = Math.Clamp(connectors.Max(c => c.Name.Length), 20, 50);
+        var nameWidth = Math.Max(connectors.Max(c => c.Name.Length), 20);
         var header = $"{"Name".PadRight(nameWidth)} | {"Tier".PadRight(10)} | Display name";
         OutputWriter.WriteLine(header);
         OutputWriter.WriteLine(new string('-', header.Length));
