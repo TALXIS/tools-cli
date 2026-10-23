@@ -38,6 +38,10 @@ internal sealed class PowerAutomateApiClient
     public Task<string> AcquireTokenAsync(Connection connection, Credential credential, CancellationToken ct)
         => _tokens.AcquireForResourceAsync(connection, credential, PowerAutomateEndpointProvider.Audience, ct);
 
+    /// <summary>Token for calling a connector's runtime through a connection.</summary>
+    public Task<string> AcquireRuntimeTokenAsync(Connection connection, Credential credential, CancellationToken ct)
+        => _tokens.AcquireForScopeAsync(connection, credential, PowerAutomateEndpointProvider.ConnectorRuntimeScope, ct);
+
     /// <summary>
     /// Sends a bearer-authorized request and returns the parsed JSON body. The
     /// caller owns the returned <see cref="JsonDocument"/>.

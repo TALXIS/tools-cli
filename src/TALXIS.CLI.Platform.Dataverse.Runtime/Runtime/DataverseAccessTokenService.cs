@@ -81,7 +81,32 @@ public sealed class DataverseAccessTokenService : IDataverseAccessTokenService
         // resources (e.g. Power Platform admin API) and multi-environment credentials.
         var scope = DataverseScope.BuildDefault(resourceUri);
         var cacheKey = InMemoryTokenCache.BuildKey(credential.Id, credential.TenantId, resourceUri.GetLeftPart(UriPartial.Authority));
+        return await AcquireCoreAsync(connection, credential, scope, cacheKey, ct).ConfigureAwait(false);
+    }
 
+    public async Task<string> AcquireForScopeAsync(
+        TALXIS.CLI.Core.Model.Connection connection,
+        Credential credential,
+        string scope,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(credential);
+        ArgumentException.ThrowIfNullOrWhiteSpace(scope);
+
+        // Keyed by the full scope: "x//.default" and "x/.default" issue tokens
+        // with different audiences and must never be served for each other.
+        var cacheKey = InMemoryTokenCache.BuildKey(credential.Id, credential.TenantId, scope);
+        return await AcquireCoreAsync(connection, credential, scope, cacheKey, ct).ConfigureAwait(false);
+    }
+
+    private async Task<string> AcquireCoreAsync(
+        TALXIS.CLI.Core.Model.Connection connection,
+        Credential credential,
+        string scope,
+        string cacheKey,
+        CancellationToken ct)
+    {
         // Fast path: return a cached token that is still valid beyond the
         // proactive renewal buffer.
         var cached = _tokenCache.TryGet(cacheKey);

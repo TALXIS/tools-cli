@@ -33,7 +33,7 @@
 ## Flow Chain
 1. Flow (pp-flow) → 2. For each connector step: environment_connector_operation_search / environment_connector_get → environment_connector_operation_get → 3. environment_connection-reference_list → 4. Edit definition JSON
 - Parameter keys, action type and apiId come ONLY from environment_connector_operation_get; never from memory
-- Dynamic sub-schemas: Dataverse item/<column> from the table definition; anything else → ask the user, never create anything in the environment
+- Dynamic sub-schemas: Dataverse item/<column> from the table definition; anything else → environment_connector_operation_resolve: plan first, explain the plan to the user and ask, run with --use-connection only if they agree; never create anything in the environment
 - See flow-development skill for the definition shape
 
 ## Local vs Live

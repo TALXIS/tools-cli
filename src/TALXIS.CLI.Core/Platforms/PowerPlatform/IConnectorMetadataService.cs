@@ -56,9 +56,18 @@ public sealed record OperationSearchHit(
 /// Arguments that reference another parameter of the same operation are
 /// rendered as <c>$ref:name</c>.
 /// </summary>
+/// <remarks>
+/// <see cref="ItemsPath"/>, <see cref="ValuePath"/> and <see cref="TitlePath"/>
+/// say where the lookup's answer sits in its response: the item collection
+/// and each item's value and title for a value list, or the schema for a
+/// sub-schema.
+/// </remarks>
 public sealed record DynamicValuesRef(
     string OperationId,
-    IReadOnlyDictionary<string, string?>? Parameters);
+    IReadOnlyDictionary<string, string?>? Parameters,
+    string? ItemsPath = null,
+    string? ValuePath = null,
+    string? TitlePath = null);
 
 /// <summary>
 /// The spec for a single operation input. <see cref="Name"/> is the exact key
@@ -92,6 +101,52 @@ public sealed record OperationDetail(
     IReadOnlyList<OperationParameter> Parameters,
     JsonElement? ResponseSchema);
 
+/// <summary>A connection, as shown to a user before it is used on their behalf.</summary>
+public sealed record ConnectionDetail(
+    string ConnectionId,
+    string? DisplayName,
+    string? OwnerName,
+    string? OwnerPrincipalName,
+    string? Status);
+
+/// <summary>States of a <see cref="DynamicLookup"/>.</summary>
+public static class DynamicLookupStatus
+{
+    /// <summary>Would be called once the user allows the connection to be used.</summary>
+    public const string Planned = "planned";
+    public const string Resolved = "resolved";
+    /// <summary>Not callable, e.g. a missing input or a lookup that is not a GET.</summary>
+    public const string Skipped = "skipped";
+    public const string Failed = "failed";
+}
+
+/// <summary>
+/// One design-time lookup that resolves a dynamic parameter, as the flow
+/// designer would call it through the connection.
+/// </summary>
+public sealed record DynamicLookup(
+    string Parameter,
+    string Kind,
+    string OperationId,
+    string Method,
+    string Path,
+    IReadOnlyDictionary<string, string?> Arguments,
+    string Status,
+    string? Reason);
+
+/// <summary>
+/// The outcome of resolving an operation's dynamic parameters. When
+/// <see cref="ConnectionUsed"/> is false this is only the plan: nothing has
+/// been called through the connection, and <see cref="Lookups"/> lists what
+/// would be.
+/// </summary>
+public sealed record OperationResolution(
+    OperationDetail Operation,
+    string ConnectionReference,
+    ConnectionDetail Connection,
+    bool ConnectionUsed,
+    IReadOnlyList<DynamicLookup> Lookups);
+
 /// <summary>
 /// Read-only Power Automate connector metadata from the environment bound to
 /// the profile.
@@ -122,4 +177,23 @@ public interface IConnectorMetadataService
     /// <summary>Gets the parameter specification and action type for one operation.</summary>
     Task<OperationDetail> GetOperationAsync(
         string? profileName, string connector, string operation, CancellationToken ct);
+
+    /// <summary>
+    /// Resolves an operation's dynamic parameters (value lists and sub-schemas)
+    /// through an existing connection, the way the flow designer does.
+    /// </summary>
+    /// <param name="values">Values chosen for the operation's other parameters, which lookups take as inputs.</param>
+    /// <param name="useConnection">
+    /// False returns the plan without calling the connection. Only pass true
+    /// once the connection's owner has agreed to it being used.
+    /// </param>
+    Task<OperationResolution> ResolveOperationAsync(
+        string? profileName,
+        string connector,
+        string operation,
+        string connectionReference,
+        string connectionId,
+        IReadOnlyDictionary<string, string> values,
+        bool useConnection,
+        CancellationToken ct);
 }

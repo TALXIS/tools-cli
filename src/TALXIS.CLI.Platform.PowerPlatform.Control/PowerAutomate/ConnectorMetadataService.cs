@@ -132,6 +132,102 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
         return OperationSchemaReader.Read(connector, operation, document.RootElement);
     }
 
+    public async Task<OperationResolution> ResolveOperationAsync(
+        string? profileName,
+        string connector,
+        string operation,
+        string connectionReference,
+        string connectionId,
+        IReadOnlyDictionary<string, string> values,
+        bool useConnection,
+        CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(connector);
+        ArgumentException.ThrowIfNullOrWhiteSpace(operation);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
+        ArgumentNullException.ThrowIfNull(values);
+
+        var target = await ResolveTargetAsync(profileName, ct).ConfigureAwait(false);
+
+        // Metadata only so far: none of these calls go through the connection.
+        OperationDetail detail;
+        using (var document = await SendForLookupAsync(
+            PowerAutomateEndpointProvider.Operation(target.BaseUri, connector, operation), target.Token,
+            $"Operation '{operation}' does not exist on connector '{connector}'. List its operations with 'environment connector get {connector}'.",
+            ct).ConfigureAwait(false))
+        {
+            detail = OperationSchemaReader.Read(connector, operation, document.RootElement);
+        }
+
+        using var connectorDocument = await SendForLookupAsync(
+            PowerAutomateEndpointProvider.Connector(target.BaseUri, connector), target.Token,
+            $"Connector '{connector}' does not exist in this environment.",
+            ct).ConfigureAwait(false);
+
+        ConnectionDetail connection;
+        using (var document = await SendForLookupAsync(
+            PowerAutomateEndpointProvider.Connection(target.Cloud, target.EnvironmentId, connector, connectionId), target.Token,
+            $"Connection '{connectionId}' behind '{connectionReference}' does not exist or is not visible to you.",
+            ct).ConfigureAwait(false))
+        {
+            connection = ReadConnection(connectionId, document.RootElement);
+        }
+
+        var plan = DynamicLookupPlanner.Plan(detail, connectorDocument.RootElement, connectionId, values);
+        if (!useConnection)
+            return new OperationResolution(detail, connectionReference, connection, false, plan.Select(p => p.Lookup).ToList());
+
+        var runtimeToken = await _client.AcquireRuntimeTokenAsync(target.Connection, target.Credential, ct).ConfigureAwait(false);
+        var parameters = detail.Parameters;
+        var lookups = new List<DynamicLookup>();
+
+        foreach (var planned in plan)
+        {
+            if (planned.RequestUri is null)
+            {
+                lookups.Add(planned.Lookup);
+                continue;
+            }
+
+            try
+            {
+                using var response = await _client.SendAsync(HttpMethod.Get, planned.RequestUri, runtimeToken, null, ct)
+                    .ConfigureAwait(false);
+                parameters = DynamicLookupPlanner.Apply(parameters, planned, response.RootElement);
+                lookups.Add(planned.Lookup with { Status = DynamicLookupStatus.Resolved });
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // One failed lookup (e.g. a choice the connection cannot see)
+                // must not hide the ones that did resolve.
+                _logger.LogDebug(ex, "Dynamic lookup {Operation} failed.", planned.Lookup.OperationId);
+                lookups.Add(planned.Lookup with { Status = DynamicLookupStatus.Failed, Reason = ex.Message });
+            }
+        }
+
+        return new OperationResolution(detail with { Parameters = parameters }, connectionReference, connection, true, lookups);
+    }
+
+    private static ConnectionDetail ReadConnection(string connectionId, JsonElement payload)
+    {
+        var properties = JsonRead.Object(payload, "properties") ?? default;
+        var owner = JsonRead.Object(properties, "createdBy") ?? default;
+        string? status = null;
+        if (properties.ValueKind == JsonValueKind.Object
+            && properties.TryGetProperty("statuses", out var statuses)
+            && statuses.ValueKind == JsonValueKind.Array)
+        {
+            status = statuses.EnumerateArray().Select(e => JsonRead.String(e, "status")).FirstOrDefault(v => v is not null);
+        }
+
+        return new ConnectionDetail(
+            ConnectionId: connectionId,
+            DisplayName: JsonRead.String(properties, "displayName"),
+            OwnerName: JsonRead.String(owner, "displayName"),
+            OwnerPrincipalName: JsonRead.String(owner, "userPrincipalName") ?? JsonRead.String(owner, "email"),
+            Status: status);
+    }
+
     /// <summary>
     /// A GET of a named connector or operation, where a 404 means the caller
     /// passed a name that does not exist; the message says how to find the right one.
@@ -201,9 +297,10 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
         var environmentId = await ResolveEnvironmentIdAsync(ctx, ct).ConfigureAwait(false);
         var baseUri = PowerPlatformEnvironmentApiEndpoints.BuildBaseUri(
             environmentId, ctx.Connection.Cloud ?? CloudInstance.Public);
+        var cloud = ctx.Connection.Cloud ?? CloudInstance.Public;
         var token = await _client.AcquireTokenAsync(ctx.Connection, ctx.Credential, ct).ConfigureAwait(false);
 
-        return new EnvironmentTarget(baseUri, token);
+        return new EnvironmentTarget(baseUri, token, environmentId, cloud, ctx.Connection, ctx.Credential);
     }
 
     private async Task<Guid> ResolveEnvironmentIdAsync(ResolvedProfileContext ctx, CancellationToken ct)
@@ -231,5 +328,6 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
         return environment.EnvironmentId;
     }
 
-    private sealed record EnvironmentTarget(Uri BaseUri, string Token);
+    private sealed record EnvironmentTarget(
+        Uri BaseUri, string Token, Guid EnvironmentId, CloudInstance Cloud, Connection Connection, Credential Credential);
 }

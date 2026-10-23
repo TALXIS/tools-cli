@@ -61,6 +61,7 @@ Prefer a small, consistent verb vocabulary:
 - `validate` — check the workspace against the metamodel.
 - `describe` — render a human-readable description of a metamodel entity.
 - `patch` — reserved for incremental push workflows.
+- `resolve` — work out values that only a live service can supply (e.g. a connector operation's dynamic parameters). When this acts through someone's credentials or connection, it plans by default and needs an explicit opt-in flag to make the calls, so the agent can show the plan to the user first.
 
 When an artifact is installed into a live environment, `import` and `uninstall` come as a pair — if you add one, you usually owe the other.
 

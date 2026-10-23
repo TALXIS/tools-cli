@@ -204,6 +204,9 @@ public sealed class EnvironmentSettingsClientTests
 
     private sealed class FakeAccessTokenService : IAccessTokenService
     {
+        public Task<string> AcquireForScopeAsync(Connection connection, Credential credential, string scope, CancellationToken ct)
+            => throw new NotSupportedException("Not used by these tests.");
+
         public Task<string> AcquireForResourceAsync(Connection connection, Credential credential, Uri resourceUri, CancellationToken ct)
             => Task.FromResult("fake-token");
     }

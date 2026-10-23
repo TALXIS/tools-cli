@@ -81,6 +81,17 @@ internal static partial class OperationSchemaReader
         => (properties.TryGetProperty("isDeprecated", out var flag) && flag.ValueKind == JsonValueKind.True)
             || string.Equals(JsonRead.String(properties, "status"), "Deprecated", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Flattens a sub-schema returned by a dynamic lookup into parameters named
+    /// under <paramref name="prefix"/> (<c>body/recipient</c>).
+    /// </summary>
+    public static IReadOnlyList<OperationParameter> ReadSubSchema(JsonElement schema, string prefix, bool required)
+    {
+        var parameters = new List<OperationParameter>();
+        ReadObject(schema, prefix, required, parameters, depth: 0);
+        return parameters;
+    }
+
     private static void ReadObject(
         JsonElement schema,
         string? prefix,
@@ -215,7 +226,13 @@ internal static partial class OperationSchemaReader
                 arguments[entry.Name] = DescribeResolverArgument(entry.Value);
         }
 
-        return new DynamicValuesRef(operationId, arguments);
+        // The list and values vocabularies name the same three paths differently.
+        return new DynamicValuesRef(
+            operationId,
+            arguments,
+            ItemsPath: JsonRead.String(source, "itemsPath") ?? JsonRead.String(source, "value-collection"),
+            ValuePath: JsonRead.String(source, "itemValuePath") ?? JsonRead.String(source, "value-path"),
+            TitlePath: JsonRead.String(source, "itemTitlePath") ?? JsonRead.String(source, "value-title"));
     }
 
     /// <summary>

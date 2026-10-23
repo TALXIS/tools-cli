@@ -136,6 +136,121 @@ public class ConnectorMetadataServiceTests
         Assert.Equal("shared_office365", hit.ConnectorName);
     }
 
+    private const string Runtime = "https://env.common.europe002.azure-apihub.net/apim/teams";
+    private const string ConnectionId = "shared-teams-123";
+
+    /// <summary>
+    /// A Teams-shaped connector: location values come from a GET lookup that
+    /// depends on poster, the body schema from a GET lookup that depends on
+    /// both, and one value list from a POST lookup that must never be called.
+    /// </summary>
+    private static Fake TeamsFake() => new(request =>
+    {
+        var uri = request.RequestUri!.ToString();
+        if (uri.StartsWith(Runtime + "/" + ConnectionId + "/flowbot/messageType/", StringComparison.Ordinal))
+            return Json(HttpStatusCode.OK, """{ "value": [ { "id": "Channel" }, { "id": "Chat with Flow bot" } ] }""");
+        if (uri.StartsWith(Runtime + "/" + ConnectionId + "/flowbot/actions/", StringComparison.Ordinal))
+            return Json(HttpStatusCode.OK, """
+                { "schema": { "type": "object", "required": [ "recipient", "messageBody" ], "properties": {
+                  "recipient": { "type": "string", "title": "Recipient" },
+                  "messageBody": { "type": "string", "format": "html" } } } }
+                """);
+        if (uri.Contains("/apiOperations/", StringComparison.Ordinal))
+            return Json(HttpStatusCode.OK, """
+                { "properties": { "inputsDefinition": { "required": [ "poster", "location", "body" ], "properties": {
+                  "poster": { "type": "string", "enum": [ "Flow bot", "User" ] },
+                  "location": { "type": "string", "x-ms-dynamic-list": { "operationId": "GetMessageLocations",
+                    "itemsPath": "value", "itemValuePath": "id",
+                    "parameters": { "messageType": { "value": "ParentMessage" }, "poster": { "parameterReference": "poster" } } } },
+                  "body": { "type": "object", "x-ms-dynamic-properties": { "operationId": "GetUnifiedActionSchema", "itemValuePath": "schema",
+                    "parameters": { "actionType": { "value": "Message" }, "poster": { "parameterReference": "poster" },
+                                    "recipientType": { "parameterReference": "location" } } } },
+                  "tag": { "type": "string", "x-ms-dynamic-list": { "operationId": "SearchTags", "parameters": {} } }
+                } } } }
+                """);
+        if (uri.Contains("api.powerapps.com", StringComparison.Ordinal))
+            return Json(HttpStatusCode.OK, """
+                { "properties": { "displayName": "matej@contoso.com", "statuses": [ { "status": "Connected" } ],
+                  "createdBy": { "displayName": "Matej", "userPrincipalName": "matej@contoso.com" } } }
+                """);
+        if (uri.Contains("/powerautomate/apis/shared_teams?", StringComparison.Ordinal))
+            return Json(HttpStatusCode.OK, $$"""
+                { "name": "shared_teams", "properties": { "primaryRuntimeUrl": "{{Runtime}}", "swagger": {
+                  "parameters": { "poster": { "name": "poster", "in": "path", "required": true } },
+                  "paths": {
+                    "/{connectionId}/flowbot/messageType/{messageType}/poster/{poster}": { "get": { "operationId": "GetMessageLocations",
+                      "parameters": [ { "name": "connectionId", "in": "path" }, { "name": "messageType", "in": "path" }, { "$ref": "#/parameters/poster" } ] } },
+                    "/{connectionId}/flowbot/actions/{actionType}/posters/{poster}/recipienttypes/{recipientType}/schema": { "get": { "operationId": "GetUnifiedActionSchema",
+                      "parameters": [ { "name": "connectionId", "in": "path" }, { "name": "actionType", "in": "path" },
+                                      { "name": "poster", "in": "path" }, { "name": "recipientType", "in": "path" } ] } },
+                    "/{connectionId}/tags/search": { "post": { "operationId": "SearchTags" } }
+                  } } } }
+                """);
+        return Json(HttpStatusCode.NotFound, "{}");
+    });
+
+    private static Task<TALXIS.CLI.Core.Platforms.PowerPlatform.OperationResolution> Resolve(
+        Fake fake, bool useConnection, params (string Name, string Value)[] values)
+        => fake.Service.ResolveOperationAsync(
+            null, "shared_teams", "PostMessageToConversation", "mtj_sharedteams", ConnectionId,
+            values.ToDictionary(v => v.Name, v => v.Value), useConnection, CancellationToken.None);
+
+    [Fact]
+    public async Task Resolve_WithoutConsent_CallsNothingThroughTheConnection()
+    {
+        var fake = TeamsFake();
+
+        var plan = await Resolve(fake, useConnection: false, ("poster", "Flow bot"));
+
+        Assert.False(plan.ConnectionUsed);
+        Assert.DoesNotContain(fake.Requests, r => r.Uri.ToString().StartsWith(Runtime, StringComparison.Ordinal));
+        Assert.Empty(fake.Scopes);
+        Assert.Equal("Matej", plan.Connection.OwnerName);
+        Assert.Equal("Connected", plan.Connection.Status);
+
+        var location = Assert.Single(plan.Lookups, l => l.Parameter == "location");
+        Assert.Equal("planned", location.Status);
+        Assert.Equal("/shared-teams-123/flowbot/messageType/ParentMessage/poster/Flow%20bot", location.Path);
+
+        // body also needs the location, which has not been chosen yet.
+        var body = Assert.Single(plan.Lookups, l => l.Parameter == "body");
+        Assert.Equal("skipped", body.Status);
+        Assert.Contains("'location'", body.Reason);
+    }
+
+    [Fact]
+    public async Task Resolve_WithConsent_ExpandsTheBodyAndListsTheLocations()
+    {
+        var fake = TeamsFake();
+
+        var result = await Resolve(fake, useConnection: true, ("poster", "Flow bot"), ("location", "Chat with Flow bot"));
+
+        Assert.True(result.ConnectionUsed);
+        Assert.Equal(["https://apihub.azure.com/.default"], fake.Scopes);
+        Assert.Equal(["Channel", "Chat with Flow bot"],
+            Assert.Single(result.Operation.Parameters, p => p.Name == "location").AllowedValues);
+
+        var names = result.Operation.Parameters.Select(p => p.Name).ToList();
+        Assert.Contains("body/recipient", names);
+        Assert.Contains("body/messageBody", names);
+        Assert.DoesNotContain("body", names);
+        Assert.True(Assert.Single(result.Operation.Parameters, p => p.Name == "body/recipient").Required);
+        Assert.All(result.Lookups.Where(l => l.Parameter != "tag"), l => Assert.Equal("resolved", l.Status));
+    }
+
+    [Fact]
+    public async Task Resolve_NeverSendsAPostLookupThroughTheConnection()
+    {
+        var fake = TeamsFake();
+
+        var result = await Resolve(fake, useConnection: true, ("poster", "Flow bot"), ("location", "Channel"));
+
+        var tag = Assert.Single(result.Lookups, l => l.Parameter == "tag");
+        Assert.Equal("skipped", tag.Status);
+        Assert.Contains("POST", tag.Reason);
+        Assert.DoesNotContain(fake.Requests, r => r.Method == HttpMethod.Post);
+    }
+
     private static HttpResponseMessage Json(HttpStatusCode status, string body)
         => new(status) { Content = new StringContent(body) };
 
@@ -172,6 +287,14 @@ public class ConnectorMetadataServiceTests
         {
             Audiences.Add(resourceUri);
             return Task.FromResult("token");
+        }
+
+        public List<string> Scopes { get; } = new();
+
+        public Task<string> AcquireForScopeAsync(Connection connection, Credential credential, string scope, CancellationToken ct)
+        {
+            Scopes.Add(scope);
+            return Task.FromResult("runtime-token");
         }
 
         public HttpClient Create() => new(new Handler(this));
