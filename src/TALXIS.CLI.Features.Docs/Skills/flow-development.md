@@ -6,7 +6,7 @@ Commands are shown as CLI; the MCP tool name is in brackets (spaces become `_`).
 
 ## Three questions per connector step
 
-1. **Which operation?** → `txc environment connector operation search "<what the step does>"` (add `--kind triggers` for a trigger) [`environment_connector_operation_search`]. Take a hit that is not deprecated.
+1. **Which operation?** → `txc environment connector operation search "<what the step does>"` [`environment_connector_operation_search`]. Narrow it with `--kind triggers|actions` and `--connector <name>` (e.g. `shared_teams`) when you know them. Take a hit that is not deprecated.
 2. **Which parameters does it need, and what does it return?** → `txc environment connector operation get <connector> <operation>` [`environment_connector_operation_get`]. One answer lists:
    - every parameter key with type, `required` and allowed values; a dynamic one also has `dependsOn` and `getValues`, the exact command for question 3;
    - every output with the expression that reads it in later steps (`@triggerOutputs()?['body/…']`, `@outputs('Step')?['body/value']`); a dynamic output (e.g. the columns of the chosen table) has `getFields`;
@@ -16,16 +16,14 @@ Commands are shown as CLI; the MCP tool name is in brackets (spaces become `_`).
    - `fields` — sub-fields: input keys to set (`item/lastname`, `body/recipient`) or outputs with their read expression (`@items('<loop>')?['emailaddress1']`).
    - `needs-values` — choose the listed parameters first; the message has the command for each.
    - `needs-consent` — the answer is read through the user's connection (the message says which and whose). Ask once per connection, e.g. *"May I use your Dataverse connection mtj_dataverse to read table metadata? It only reads; nothing is changed."* If they agree, re-run with `--use-connection` and keep passing it for that connection for the rest of the task.
+   - `needs-choice` — several connection references could be used; `choices` describes each (display name, owner, status). Ask the user which the flow should use, then re-run with `--connection-reference <logical name>` and keep passing it.
+   - `needs-connection` — no connection reference for the connector is bound. Ask the user to create one (in a solution: New → More → Connection reference) and re-run. Don't create connections yourself; never ask for a sample flow.
 
 Ask question 3 only for parameters you set and outputs you read. Then write the step into the definition and `dotnet build`.
 
 ## When it stops you
 
-| Says | Do |
-|---|---|
-| No bound connection reference for the connector | Ask the user to create one (in a solution: New → More → Connection reference) and re-run. Don't create connections yourself; never ask for a sample flow. |
-| Several bound connection references | The message describes each (display name, owner, status); ask the user which the flow should use, then pass `--connection-reference <logical name>`. `txc environment connection-reference list` shows them too. |
-| `unavailable` (e.g. a folder picker) | Ask the user for the value. |
+`unavailable` (e.g. a folder picker) → ask the user for the value. Values with spaces are quoted as a whole: `--value "poster=Flow bot"`.
 
 ## Workspace
 

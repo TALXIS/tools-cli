@@ -50,6 +50,7 @@ public sealed record OperationSpec(
     string ApiId,
     string OperationId,
     string? Summary,
+    string? Description,
     bool IsTrigger,
     string ActionType,
     bool IsDeprecated,
@@ -58,7 +59,7 @@ public sealed record OperationSpec(
     System.Text.Json.Nodes.JsonObject Snippet)
 {
     public static OperationSpec From(OperationDetail operation)
-        => new(operation.Connector, operation.ApiId, operation.OperationId, operation.Summary, operation.IsTrigger,
+        => new(operation.Connector, operation.ApiId, operation.OperationId, operation.Summary, operation.Description, operation.IsTrigger,
             operation.ActionType, operation.IsDeprecated, ParameterViews.From(operation), OutputViews.From(operation),
             FlowSnippet.Build(operation));
 }

@@ -11,7 +11,7 @@ public class FlowSnippetTests
         string name, string type = "string", bool required = true,
         IReadOnlyList<string>? allowed = null, IReadOnlyDictionary<string, string>? labels = null,
         DynamicValuesRef? schema = null)
-        => new(name, type, required, Description: name, AllowedValues: allowed, DefaultValue: null, Visibility: null,
+        => new(name, type, required, Description: name, AllowedValues: allowed, DefaultValue: null,
             DynamicValues: null, DynamicTree: null, DynamicSchema: schema, ValueLabels: labels);
 
     private static OperationDetail Trigger() => new(
@@ -22,13 +22,12 @@ public class FlowSnippetTests
             Param("subscriptionRequest/entityname", allowed: ["account", "contact"]),
             Param("subscriptionRequest/filteringattributes", required: false),
         ],
-        ResponseSchema: null, IsTrigger: true);
+        IsTrigger: true);
 
     [Fact]
     public void Trigger_GoesUnderTriggers_InTheExportedShape()
     {
-        var snippet = FlowSnippet.Build(Trigger(), "mtj_dataverse",
-            new Dictionary<string, string> { ["subscriptionRequest/message"] = "3", ["subscriptionRequest/entityname"] = "account" });
+        var snippet = FlowSnippet.Build(Trigger());
 
         var step = snippet["triggers"]!["When_a_row_is_added_modified_or_deleted"]!;
         Assert.Equal("OpenApiConnectionWebhook", (string?)step["type"]);
@@ -36,14 +35,11 @@ public class FlowSnippetTests
         Assert.Equal("@parameters('$authentication')", (string?)step["inputs"]!["authentication"]);
         Assert.Equal("shared_commondataserviceforapps", (string?)step["inputs"]!["host"]!["connectionName"]);
 
-        // Integers go in as JSON numbers, as exports have them; optional parameters stay out.
+        // Required parameters are present, optional ones stay out.
         var parameters = step["inputs"]!["parameters"]!.AsObject();
-        Assert.Equal(3, (long)parameters["subscriptionRequest/message"]!);
-        Assert.Equal("account", (string?)parameters["subscriptionRequest/entityname"]);
+        Assert.True(parameters.ContainsKey("subscriptionRequest/entityname"));
         Assert.False(parameters.ContainsKey("subscriptionRequest/filteringattributes"));
-
-        Assert.Equal("mtj_dataverse",
-            (string?)snippet["connectionReferences"]!["shared_commondataserviceforapps"]!["connection"]!["connectionReferenceLogicalName"]);
+        Assert.NotNull(snippet["connectionReferences"]!["shared_commondataserviceforapps"]!["connection"]!["connectionReferenceLogicalName"]);
     }
 
     [Fact]
@@ -59,8 +55,7 @@ public class FlowSnippetTests
     {
         var action = new OperationDetail("shared_commondataserviceforapps", "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
             "CreateRecord", "Add a new row", null, "OpenApiConnection", false,
-            [Param("entityName"), Param("item", "object", schema: new DynamicValuesRef("GetMetadataForPostEntity", null))],
-            ResponseSchema: null);
+            [Param("entityName"), Param("item", "object", schema: new DynamicValuesRef("GetMetadataForPostEntity", null))]);
 
         var snippet = FlowSnippet.Build(action);
         var step = snippet["actions"]!["Add_a_new_row"]!;

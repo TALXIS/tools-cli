@@ -114,7 +114,7 @@ internal static class DynamicLookupPlanner
 
         PlannedLookup Skip(string reason)
             => new(parameter, reference,
-                new DynamicLookup(parameter.Name, kind, reference.OperationId, method, path, arguments, DynamicLookupStatus.Skipped, reason,
+                new DynamicLookup(parameter.Name, kind, reference.OperationId, DynamicLookupStatus.Skipped, reason,
                     missing.Count > 0 ? missing : null),
                 null);
 
@@ -134,7 +134,7 @@ internal static class DynamicLookupPlanner
             return Skip($"The lookup needs '{unfilled}', which the operation metadata does not supply.");
 
         return new PlannedLookup(parameter, reference,
-            new DynamicLookup(parameter.Name, kind, reference.OperationId, method, request.Path, arguments, DynamicLookupStatus.Planned, null),
+            new DynamicLookup(parameter.Name, kind, reference.OperationId, DynamicLookupStatus.Planned, null),
             new Uri(runtimeUrl!.TrimEnd('/') + request.Path),
             new HttpMethod(method),
             request.Headers.Count == 0 ? null : request.Headers,

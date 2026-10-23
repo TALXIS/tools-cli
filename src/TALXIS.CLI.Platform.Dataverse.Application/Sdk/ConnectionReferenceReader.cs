@@ -9,7 +9,7 @@ internal static class ConnectionReferenceReader
 {
     private static readonly ColumnSet Columns = new(
         "connectionreferenceid", "connectionreferencelogicalname", "connectionreferencedisplayname",
-        "connectorid", "connectionid", "statecode");
+        "connectorid", "connectionid");
 
     public static async Task<IReadOnlyList<ConnectionReferenceRecord>> ListAsync(
         IOrganizationServiceAsync2 service, string? connector, CancellationToken ct)
@@ -19,6 +19,9 @@ internal static class ConnectionReferenceReader
             ColumnSet = Columns,
             TopCount = 5000,
         };
+
+        // A deactivated reference cannot be bound to; leave it out.
+        query.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
 
         // connectorid holds the full api id a flow definition also uses.
         if (!string.IsNullOrWhiteSpace(connector))
@@ -38,6 +41,5 @@ internal static class ConnectionReferenceReader
         LogicalName: e.GetAttributeValue<string>("connectionreferencelogicalname"),
         DisplayName: e.GetAttributeValue<string>("connectionreferencedisplayname"),
         ConnectorId: e.GetAttributeValue<string>("connectorid"),
-        ConnectionId: e.GetAttributeValue<string>("connectionid"),
-        IsActive: e.GetAttributeValue<OptionSetValue>("statecode")?.Value is null or 0);
+        ConnectionId: e.GetAttributeValue<string>("connectionid"));
 }

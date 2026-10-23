@@ -17,6 +17,10 @@ public static class DynamicValuesStatus
     public const string NeedsValues = "needs-values";
     /// <summary>The connection would be used: ask the user, then re-run with --use-connection.</summary>
     public const string NeedsConsent = "needs-consent";
+    /// <summary>Several connection references could be used; see <see cref="DynamicValuesAnswer.Choices"/>. Ask the user which.</summary>
+    public const string NeedsChoice = "needs-choice";
+    /// <summary>No connection reference for the connector is bound; the user has to create one.</summary>
+    public const string NeedsConnection = "needs-connection";
     /// <summary>Nothing to look up; any allowed values come from the operation spec.</summary>
     public const string Static = "static";
     public const string Unavailable = "unavailable";
@@ -34,8 +38,12 @@ public sealed record DynamicValuesAnswer(
     IReadOnlyList<ParameterView>? Fields,
     IReadOnlyList<OutputView>? Outputs,
     IReadOnlyList<string>? Missing,
+    IReadOnlyList<ConnectionChoice>? Choices,
     string? ConnectionReference,
     string? ConnectionOwner);
+
+/// <summary>A connection reference the user can choose, described so they can tell them apart.</summary>
+public sealed record ConnectionChoice(string LogicalName, string? DisplayName, string? Owner, string? Status);
 
 /// <summary>What a <c>parameter get</c> or <c>output get</c> command asked for.</summary>
 internal sealed record DynamicValuesRequest(
@@ -92,12 +100,13 @@ internal static class DynamicValuesQuery
 
         DynamicValuesAnswer Answer(string status, string message,
             IReadOnlyList<AllowedValue>? found = null, IReadOnlyList<ParameterView>? fields = null,
-            IReadOnlyList<OutputView>? outputs = null, IReadOnlyList<string>? missing = null)
+            IReadOnlyList<OutputView>? outputs = null, IReadOnlyList<string>? missing = null,
+            IReadOnlyList<ConnectionChoice>? choices = null)
             => new(request.Connector, request.Operation, request.Name, kind, status, message,
                 Filter(found, v => $"{v.Value} {v.Label}", request.Search),
                 Filter(fields, f => $"{f.Name} {f.Description}", request.Search),
                 Filter(outputs, o => $"{o.Key} {o.Description}", request.Search),
-                missing, reference?.LogicalName, owner);
+                missing, choices, reference?.LogicalName, owner);
 
         var view = ParameterViews.From(operation, target);
         var dynamicKind = request.IsOutput
@@ -131,19 +140,28 @@ internal static class DynamicValuesQuery
             return true;
         }
 
-        (reference, var error) = await PickConnectionReferenceAsync(request, metadata).ConfigureAwait(false);
-        if (reference is null)
+        var pick = await PickConnectionReferenceAsync(request, metadata).ConfigureAwait(false);
+        if (pick.InputError is not null)
         {
-            logger.LogError("{Error}", error);
+            logger.LogError("{Error}", pick.InputError);
             return false;
         }
+
+        if (pick.Reference is null)
+        {
+            // A question for the user, not an error: answered on stdout like consent.
+            Write(Answer(pick.Status!, pick.Message!, choices: pick.Choices));
+            return true;
+        }
+
+        reference = pick.Reference;
 
         var resolution = await metadata.ResolveOperationAsync(
             request.Profile, request.Connector, request.Operation, reference.LogicalName, reference.ConnectionId!, values,
             request.IsOutput ? null : request.Name, request.IsOutput ? request.Name : null, request.UseConnection,
             CancellationToken.None).ConfigureAwait(false);
 
-        owner = Owner(resolution.Connection);
+        owner = ConnectionDisplay.Owner(resolution.Connection);
         var lookup = resolution.Lookups.FirstOrDefault();
 
         if (lookup is null || lookup.Status == DynamicLookupStatus.Skipped)
@@ -194,12 +212,18 @@ internal static class DynamicValuesQuery
             ? items
             : items.Where(i => text(i).Contains(search, StringComparison.OrdinalIgnoreCase)).ToList();
 
-    internal static string? Owner(ConnectionDetail connection)
-        => connection.OwnerName is { } name
-            ? connection.OwnerPrincipalName is { } upn ? $"{name} <{upn}>" : name
-            : null;
+    /// <summary>
+    /// The connection reference to read through, a question for the user
+    /// (<see cref="Status"/> with <see cref="Message"/>), or an input error.
+    /// </summary>
+    private sealed record ReferencePick(
+        ConnectionReferenceRecord? Reference,
+        string? InputError = null,
+        string? Status = null,
+        string? Message = null,
+        IReadOnlyList<ConnectionChoice>? Choices = null);
 
-    private static async Task<(ConnectionReferenceRecord? Reference, string? Error)> PickConnectionReferenceAsync(
+    private static async Task<ReferencePick> PickConnectionReferenceAsync(
         DynamicValuesRequest request, IConnectorMetadataService metadata)
     {
         var references = await TxcServices.Get<IConnectionReferenceService>()
@@ -210,29 +234,32 @@ internal static class DynamicValuesQuery
         {
             var named = references.FirstOrDefault(r => string.Equals(r.LogicalName, request.ConnectionReference, StringComparison.OrdinalIgnoreCase));
             if (named is null)
-                return (null, $"Connection reference '{request.ConnectionReference}' for '{request.Connector}' does not exist. Available: {(references.Count == 0 ? "none" : string.Join(", ", references.Select(r => r.LogicalName)))}.");
+                return new(null, InputError: $"Connection reference '{request.ConnectionReference}' for '{request.Connector}' does not exist. Available: {(references.Count == 0 ? "none" : string.Join(", ", references.Select(r => r.LogicalName)))}.");
             if (string.IsNullOrWhiteSpace(named.ConnectionId))
-                return (null, $"Connection reference '{named.LogicalName}' is not bound to a connection. Ask the user to bind one.");
-            return (named, null);
+                return new(null, Status: DynamicValuesStatus.NeedsConnection,
+                    Message: $"Connection reference '{named.LogicalName}' is not bound to a connection. Ask the user to bind one, then run this again.");
+            return new(named);
         }
 
         if (bound.Count == 1)
-            return (bound[0], null);
+            return new(bound[0]);
 
         if (bound.Count == 0)
-            return (null, $"No connection reference for '{request.Connector}' is bound to a connection. Ask the user to create one (in a solution: New > More > Connection reference) and run this again.");
+            return new(null, Status: DynamicValuesStatus.NeedsConnection,
+                Message: $"No connection reference for '{request.Connector}' is bound to a connection. Ask the user to create one (in a solution: New > More > Connection reference), then run this again.");
 
-        // Describe each so the user can actually choose.
-        var described = new List<string>();
+        var choices = new List<ConnectionChoice>();
         foreach (var r in bound)
         {
             var connection = await metadata.GetConnectionAsync(request.Profile, request.Connector, r.ConnectionId!, CancellationToken.None)
                 .ConfigureAwait(false);
-            described.Add($"{r.LogicalName} (\"{r.DisplayName}\", owned by {Owner(connection) ?? "unknown"}, {connection.Status ?? "status unknown"})");
+            choices.Add(new ConnectionChoice(r.LogicalName, r.DisplayName, ConnectionDisplay.Owner(connection), connection.Status));
         }
 
-        return (null, $"'{request.Connector}' has several bound connection references: {string.Join("; ", described)}. " +
-            "Ask the user which one the flow should use and pass --connection-reference <logical name>.");
+        return new(null, Status: DynamicValuesStatus.NeedsChoice,
+            Message: $"'{request.Connector}' has {choices.Count} bound connection references (listed below). " +
+                "Ask the user which one the flow should use, then run this again with --connection-reference <logical name>.",
+            Choices: choices);
     }
 
     private static void Write(DynamicValuesAnswer answer) => OutputFormatter.WriteData(answer, Print);
@@ -256,6 +283,13 @@ internal static class DynamicValuesQuery
         {
             OutputWriter.WriteLine(string.Empty);
             OperationTextRenderer.PrintParameters(fields);
+        }
+
+        if (answer.Choices is { Count: > 0 } choices)
+        {
+            OutputWriter.WriteLine(string.Empty);
+            foreach (var c in choices)
+                OutputWriter.WriteLine($"{c.LogicalName} | {c.DisplayName ?? "-"} | owned by {c.Owner ?? "unknown"} | {c.Status ?? "status unknown"}");
         }
 
         if (answer.Outputs is { Count: > 0 } outputs)

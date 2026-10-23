@@ -3,7 +3,7 @@ using TALXIS.CLI.Core.Platforms.PowerPlatform;
 
 namespace TALXIS.CLI.Features.Environment.Connector.Operation;
 
-/// <summary>Text rendering of an operation spec, shared by 'operation get' and 'operation resolve'.</summary>
+/// <summary>Text rendering of operation specs, shared by 'operation get', 'parameter get' and 'output get'.</summary>
 internal static class OperationTextRenderer
 {
     private const int MaxValuesShown = 25;

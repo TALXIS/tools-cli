@@ -10,16 +10,15 @@ public class ParameterViewsTests
         "shared_teams", "/providers/Microsoft.PowerApps/apis/shared_teams", "PostMessageToConversation", "Post message", null,
         "OpenApiConnection", false,
         [
-            new("poster", "string", true, "Post as", ["Flow bot", "User"], null, null, null, null, null),
-            new("location", "string", true, "Post in", null, null, null,
+            new("poster", "string", true, "Post as", ["Flow bot", "User"], null, null, null, null),
+            new("location", "string", true, "Post in", null, null,
                 DynamicValues: new DynamicValuesRef("GetMessageLocations",
                     new Dictionary<string, string?> { ["messageType"] = "ParentMessage", ["poster"] = "$ref:poster" }),
                 DynamicTree: null, DynamicSchema: null),
-            new("body", "object", true, "Message", null, null, null, null, null,
+            new("body", "object", true, "Message", null, null, null, null,
                 DynamicSchema: new DynamicValuesRef("GetUnifiedActionSchema",
                     new Dictionary<string, string?> { ["poster"] = "$ref:poster", ["recipientType"] = "$ref:location" })),
-        ],
-        ResponseSchema: null);
+        ]);
 
     [Fact]
     public void DynamicParameter_SaysWhatItDependsOnAndHowToGetItsValues()

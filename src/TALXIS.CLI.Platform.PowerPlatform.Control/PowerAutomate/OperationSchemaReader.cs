@@ -51,8 +51,6 @@ internal static partial class OperationSchemaReader
             ActionType: InferActionType(properties, operationId),
             IsDeprecated: IsDeprecated(properties),
             Parameters: parameters,
-            // Clone: the owning JsonDocument is disposed by the caller.
-            ResponseSchema: JsonRead.Object(properties, "responsesDefinition")?.Clone(),
             IsTrigger: JsonRead.String(properties, "trigger") is not null,
             Outputs: ReadOutputs(JsonRead.Object(properties, "responsesDefinition")));
     }
@@ -226,7 +224,6 @@ internal static partial class OperationSchemaReader
                 ?? JsonRead.String(spec, "description"),
             AllowedValues: ReadAllowedValues(spec),
             DefaultValue: spec.TryGetProperty("default", out var value) ? ToScalarString(value) : null,
-            Visibility: JsonRead.String(spec, "x-ms-visibility"),
             // Two vocabularies are in play: connector Swagger uses
             // x-ms-dynamic-values/-schema, the operation API returns the newer
             // x-ms-dynamic-list/-properties for the same concepts.

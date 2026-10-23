@@ -187,7 +187,7 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
             .Where(p => (output ?? parameter) is not { } only || p.Parameter.Name == only)
             .ToList();
         if (!useConnection)
-            return new OperationResolution(detail, connectionReference, connection, false, plan.Select(p => p.Lookup).ToList());
+            return new OperationResolution(detail, connection, false, plan.Select(p => p.Lookup).ToList());
 
         var runtimeToken = await _client.AcquireRuntimeTokenAsync(target.Connection, target.Credential, ct).ConfigureAwait(false);
         var parameters = targets;
@@ -219,7 +219,7 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
         }
 
         var resolved = resolvingOutputs ? detail with { Outputs = parameters } : detail with { Parameters = parameters };
-        return new OperationResolution(resolved, connectionReference, connection, true, lookups);
+        return new OperationResolution(resolved, connection, true, lookups);
     }
 
     /// <summary>
@@ -291,7 +291,6 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
 
         return new ConnectionDetail(
             ConnectionId: connectionId,
-            DisplayName: JsonRead.String(properties, "displayName"),
             OwnerName: JsonRead.String(owner, "displayName"),
             OwnerPrincipalName: JsonRead.String(owner, "userPrincipalName") ?? JsonRead.String(owner, "email"),
             Status: status);

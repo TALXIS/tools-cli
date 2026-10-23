@@ -12,13 +12,12 @@ public sealed record ConnectionReferenceRecord(
     string LogicalName,
     string? DisplayName,
     string? ConnectorId,
-    string? ConnectionId,
-    bool IsActive);
+    string? ConnectionId);
 
 public interface IConnectionReferenceService
 {
     /// <summary>
-    /// Lists connection references in the environment, optionally only those
+    /// Lists active connection references in the environment, optionally only those
     /// for one connector (matched by connector name, e.g. <c>shared_teams</c>).
     /// </summary>
     Task<IReadOnlyList<ConnectionReferenceRecord>> ListAsync(

@@ -38,7 +38,7 @@ public class ConnectionReferenceListCliCommand : ProfiledCliCommand
 
             rows.Add(new ConnectionReferenceView(
                 r.LogicalName, r.DisplayName, connector, r.ConnectionId,
-                connection is null ? null : TALXIS.CLI.Features.Environment.Connector.Operation.DynamicValuesQuery.Owner(connection),
+                connection is null ? null : TALXIS.CLI.Features.Environment.Connector.ConnectionDisplay.Owner(connection),
                 connection?.Status ?? (string.IsNullOrWhiteSpace(r.ConnectionId) ? "not bound" : null)));
         }
 

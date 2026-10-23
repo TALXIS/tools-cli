@@ -210,7 +210,6 @@ public class ConnectorMetadataServiceTests
 
         var location = Assert.Single(plan.Lookups, l => l.Parameter == "location");
         Assert.Equal("planned", location.Status);
-        Assert.Equal("/shared-teams-123/flowbot/messageType/ParentMessage/poster/Flow%20bot", location.Path);
 
         // body also needs the location, which has not been chosen yet.
         var body = Assert.Single(plan.Lookups, l => l.Parameter == "body");
@@ -227,6 +226,7 @@ public class ConnectorMetadataServiceTests
 
         Assert.True(result.ConnectionUsed);
         Assert.Equal(["https://apihub.azure.com/.default"], fake.Scopes);
+        Assert.Contains(fake.Requests, r => r.Uri.AbsoluteUri == Runtime + "/" + ConnectionId + "/flowbot/messageType/ParentMessage/poster/Flow%20bot");
         Assert.Equal(["Channel", "Chat with Flow bot"],
             Assert.Single(result.Operation.Parameters, p => p.Name == "location").AllowedValues);
 

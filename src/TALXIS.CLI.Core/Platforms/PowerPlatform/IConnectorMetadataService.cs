@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace TALXIS.CLI.Core.Platforms.PowerPlatform;
 
 /// <summary>A connector as it appears in the environment's connector catalog.</summary>
@@ -83,7 +81,6 @@ public sealed record OperationParameter(
     string? Description,
     IReadOnlyList<string>? AllowedValues,
     string? DefaultValue,
-    string? Visibility,
     DynamicValuesRef? DynamicValues,
     DynamicValuesRef? DynamicTree,
     DynamicValuesRef? DynamicSchema,
@@ -105,14 +102,12 @@ public sealed record OperationDetail(
     string ActionType,
     bool IsDeprecated,
     IReadOnlyList<OperationParameter> Parameters,
-    JsonElement? ResponseSchema,
     bool IsTrigger = false,
     IReadOnlyList<OperationParameter>? Outputs = null);
 
 /// <summary>A connection, as shown to a user before it is used on their behalf.</summary>
 public sealed record ConnectionDetail(
     string ConnectionId,
-    string? DisplayName,
     string? OwnerName,
     string? OwnerPrincipalName,
     string? Status);
@@ -136,9 +131,6 @@ public sealed record DynamicLookup(
     string Parameter,
     string Kind,
     string OperationId,
-    string Method,
-    string Path,
-    IReadOnlyDictionary<string, string?> Arguments,
     string Status,
     string? Reason,
     IReadOnlyList<string>? MissingValues = null);
@@ -151,7 +143,6 @@ public sealed record DynamicLookup(
 /// </summary>
 public sealed record OperationResolution(
     OperationDetail Operation,
-    string ConnectionReference,
     ConnectionDetail Connection,
     bool ConnectionUsed,
     IReadOnlyList<DynamicLookup> Lookups);
