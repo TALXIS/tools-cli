@@ -71,6 +71,8 @@ public static class DataverseProviderServiceCollectionExtensions
             EnvironmentManagementService>();
         services.AddSingleton<TALXIS.CLI.Core.Platforms.PowerPlatform.IEnvironmentUserProvisioningService,
             EnvironmentUserProvisioningService>();
+        services.AddSingleton<TALXIS.CLI.Core.Platforms.PowerPlatform.IConnectorMetadataService,
+            TALXIS.CLI.Platform.PowerPlatform.Control.PowerAutomate.ConnectorMetadataService>();
         services.AddSingleton<IDataverseLiveChecker, DataverseLiveChecker>();
         services.AddSingleton<IEnvironmentTypeResolver, DataverseEnvironmentTypeResolver>();
         services.AddSingleton<IInteractiveLoginService, DataverseInteractiveLoginService>();
