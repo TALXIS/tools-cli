@@ -31,8 +31,8 @@
 - Entity must have IsBPFEntity=1; XAML workflow needs Category=4, TriggerOnCreate=1
 
 ## Flow Chain
-1. Flow (pp-flow) → 2. Per connector step: environment_connector_operation_search → environment_connector_operation_get (returns a paste-ready snippet) → only if parameters are dynamic: environment_connector_operation_resolve with all --value choices (plan → tell user whose connection, ask → re-run with --use-connection) → 3. Paste snippets into the definition JSON
-- Never hand-write connector JSON; never run --use-connection without the user's yes
+1. Flow (pp-flow) → 2. Per connector step: environment_connector_operation_search (which operation) → environment_connector_operation_get (which parameters; dynamic ones carry a getValues command) → environment_connector_operation_parameter_get for each dynamic parameter you set (status values/fields; needs-consent → ask the user once per connection, then --use-connection) → 3. Write the step into the definition JSON
+- Keys and values only from these tools; never --use-connection without the user's yes
 - See flow-development skill
 
 ## Local vs Live

@@ -108,7 +108,8 @@ internal static class DynamicLookupPlanner
 
         PlannedLookup Skip(string reason)
             => new(parameter, reference,
-                new DynamicLookup(parameter.Name, kind, reference.OperationId, method, path, arguments, DynamicLookupStatus.Skipped, reason),
+                new DynamicLookup(parameter.Name, kind, reference.OperationId, method, path, arguments, DynamicLookupStatus.Skipped, reason,
+                    missing.Count > 0 ? missing : null),
                 null);
 
         if (kind == TreeKind)

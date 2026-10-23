@@ -139,6 +139,7 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
         string connectionReference,
         string connectionId,
         IReadOnlyDictionary<string, string> values,
+        string? parameter,
         bool useConnection,
         CancellationToken ct)
     {
@@ -177,6 +178,7 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
             target, connector, operation, detail, values, ct).ConfigureAwait(false);
         var plan = DynamicLookupPlanner.Plan(lookupSource, connectorDocument.RootElement, connectionId, lookupValues)
             .Where(p => detail.Parameters.Any(d => d.Name == p.Parameter.Name))
+            .Where(p => parameter is null || p.Parameter.Name == parameter)
             .ToList();
         if (!useConnection)
             return new OperationResolution(detail, connectionReference, connection, false, plan.Select(p => p.Lookup).ToList());

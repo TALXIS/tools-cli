@@ -65,15 +65,6 @@ public class FlowSnippetTests
         var snippet = FlowSnippet.Build(action);
         var step = snippet["actions"]!["Add_a_new_row"]!;
         Assert.NotNull(step["runAfter"]);
-        Assert.Contains("operation resolve", (string?)step["inputs"]!["parameters"]!["item/..."]);
-    }
-
-    [Fact]
-    public void CheckValues_SuggestsTheAllowedValueThatWasMeant()
-    {
-        var warning = Assert.Single(FlowSnippet.CheckValues(Trigger(),
-            new Dictionary<string, string> { ["subscriptionRequest/entityname"] = "accounts" }));
-
-        Assert.Contains("did you mean 'account'", warning);
+        Assert.Contains("getValues", (string?)step["inputs"]!["parameters"]!["item/..."]);
     }
 }

@@ -33,7 +33,7 @@ internal static partial class FlowSnippet
             if (values is not null && values.TryGetValue(p.Name, out var chosen))
                 parameters[p.Name] = Literal(chosen, p.Type);
             else if (p.Required && p.DynamicSchema is not null)
-                parameters[p.Name + "/..."] = "<fields depend on other choices: run 'environment connector operation resolve' to list them>";
+                parameters[p.Name + "/..."] = "<fields depend on other choices: see this parameter's getValues command>";
             else if (p.Required)
                 parameters[p.Name] = p.DefaultValue is { } fallback ? Literal(fallback, p.Type) : Placeholder(p);
         }
@@ -76,36 +76,6 @@ internal static partial class FlowSnippet
                 [StepName(operation)] = step,
             },
         };
-    }
-
-    /// <summary>
-    /// Flags chosen values that are not among a parameter's allowed values,
-    /// suggesting the closest one (<c>contact</c> where <c>contacts</c> is expected).
-    /// </summary>
-    public static IReadOnlyList<string> CheckValues(OperationDetail operation, IReadOnlyDictionary<string, string> values)
-    {
-        var warnings = new List<string>();
-        foreach (var (name, value) in values)
-        {
-            var parameter = operation.Parameters.FirstOrDefault(p => p.Name == name);
-            if (parameter is null)
-            {
-                warnings.Add($"'{name}' is not a parameter of {operation.OperationId}.");
-                continue;
-            }
-
-            if (parameter.AllowedValues is not { Count: > 0 } allowed || allowed.Contains(value, StringComparer.Ordinal))
-                continue;
-
-            var suggestion = allowed.FirstOrDefault(a => string.Equals(a, value, StringComparison.OrdinalIgnoreCase))
-                ?? allowed.FirstOrDefault(a => a.StartsWith(value, StringComparison.OrdinalIgnoreCase))
-                ?? allowed.FirstOrDefault(a => value.StartsWith(a, StringComparison.OrdinalIgnoreCase));
-            warnings.Add(suggestion is null
-                ? $"'{value}' is not an allowed value of '{name}'."
-                : $"'{value}' is not an allowed value of '{name}'; did you mean '{suggestion}'?");
-        }
-
-        return warnings;
     }
 
     private static string StepName(OperationDetail operation)

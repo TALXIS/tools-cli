@@ -136,7 +136,8 @@ public sealed record DynamicLookup(
     string Path,
     IReadOnlyDictionary<string, string?> Arguments,
     string Status,
-    string? Reason);
+    string? Reason,
+    IReadOnlyList<string>? MissingValues = null);
 
 /// <summary>
 /// The outcome of resolving an operation's dynamic parameters. When
@@ -187,6 +188,7 @@ public interface IConnectorMetadataService
     /// through an existing connection, the way the flow designer does.
     /// </summary>
     /// <param name="values">Values chosen for the operation's other parameters, which lookups take as inputs.</param>
+    /// <param name="parameter">Resolve only this parameter; null resolves every dynamic one.</param>
     /// <param name="useConnection">
     /// False returns the plan without calling the connection. Only pass true
     /// once the connection's owner has agreed to it being used.
@@ -198,6 +200,7 @@ public interface IConnectorMetadataService
         string connectionReference,
         string connectionId,
         IReadOnlyDictionary<string, string> values,
+        string? parameter,
         bool useConnection,
         CancellationToken ct);
 }

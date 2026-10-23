@@ -193,7 +193,7 @@ public class ConnectorMetadataServiceTests
         Fake fake, bool useConnection, params (string Name, string Value)[] values)
         => fake.Service.ResolveOperationAsync(
             null, "shared_teams", "PostMessageToConversation", "mtj_sharedteams", ConnectionId,
-            values.ToDictionary(v => v.Name, v => v.Value), useConnection, CancellationToken.None);
+            values.ToDictionary(v => v.Name, v => v.Value), null, useConnection, CancellationToken.None);
 
     [Fact]
     public async Task Resolve_WithoutConsent_CallsNothingThroughTheConnection()
@@ -307,7 +307,7 @@ public class ConnectorMetadataServiceTests
 
         var result = await fake.Service.ResolveOperationAsync(
             null, "shared_commondataserviceforapps", "SubscribeWebhookTrigger", "mtj_dataverse", ConnectionId,
-            new Dictionary<string, string> { ["subscriptionRequest/entityname"] = "account" }, useConnection: true, CancellationToken.None);
+            new Dictionary<string, string> { ["subscriptionRequest/entityname"] = "account" }, null, useConnection: true, CancellationToken.None);
 
         var lookup = Assert.Single(result.Lookups);
         Assert.Equal("GetScopeFiltersWithOrganization", lookup.OperationId);

@@ -10,7 +10,7 @@ namespace TALXIS.CLI.Features.Environment.Connector.Operation;
 [CliReadOnly]
 [CliCommand(
     Name = "get",
-    Description = "Gets one connector operation from the LIVE connected environment: exact inputs.parameters keys, types, allowed values and action type, plus a ready-to-paste snippet for the flow definition (connectionReferences entry and the trigger or action). Requires an active profile. Use the snippet instead of writing connector JSON by hand; if parameters are dynamic, use 'connector operation resolve' instead."
+    Description = "Answers which parameters an operation needs, from the LIVE connected environment: every inputs.parameters key with type, requiredness and allowed values; for dynamic parameters what they depend on and the exact 'connector operation parameter get' command that fetches their values; plus the action type and a JSON skeleton for the flow definition. Requires an active profile."
 )]
 public class ConnectorOperationGetCliCommand : ProfiledCliCommand
 {
@@ -28,18 +28,35 @@ public class ConnectorOperationGetCliCommand : ProfiledCliCommand
         var operation = await service.GetOperationAsync(Profile, Connector, Operation, CancellationToken.None)
             .ConfigureAwait(false);
 
-        var result = new OperationSpec(operation, FlowSnippet.Build(operation));
-        OutputFormatter.WriteData(result, PrintSpec);
+        OutputFormatter.WriteData(OperationSpec.From(operation), PrintSpec);
         return ExitSuccess;
     }
 
     // Text-renderer callback invoked by OutputFormatter.WriteData.
     private static void PrintSpec(OperationSpec spec)
     {
-        OperationTextRenderer.Print(spec.Operation);
+        OperationTextRenderer.Print(spec);
         OperationTextRenderer.PrintSnippet(spec.Snippet);
     }
 }
 
-/// <summary>An operation's spec plus the JSON to paste into the flow definition.</summary>
-public sealed record OperationSpec(OperationDetail Operation, System.Text.Json.Nodes.JsonObject Snippet);
+/// <summary>
+/// The answer to "which parameters do I need to input": every parameter with
+/// its allowed values, and for dynamic ones what they depend on and the one
+/// command that fetches them; plus the JSON skeleton for the flow definition.
+/// </summary>
+public sealed record OperationSpec(
+    string Connector,
+    string ApiId,
+    string OperationId,
+    string? Summary,
+    bool IsTrigger,
+    string ActionType,
+    bool IsDeprecated,
+    IReadOnlyList<ParameterView> Parameters,
+    System.Text.Json.Nodes.JsonObject Snippet)
+{
+    public static OperationSpec From(OperationDetail operation)
+        => new(operation.Connector, operation.ApiId, operation.OperationId, operation.Summary, operation.IsTrigger,
+            operation.ActionType, operation.IsDeprecated, ParameterViews.From(operation), FlowSnippet.Build(operation));
+}

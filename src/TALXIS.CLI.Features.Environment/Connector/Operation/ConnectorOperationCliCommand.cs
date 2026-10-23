@@ -13,7 +13,7 @@ namespace TALXIS.CLI.Features.Environment.Connector.Operation;
     {
         typeof(ConnectorOperationSearchCliCommand),
         typeof(ConnectorOperationGetCliCommand),
-        typeof(ConnectorOperationResolveCliCommand),
+        typeof(Parameter.ConnectorOperationParameterCliCommand),
     },
     ShortFormAutoGenerate = CliNameAutoGenerate.None
 )]
