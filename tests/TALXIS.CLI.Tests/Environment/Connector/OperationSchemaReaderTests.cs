@@ -131,6 +131,28 @@ public class OperationSchemaReaderTests
         Assert.Empty(operation.Parameters);
     }
 
+    [Fact]
+    public void Outputs_AreKeyedByTheirExpressionPath_AndDynamicItemsKeepTheirLookup()
+    {
+        // ListRecords, as returned live: the row fields depend on the table,
+        // and $select is an optional input of that lookup.
+        var operation = Read("""
+            { "properties": { "responsesDefinition": { "200": { "type": "object", "properties": {
+              "body": { "type": "object", "x-ms-property-name-alias": "body", "properties": {
+                "value": { "type": "array", "x-ms-property-name-alias": "body/value", "description": "List of Items",
+                  "items": { "type": "object", "x-ms-dynamic-properties": { "operationId": "GetMetadataForGetEntity", "itemValuePath": "schema",
+                    "parameters": { "entityName": { "parameterReference": "entityName", "required": true },
+                                    "selectedEntityAttributes": { "parameterReference": "$select", "required": false } } } } },
+                "@odata.nextLink": { "type": "string", "x-ms-property-name-alias": "body/@odata.nextLink" } } } } } } } }
+            """);
+
+        Assert.Equal(["body/value", "body/@odata.nextLink"], operation.Outputs!.Select(o => o.Name));
+        var value = operation.Outputs![0];
+        Assert.Equal("array", value.Type);
+        Assert.Equal("$ref:entityName", value.DynamicSchema!.Parameters!["entityName"]);
+        Assert.Equal("$ref?:$select", value.DynamicSchema.Parameters["selectedEntityAttributes"]);
+    }
+
     private static OperationDetail Read(string json)
     {
         using var document = JsonDocument.Parse(json);

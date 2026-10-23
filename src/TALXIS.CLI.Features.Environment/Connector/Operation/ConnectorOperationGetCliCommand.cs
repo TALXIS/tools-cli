@@ -10,17 +10,17 @@ namespace TALXIS.CLI.Features.Environment.Connector.Operation;
 [CliReadOnly]
 [CliCommand(
     Name = "get",
-    Description = "Answers which parameters an operation needs, from the LIVE connected environment: every inputs.parameters key with type, requiredness and allowed values; for dynamic parameters what they depend on and the exact 'connector operation parameter get' command that fetches their values; plus the action type and a JSON skeleton for the flow definition. Requires an active profile."
+    Description = "Answers which parameters an operation needs and what it returns, from the LIVE connected environment. Lists every inputs.parameters key with type, requiredness and allowed values, and every output with the expression that reads it. For dynamic parameters and outputs it gives the exact txc command that fetches their values or fields. Also gives the action type and a JSON skeleton. Requires an active profile."
 )]
 public class ConnectorOperationGetCliCommand : ProfiledCliCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ConnectorOperationGetCliCommand));
 
     [CliArgument(Description = "Connector name, for example shared_commondataserviceforapps.")]
-    public string Connector { get; set; } = string.Empty;
+    public string Connector { get; set; } = null!;
 
     [CliArgument(Description = "Operation ID, for example CreateRecord.")]
-    public string Operation { get; set; } = string.Empty;
+    public string Operation { get; set; } = null!;
 
     protected override async Task<int> ExecuteAsync()
     {
@@ -54,9 +54,11 @@ public sealed record OperationSpec(
     string ActionType,
     bool IsDeprecated,
     IReadOnlyList<ParameterView> Parameters,
+    IReadOnlyList<OutputView> Outputs,
     System.Text.Json.Nodes.JsonObject Snippet)
 {
     public static OperationSpec From(OperationDetail operation)
         => new(operation.Connector, operation.ApiId, operation.OperationId, operation.Summary, operation.IsTrigger,
-            operation.ActionType, operation.IsDeprecated, ParameterViews.From(operation), FlowSnippet.Build(operation));
+            operation.ActionType, operation.IsDeprecated, ParameterViews.From(operation), OutputViews.From(operation),
+            FlowSnippet.Build(operation));
 }

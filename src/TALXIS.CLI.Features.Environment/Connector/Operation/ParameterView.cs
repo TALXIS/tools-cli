@@ -31,6 +31,54 @@ public sealed record ParameterView(
     IReadOnlyList<string>? DependsOn,
     string? GetValues);
 
+/// <summary>
+/// One thing an operation returns, with the expression that reads it in a
+/// later step. A dynamic output (fields that depend on choices, e.g. the
+/// columns of the chosen table) says how to get its fields instead.
+/// </summary>
+public sealed record OutputView(
+    string Key,
+    string? Type,
+    string? Description,
+    string Expression,
+    IReadOnlyList<string>? DependsOn,
+    string? GetFields);
+
+internal static class OutputViews
+{
+    public static IReadOnlyList<OutputView> From(OperationDetail operation)
+        => (operation.Outputs ?? []).Select(o => From(operation, o)).ToList();
+
+    public static OutputView From(OperationDetail operation, OperationParameter output)
+    {
+        var dependsOn = output.DynamicSchema is { } schema ? ParameterViews.Dependencies(schema) : null;
+        return new OutputView(
+            Key: output.Name,
+            Type: output.Type,
+            Description: output.Description,
+            Expression: Expression(operation, output.Name),
+            DependsOn: dependsOn is { Count: > 0 } ? dependsOn : null,
+            GetFields: output.DynamicSchema is null
+                ? null
+                : ParameterViews.Command("output", operation.Connector, operation.OperationId, output.Name, dependsOn));
+    }
+
+    /// <summary>
+    /// <c>@triggerOutputs()?['body/x']</c> for a trigger, <c>@outputs('Step')?['body/x']</c>
+    /// for an action, <c>@items('Loop')?['x']</c> for a field of an array item.
+    /// </summary>
+    public static string Expression(OperationDetail operation, string key)
+    {
+        var item = key.IndexOf("[]/", StringComparison.Ordinal);
+        if (item >= 0)
+            return $"@items('<loop over {key[..item]}>')?['{key[(item + 3)..]}']";
+
+        return operation.IsTrigger
+            ? $"@triggerOutputs()?['{key}']"
+            : $"@outputs('{FlowSnippet.StepName(operation)}')?['{key}']";
+    }
+}
+
 internal static class ParameterViews
 {
     private const string ParameterReferencePrefix = "$ref:";
@@ -45,11 +93,7 @@ internal static class ParameterViews
             : p.DynamicTree is { } tree ? (ParameterSource.Picker, tree)
             : ((string?)null, (DynamicValuesRef?)null);
 
-        var dependsOn = reference?.Parameters?.Values
-            .Where(v => v is not null && v.StartsWith(ParameterReferencePrefix, StringComparison.Ordinal))
-            .Select(v => v![ParameterReferencePrefix.Length..])
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
+        var dependsOn = reference is null ? null : Dependencies(reference);
 
         return new ParameterView(
             Name: p.Name,
@@ -64,9 +108,21 @@ internal static class ParameterViews
                 : source == ParameterSource.Picker ? "Choose the folder or file with the user." : null);
     }
 
+    /// <summary>The parameters of the operation a lookup takes as inputs.</summary>
+    public static List<string> Dependencies(DynamicValuesRef reference)
+        => (reference.Parameters?.Values ?? [])
+            .Where(v => v is not null && v.StartsWith(ParameterReferencePrefix, StringComparison.Ordinal))
+            .Select(v => v![ParameterReferencePrefix.Length..])
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
     public static string GetValuesCommand(string connector, string operation, string parameter, IEnumerable<string>? dependsOn)
+        => Command("parameter", connector, operation, parameter, dependsOn);
+
+    /// <summary>A runnable command line: what the agent types next, as is.</summary>
+    public static string Command(string noun, string connector, string operation, string name, IEnumerable<string>? dependsOn)
     {
-        var command = $"environment connector operation parameter get {connector} {operation} {Quote(parameter)}";
+        var command = $"txc environment connector operation {noun} get {connector} {operation} {Quote(name)}";
         foreach (var dependency in dependsOn ?? [])
             command += $" --value {Quote($"{dependency}=<{dependency}>")}";
         return command;

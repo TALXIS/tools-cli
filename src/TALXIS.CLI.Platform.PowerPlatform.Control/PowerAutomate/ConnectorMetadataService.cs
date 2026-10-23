@@ -140,6 +140,7 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
         string connectionId,
         IReadOnlyDictionary<string, string> values,
         string? parameter,
+        string? output,
         bool useConnection,
         CancellationToken ct)
     {
@@ -176,15 +177,20 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
 
         var (lookupSource, lookupValues) = await ResolveLookupSourceAsync(
             target, connector, operation, detail, values, ct).ConfigureAwait(false);
-        var plan = DynamicLookupPlanner.Plan(lookupSource, connectorDocument.RootElement, connectionId, lookupValues)
-            .Where(p => detail.Parameters.Any(d => d.Name == p.Parameter.Name))
-            .Where(p => parameter is null || p.Parameter.Name == parameter)
+        // Outputs are planned the same way as parameters: a dynamic output's
+        // fields come from a lookup just like a dynamic input's.
+        var resolvingOutputs = output is not null;
+        var targets = resolvingOutputs ? detail.Outputs ?? [] : detail.Parameters;
+        var source = resolvingOutputs ? lookupSource with { Parameters = lookupSource.Outputs ?? [] } : lookupSource;
+        var plan = DynamicLookupPlanner.Plan(source, connectorDocument.RootElement, connectionId, lookupValues)
+            .Where(p => targets.Any(d => d.Name == p.Parameter.Name))
+            .Where(p => (output ?? parameter) is not { } only || p.Parameter.Name == only)
             .ToList();
         if (!useConnection)
             return new OperationResolution(detail, connectionReference, connection, false, plan.Select(p => p.Lookup).ToList());
 
         var runtimeToken = await _client.AcquireRuntimeTokenAsync(target.Connection, target.Credential, ct).ConfigureAwait(false);
-        var parameters = detail.Parameters;
+        var parameters = targets;
         var lookups = new List<DynamicLookup>();
 
         foreach (var planned in plan)
@@ -200,7 +206,7 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
                 using var response = await _client.SendAsync(
                         planned.Method ?? HttpMethod.Get, planned.RequestUri, runtimeToken, planned.Body, ct, planned.Headers)
                     .ConfigureAwait(false);
-                parameters = DynamicLookupPlanner.Apply(parameters, planned, response.RootElement);
+                parameters = DynamicLookupPlanner.Apply(parameters, planned, response.RootElement, resolvingOutputs);
                 lookups.Add(planned.Lookup with { Status = DynamicLookupStatus.Resolved });
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -212,7 +218,8 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
             }
         }
 
-        return new OperationResolution(detail with { Parameters = parameters }, connectionReference, connection, true, lookups);
+        var resolved = resolvingOutputs ? detail with { Outputs = parameters } : detail with { Parameters = parameters };
+        return new OperationResolution(resolved, connectionReference, connection, true, lookups);
     }
 
     /// <summary>
@@ -254,6 +261,20 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
             _logger.LogDebug(ex, "No {Twin} twin for {Operation}.", twin.Operation, operation);
             return (detail, values);
         }
+    }
+
+    public async Task<ConnectionDetail> GetConnectionAsync(
+        string? profileName, string connector, string connectionId, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(connector);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
+
+        var target = await ResolveTargetAsync(profileName, ct).ConfigureAwait(false);
+        using var document = await SendForLookupAsync(
+            PowerAutomateEndpointProvider.Connection(target.Cloud, target.EnvironmentId, connector, connectionId), target.Token,
+            $"Connection '{connectionId}' does not exist or is not visible to you.",
+            ct).ConfigureAwait(false);
+        return ReadConnection(connectionId, document.RootElement);
     }
 
     private static ConnectionDetail ReadConnection(string connectionId, JsonElement payload)

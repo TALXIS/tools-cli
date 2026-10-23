@@ -23,6 +23,7 @@ internal static class DynamicLookupPlanner
     public const string TreeKind = "tree";
 
     private const string ParameterReferencePrefix = "$ref:";
+    private const string OptionalReferencePrefix = "$ref?:";
 
     private const string BodyArgumentPrefix = "body/";
 
@@ -88,7 +89,12 @@ internal static class DynamicLookupPlanner
 
         foreach (var (name, argument) in reference.Parameters ?? new Dictionary<string, string?>())
         {
-            if (argument is not null && argument.StartsWith(ParameterReferencePrefix, StringComparison.Ordinal))
+            if (argument is not null && argument.StartsWith(OptionalReferencePrefix, StringComparison.Ordinal))
+            {
+                if (values.TryGetValue(argument[OptionalReferencePrefix.Length..], out var optional))
+                    arguments[name] = optional;
+            }
+            else if (argument is not null && argument.StartsWith(ParameterReferencePrefix, StringComparison.Ordinal))
             {
                 var source = argument[ParameterReferencePrefix.Length..];
                 if (values.TryGetValue(source, out var chosen))
@@ -266,10 +272,15 @@ internal static class DynamicLookupPlanner
     }
 
     /// <summary>Copies a lookup's answer onto the parameter list.</summary>
+    /// <param name="isOutput">
+    /// The list is outputs: read-only fields are kept, and an array's item
+    /// fields are named under <c>{array}[]</c>.
+    /// </param>
     public static IReadOnlyList<OperationParameter> Apply(
         IReadOnlyList<OperationParameter> parameters,
         PlannedLookup lookup,
-        JsonElement response)
+        JsonElement response,
+        bool isOutput = false)
     {
         var index = parameters.ToList().FindIndex(p => p.Name == lookup.Parameter.Name);
         if (index < 0)
@@ -279,11 +290,18 @@ internal static class DynamicLookupPlanner
         if (lookup.Lookup.Kind == SchemaKind)
         {
             var schema = Navigate(response, lookup.Reference.ValuePath) ?? response;
-            var leaves = OperationSchemaReader.ReadSubSchema(schema, lookup.Parameter.Name, lookup.Parameter.Required);
+            var arrayItems = isOutput && lookup.Parameter.Type == "array";
+            var prefix = arrayItems ? lookup.Parameter.Name + "[]" : lookup.Parameter.Name;
+            var leaves = OperationSchemaReader.ReadSubSchema(schema, prefix, lookup.Parameter.Required, includeReadOnly: isOutput);
             if (leaves.Count > 0)
             {
-                result.RemoveAt(index);
-                result.InsertRange(index, leaves);
+                // An array stays listed (it is what a loop runs over); its
+                // item fields follow it.
+                if (arrayItems)
+                    result[index] = result[index] with { DynamicSchema = null };
+                else
+                    result.RemoveAt(index);
+                result.InsertRange(arrayItems ? index + 1 : index, leaves);
             }
         }
         else

@@ -17,7 +17,7 @@ public class ConnectorGetCliCommand : ProfiledCliCommand
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ConnectorGetCliCommand));
 
     [CliArgument(Description = "Connector name, for example shared_commondataserviceforapps or shared_office365.")]
-    public string Connector { get; set; } = string.Empty;
+    public string Connector { get; set; } = null!;
 
     [CliOption(Name = "--search", Description = "Show only operations whose ID or summary contains this text.", Required = false)]
     public string? Search { get; set; }

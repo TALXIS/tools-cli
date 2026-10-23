@@ -78,7 +78,7 @@ internal static partial class FlowSnippet
         };
     }
 
-    private static string StepName(OperationDetail operation)
+    public static string StepName(OperationDetail operation)
     {
         var name = NonIdentifierRegex.Replace(operation.Summary ?? operation.OperationId, "_").Trim('_');
         return string.IsNullOrEmpty(name) ? operation.OperationId : name;

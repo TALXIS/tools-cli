@@ -91,7 +91,10 @@ public sealed record OperationParameter(
 
 /// <summary>
 /// Full specification of one connector operation: what a flow action needs in
-/// <c>type</c>, <c>inputs.host</c> and <c>inputs.parameters</c>.
+/// <c>type</c>, <c>inputs.host</c> and <c>inputs.parameters</c>, and what it
+/// returns. <see cref="Outputs"/> are named by the key expressions read them
+/// with (<c>body/value</c>); fields of array items carry a <c>[]</c> segment
+/// (<c>body/value[]/emailaddress1</c>), read inside a loop over the array.
 /// </summary>
 public sealed record OperationDetail(
     string Connector,
@@ -103,7 +106,8 @@ public sealed record OperationDetail(
     bool IsDeprecated,
     IReadOnlyList<OperationParameter> Parameters,
     JsonElement? ResponseSchema,
-    bool IsTrigger = false);
+    bool IsTrigger = false,
+    IReadOnlyList<OperationParameter>? Outputs = null);
 
 /// <summary>A connection, as shown to a user before it is used on their behalf.</summary>
 public sealed record ConnectionDetail(
@@ -193,6 +197,7 @@ public interface IConnectorMetadataService
     /// False returns the plan without calling the connection. Only pass true
     /// once the connection's owner has agreed to it being used.
     /// </param>
+    /// <param name="output">Resolve only this output (its fields) instead of parameters.</param>
     Task<OperationResolution> ResolveOperationAsync(
         string? profileName,
         string connector,
@@ -201,6 +206,11 @@ public interface IConnectorMetadataService
         string connectionId,
         IReadOnlyDictionary<string, string> values,
         string? parameter,
+        string? output,
         bool useConnection,
         CancellationToken ct);
+
+    /// <summary>A connection's display name, owner and status.</summary>
+    Task<ConnectionDetail> GetConnectionAsync(
+        string? profileName, string connector, string connectionId, CancellationToken ct);
 }

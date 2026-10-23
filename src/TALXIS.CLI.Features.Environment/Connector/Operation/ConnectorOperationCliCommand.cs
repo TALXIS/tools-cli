@@ -8,12 +8,13 @@ namespace TALXIS.CLI.Features.Environment.Connector.Operation;
 /// </summary>
 [CliCommand(
     Name = "operation",
-    Description = "Search connector operations and read their exact parameter specifications.",
+    Description = "Find connector operations, their parameters and outputs, and the values of dynamic ones.",
     Children = new[]
     {
         typeof(ConnectorOperationSearchCliCommand),
         typeof(ConnectorOperationGetCliCommand),
         typeof(Parameter.ConnectorOperationParameterCliCommand),
+        typeof(Output.ConnectorOperationOutputCliCommand),
     },
     ShortFormAutoGenerate = CliNameAutoGenerate.None
 )]

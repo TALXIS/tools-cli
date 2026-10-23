@@ -53,7 +53,70 @@ internal static partial class OperationSchemaReader
             Parameters: parameters,
             // Clone: the owning JsonDocument is disposed by the caller.
             ResponseSchema: JsonRead.Object(properties, "responsesDefinition")?.Clone(),
-            IsTrigger: JsonRead.String(properties, "trigger") is not null);
+            IsTrigger: JsonRead.String(properties, "trigger") is not null,
+            Outputs: ReadOutputs(JsonRead.Object(properties, "responsesDefinition")));
+    }
+
+    /// <summary>
+    /// Reads what the operation returns, keyed by the paths expressions use.
+    /// The first response is used: an operation declares one success shape
+    /// (200, 201, or "webhook" for a webhook trigger).
+    /// </summary>
+    private static IReadOnlyList<OperationParameter> ReadOutputs(JsonElement? responses)
+    {
+        if (responses is not { ValueKind: JsonValueKind.Object } bag)
+            return [];
+
+        var first = bag.EnumerateObject().Select(r => r.Value).FirstOrDefault(v => v.ValueKind == JsonValueKind.Object);
+        if (first.ValueKind != JsonValueKind.Object)
+            return [];
+
+        var outputs = new List<OperationParameter>();
+        WalkOutputs(first, prefix: null, inArrayItem: false, outputs, depth: 0);
+        return outputs;
+    }
+
+    private static void WalkOutputs(JsonElement schema, string? prefix, bool inArrayItem, List<OperationParameter> outputs, int depth)
+    {
+        if (JsonRead.Object(schema, "properties") is not { } members)
+            return;
+
+        foreach (var member in members.EnumerateObject())
+        {
+            var spec = member.Value;
+            if (spec.ValueKind != JsonValueKind.Object
+                || string.Equals(JsonRead.String(spec, "x-ms-visibility"), "internal", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            // The alias is the expression key (body/value); inside an array
+            // item it is relative to the item, so the path is built instead.
+            var name = !inArrayItem && JsonRead.String(spec, "x-ms-property-name-alias") is { Length: > 0 } alias
+                ? alias
+                : prefix is null ? member.Name : $"{prefix}/{member.Name}";
+            var type = JsonRead.String(spec, "type");
+
+            if (type == "array" && JsonRead.Object(spec, "items") is { } items)
+            {
+                var itemSchema = ReadDynamicRef(items, "x-ms-dynamic-schema", "x-ms-dynamic-properties");
+                outputs.Add(ReadParameter(name, spec, required: false) with { Type = "array", DynamicSchema = itemSchema });
+                if (itemSchema is null && depth < MaxFlattenDepth)
+                    WalkOutputs(items, name + "[]", inArrayItem: true, outputs, depth + 1);
+            }
+            else if (ReadDynamicRef(spec, "x-ms-dynamic-schema", "x-ms-dynamic-properties") is { } dynamic)
+            {
+                outputs.Add(ReadParameter(name, spec, required: false) with { Type = type ?? "object", DynamicSchema = dynamic });
+            }
+            else if (JsonRead.Object(spec, "properties") is not null && depth < MaxFlattenDepth)
+            {
+                WalkOutputs(spec, name, inArrayItem, outputs, depth + 1);
+            }
+            else
+            {
+                outputs.Add(ReadParameter(name, spec, required: false));
+            }
+        }
     }
 
     /// <summary>
@@ -90,10 +153,11 @@ internal static partial class OperationSchemaReader
     /// Flattens a sub-schema returned by a dynamic lookup into parameters named
     /// under <paramref name="prefix"/> (<c>body/recipient</c>).
     /// </summary>
-    public static IReadOnlyList<OperationParameter> ReadSubSchema(JsonElement schema, string prefix, bool required)
+    /// <param name="includeReadOnly">True for outputs, where read-only fields (createdon) are what is read.</param>
+    public static IReadOnlyList<OperationParameter> ReadSubSchema(JsonElement schema, string prefix, bool required, bool includeReadOnly = false)
     {
         var parameters = new List<OperationParameter>();
-        ReadObject(schema, prefix, required, parameters, depth: 0);
+        ReadObject(schema, prefix, required, parameters, depth: 0, includeReadOnly);
         return parameters;
     }
 
@@ -102,7 +166,8 @@ internal static partial class OperationSchemaReader
         string? prefix,
         bool ancestorsRequired,
         List<OperationParameter> parameters,
-        int depth)
+        int depth,
+        bool includeReadOnly = false)
     {
         // The payload uses "properties" for JSON-schema-shaped inputs and
         // "parameters" for the flattened form; both appear in the wild.
@@ -115,7 +180,7 @@ internal static partial class OperationSchemaReader
         foreach (var member in members.EnumerateObject())
         {
             var spec = member.Value;
-            if (spec.ValueKind != JsonValueKind.Object || IsReadOnly(spec))
+            if (spec.ValueKind != JsonValueKind.Object || (!includeReadOnly && IsReadOnly(spec)))
                 continue;
 
             var name = prefix is null ? member.Name : $"{prefix}/{member.Name}";
@@ -126,7 +191,7 @@ internal static partial class OperationSchemaReader
             if (!HasDynamicSchema(spec) && JsonRead.Object(spec, "properties") is not null && depth < MaxFlattenDepth)
             {
                 var before = parameters.Count;
-                ReadObject(spec, name, required, parameters, depth + 1);
+                ReadObject(spec, name, required, parameters, depth + 1, includeReadOnly);
                 if (parameters.Count > before)
                     continue;
             }
@@ -251,8 +316,10 @@ internal static partial class OperationSchemaReader
         if (argument.ValueKind != JsonValueKind.Object)
             return ToScalarString(argument) ?? argument.GetRawText();
 
+        // An optional input (e.g. $select for a row's fields) is passed when
+        // chosen and left out otherwise; "$ref?:" marks it.
         if (JsonRead.String(argument, "parameterReference") is { } reference)
-            return "$ref:" + reference;
+            return (argument.TryGetProperty("required", out var required) && required.ValueKind == JsonValueKind.False ? "$ref?:" : "$ref:") + reference;
 
         if (argument.TryGetProperty("value", out var literal))
             return ToScalarString(literal) ?? literal.GetRawText();

@@ -20,8 +20,37 @@ internal static class OperationTextRenderer
             OutputWriter.WriteLine("DEPRECATED: use the current replacement operation.");
         OutputWriter.WriteLine(string.Empty);
 
-        if (spec.Parameters.Count == 0) { OutputWriter.WriteLine("This operation takes no parameters."); return; }
-        PrintParameters(spec.Parameters);
+        if (spec.Parameters.Count == 0)
+            OutputWriter.WriteLine("This operation takes no parameters.");
+        else
+            PrintParameters(spec.Parameters);
+
+        if (spec.Outputs.Count > 0)
+        {
+            OutputWriter.WriteLine(string.Empty);
+            OutputWriter.WriteLine("Outputs (read them in later steps with the expression shown):");
+            PrintOutputs(spec.Outputs);
+        }
+    }
+
+    public static void PrintOutputs(IReadOnlyList<OutputView> outputs)
+    {
+        var keyWidth = Math.Max(outputs.Max(o => o.Key.Length), 20);
+        var indent = new string(' ', keyWidth);
+        var header = $"{"Output".PadRight(keyWidth)} | {"Type".PadRight(8)} | Description";
+        OutputWriter.WriteLine(header);
+        OutputWriter.WriteLine(new string('-', header.Length));
+
+        foreach (var o in outputs)
+        {
+            OutputWriter.WriteLine($"{o.Key.PadRight(keyWidth)} | {(o.Type ?? "-").PadRight(8)} | {o.Description}");
+            OutputWriter.WriteLine($"{indent} | read: {o.Expression}");
+            if (o.GetFields is not null)
+            {
+                var after = o.DependsOn is { Count: > 0 } d ? $" (after choosing {string.Join(", ", d)})" : string.Empty;
+                OutputWriter.WriteLine($"{indent} | fields{after}: {o.GetFields}");
+            }
+        }
     }
 
     public static void PrintParameters(IReadOnlyList<ParameterView> parameters)
@@ -56,7 +85,7 @@ internal static class OperationTextRenderer
     public static void PrintSnippet(System.Text.Json.Nodes.JsonObject snippet)
     {
         OutputWriter.WriteLine(string.Empty);
-        OutputWriter.WriteLine("Snippet - merge into the flow's properties.connectionReferences and properties.definition (replace <placeholders>):");
+        OutputWriter.WriteLine("Snippet (replace <placeholders>): put the connectionReferences entry into properties.connectionReferences, and the step into properties.definition.triggers or properties.definition.actions as its key says:");
         // Relaxed escaping so <placeholders> and @parameters('...') read as
         // they will be pasted; the JSON output mode keeps the standard encoder.
         using var buffer = new MemoryStream();

@@ -17,7 +17,7 @@ public class ConnectorOperationSearchCliCommand : ProfiledCliCommand
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ConnectorOperationSearchCliCommand));
 
     [CliArgument(Description = "Text to search for in operation names and descriptions, for example \"send email\".")]
-    public string Search { get; set; } = string.Empty;
+    public string Search { get; set; } = null!;
 
     [CliOption(Name = "--connector", Description = "Limit the search to one connector, for example shared_office365.", Required = false)]
     public string? Connector { get; set; }
