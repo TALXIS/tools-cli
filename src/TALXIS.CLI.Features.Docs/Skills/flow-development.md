@@ -71,7 +71,7 @@ Rules:
 - **`values from: <operation>`** — allowed values are fetched at design time (e.g. `entityName` from `GetEntities`), so there is no enum to copy.
 - **`sub-schema from: <operation>`** — the parameter is an object whose fields depend on other parameters; `$ref:<name>` shows which.
 
-**Dataverse rows are the common case and can be grounded.** For `shared_commondataserviceforapps` the `item` of `CreateRecord`/`UpdateRecord` is resolved from `entityName`: its keys are `item/<column logical name>`, with `@odata.bind` for lookups (`item/primarycontactid@odata.bind`). `entityName` is the table's entity set name (plural, e.g. `accounts`). Take the column names from the workspace's table definition, or `environment_entity_describe` for a deployed table, never from memory.
+**Dataverse rows are the common case.** For `shared_commondataserviceforapps` the `item` of `CreateRecord`/`UpdateRecord` is resolved from `entityName`: its keys are `item/<column logical name>`, with `@odata.bind` for lookups (`item/parentcustomerid_account@odata.bind`). Actions take the table's entity set name (`contacts`), the trigger its logical name (`account`). With a bound Dataverse connection reference, resolve them as below: you get every settable column, which are required, and the exact `@odata.bind` keys. Without one, take the column names from the workspace's table definition, or `environment_entity_describe` for a deployed table, never from memory.
 
 **Anything else is resolved through a connection, with the user's consent.** The designer fills these fields by calling the connector's lookup operations through a connection, and `environment_connector_operation_resolve` makes the same calls. Because a connection acts as the person who owns it, this is always two steps:
 
@@ -79,7 +79,7 @@ Rules:
 2. **Ask** → show the user that plan in plain words: which connection and who owns it, that the calls run as that person, which lookups and what they return, and that nothing is created or changed. Ask whether to go ahead. Do not phrase it as a request for them to do the work.
 3. **Run** → only if they agree, repeat the call with `--use-connection`. The output lists the resolved keys (`body/recipient`, `body/messageBody`) and allowed values; copy them as with `operation_get`.
 
-If a lookup is `skipped`, its reason says what is missing: usually another `--value` (resolve in the order the `$ref:`s imply), a bound connection, or a lookup txc does not make (only GETs are sent through a connection). If no connection reference for the connector is bound, ask the user to bind one; never create connections, flows or anything else in the environment to discover field names, and never ask the user to build a sample flow.
+If a lookup is `skipped`, its reason says what is missing: usually another `--value` (resolve in the order the `$ref:`s imply), a bound connection, or a lookup txc does not make (only the GET and POST lookups the operation's metadata names are sent through a connection; never PUT, PATCH or DELETE). If no connection reference for the connector is bound, ask the user to bind one; never create connections, flows or anything else in the environment to discover field names, and never ask the user to build a sample flow.
 
 ## What NOT to Do
 

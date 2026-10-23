@@ -173,7 +173,11 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
             connection = ReadConnection(connectionId, document.RootElement);
         }
 
-        var plan = DynamicLookupPlanner.Plan(detail, connectorDocument.RootElement, connectionId, values);
+        var (lookupSource, lookupValues) = await ResolveLookupSourceAsync(
+            target, connector, operation, detail, values, ct).ConfigureAwait(false);
+        var plan = DynamicLookupPlanner.Plan(lookupSource, connectorDocument.RootElement, connectionId, lookupValues)
+            .Where(p => detail.Parameters.Any(d => d.Name == p.Parameter.Name))
+            .ToList();
         if (!useConnection)
             return new OperationResolution(detail, connectionReference, connection, false, plan.Select(p => p.Lookup).ToList());
 
@@ -191,7 +195,8 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
 
             try
             {
-                using var response = await _client.SendAsync(HttpMethod.Get, planned.RequestUri, runtimeToken, null, ct)
+                using var response = await _client.SendAsync(
+                        planned.Method ?? HttpMethod.Get, planned.RequestUri, runtimeToken, planned.Body, ct, planned.Headers)
                     .ConfigureAwait(false);
                 parameters = DynamicLookupPlanner.Apply(parameters, planned, response.RootElement);
                 lookups.Add(planned.Lookup with { Status = DynamicLookupStatus.Resolved });
@@ -206,6 +211,47 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
         }
 
         return new OperationResolution(detail with { Parameters = parameters }, connectionReference, connection, true, lookups);
+    }
+
+    /// <summary>
+    /// The operation whose lookups to plan, and the values to plan them with.
+    /// Usually the operation itself; see
+    /// <see cref="PowerAutomateEndpointProvider.EnvironmentScopedTwin"/> for the
+    /// exception, where the twin's lookups are used and the environment is the
+    /// profile's own.
+    /// </summary>
+    private async Task<(OperationDetail Source, IReadOnlyDictionary<string, string> Values)> ResolveLookupSourceAsync(
+        EnvironmentTarget target,
+        string connector,
+        string operation,
+        OperationDetail detail,
+        IReadOnlyDictionary<string, string> values,
+        CancellationToken ct)
+    {
+        if (PowerAutomateEndpointProvider.EnvironmentScopedTwin(connector, operation) is not { } twin
+            || string.IsNullOrWhiteSpace(target.Connection.EnvironmentUrl))
+        {
+            return (detail, values);
+        }
+
+        try
+        {
+            using var document = await _client.SendAsync(
+                HttpMethod.Get, PowerAutomateEndpointProvider.Operation(target.BaseUri, connector, twin.Operation), target.Token, null, ct)
+                .ConfigureAwait(false);
+
+            var withEnvironment = new Dictionary<string, string>(values, StringComparer.Ordinal)
+            {
+                [twin.EnvironmentParameter] = target.Connection.EnvironmentUrl.TrimEnd('/'),
+            };
+            return (OperationSchemaReader.Read(connector, twin.Operation, document.RootElement), withEnvironment);
+        }
+        catch (ArgumentException ex)
+        {
+            // No twin for this operation: plan its own lookups.
+            _logger.LogDebug(ex, "No {Twin} twin for {Operation}.", twin.Operation, operation);
+            return (detail, values);
+        }
     }
 
     private static ConnectionDetail ReadConnection(string connectionId, JsonElement payload)

@@ -56,11 +56,12 @@ internal sealed class PowerAutomateApiClient
         Uri requestUri,
         string token,
         JsonNode? jsonBody,
-        CancellationToken ct)
+        CancellationToken ct,
+        IReadOnlyDictionary<string, string>? headers = null)
     {
         for (var attempt = 0; ; attempt++)
         {
-            var (status, body) = await SendOnceAsync(method, requestUri, token, jsonBody, ct).ConfigureAwait(false);
+            var (status, body) = await SendOnceAsync(method, requestUri, token, jsonBody, headers, ct).ConfigureAwait(false);
 
             if ((int)status is >= 200 and < 300)
                 return Parse(body, requestUri);
@@ -82,12 +83,15 @@ internal sealed class PowerAutomateApiClient
         Uri requestUri,
         string token,
         JsonNode? jsonBody,
+        IReadOnlyDictionary<string, string>? headers,
         CancellationToken ct)
     {
         using var http = _httpFactory.Create();
         using var request = new HttpRequestMessage(method, requestUri);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        foreach (var (name, value) in headers ?? new Dictionary<string, string>())
+            request.Headers.TryAddWithoutValidation(name, value);
 
         if (jsonBody is not null)
             request.Content = new StringContent(jsonBody.ToJsonString(), Encoding.UTF8, "application/json");

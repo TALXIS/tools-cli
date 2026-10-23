@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using TALXIS.CLI.Core.Platforms.PowerPlatform;
 
 namespace TALXIS.CLI.Platform.PowerPlatform.Control.PowerAutomate;
@@ -10,9 +11,10 @@ namespace TALXIS.CLI.Platform.PowerPlatform.Control.PowerAutomate;
 /// </summary>
 /// <remarks>
 /// Only lookups named by the operation's own <c>x-ms-dynamic-*</c> metadata
-/// are planned, and only GETs: these are the calls the flow designer makes
-/// while an action is being configured, and nothing else is ever sent through
-/// the user's connection.
+/// are planned, and only GETs and POSTs: these are the calls the flow designer
+/// makes while an action is being configured (some connectors, such as
+/// Dataverse, declare their lookups as POSTs). Nothing else is ever sent
+/// through the user's connection.
 /// </remarks>
 internal static class DynamicLookupPlanner
 {
@@ -22,7 +24,19 @@ internal static class DynamicLookupPlanner
 
     private const string ParameterReferencePrefix = "$ref:";
 
-    internal sealed record PlannedLookup(OperationParameter Parameter, DynamicValuesRef Reference, DynamicLookup Lookup, Uri? RequestUri);
+    private const string BodyArgumentPrefix = "body/";
+
+    private static readonly string[] AllowedMethods = ["GET", "POST"];
+
+    /// <summary>The request to make for a lookup, or nulls when it is skipped.</summary>
+    internal sealed record PlannedLookup(
+        OperationParameter Parameter,
+        DynamicValuesRef Reference,
+        DynamicLookup Lookup,
+        Uri? RequestUri,
+        HttpMethod? Method = null,
+        IReadOnlyDictionary<string, string>? Headers = null,
+        JsonObject? Body = null);
 
     public static IReadOnlyList<PlannedLookup> Plan(
         OperationDetail operation,
@@ -101,8 +115,8 @@ internal static class DynamicLookupPlanner
             return Skip("Folder and file pickers are browsed interactively; choose the path with the user.");
         if (found is null)
             return Skip("The lookup operation is not in the connector definition.");
-        if (!string.Equals(method, "GET", StringComparison.OrdinalIgnoreCase))
-            return Skip($"The lookup is a {method}; only GET lookups are made through a connection.");
+        if (!AllowedMethods.Contains(method, StringComparer.OrdinalIgnoreCase))
+            return Skip($"The lookup is a {method}; only GET and POST lookups are made through a connection.");
         if (missing.Count > 0)
             return Skip("Needs a value for " + string.Join(", ", missing.Select(m => $"'{m}'")) + " first (pass --value <name>=<value>).");
         if (string.IsNullOrWhiteSpace(runtimeUrl))
@@ -113,9 +127,14 @@ internal static class DynamicLookupPlanner
             return Skip($"The lookup needs '{unfilled}', which the operation metadata does not supply.");
 
         return new PlannedLookup(parameter, reference,
-            new DynamicLookup(parameter.Name, kind, reference.OperationId, method, request, arguments, DynamicLookupStatus.Planned, null),
-            new Uri(runtimeUrl!.TrimEnd('/') + request));
+            new DynamicLookup(parameter.Name, kind, reference.OperationId, method, request.Path, arguments, DynamicLookupStatus.Planned, null),
+            new Uri(runtimeUrl!.TrimEnd('/') + request.Path),
+            new HttpMethod(method),
+            request.Headers.Count == 0 ? null : request.Headers,
+            request.Body);
     }
+
+    private sealed record LookupRequest(string Path, Dictionary<string, string> Headers, JsonObject? Body);
 
     private readonly record struct SwaggerOperation(string Method, string Path, JsonElement Definition);
 
@@ -143,10 +162,12 @@ internal static class DynamicLookupPlanner
     }
 
     /// <summary>
-    /// Renders the lookup's relative request: path parameters substituted,
-    /// query parameters appended. <c>connectionId</c> is the connection itself.
+    /// Renders the lookup's request from its swagger: path parameters
+    /// substituted, query parameters appended, declared headers set, and
+    /// <c>body/…</c> arguments assembled into the JSON body.
+    /// <c>connectionId</c> is the connection itself.
     /// </summary>
-    private static string BuildRequest(
+    private static LookupRequest BuildRequest(
         JsonElement swagger,
         SwaggerOperation operation,
         string connectionId,
@@ -156,6 +177,8 @@ internal static class DynamicLookupPlanner
         unfilled = null;
         var path = operation.Path;
         var query = new StringBuilder();
+        var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        JsonObject? body = null;
 
         if (operation.Definition.TryGetProperty("parameters", out var declared) && declared.ValueKind == JsonValueKind.Array)
         {
@@ -163,9 +186,15 @@ internal static class DynamicLookupPlanner
             {
                 var parameter = ResolveRef(swagger, raw);
                 var name = JsonRead.String(parameter, "name");
-                var location = JsonRead.String(parameter, "in");
+                var location = JsonRead.String(parameter, "in")?.ToLowerInvariant();
                 if (name is null || location is null)
                     continue;
+
+                if (location == "body")
+                {
+                    body = BuildBody(arguments);
+                    continue;
+                }
 
                 var value = string.Equals(name, "connectionId", StringComparison.Ordinal)
                     ? connectionId
@@ -174,31 +203,65 @@ internal static class DynamicLookupPlanner
                         : parameter.TryGetProperty("default", out var fallback) ? ScalarText(fallback) : null;
 
                 var required = parameter.TryGetProperty("required", out var flag) && flag.ValueKind == JsonValueKind.True;
-
-                if (string.Equals(location, "path", StringComparison.OrdinalIgnoreCase))
+                if (value is null)
                 {
-                    if (value is null)
+                    if (required || location == "path")
                     {
                         unfilled = name;
-                        return path;
+                        return new LookupRequest(path, headers, body);
                     }
 
-                    path = path.Replace("{" + name + "}", Uri.EscapeDataString(value), StringComparison.Ordinal);
+                    continue;
                 }
-                else if (string.Equals(location, "query", StringComparison.OrdinalIgnoreCase) && value is not null)
+
+                switch (location)
                 {
-                    query.Append(query.Length == 0 ? '?' : '&')
-                        .Append(Uri.EscapeDataString(name)).Append('=').Append(Uri.EscapeDataString(value));
-                }
-                else if (string.Equals(location, "query", StringComparison.OrdinalIgnoreCase) && required)
-                {
-                    unfilled = name;
-                    return path;
+                    case "path":
+                        path = path.Replace("{" + name + "}", Uri.EscapeDataString(value), StringComparison.Ordinal);
+                        break;
+                    case "query":
+                        query.Append(query.Length == 0 ? '?' : '&')
+                            .Append(Uri.EscapeDataString(name)).Append('=').Append(Uri.EscapeDataString(value));
+                        break;
+                    case "header":
+                        headers[name] = value;
+                        break;
                 }
             }
         }
 
-        return path + query;
+        return new LookupRequest(path + query, headers, body);
+    }
+
+    /// <summary>
+    /// Nests <c>body/a/b=value</c> arguments into <c>{ "a": { "b": "value" } }</c>,
+    /// the same flattening flow definitions use, reversed.
+    /// </summary>
+    private static JsonObject BuildBody(IReadOnlyDictionary<string, string?> arguments)
+    {
+        var body = new JsonObject();
+        foreach (var (name, value) in arguments)
+        {
+            if (!name.StartsWith(BodyArgumentPrefix, StringComparison.Ordinal) || value is null)
+                continue;
+
+            var segments = name[BodyArgumentPrefix.Length..].Split('/');
+            var node = body;
+            foreach (var segment in segments[..^1])
+            {
+                if (node[segment] is not JsonObject child)
+                {
+                    child = new JsonObject();
+                    node[segment] = child;
+                }
+
+                node = child;
+            }
+
+            node[segments[^1]] = value;
+        }
+
+        return body;
     }
 
     /// <summary>Copies a lookup's answer onto the parameter list.</summary>
@@ -226,13 +289,23 @@ internal static class DynamicLookupPlanner
         {
             var allowed = ReadValues(response, lookup.Reference);
             if (allowed.Count > 0)
-                result[index] = result[index] with { AllowedValues = allowed };
+            {
+                var labels = allowed
+                    .Where(v => v.Title is not null && v.Title != v.Value)
+                    .GroupBy(v => v.Value)
+                    .ToDictionary(g => g.Key, g => g.First().Title!);
+                result[index] = result[index] with
+                {
+                    AllowedValues = allowed.Select(v => v.Value).ToList(),
+                    ValueLabels = labels.Count == 0 ? null : labels,
+                };
+            }
         }
 
         return result;
     }
 
-    private static IReadOnlyList<string> ReadValues(JsonElement response, DynamicValuesRef reference)
+    private static IReadOnlyList<(string Value, string? Title)> ReadValues(JsonElement response, DynamicValuesRef reference)
     {
         var collection = Navigate(response, reference.ItemsPath)
             ?? (response.ValueKind == JsonValueKind.Array ? response : Navigate(response, "value"));
@@ -240,13 +313,25 @@ internal static class DynamicLookupPlanner
         if (collection is not { ValueKind: JsonValueKind.Array } items)
             return [];
 
-        return items.EnumerateArray()
-            .Select(item => ScalarText(Navigate(item, reference.ValuePath) ?? item))
-            .OfType<string>()
-            .ToList();
+        var values = new List<(string, string?)>();
+        foreach (var item in items.EnumerateArray())
+        {
+            if (ScalarText(Navigate(item, reference.ValuePath) ?? item) is not { } value)
+                continue;
+
+            var title = Navigate(item, reference.TitlePath) is { } t ? ScalarText(t) : null;
+            values.Add((value, title));
+        }
+
+        return values;
     }
 
-    /// <summary>Follows a <c>a/b</c> or <c>a.b</c> path; null when any step is absent.</summary>
+    /// <summary>
+    /// Follows a <c>a/b</c> or <c>a.b</c> path; null when any step is absent.
+    /// Matching falls back to ignoring case: connector metadata names paths
+    /// in PascalCase (<c>LogicalName</c>) while some responses are camelCase
+    /// (<c>logicalName</c>), as the Dataverse lookups are.
+    /// </summary>
     internal static JsonElement? Navigate(JsonElement element, string? path)
     {
         if (string.IsNullOrWhiteSpace(path))
@@ -255,8 +340,21 @@ internal static class DynamicLookupPlanner
         var current = element;
         foreach (var segment in path.Split('/', '.', StringSplitOptions.RemoveEmptyEntries))
         {
-            if (current.ValueKind != JsonValueKind.Object || !current.TryGetProperty(segment, out current))
+            if (current.ValueKind != JsonValueKind.Object)
                 return null;
+
+            if (current.TryGetProperty(segment, out var exact))
+            {
+                current = exact;
+                continue;
+            }
+
+            var match = current.EnumerateObject()
+                .FirstOrDefault(p => string.Equals(p.Name, segment, StringComparison.OrdinalIgnoreCase));
+            if (match.Value.ValueKind == JsonValueKind.Undefined)
+                return null;
+
+            current = match.Value;
         }
 
         return current;

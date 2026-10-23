@@ -6,6 +6,8 @@ namespace TALXIS.CLI.Features.Environment.Connector.Operation;
 /// <summary>Text rendering of an operation spec, shared by 'operation get' and 'operation resolve'.</summary>
 internal static class OperationTextRenderer
 {
+    private const int MaxValuesShown = 25;
+
     // Text-renderer callbacks invoked by OutputFormatter — OutputWriter usage is intentional.
 #pragma warning disable TXC003
     public static void Print(OperationDetail operation)
@@ -31,7 +33,13 @@ internal static class OperationTextRenderer
             OutputWriter.WriteLine($"{p.Name.PadRight(nameWidth)} | {(p.Type ?? "-").PadRight(8)} | {(p.Required ? "yes" : "no ")} | {p.Description}");
 
             if (p.AllowedValues is { Count: > 0 } allowed)
-                OutputWriter.WriteLine($"{indent} | allowed: {string.Join(", ", allowed)}");
+            {
+                // Long lists (e.g. every table) are summarised; --format json has them all.
+                var shown = allowed.Take(MaxValuesShown)
+                    .Select(v => p.ValueLabels?.TryGetValue(v, out var label) == true ? $"{v} ({label})" : v);
+                var more = allowed.Count > MaxValuesShown ? $", ... {allowed.Count - MaxValuesShown} more (use --format json)" : string.Empty;
+                OutputWriter.WriteLine($"{indent} | allowed: {string.Join(", ", shown)}{more}");
+            }
 
             // Without these the parameter looks free-form when its values, or
             // its whole sub-schema, are resolved by another call.

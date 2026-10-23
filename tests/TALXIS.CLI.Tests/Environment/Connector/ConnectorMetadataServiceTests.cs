@@ -142,7 +142,7 @@ public class ConnectorMetadataServiceTests
     /// <summary>
     /// A Teams-shaped connector: location values come from a GET lookup that
     /// depends on poster, the body schema from a GET lookup that depends on
-    /// both, and one value list from a POST lookup that must never be called.
+    /// both, and one value list from a DELETE lookup that must never be called.
     /// </summary>
     private static Fake TeamsFake() => new(request =>
     {
@@ -183,7 +183,7 @@ public class ConnectorMetadataServiceTests
                     "/{connectionId}/flowbot/actions/{actionType}/posters/{poster}/recipienttypes/{recipientType}/schema": { "get": { "operationId": "GetUnifiedActionSchema",
                       "parameters": [ { "name": "connectionId", "in": "path" }, { "name": "actionType", "in": "path" },
                                       { "name": "poster", "in": "path" }, { "name": "recipientType", "in": "path" } ] } },
-                    "/{connectionId}/tags/search": { "post": { "operationId": "SearchTags" } }
+                    "/{connectionId}/tags/search": { "delete": { "operationId": "SearchTags" } }
                   } } } }
                 """);
         return Json(HttpStatusCode.NotFound, "{}");
@@ -239,7 +239,7 @@ public class ConnectorMetadataServiceTests
     }
 
     [Fact]
-    public async Task Resolve_NeverSendsAPostLookupThroughTheConnection()
+    public async Task Resolve_NeverSendsAWritingMethodThroughTheConnection()
     {
         var fake = TeamsFake();
 
@@ -247,14 +247,94 @@ public class ConnectorMetadataServiceTests
 
         var tag = Assert.Single(result.Lookups, l => l.Parameter == "tag");
         Assert.Equal("skipped", tag.Status);
-        Assert.Contains("POST", tag.Reason);
-        Assert.DoesNotContain(fake.Requests, r => r.Method == HttpMethod.Post);
+        Assert.Contains("DELETE", tag.Reason);
+        Assert.DoesNotContain(fake.Requests, r => r.Method == HttpMethod.Delete);
+    }
+
+    private const string DataverseRuntime = "https://env.common.europe002.azure-apihub.net/apim/commondataserviceforapps";
+
+    /// <summary>
+    /// Dataverse-shaped connector, as verified live: the current-environment
+    /// operation's own lookups cannot be called directly, its WithOrganization
+    /// twin declares the environment as a header, some lookups are POSTs with
+    /// a body, and the response is camelCase while the metadata paths are PascalCase.
+    /// </summary>
+    private static Fake DataverseFake() => new(request =>
+    {
+        var uri = request.RequestUri!.ToString();
+        if (uri.StartsWith(DataverseRuntime + "/" + ConnectionId + "/v1.0/$metadata.json/GetEntityListEnum/GetScopeFilters", StringComparison.Ordinal))
+            return Json(HttpStatusCode.OK, """{ "value": [ { "value": 1, "displayName": "User" }, { "value": 4, "displayName": "Organization" } ] }""");
+        if (uri.Contains("/apiOperations/SubscribeWebhookTriggerWithOrganization", StringComparison.Ordinal))
+            return Json(HttpStatusCode.OK, """
+                { "properties": { "inputsDefinition": { "properties": {
+                  "organization": { "type": "string", "x-ms-dynamic-list": { "operationId": "GetOrganizations", "parameters": {} } },
+                  "subscriptionRequest": { "type": "object", "required": [ "scope" ], "properties": {
+                    "entityname": { "type": "string" },
+                    "scope": { "type": "integer", "x-ms-dynamic-list": { "operationId": "GetScopeFiltersWithOrganization",
+                      "itemsPath": "value", "itemValuePath": "Value", "itemTitlePath": "DisplayName",
+                      "parameters": { "organization": { "parameterReference": "organization" },
+                                      "body/entityName": { "parameterReference": "subscriptionRequest/entityname" } } } } } }
+                } } } }
+                """);
+        if (uri.Contains("/apiOperations/SubscribeWebhookTrigger", StringComparison.Ordinal))
+            return Json(HttpStatusCode.OK, """
+                { "properties": { "inputsDefinition": { "properties": {
+                  "subscriptionRequest": { "type": "object", "required": [ "scope" ], "properties": {
+                    "entityname": { "type": "string" },
+                    "scope": { "type": "integer", "x-ms-dynamic-list": { "operationId": "GetScopeFilters",
+                      "parameters": { "entityName": { "parameterReference": "subscriptionRequest/entityname" } } } } } }
+                } } } }
+                """);
+        if (uri.Contains("api.powerapps.com", StringComparison.Ordinal))
+            return Json(HttpStatusCode.OK, """{ "properties": { "statuses": [ { "status": "Connected" } ] } }""");
+        if (uri.Contains("/powerautomate/apis/shared_commondataserviceforapps?", StringComparison.Ordinal))
+            return Json(HttpStatusCode.OK, $$"""
+                { "properties": { "primaryRuntimeUrl": "{{DataverseRuntime}}", "swagger": { "paths": {
+                  "/{connectionId}/entities/{entityName}/scopefilters": { "get": { "operationId": "GetScopeFilters",
+                    "parameters": [ { "name": "connectionId", "in": "path" }, { "name": "entityName", "in": "path", "required": true } ] } },
+                  "/{connectionId}/v1.0/$metadata.json/GetEntityListEnum/GetScopeFiltersWithOrganization": { "post": { "operationId": "GetScopeFiltersWithOrganization",
+                    "parameters": [ { "name": "connectionId", "in": "path" }, { "name": "organization", "in": "header", "required": true },
+                                    { "name": "body", "in": "body", "required": true } ] } }
+                } } } }
+                """);
+        return Json(HttpStatusCode.NotFound, "{}");
+    });
+
+    [Fact]
+    public async Task Resolve_Dataverse_UsesTheTwinWhoseLookupsDeclareTheEnvironment()
+    {
+        var fake = DataverseFake();
+
+        var result = await fake.Service.ResolveOperationAsync(
+            null, "shared_commondataserviceforapps", "SubscribeWebhookTrigger", "mtj_dataverse", ConnectionId,
+            new Dictionary<string, string> { ["subscriptionRequest/entityname"] = "account" }, useConnection: true, CancellationToken.None);
+
+        var lookup = Assert.Single(result.Lookups);
+        Assert.Equal("GetScopeFiltersWithOrganization", lookup.OperationId);
+        Assert.Equal("resolved", lookup.Status);
+
+        // A declared POST, with the environment as its declared header and the
+        // body/... arguments nested into the JSON body.
+        var call = Assert.Single(fake.Requests, r => r.Uri.ToString().StartsWith(DataverseRuntime, StringComparison.Ordinal));
+        Assert.Equal(HttpMethod.Post, call.Method);
+        Assert.Equal("https://example.crm4.dynamics.com", call.Headers["organization"]);
+        using var body = JsonDocument.Parse(call.Body!);
+        Assert.Equal("account", body.RootElement.GetProperty("entityName").GetString());
+
+        // Answers land on the operation that was asked about, which has no
+        // organization parameter of its own. PascalCase paths match camelCase JSON.
+        Assert.Equal("SubscribeWebhookTrigger", result.Operation.OperationId);
+        Assert.DoesNotContain(result.Operation.Parameters, p => p.Name == "organization");
+        var scope = Assert.Single(result.Operation.Parameters, p => p.Name == "subscriptionRequest/scope");
+        Assert.Equal(["1", "4"], scope.AllowedValues);
+        Assert.Equal("Organization", scope.ValueLabels!["4"]);
     }
 
     private static HttpResponseMessage Json(HttpStatusCode status, string body)
         => new(status) { Content = new StringContent(body) };
 
-    private sealed record RecordedRequest(HttpMethod Method, Uri Uri, string? Authorization, string? Body);
+    private sealed record RecordedRequest(
+        HttpMethod Method, Uri Uri, string? Authorization, string? Body, IReadOnlyDictionary<string, string> Headers);
 
     private sealed class Fake : IAccessTokenService, IHttpClientFactoryWrapper, IConfigurationResolver
     {
@@ -304,7 +384,8 @@ public class ConnectorMetadataServiceTests
             protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
             {
                 var body = request.Content is null ? null : await request.Content.ReadAsStringAsync(ct);
-                owner.Requests.Add(new RecordedRequest(request.Method, request.RequestUri!, request.Headers.Authorization?.ToString(), body));
+                var headers = request.Headers.ToDictionary(h => h.Key, h => string.Join(",", h.Value), StringComparer.OrdinalIgnoreCase);
+                owner.Requests.Add(new RecordedRequest(request.Method, request.RequestUri!, request.Headers.Authorization?.ToString(), body, headers));
                 return owner._handler(request);
             }
         }

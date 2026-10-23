@@ -73,6 +73,8 @@ public sealed record DynamicValuesRef(
 /// The spec for a single operation input. <see cref="Name"/> is the exact key
 /// a flow definition uses in <c>inputs.parameters</c>: nested body fields are
 /// slash-joined (<c>emailMessage/To</c>), as the designer writes them.
+/// <see cref="ValueLabels"/> maps an allowed value to what the designer shows
+/// for it (<c>3</c> → <c>Modified</c>) when a lookup supplied one.
 /// </summary>
 public sealed record OperationParameter(
     string Name,
@@ -84,7 +86,8 @@ public sealed record OperationParameter(
     string? Visibility,
     DynamicValuesRef? DynamicValues,
     DynamicValuesRef? DynamicTree,
-    DynamicValuesRef? DynamicSchema);
+    DynamicValuesRef? DynamicSchema,
+    IReadOnlyDictionary<string, string>? ValueLabels = null);
 
 /// <summary>
 /// Full specification of one connector operation: what a flow action needs in

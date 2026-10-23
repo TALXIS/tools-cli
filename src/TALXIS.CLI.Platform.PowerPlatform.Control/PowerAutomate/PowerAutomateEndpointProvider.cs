@@ -87,6 +87,26 @@ internal static class PowerAutomateEndpointProvider
             $"?api-version={PowerAppsApiVersion}&$filter={filter}");
     }
 
+    /// <summary>
+    /// For an operation whose lookups only work when the caller supplies the
+    /// environment implicitly, the twin operation whose lookups declare it, and
+    /// the name of that declared parameter.
+    /// </summary>
+    /// <remarks>
+    /// Verified live on the "current environment" Dataverse connector: its own
+    /// lookups answer <c>Invalid organization URL 'null'</c>, and even with the
+    /// environment passed as a header its <c>$metadata.json</c> routes return
+    /// 404 — the designer relies on routing it does not publish. Every such
+    /// operation has a <c>...WithOrganization</c> twin with the same parameters
+    /// whose lookups take the environment as a declared <c>organization</c>
+    /// header, and those resolve when called directly.
+    /// </remarks>
+    public static (string Operation, string EnvironmentParameter)? EnvironmentScopedTwin(string connector, string operation)
+        => string.Equals(connector, "shared_commondataserviceforapps", StringComparison.OrdinalIgnoreCase)
+            && !operation.EndsWith("WithOrganization", StringComparison.Ordinal)
+                ? (operation + "WithOrganization", "organization")
+                : null;
+
     /// <summary>The id a flow definition uses to reference a connector.</summary>
     public static string BuildApiId(string connector)
         => $"/providers/Microsoft.PowerApps/apis/{connector}";
