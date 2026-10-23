@@ -49,7 +49,7 @@ public class ConnectorOperationListCliCommand : ProfiledCliCommand
         return ExitSuccess;
     }
 
-    // Text-renderer callback invoked by OutputFormatter.WriteList — OutputWriter usage is intentional.
+    // Text-renderer callback invoked by OutputFormatter.WriteList, so OutputWriter usage is intentional.
 #pragma warning disable TXC003
     private static void PrintTable(IReadOnlyList<ConnectorOperationSummary> operations)
     {

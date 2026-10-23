@@ -149,7 +149,7 @@ public sealed class ConnectorCatalogServiceTests
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(
             () => sut.ListOperationsAsync(null, "shared_missing", CancellationToken.None));
-        Assert.Contains("was not found in the environment", ex.Message);
+        Assert.Contains("or the environment was not found", ex.Message);
         Assert.Contains("connector list", ex.Message);
     }
 

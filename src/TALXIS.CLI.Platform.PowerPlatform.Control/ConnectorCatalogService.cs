@@ -105,10 +105,11 @@ public sealed class ConnectorCatalogService : IConnectorCatalogService
             $"providers/Microsoft.PowerApps/apis/{Uri.EscapeDataString(connectorName)}?api-version={PowerAppsEndpointProvider.ApiVersion}&$expand=properties.swagger&$filter={BuildEnvironmentFilter(environmentId)}");
 
         var response = await _client.SendAsync(HttpMethod.Get, requestUri, token, jsonBody: null, ct).ConfigureAwait(false);
+        // The API answers 404 for a deleted environment too, so the body tells the two apart.
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
             throw new InvalidOperationException(
-                $"Connector '{connectorName}' was not found in the environment. Verify the connector name with 'txc environment connector list'.");
+                $"Connector '{connectorName}' or the environment was not found. Verify the connector name with 'txc environment connector list'. Response: {BapAdminApiClient.Truncate(response.Body, 300)}");
         }
 
         if (!response.IsSuccess)

@@ -39,7 +39,7 @@ public class ConnectorListCliCommand : ProfiledCliCommand
     private static bool Contains(string? value, string substring)
         => value is not null && value.Contains(substring, StringComparison.OrdinalIgnoreCase);
 
-    // Text-renderer callback invoked by OutputFormatter.WriteList — OutputWriter usage is intentional.
+    // Text-renderer callback invoked by OutputFormatter.WriteList, so OutputWriter usage is intentional.
 #pragma warning disable TXC003
     private static void PrintTable(IReadOnlyList<ConnectorSummary> connectors)
     {

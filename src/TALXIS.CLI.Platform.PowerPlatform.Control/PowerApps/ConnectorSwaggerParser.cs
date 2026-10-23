@@ -16,6 +16,10 @@ internal static class ConnectorSwaggerParser
     // Body schemas can nest arbitrarily; flow parameter keys rarely go deeper.
     private const int MaxFlattenDepth = 4;
 
+    // The connector API emits the -list/-properties spellings, hand-written swaggers the older ones.
+    private static readonly string[] DynamicValuesExtensions = ["x-ms-dynamic-list", "x-ms-dynamic-values", "x-ms-dynamic-tree"];
+    private static readonly string[] DynamicSchemaExtensions = ["x-ms-dynamic-properties", "x-ms-dynamic-schema"];
+
     public static IReadOnlyList<ConnectorOperationSummary> ListOperations(JsonElement swagger)
     {
         var operations = new List<ConnectorOperationSummary>();
@@ -122,7 +126,8 @@ internal static class ConnectorSwaggerParser
                     Summary: TryReadOptionalString(parameter, "x-ms-summary"),
                     Description: TryReadOptionalString(parameter, "description"),
                     EnumValues: ReadEnumValues(parameter),
-                    IsDynamic: HasDynamicExtension(parameter)));
+                    IsDynamic: HasDynamicExtension(parameter),
+                    DynamicSource: ReadDynamicSource(parameter)));
                 continue;
             }
 
@@ -186,14 +191,15 @@ internal static class ConnectorSwaggerParser
 
         // Dynamic schemas depend on another parameter's value (e.g. the picked
         // entity); surface a single marker parameter instead of empty output.
-        if (HasDynamicSchema(resolved))
+        if (HasDynamicSchema(resolved) || HasDynamicSchema(parameter))
         {
             parameters.Add(new ConnectorOperationParameter(
                 name, "body", "dynamic", required,
                 TryReadOptionalString(parameter, "x-ms-summary"),
                 TryReadOptionalString(parameter, "description"),
                 EnumValues: null,
-                IsDynamic: true));
+                IsDynamic: true,
+                DynamicSource: ReadDynamicSource(resolved) ?? ReadDynamicSource(parameter)));
             return;
         }
 
@@ -210,7 +216,8 @@ internal static class ConnectorSwaggerParser
                 TryReadOptionalString(parameter, "x-ms-summary"),
                 TryReadOptionalString(parameter, "description"),
                 ReadEnumValues(resolved),
-                HasDynamicExtension(resolved)));
+                HasDynamicExtension(resolved),
+                ReadDynamicSource(resolved)));
         }
     }
 
@@ -265,7 +272,8 @@ internal static class ConnectorSwaggerParser
                 Summary: TryReadOptionalString(propertySchema, "x-ms-summary"),
                 Description: TryReadOptionalString(propertySchema, "description"),
                 EnumValues: ReadEnumValues(propertySchema),
-                IsDynamic: isDynamicSchema || HasDynamicExtension(propertySchema)));
+                IsDynamic: isDynamicSchema || HasDynamicExtension(propertySchema),
+                DynamicSource: ReadDynamicSource(propertySchema)));
         }
     }
 
@@ -342,15 +350,64 @@ internal static class ConnectorSwaggerParser
     }
 
     private static bool HasDynamicExtension(JsonElement element)
-        => element.ValueKind == JsonValueKind.Object
-            && (element.TryGetProperty("x-ms-dynamic-values", out _)
-                || element.TryGetProperty("x-ms-dynamic-list", out _)
-                || element.TryGetProperty("x-ms-dynamic-tree", out _));
+        => HasAnyProperty(element, DynamicValuesExtensions);
 
     private static bool HasDynamicSchema(JsonElement element)
-        => element.ValueKind == JsonValueKind.Object
-            && (element.TryGetProperty("x-ms-dynamic-schema", out _)
-                || element.TryGetProperty("x-ms-dynamic-properties", out _));
+        => HasAnyProperty(element, DynamicSchemaExtensions);
+
+    private static bool HasAnyProperty(JsonElement element, string[] names)
+        => element.ValueKind == JsonValueKind.Object && names.Any(name => element.TryGetProperty(name, out _));
+
+    private static ConnectorDynamicSource? ReadDynamicSource(JsonElement element)
+        => ReadDynamicSource(element, "schema", DynamicSchemaExtensions)
+            ?? ReadDynamicSource(element, "values", DynamicValuesExtensions);
+
+    private static ConnectorDynamicSource? ReadDynamicSource(JsonElement element, string kind, string[] extensions)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+            return null;
+
+        foreach (var extension in extensions)
+        {
+            if (!element.TryGetProperty(extension, out var definition) || definition.ValueKind != JsonValueKind.Object)
+                continue;
+
+            // x-ms-dynamic-tree nests its lookup under "open".
+            if (definition.TryGetProperty("open", out var open) && open.ValueKind == JsonValueKind.Object)
+                definition = open;
+
+            if (TryReadString(definition, "operationId", out var operationId))
+                return new ConnectorDynamicSource(kind, operationId, ReadDynamicArguments(definition));
+        }
+
+        return null;
+    }
+
+    private static IReadOnlyDictionary<string, string> ReadDynamicArguments(JsonElement definition)
+    {
+        var arguments = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (!definition.TryGetProperty("parameters", out var declared) || declared.ValueKind != JsonValueKind.Object)
+            return arguments;
+
+        foreach (var argument in declared.EnumerateObject())
+            arguments[argument.Name] = FormatDynamicArgument(argument.Value);
+
+        return arguments;
+    }
+
+    private static string FormatDynamicArgument(JsonElement value)
+    {
+        if (value.ValueKind == JsonValueKind.Object)
+        {
+            if (TryReadString(value, "parameter", out var reference) || TryReadString(value, "parameterReference", out reference))
+                return $"$ref:{reference}";
+
+            if (value.TryGetProperty("value", out var literal))
+                value = literal;
+        }
+
+        return value.ValueKind == JsonValueKind.String ? value.GetString()! : value.GetRawText();
+    }
 
     private static bool TryReadString(JsonElement element, string property, out string value)
     {

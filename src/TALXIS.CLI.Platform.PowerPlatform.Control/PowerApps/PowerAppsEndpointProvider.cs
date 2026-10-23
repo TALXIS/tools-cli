@@ -6,7 +6,7 @@ namespace TALXIS.CLI.Platform.PowerPlatform.Control.PowerApps;
 /// <summary>
 /// Endpoint constants for the Power Apps connector API (<c>api.powerapps.com</c>).
 /// Kept intentionally explicit so an unmapped cloud fails loudly rather than
-/// silently targeting the wrong host — the sovereign-cloud hosts differ from
+/// silently targeting the wrong host: the sovereign-cloud hosts differ from
 /// the BAP admin API pattern (GCC does not share the commercial host here).
 /// </summary>
 internal static class PowerAppsEndpointProvider

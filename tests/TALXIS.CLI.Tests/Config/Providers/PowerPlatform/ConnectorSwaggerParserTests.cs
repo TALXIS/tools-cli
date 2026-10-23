@@ -327,4 +327,80 @@ public sealed class ConnectorSwaggerParserTests
         Assert.True(parameter.IsDynamic);
         Assert.True(parameter.Required);
     }
+
+    [Fact]
+    public void GetOperation_ExposesResolverOperations_ForTeamsStyleDynamicParameters()
+    {
+        const string fixture = """
+        {
+          "swagger": "2.0",
+          "paths": {
+            "/beta/teams/conversation/message/poster/{poster}/location/{location}": {
+              "post": {
+                "operationId": "PostMessageToConversation",
+                "parameters": [
+                  { "name": "poster", "in": "path", "type": "string", "required": true, "enum": ["Flow bot", "User"] },
+                  { "name": "location", "in": "path", "type": "string", "required": true,
+                    "x-ms-dynamic-list": { "operationId": "GetMessageLocations", "parameters": { "messageType": { "value": "ParentMessage" }, "poster": { "parameterReference": "poster" } } } },
+                  { "name": "body", "in": "body", "required": true,
+                    "schema": { "type": "object", "x-ms-dynamic-properties": { "operationId": "GetUnifiedActionSchema", "parameters": { "actionType": { "value": "Message" }, "poster": { "parameterReference": "poster" }, "recipientType": { "parameterReference": "location" } } } } }
+                ]
+              }
+            }
+          }
+        }
+        """;
+
+        using var document = JsonDocument.Parse(fixture);
+        var detail = ConnectorSwaggerParser.GetOperation(document.RootElement, "shared_teams", "/api", "PostMessageToConversation")!;
+
+        Assert.Null(detail.Parameters.Single(p => p.Name == "poster").DynamicSource);
+
+        var location = detail.Parameters.Single(p => p.Name == "location").DynamicSource!;
+        Assert.Equal("values", location.Kind);
+        Assert.Equal("GetMessageLocations", location.OperationId);
+        Assert.Equal("ParentMessage", location.Arguments["messageType"]);
+        Assert.Equal("$ref:poster", location.Arguments["poster"]);
+
+        var body = detail.Parameters.Single(p => p.Name == "body").DynamicSource!;
+        Assert.Equal("schema", body.Kind);
+        Assert.Equal("GetUnifiedActionSchema", body.OperationId);
+        Assert.Equal(["actionType", "poster", "recipientType"], body.Arguments.Keys);
+        Assert.Equal("$ref:location", body.Arguments["recipientType"]);
+    }
+
+    [Fact]
+    public void GetOperation_ReadsLegacyDynamicValuesAndTreeResolvers()
+    {
+        const string fixture = """
+        {
+          "swagger": "2.0",
+          "paths": {
+            "/files": {
+              "post": {
+                "operationId": "CreateFile",
+                "parameters": [
+                  { "name": "dataset", "in": "query", "type": "string",
+                    "x-ms-dynamic-values": { "operationId": "GetDatasets", "parameters": { "top": 10, "site": { "parameter": "siteUrl" } } } },
+                  { "name": "folderPath", "in": "query", "type": "string",
+                    "x-ms-dynamic-tree": { "settings": { "canSelectParentNodes": true }, "open": { "operationId": "ListRootFolder", "parameters": { "dataset": { "parameterReference": "dataset" } } } } }
+                ]
+              }
+            }
+          }
+        }
+        """;
+
+        using var document = JsonDocument.Parse(fixture);
+        var detail = ConnectorSwaggerParser.GetOperation(document.RootElement, "shared_test", "/api", "CreateFile")!;
+
+        var dataset = detail.Parameters.Single(p => p.Name == "dataset").DynamicSource!;
+        Assert.Equal("GetDatasets", dataset.OperationId);
+        Assert.Equal("10", dataset.Arguments["top"]);
+        Assert.Equal("$ref:siteUrl", dataset.Arguments["site"]);
+
+        var folder = detail.Parameters.Single(p => p.Name == "folderPath").DynamicSource!;
+        Assert.Equal("ListRootFolder", folder.OperationId);
+        Assert.Equal("$ref:dataset", folder.Arguments["dataset"]);
+    }
 }

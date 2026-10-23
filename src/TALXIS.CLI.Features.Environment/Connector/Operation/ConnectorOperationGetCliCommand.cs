@@ -10,7 +10,7 @@ namespace TALXIS.CLI.Features.Environment.Connector.Operation;
 [CliReadOnly]
 [CliCommand(
     Name = "get",
-    Description = "Show one connector operation with its exact parameter names, types, and enum values for flow authoring."
+    Description = "Show one connector operation from the connected environment with its exact parameter names, types, enum values, and the operations that resolve dynamic parameters, for flow authoring."
 )]
 public class ConnectorOperationGetCliCommand : ProfiledCliCommand
 {
@@ -41,7 +41,7 @@ public class ConnectorOperationGetCliCommand : ProfiledCliCommand
         return ExitSuccess;
     }
 
-    // Text-renderer callback invoked by OutputFormatter.WriteData — OutputWriter usage is intentional.
+    // Text-renderer callback invoked by OutputFormatter.WriteData, so OutputWriter usage is intentional.
 #pragma warning disable TXC003
     private static void PrintDetail(ConnectorOperationDetail d)
     {
@@ -78,7 +78,16 @@ public class ConnectorOperationGetCliCommand : ProfiledCliCommand
                 summary = $"{summary} [{string.Join(", ", p.EnumValues)}]".Trim();
             OutputWriter.WriteLine(
                 $"{name.PadRight(nameWidth)} | {p.In.PadRight(6)} | {type.PadRight(typeWidth)} | {(p.Required ? "yes" : "").PadRight(3)} | {(p.IsDynamic ? "yes" : "").PadRight(3)} | {summary}");
+            if (p.DynamicSource is not null)
+                OutputWriter.WriteLine($"{string.Empty.PadRight(nameWidth)} | {FormatDynamicSource(p.DynamicSource)}");
         }
+    }
+
+    private static string FormatDynamicSource(ConnectorDynamicSource source)
+    {
+        string label = source.Kind == "schema" ? "sub-schema from" : "values from";
+        string arguments = string.Join(", ", source.Arguments.Select(a => $"{a.Key}={a.Value}"));
+        return arguments.Length == 0 ? $"{label}: {source.OperationId}" : $"{label}: {source.OperationId} ({arguments})";
     }
 #pragma warning restore TXC003
 }
