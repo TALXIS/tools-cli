@@ -13,7 +13,7 @@ namespace TALXIS.CLI.Features.Environment.Package;
 [CliLongRunning]
 [CliCommand(
     Name = "import",
-    Description = "Import a deployable package into the target environment."
+    Description = "Import a deployable package into the LIVE target environment. Requires an active profile. Build configuration determines solution managed state: Release packs managed solutions, Debug packs unmanaged. A managed package cannot overwrite an existing unmanaged solution (or vice versa) without uninstalling the existing one first."
 )]
 public class PackageImportCliCommand : ProfiledCliCommand
 {

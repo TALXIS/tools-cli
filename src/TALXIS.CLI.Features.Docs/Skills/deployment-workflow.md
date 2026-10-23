@@ -40,6 +40,24 @@ Tool: environment_deployment_get --latest
 ```
 Check the deployment status and review any findings (warnings, errors, informational messages).
 
+## Build Configuration: Managed vs Unmanaged
+
+The build configuration you pack/publish with decides whether the package contains **managed** or **unmanaged** solutions, and getting it wrong is a common deployment failure.
+
+| Config | Solutions | Use for |
+|---|---|---|
+| `Debug` (`dotnet build`, `dotnet publish -c Debug`) | **unmanaged** | dev/test environments that already hold unmanaged solutions |
+| `Release` (`dotnet publish -c Release`) | **managed** | staging/production |
+
+**You cannot overwrite an unmanaged solution with a managed one (or vice versa).** A `-c Release` package imported over an existing unmanaged solution fails with:
+
+> You can't overwrite an unmanaged version of this solution with a managed version.
+
+When deploying, first check what's already there:
+1. Are the existing solutions on the environment managed or unmanaged? (`environment_solution_uninstall-check` / inspect the environment)
+2. Build with the matching configuration.
+3. On a mismatch, either uninstall the existing solution and re-import, or rebuild with the correct configuration.
+
 ## Pre-Flight Checks
 
 Before deploying, validate:

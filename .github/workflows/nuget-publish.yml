@@ -4,6 +4,11 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      version:
+        description: Package version to publish (for example 1.21.0)
+        required: true
+        type: string
 
 env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
@@ -41,11 +46,16 @@ jobs:
             $numeric = ($tag -replace '-.*', '') + ".0"
             "assembly-version=$numeric" >> $env:GITHUB_OUTPUT
           } else {
-            # workflow_dispatch fallback: read version from Directory.Build.props
-            [xml]$props = Get-Content "src/Directory.Build.props"
-            $ver = $props.Project.PropertyGroup.Version
+            $ver = "${{ github.event.inputs.version }}"
+            if ([string]::IsNullOrWhiteSpace($ver) -or $ver -notmatch '^\d+\.\d+\.\d+(-[a-zA-Z0-9\.\-]+)?$') {
+              Write-Error "workflow_dispatch requires a valid version input matching X.Y.Z or X.Y.Z-prerelease."
+              exit 1
+            }
+
             "package-version=$ver" >> $env:GITHUB_OUTPUT
-            "assembly-version=$ver" >> $env:GITHUB_OUTPUT
+
+            $numeric = ($ver -replace '-.*', '') + ".0"
+            "assembly-version=$numeric" >> $env:GITHUB_OUTPUT
           }
       - name: Print resolved version
         run: |
@@ -80,7 +90,6 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
       - name: Assemble cumulative release notes
-        if: github.event_name == 'release'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -114,7 +123,6 @@ jobs:
           Write-Host "--- Release notes preview (first 500 chars) ---"
           Write-Host ($changelog.Substring(0, [Math]::Min(500, $changelog.Length)))
       - name: Write release notes targets file
-        if: github.event_name == 'release'
         run: |
           # Write a .targets file that MSBuild auto-imports from the src/ directory.
           # Using Directory.Build.targets ensures it runs after all other property
@@ -148,6 +156,8 @@ jobs:
   deploy:
     needs: [create_nuget, resolve-version]
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -155,9 +165,13 @@ jobs:
           path: ${{ env.NuGetDirectory }}
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
+      - name: NuGet login (OIDC → temp API key)
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ secrets.NUGET_USER || 'prokop.tomas' }}
       - name: Publish NuGet package
         run: |
           foreach($file in (Get-ChildItem "${{ env.NuGetDirectory }}" -Recurse -Include *.nupkg)) {
-              dotnet nuget push $file --api-key "${{ secrets.NUGET_APIKEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+              dotnet nuget push $file --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
           }
-

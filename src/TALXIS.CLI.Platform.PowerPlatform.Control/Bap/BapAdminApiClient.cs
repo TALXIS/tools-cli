@@ -7,6 +7,8 @@ using TALXIS.CLI.Core.Model;
 
 namespace TALXIS.CLI.Platform.PowerPlatform.Control.Bap;
 
+internal sealed record BapAdminApplicationRegistration(Guid ApplicationId);
+
 /// <summary>
 /// Thin authenticated transport over the BAP admin API. Owns the cross-cutting
 /// concerns shared by every BAP caller — token acquisition, base-URI
@@ -62,12 +64,122 @@ internal sealed class BapAdminApiClient
         return new BapResponse(response.StatusCode, body, response.Headers.Location);
     }
 
+    public async Task<IReadOnlyList<BapAdminApplicationRegistration>> ListAdminApplicationsAsync(
+        Connection connection,
+        Credential credential,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(credential);
+
+        var token = await AcquireTokenAsync(connection, credential, ct).ConfigureAwait(false);
+        var initialRequestUri = new Uri(
+            GetBaseUri(connection),
+            "/providers/Microsoft.BusinessAppPlatform/adminApplications?api-version=2021-04-01");
+
+        return await ODataPagingSupport.FetchAllPagesAsync(
+            initialRequestUri,
+            async (requestUri, pageCt) =>
+            {
+                var response = await SendAsync(HttpMethod.Get, requestUri, token, jsonBody: null, pageCt).ConfigureAwait(false);
+                if (!response.IsSuccess)
+                {
+                    throw new InvalidOperationException(
+                        $"BAP admin application list failed ({(int)response.StatusCode} {response.StatusCode}): {Truncate(response.Body, 500)}");
+                }
+
+                return response.Body;
+            },
+            item => item.TryGetProperty("applicationId", out var applicationIdElement)
+                && applicationIdElement.ValueKind == JsonValueKind.String
+                && Guid.TryParse(applicationIdElement.GetString(), out var applicationId)
+                    ? new BapAdminApplicationRegistration(applicationId)
+                    : null,
+            "BAP admin application list payload did not contain a \"value\" array.",
+            ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Provisions a Dataverse <c>systemuser</c> record for the given Entra
+    /// object ID in the target environment, without requiring the user to
+    /// have ever signed in (background JIT sync would otherwise be the only
+    /// way this record gets created). Safe to call again for a user who
+    /// already has access.
+    /// </summary>
+    public async Task AddUserToEnvironmentAsync(
+        Connection connection,
+        Credential credential,
+        Guid environmentId,
+        Guid userAadObjectId,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(credential);
+
+        var token = await AcquireTokenAsync(connection, credential, ct).ConfigureAwait(false);
+        var requestUri = new Uri(
+            GetBaseUri(connection),
+            $"/providers/Microsoft.BusinessAppPlatform/scopes/admin/environments/{environmentId}/addUser?api-version=2021-04-01");
+
+        var body = new Dictionary<string, object> { ["ObjectId"] = userAadObjectId };
+        var response = await SendAsync(HttpMethod.Post, requestUri, token, body, ct).ConfigureAwait(false);
+        if (!response.IsSuccess)
+        {
+            throw new InvalidOperationException(
+                $"Failed to add user '{userAadObjectId}' to environment '{environmentId}' ({(int)response.StatusCode} {response.StatusCode}): {Truncate(response.Body, 500)}");
+        }
+    }
+
+    public async Task RegisterAdminApplicationAsync(
+        Connection connection,
+        Credential credential,
+        Guid clientId,
+        CancellationToken ct)
+    {
+        await SendAdminApplicationMutationAsync(connection, credential, clientId, HttpMethod.Put, ct)
+            .ConfigureAwait(false);
+    }
+
+    public async Task UnregisterAdminApplicationAsync(
+        Connection connection,
+        Credential credential,
+        Guid clientId,
+        CancellationToken ct)
+    {
+        await SendAdminApplicationMutationAsync(connection, credential, clientId, HttpMethod.Delete, ct)
+            .ConfigureAwait(false);
+    }
+
     /// <summary>
     /// Truncates a (potentially large) response body for inclusion in error
     /// messages without dumping a full payload to the log.
     /// </summary>
     public static string Truncate(string s, int max)
         => string.IsNullOrEmpty(s) ? string.Empty : (s.Length <= max ? s : s[..max] + "...");
+
+    private async Task SendAdminApplicationMutationAsync(
+        Connection connection,
+        Credential credential,
+        Guid clientId,
+        HttpMethod method,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(credential);
+
+        var token = await AcquireTokenAsync(connection, credential, ct).ConfigureAwait(false);
+        var requestUri = new Uri(
+            GetBaseUri(connection),
+            $"/providers/Microsoft.BusinessAppPlatform/adminApplications/{clientId}?api-version=2021-04-01");
+
+        var response = await SendAsync(method, requestUri, token, jsonBody: null, ct).ConfigureAwait(false);
+        if (!response.IsSuccess)
+        {
+            var action = method == HttpMethod.Put ? "register" : "unregister";
+            throw new InvalidOperationException(
+                $"BAP admin application {action} failed ({(int)response.StatusCode} {response.StatusCode}): {Truncate(response.Body, 500)}");
+        }
+    }
 }
 
 /// <summary>Raw result of a BAP admin API call.</summary>

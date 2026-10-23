@@ -1,3 +1,4 @@
+using Microsoft.Crm.Sdk.Messages;
 using Microsoft.PowerPlatform.Dataverse.Client;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Messages;
@@ -157,12 +158,26 @@ public class CrmServiceClient : ServiceClient, IDisposable
     /// Hides the base <see cref="ServiceClient.ConnectedOrgVersion"/> which
     /// returns the hardcoded default <c>9.0.0.0</c> when the token-provider
     /// constructor path is used (the SDK's <c>ExternalTokenManagement</c> path
-    /// skips <c>GetServerVersion</c>/<c>RefreshInstanceDetails</c>).
+    /// sets <c>OrganizationVersion = 9.0.0.0</c> at connect time and skips the
+    /// normal server-version discovery — see
+    /// <c>ConnectionService.cs</c> in the Dataverse SDK source).
     /// <para>
-    /// When the base property still returns 9.0.0.0 this property falls back
-    /// to <c>9.2.0.0</c> — the minimum version of any modern Power Platform
-    /// environment — so Package Deployer's <c>SolutionPackageVersion</c>
-    /// compatibility check does not reject solutions built against the 9.1 schema.
+    /// Rather than guessing a constant, this recovers the real org version
+    /// using public SDK APIs, in order of cost:
+    /// </para>
+    /// <list type="number">
+    /// <item><description>The base property, in case it is already populated.</description></item>
+    /// <item><description><see cref="ServiceClient.OrganizationDetail"/>, whose getter
+    /// triggers the SDK's internal <c>RefreshInstanceDetails</c> and is confirmed
+    /// (via live testing) to return the real version even on the
+    /// <c>ExternalTokenManagement</c> path.</description></item>
+    /// <item><description><see cref="RetrieveVersionRequest"/>, a strongly-typed
+    /// SOAP request confirmed (via live testing) to succeed and return the real
+    /// version as a last resort.</description></item>
+    /// </list>
+    /// <para>
+    /// If every mechanism still returns the SDK default, the base value is
+    /// returned as-is rather than substituting a hardcoded lie.
     /// </para>
     /// </summary>
     public new Version ConnectedOrgVersion
@@ -172,19 +187,36 @@ public class CrmServiceClient : ServiceClient, IDisposable
             if (_cachedOrgVersion != null)
                 return _cachedOrgVersion;
 
+            var sdkDefault = new Version(9, 0, 0, 0);
+
             var baseVersion = base.ConnectedOrgVersion;
-            if (baseVersion > new Version(9, 0, 0, 0))
+            if (baseVersion > sdkDefault)
+                return _cachedOrgVersion = baseVersion;
+
+            // Base returned the SDK's hardcoded default — this happens because
+            // the ExternalTokenManagement path skips server version discovery at
+            // connect time. Accessing OrganizationDetail forces the SDK to
+            // actually retrieve it.
+            if (Version.TryParse(base.OrganizationDetail?.OrganizationVersion, out var detailVersion)
+                && detailVersion > sdkDefault)
             {
-                _cachedOrgVersion = baseVersion;
-                return baseVersion;
+                return _cachedOrgVersion = detailVersion;
             }
 
-            // Base returned the SDK's hardcoded default (9.0.0.0) — this happens
-            // because the ExternalTokenManagement path skips server version discovery.
-            // All modern Power Platform environments are at least 9.2; return that
-            // so Package Deployer's SolutionPackageVersion compatibility check passes.
-            _cachedOrgVersion = new Version(9, 2, 0, 0);
-            return _cachedOrgVersion;
+            baseVersion = base.ConnectedOrgVersion;
+            if (baseVersion > sdkDefault)
+                return _cachedOrgVersion = baseVersion;
+
+            // Last resort: explicitly ask the server via a strongly-typed request.
+            if (base.Execute(new RetrieveVersionRequest()) is RetrieveVersionResponse retrieveVersionResponse
+                && Version.TryParse(retrieveVersionResponse.Version, out var requestVersion)
+                && requestVersion > sdkDefault)
+            {
+                return _cachedOrgVersion = requestVersion;
+            }
+
+            // Give up honestly rather than hardcoding a fallback constant.
+            return base.ConnectedOrgVersion;
         }
     }
 
@@ -443,16 +475,22 @@ public class CrmServiceClient : ServiceClient, IDisposable
 
     public Guid CreateNewRecord(string entityName, Dictionary<string, CrmDataTypeWrapper> valueArray, string applyToSolution = "", bool enabledDuplicateDetection = false, Guid batchId = default)
     {
-        var entity = new Entity(entityName);
-        PopulateEntityFromDataTypeWrappers(entity, valueArray);
-
-        var request = new CreateRequest { Target = entity };
-        request.Parameters["SuppressDuplicateDetection"] = !enabledDuplicateDetection;
-        if (!string.IsNullOrWhiteSpace(applyToSolution))
-            request.Parameters["SolutionUniqueName"] = applyToSolution;
-
-        var response = (CreateResponse)Execute(request);
-        return response?.id ?? Guid.Empty;
+        return Microsoft.PowerPlatform.Dataverse.Client.Extensions.CRUDExtentions
+            .CreateNewRecord(
+                this,
+                entityName,
+                valueArray.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => new Microsoft.PowerPlatform.Dataverse.Client.DataverseDataTypeWrapper(
+                        kvp.Value.Value,
+                        (Microsoft.PowerPlatform.Dataverse.Client.DataverseFieldType)(int)kvp.Value.Type,
+                        kvp.Value.ReferencedEntity
+                    )
+                ),
+                applyToSolution,
+                enabledDuplicateDetection,
+                batchId
+            );
     }
 
     public List<EntityMetadata> GetAllEntityMetadata(bool onlyPublished = true, EntityFilters filter = EntityFilters.Entity)
@@ -518,44 +556,37 @@ public class CrmServiceClient : ServiceClient, IDisposable
 
     public bool UpdateEntity(string entityName, string keyFieldName, Guid id, Dictionary<string, CrmDataTypeWrapper> fieldList, string applyToSolution = "", bool enabledDuplicateDetection = false, Guid batchId = default)
     {
-        try
-        {
-            var entity = new Entity(entityName, id);
-            PopulateEntityFromDataTypeWrappers(entity, fieldList);
-
-            var request = new UpdateRequest { Target = entity };
-            request.Parameters["SuppressDuplicateDetection"] = !enabledDuplicateDetection;
-            if (!string.IsNullOrWhiteSpace(applyToSolution))
-                request.Parameters["SolutionUniqueName"] = applyToSolution;
-
-            Execute(request);
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
+        return Microsoft.PowerPlatform.Dataverse.Client.Extensions.CRUDExtentions
+            .UpdateEntity(
+                this,
+                entityName,
+                keyFieldName,
+                id,
+                fieldList.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => new Microsoft.PowerPlatform.Dataverse.Client.DataverseDataTypeWrapper(
+                        kvp.Value.Value,
+                        (Microsoft.PowerPlatform.Dataverse.Client.DataverseFieldType)(int)kvp.Value.Type,
+                        kvp.Value.ReferencedEntity
+                    )
+                ),
+                applyToSolution,
+                enabledDuplicateDetection,
+                batchId
+            );
     }
 
     public bool DeleteEntity(string entityType, Guid entityId, Guid batchId = default)
     {
-        try
-        {
-            Delete(entityType, entityId);
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
+        return Microsoft.PowerPlatform.Dataverse.Client.Extensions.CRUDExtentions
+            .DeleteEntity(this, entityType, entityId, batchId);
     }
 
     public bool UpdateStateAndStatusForEntity(string entName, Guid id, string stateCode, string statusCode, Guid batchId = default)
     {
         try
         {
-            return Microsoft.PowerPlatform.Dataverse.Client.Extensions.CRUDExtentions
-                .UpdateStateAndStatusForEntity(this, entName, id, stateCode, statusCode, batchId);
+            return UpdateStateAndStatusForEntity(entName, id, int.Parse(stateCode), int.Parse(statusCode), batchId);
         }
         catch
         {
@@ -565,28 +596,14 @@ public class CrmServiceClient : ServiceClient, IDisposable
 
     public bool UpdateStateAndStatusForEntity(string entName, Guid id, int stateCode, int statusCode, Guid batchId = default)
     {
-        try
-        {
-            return Microsoft.PowerPlatform.Dataverse.Client.Extensions.CRUDExtentions
-                .UpdateStateAndStatusForEntity(this, entName, id, stateCode, statusCode, batchId);
-        }
-        catch
-        {
-            return false;
-        }
+        return Microsoft.PowerPlatform.Dataverse.Client.Extensions.CRUDExtentions
+            .UpdateStateAndStatusForEntity(this, entName, id, stateCode, statusCode, batchId);
     }
 
     public bool DeleteEntityAssociation(string entityName1, Guid entity1Id, string entityName2, Guid entity2Id, string relationshipName, Guid batchId = default)
     {
-        try
-        {
-            Disassociate(entityName1, entity1Id, new Relationship(relationshipName), new EntityReferenceCollection { new EntityReference(entityName2, entity2Id) });
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
+        return Microsoft.PowerPlatform.Dataverse.Client.Extensions.CRUDExtentions
+            .DeleteEntityAssociation(this, entityName1, entity1Id, entityName2, entity2Id, relationshipName, batchId);
     }
 
     /// <summary>
@@ -615,7 +632,7 @@ public class CrmServiceClient : ServiceClient, IDisposable
     public Guid CloseOpportunity(Guid opportunityId, Dictionary<string, CrmDataTypeWrapper> closeData, int status, Guid batchId = default)
     {
         string requestName = status == 2 ? "LoseOpportunity" : "WinOpportunity";
-        return ExecuteCloseRequest("opportunityclose", "opportunityid", "opportunity", opportunityId, closeData, status, requestName);
+        return ExecuteCloseRequest("opportunityclose", "opportunityid", "opportunity", opportunityId, closeData, status, requestName, batchId);
     }
 
     /// <summary>
@@ -623,7 +640,7 @@ public class CrmServiceClient : ServiceClient, IDisposable
     /// </summary>
     public Guid CloseIncident(Guid incidentId, Dictionary<string, CrmDataTypeWrapper> closeData, int status, Guid batchId = default)
     {
-        return ExecuteCloseRequest("incidentresolution", "incidentid", "incident", incidentId, closeData, status, "CloseIncident");
+        return ExecuteCloseRequest("incidentresolution", "incidentid", "incident", incidentId, closeData, status, "CloseIncident", batchId);
     }
 
     /// <summary>
@@ -631,7 +648,7 @@ public class CrmServiceClient : ServiceClient, IDisposable
     /// </summary>
     public Guid CloseQuote(Guid quoteId, Dictionary<string, CrmDataTypeWrapper> closeData, int status, Guid batchId = default)
     {
-        return ExecuteCloseRequest("quoteclose", "quoteid", "quote", quoteId, closeData, status, "CloseQuote");
+        return ExecuteCloseRequest("quoteclose", "quoteid", "quote", quoteId, closeData, status, "CloseQuote", batchId);
     }
 
     /// <summary>
@@ -639,14 +656,14 @@ public class CrmServiceClient : ServiceClient, IDisposable
     /// </summary>
     public Guid CancelSalesOrder(Guid orderId, Dictionary<string, CrmDataTypeWrapper> closeData, int status, Guid batchId = default)
     {
-        return ExecuteCloseRequest("orderclose", "salesorderid", "salesorder", orderId, closeData, status, "CancelSalesOrder");
+        return ExecuteCloseRequest("orderclose", "salesorderid", "salesorder", orderId, closeData, status, "CancelSalesOrder", batchId);
     }
 
     /// <summary>
     /// Shared helper for close/cancel operations. Creates an activity entity
     /// and executes the corresponding organization request.
     /// </summary>
-    private Guid ExecuteCloseRequest(string closeEntityName, string regardingFieldName, string regardingEntityName, Guid regardingId, Dictionary<string, CrmDataTypeWrapper> closeData, int status, string requestName)
+    private Guid ExecuteCloseRequest(string closeEntityName, string regardingFieldName, string regardingEntityName, Guid regardingId, Dictionary<string, CrmDataTypeWrapper> closeData, int status, string requestName, Guid batchId)
     {
         var closeEntity = new Entity(closeEntityName);
         closeEntity[regardingFieldName] = new EntityReference(regardingEntityName, regardingId);
@@ -671,6 +688,11 @@ public class CrmServiceClient : ServiceClient, IDisposable
             _ => closeEntityName,
         };
         request[closeParamName] = closeEntity;
+
+        if (TryQueueRequest(batchId, request, $"Close request {requestName}"))
+        {
+            return Guid.Empty;
+        }
 
         var response = Execute(request);
         return response.Results.TryGetValue("id", out var id) ? (Guid)id : Guid.Empty;
@@ -1151,4 +1173,28 @@ public class CrmServiceClient : ServiceClient, IDisposable
     }
 
     #endregion
+
+    private bool TryQueueRequest(Guid batchId, OrganizationRequest request, string debugMessage)
+    {
+        if (batchId == Guid.Empty)
+        {
+            return false;
+        }
+
+        Microsoft.PowerPlatform.Dataverse.Client.RequestBatch? modern =
+            Microsoft.PowerPlatform.Dataverse.Client.Extensions.BatchExtensions.GetBatchById(this, batchId);
+
+        if (modern is null)
+        {
+            return false;
+        }
+
+        modern.BatchItems.Add(new Microsoft.PowerPlatform.Dataverse.Client.BatchItemOrganizationRequest
+        {
+            Request = request,
+            RequestDebugMessage = debugMessage,
+            RequestReferenceNumber = Guid.NewGuid()
+        });
+        return true;
+    }
 }

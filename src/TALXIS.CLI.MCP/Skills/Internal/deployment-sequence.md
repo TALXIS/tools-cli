@@ -23,8 +23,8 @@ Before deploying:
   │    ├─ YES → proceed
   │    └─ NO → config_profile_validate, then config_profile_get to confirm target
   └─→ Dev or prod target?
-       ├─ DEV → unmanaged import is fine
-       └─ PROD/UAT → managed import ONLY, never unmanaged
+       ├─ DEV → unmanaged import is fine → build/pack with Debug (Debug packs unmanaged)
+       └─ PROD/UAT → managed import ONLY, never unmanaged → publish with Release (Release packs managed)
 ```
 
 ## Failure Recovery Sequence
@@ -51,5 +51,6 @@ Import failed
 - ❌ Deploying without building first → XML errors only caught at import (slow feedback)
 - ❌ Skipping `environment_solution_publish` → UI changes invisible to users
 - ❌ Deploying unmanaged to production → can't cleanly uninstall, no version tracking
+- ❌ Importing a Release (managed) package over an existing unmanaged solution (or vice versa) → Dataverse rejects it; uninstall the existing solution first or rebuild with the matching configuration
 - ❌ Retrying failed imports without checking `environment_deployment_get` → repeating the same error
 - ❌ Querying `asyncoperation` table directly via `environment_data_query_sql` to check import status → use `environment_deployment_get --async-operation-id <id>` instead — it returns structured findings, not raw status codes
