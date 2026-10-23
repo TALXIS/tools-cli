@@ -59,5 +59,24 @@ internal static class OperationTextRenderer
             OutputWriter.WriteLine($"{indent} | {label}: {reference.OperationId}{arguments}");
         }
     }
+
+    public static void PrintSnippet(System.Text.Json.Nodes.JsonObject snippet)
+    {
+        OutputWriter.WriteLine(string.Empty);
+        OutputWriter.WriteLine("Snippet - merge into the flow's properties.connectionReferences and properties.definition (replace <placeholders>):");
+        // Relaxed escaping so <placeholders> and @parameters('...') read as
+        // they will be pasted; the JSON output mode keeps the standard encoder.
+        using var buffer = new MemoryStream();
+        using (var writer = new System.Text.Json.Utf8JsonWriter(buffer, new System.Text.Json.JsonWriterOptions
+        {
+            Indented = true,
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        }))
+        {
+            snippet.WriteTo(writer);
+        }
+
+        OutputWriter.WriteLine(System.Text.Encoding.UTF8.GetString(buffer.ToArray()));
+    }
 #pragma warning restore TXC003
 }

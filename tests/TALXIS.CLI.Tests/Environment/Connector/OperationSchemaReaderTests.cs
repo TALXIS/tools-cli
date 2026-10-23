@@ -108,6 +108,8 @@ public class OperationSchemaReaderTests
     }
 
     [Theory]
+    // Seen live: operationType is stated, and family is just the operation's name.
+    [InlineData("""{ "operationType": "OpenApiConnectionWebhook", "annotation": { "family": "SubscribeWebhookTrigger" } }""", "SubscribeWebhookTrigger", "OpenApiConnectionWebhook")]
     [InlineData("""{ "annotation": { "family": "OpenApiConnectionWebhook" } }""", "CreateItem", "OpenApiConnectionWebhook")]
     [InlineData("""{ "annotation": { "family": "OpenApiConnection" } }""", "StartAndWaitForAnApproval", "OpenApiConnection")]
     [InlineData("""{}""", "StartAndWaitForAnApproval", "OpenApiConnectionWebhook")]

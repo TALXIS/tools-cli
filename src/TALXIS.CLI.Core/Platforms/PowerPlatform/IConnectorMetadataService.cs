@@ -102,7 +102,8 @@ public sealed record OperationDetail(
     string ActionType,
     bool IsDeprecated,
     IReadOnlyList<OperationParameter> Parameters,
-    JsonElement? ResponseSchema);
+    JsonElement? ResponseSchema,
+    bool IsTrigger = false);
 
 /// <summary>A connection, as shown to a user before it is used on their behalf.</summary>
 public sealed record ConnectionDetail(

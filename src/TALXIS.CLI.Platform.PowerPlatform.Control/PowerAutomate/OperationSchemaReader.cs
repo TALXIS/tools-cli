@@ -52,7 +52,8 @@ internal static partial class OperationSchemaReader
             IsDeprecated: IsDeprecated(properties),
             Parameters: parameters,
             // Clone: the owning JsonDocument is disposed by the caller.
-            ResponseSchema: JsonRead.Object(properties, "responsesDefinition")?.Clone());
+            ResponseSchema: JsonRead.Object(properties, "responsesDefinition")?.Clone(),
+            IsTrigger: JsonRead.String(properties, "trigger") is not null);
     }
 
     /// <summary>
@@ -62,6 +63,10 @@ internal static partial class OperationSchemaReader
     /// </summary>
     public static string InferActionType(JsonElement properties, string operationId)
     {
+        // The operation API states the type outright; the rest is for payloads without it.
+        if (JsonRead.String(properties, "operationType") is { Length: > 0 } stated)
+            return stated;
+
         var family = JsonRead.Object(properties, "annotation") is { } annotation
             ? JsonRead.String(annotation, "family")
             : null;

@@ -1,94 +1,51 @@
 # Cloud Flow Development
 
-## Key Concept
+Cloud flows are **solution components authored locally**: a definition JSON under `Workflows/` plus its `.json.data.xml`, shipped by the normal solution deployment. Never create, edit or test a flow in the environment. Every connector trigger and action comes from the tools below, never from memory: they return the exact JSON to paste.
 
-Power Automate cloud flows are **solution components authored locally**: a JSON definition under `Workflows/` (`<prefix>_<name>-<GUID>.json`) plus a sibling `.json.data.xml` metadata file. They reach the environment through the normal solution deployment. Never create or edit a flow in the environment to get it working.
+## Fast Path
 
-The scaffolded definition only has a manual trigger. Everything else is written by hand, which makes it the easiest place in a workspace to invent an operation ID, a parameter name or an action type. Connector metadata is too large and changes too often to recall, so **every connector trigger and action is grounded in the connected environment** with the read-only connector tools below.
+Per connector step, at most three calls:
 
-## Authoring Workflow
+1. **Find it** → `environment_connector_operation_search "<what the step does>"` (add `--kind triggers` for a trigger). Pick a hit that is not deprecated; note its connector and operation.
+2. **Get the snippet** → `environment_connector_operation_get <connector> <operation>`. Its `snippet` holds the `connectionReferences` entry and the trigger or action, with every required parameter present.
+   - No `<placeholder>` left except plain values (a filter, a message) → fill them and paste. Done.
+   - A placeholder says *fields depend on other choices*, or the value must be one of a fetched list (`values from:`) → step 3.
+3. **Resolve it** (only for dynamic parameters) → `environment_connector_operation_resolve <connector> <operation> --value <name>=<value> ...`, passing **every** choice you already know in one call (`--value entityName=contacts`, `--value "poster=Flow bot" --value "location=Chat with Flow bot"`). The bound connection reference is picked automatically.
+   - This first call only **plans**. Tell the user in one or two sentences whose connection it is (owner shown in the output), that read-only metadata lookups would run as them, and that nothing is created or changed; ask to go ahead.
+   - If they agree, repeat the same call with `--use-connection`. The snippet now has the real keys (`item/<column>`, `body/recipient`) and your values; act on any `WARNING:` (e.g. `contact` vs `contacts`), then paste.
 
-1. **Scaffold** → `workspace_component_create` with `componentType: "Flow"` (template `pp-flow`). Call `workspace_component_parameter_list` for its parameters.
-2. **Find the operation**:
-   - Connector unknown → `environment_connector_operation_search` with what the step should do (e.g. `"add a row"`), optionally `--kind actions|triggers`.
-   - Connector known → `environment_connector_get <connector> --search <text>` lists its operations with their kind (`action`, `trigger`, `webhook-trigger`).
-   - Browse → `environment_connector_list --search <text>`.
-3. **Read the exact spec** → `environment_connector_operation_get <connector> <operation>` for **every** operation you use. Copy the parameter keys, allowed values and `Action type` verbatim. Dynamic parameters are resolved as described under *Dynamically Resolved Parameters*.
-4. **Bind a connection reference** → `environment_connection-reference_list --connector <connector>`. Use an existing reference's logical name; if none exists, ask the user which one to use rather than inventing one.
-5. **Build** → `dotnet build`, then follow the [deployment workflow](deployment-workflow.md).
+Then scaffold/merge and build:
 
-## Definition Shape
+- **Scaffold once** → `workspace_component_create` with `componentType: "Flow"`; it creates the definition with a manual trigger. Replace `triggers` and fill `actions` from the snippets; merge every snippet's `connectionReferences` entry into `properties.connectionReferences`.
+- **Build** → `dotnet build`, then the [deployment workflow](deployment-workflow.md).
 
-The scaffold already declares `$connections` and `$authentication` in `properties.definition.parameters`; keep both.
+## When a tool stops you
 
-Each connector used is declared once in `properties.connectionReferences`, keyed by the name actions use as `host.connectionName`:
+| Output says | Do |
+|---|---|
+| No bound connection reference for the connector | Ask the user to create one (in a solution: New → More → Connection reference) and re-run. Don't create connections yourself, and never ask for a sample flow. |
+| Several bound connection references | Ask which one, pass `--connection-reference <logical name>`. |
+| Lookup `skipped` — needs a value for `'x'` | Add `--value x=...` (choose it from the resolved allowed values) and re-run. |
+| Lookup `skipped` for another reason | Folder pickers and non-GET/POST lookups are not resolved; ask the user for the value. |
 
-```json
-"connectionReferences": {
-  "shared_commondataserviceforapps": {
-    "runtimeSource": "embedded",
-    "connection": { "connectionReferenceLogicalName": "contoso_sharedcommondataserviceforapps_1a2b3" },
-    "api": { "name": "shared_commondataserviceforapps" }
-  }
-}
-```
+Without any connection, Dataverse `item/<column>` keys can still be taken from the table: `environment_entity_describe` (deployed) or the workspace's table definition. Lookups bind as `item/<lookup>_<table>@odata.bind`.
 
-A connector action, here Dataverse `ListRecords`:
+## Rules the snippet already follows
 
-```json
-"List_active_accounts": {
-  "type": "OpenApiConnection",
-  "inputs": {
-    "host": {
-      "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
-      "connectionName": "shared_commondataserviceforapps",
-      "operationId": "ListRecords"
-    },
-    "parameters": {
-      "entityName": "accounts",
-      "$select": "name,accountnumber",
-      "$filter": "statecode eq 0"
-    },
-    "authentication": "@parameters('$authentication')"
-  },
-  "runAfter": {}
-}
-```
+Keep them when editing by hand:
 
-Rules:
-
-- **`type` is the `Action type` from `environment_connector_operation_get`.** Standard operations are `OpenApiConnection`; long-running ones such as an approval that waits for a response are `OpenApiConnectionWebhook`. A webhook operation declared as `OpenApiConnection` saves fine and then never resumes. `webhook-trigger` operations go under `triggers` as `OpenApiConnectionWebhook`.
-- **`host.apiId`** is the connector's API id (printed by `environment_connector_get`), **`host.connectionName`** a key of `connectionReferences`.
-- **`inputs.parameters` keys are the parameter names exactly as listed**, including the slash-joined nested ones (`emailMessage/To`, `emailMessage/Subject`). Never nest them as JSON objects.
-- **`authentication`** is `"@parameters('$authentication')"` on every connector trigger and action, as in exported solutions.
-- `runAfter` references existing action names; the first action uses `{}`.
-- Expressions use `@{...}` with functions such as `triggerOutputs()`, `outputs('<Action>')?['body/value']`, `concat()`, `utcNow()`.
-
-## Dynamically Resolved Parameters
-
-`environment_connector_operation_get` marks parameters that are not statically described:
-
-- **`values from: <operation>`** — allowed values are fetched at design time (e.g. `entityName` from `GetEntities`), so there is no enum to copy.
-- **`sub-schema from: <operation>`** — the parameter is an object whose fields depend on other parameters; `$ref:<name>` shows which.
-
-**Dataverse rows are the common case.** For `shared_commondataserviceforapps` the `item` of `CreateRecord`/`UpdateRecord` is resolved from `entityName`: its keys are `item/<column logical name>`, with `@odata.bind` for lookups (`item/parentcustomerid_account@odata.bind`). Actions take the table's entity set name (`contacts`), the trigger its logical name (`account`). With a bound Dataverse connection reference, resolve them as below: you get every settable column, which are required, and the exact `@odata.bind` keys. Without one, take the column names from the workspace's table definition, or `environment_entity_describe` for a deployed table, never from memory.
-
-**Anything else is resolved through a connection, with the user's consent.** The designer fills these fields by calling the connector's lookup operations through a connection, and `environment_connector_operation_resolve` makes the same calls. Because a connection acts as the person who owns it, this is always two steps:
-
-1. **Plan** → `environment_connector_operation_resolve <connector> <operation> --connection-reference <logical name> --value <name>=<value> ...` without `--use-connection`. Pass every choice the lookups depend on (the `$ref:` names, e.g. `--value "poster=Flow bot" --value "location=Chat with Flow bot"`). Nothing is called through the connection; the output says whose connection it is and which read-only lookups would be made.
-2. **Ask** → show the user that plan in plain words: which connection and who owns it, that the calls run as that person, which lookups and what they return, and that nothing is created or changed. Ask whether to go ahead. Do not phrase it as a request for them to do the work.
-3. **Run** → only if they agree, repeat the call with `--use-connection`. The output lists the resolved keys (`body/recipient`, `body/messageBody`) and allowed values; copy them as with `operation_get`.
-
-If a lookup is `skipped`, its reason says what is missing: usually another `--value` (resolve in the order the `$ref:`s imply), a bound connection, or a lookup txc does not make (only the GET and POST lookups the operation's metadata names are sent through a connection; never PUT, PATCH or DELETE). If no connection reference for the connector is bound, ask the user to bind one; never create connections, flows or anything else in the environment to discover field names, and never ask the user to build a sample flow.
+- `type` is the operation's action type; webhook operations (approvals that wait, the Dataverse row trigger) are `OpenApiConnectionWebhook`.
+- `inputs.parameters` keys are flat, slash-joined names (`emailMessage/To`); never nest them.
+- Every connector step has `"authentication": "@parameters('$authentication')"` and `host.connectionName` equal to its key in `connectionReferences`.
+- Dataverse actions take the entity set name (`contacts`); the row trigger takes the logical name (`account`).
+- `runAfter` names existing actions; the first action uses `{}`. Expressions: `@{triggerOutputs()?['body/accountid']}`, `@{items('<Loop>')?['emailaddress1']}`, `@outputs('<Action>')?['body/value']`.
 
 ## What NOT to Do
 
-- ❌ Don't write operation IDs or parameter names from memory — call `environment_connector_operation_get` first
-- ❌ Don't guess enum values — use the listed allowed values
-- ❌ Don't use operations flagged `[deprecated]` — search for the current replacement
-- ❌ Don't create, edit or test flows in the environment — they are solution components authored here
-- ❌ Don't reference a connection reference that does not exist in the environment
-- ❌ Don't rename the flow JSON file by hand — `JsonFileName` in the `.data.xml` must keep matching it
-- ❌ Don't use premium triggers (e.g. the HTTP request trigger) without checking licensing with the user
+- ❌ Don't hand-write connector JSON — paste the snippet
+- ❌ Don't run `--use-connection` before the user agreed to the plan
+- ❌ Don't use operations flagged `[deprecated]`
+- ❌ Don't rename the flow JSON file — `JsonFileName` in the `.data.xml` must match it
+- ❌ Don't use premium triggers (e.g. HTTP request) without checking licensing with the user
 
 See also: [component-creation](component-creation.md), [deployment-workflow](deployment-workflow.md)

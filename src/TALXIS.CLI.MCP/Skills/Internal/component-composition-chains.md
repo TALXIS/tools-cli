@@ -31,10 +31,9 @@
 - Entity must have IsBPFEntity=1; XAML workflow needs Category=4, TriggerOnCreate=1
 
 ## Flow Chain
-1. Flow (pp-flow) → 2. For each connector step: environment_connector_operation_search / environment_connector_get → environment_connector_operation_get → 3. environment_connection-reference_list → 4. Edit definition JSON
-- Parameter keys, action type and apiId come ONLY from environment_connector_operation_get; never from memory
-- Dynamic sub-schemas: Dataverse item/<column> from the table definition; anything else → environment_connector_operation_resolve: plan first, explain the plan to the user and ask, run with --use-connection only if they agree; never create anything in the environment
-- See flow-development skill for the definition shape
+1. Flow (pp-flow) → 2. Per connector step: environment_connector_operation_search → environment_connector_operation_get (returns a paste-ready snippet) → only if parameters are dynamic: environment_connector_operation_resolve with all --value choices (plan → tell user whose connection, ask → re-run with --use-connection) → 3. Paste snippets into the definition JSON
+- Never hand-write connector JSON; never run --use-connection without the user's yes
+- See flow-development skill
 
 ## Local vs Live
 - ALL chains above: use workspace tools (local, instant, reversible)
