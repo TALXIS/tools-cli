@@ -25,8 +25,10 @@ public class EnvDataQueryFetchXmlCliCommand : ProfiledCliCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EnvDataQueryFetchXmlCliCommand));
 
+    // The initializer is what makes this optional: DotMake doesn't carry Required = false over to
+    // an argument, but it does turn the initializer into a default value (#214).
     [CliArgument(Description = "The FetchXML query string (omit if using --file).", Required = false)]
-    public string? FetchXml { get; set; }
+    public string? FetchXml { get; set; } = null;
 
     [CliOption(Name = "--file", Description = "Path to a file containing the FetchXML query.", Required = false)]
     public string? File { get; set; }
