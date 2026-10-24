@@ -52,6 +52,9 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
         @"\b(prod|production|prd|live)\b",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+    /// <summary>Upper bound for the guard's catalog lookup of a missing environment type.</summary>
+    private static readonly TimeSpan EnvironmentTypeLookupTimeout = TimeSpan.FromSeconds(20);
+
     [CliOption(
         Name = "--profile",
         Aliases = ["-p"],
@@ -142,79 +145,47 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
         if (resolvedContext is null)
             return null;
 
-        try
+        var connection = resolvedContext.Connection;
+
+        // Connections created without a catalog lookup (config connection
+        // create, an earlier failed lookup, older versions) carry no type and
+        // would be blocked as "Unknown". Ask the catalog once with the
+        // credential we already resolved; the result is persisted. The guard
+        // must not hang a command on a slow control plane, hence the timeout.
+        if (connection.EnvironmentType is null)
         {
-            var connection = resolvedContext.Connection;
-
-            // Connections created without a catalog lookup (config connection
-            // create, an earlier failed lookup, older versions) carry no type
-            // and would be blocked as "Unknown". Ask the catalog once with the
-            // credential we already resolved; the result is persisted.
-            if (connection.EnvironmentType is null)
-                await TryResolveEnvironmentTypeAsync(connection, resolvedContext.Credential).ConfigureAwait(false);
-
-            if (!IsProductionLike(connection.EnvironmentType, connection.DisplayName, connection.EnvironmentUrl))
-                return null;
-
-            if (AllowProduction)
-            {
-                Logger.LogWarning(
-                    "Destructive operation allowed against {EnvType} environment '{ConnectionId}' ({Url}) via --allow-production.",
-                    connection.EnvironmentType?.ToString() ?? "Unknown",
-                    connection.Id,
-                    connection.EnvironmentUrl);
-                return null;
-            }
-
-            var envLabel = connection.DisplayName ?? connection.EnvironmentUrl ?? connection.Id;
-            if (connection.EnvironmentType is null)
-            {
-                Logger.LogError(
-                    "Blocked: this is a destructive operation targeting environment '{EnvLabel}', whose type could not be determined " +
-                    "(it is treated as Production). Run 'txc config profile validate --refresh-env-type' to record it, " +
-                    "or pass --allow-production to confirm.",
-                    envLabel);
-                return ExitValidationError;
-            }
-
-            Logger.LogError(
-                "Blocked: this is a destructive operation targeting {EnvType} environment '{EnvLabel}'. " +
-                "Pass --allow-production to confirm, or switch to a non-production profile.",
-                connection.EnvironmentType, envLabel);
-            return ExitValidationError;
+            using var cts = new CancellationTokenSource(EnvironmentTypeLookupTimeout);
+            await EnvironmentTypeRefresher.TryRefreshAsync(connection, resolvedContext.Credential, Logger, cts.Token).ConfigureAwait(false);
         }
-        catch (ConfigurationResolutionException)
+
+        if (!IsProductionLike(connection.EnvironmentType, connection.DisplayName, connection.EnvironmentUrl))
+            return null;
+
+        if (AllowProduction)
         {
+            Logger.LogWarning(
+                "Destructive operation allowed against {EnvType} environment '{ConnectionId}' ({Url}) via --allow-production.",
+                connection.EnvironmentType?.ToString() ?? "Unknown",
+                connection.Id,
+                connection.EnvironmentUrl);
             return null;
         }
+
+        var advice = connection.EnvironmentType is null
+            ? "Run 'txc config profile validate --refresh-env-type' to record its type, or pass --allow-production to confirm."
+            : "Pass --allow-production to confirm, or switch to a non-production profile.";
+        return BlockProduction(connection.EnvironmentType, connection.DisplayName ?? connection.EnvironmentUrl ?? connection.Id, advice);
     }
 
     /// <summary>
-    /// Best-effort catalog lookup of the connection's environment type. Never
-    /// throws: on any failure the type stays unknown and the guard keeps its
-    /// fail-safe (production) behaviour.
+    /// Logs the standard "blocked" error for a production-like target and
+    /// returns the exit code. Shared by every guard so the wording stays uniform.
     /// </summary>
-    private async Task TryResolveEnvironmentTypeAsync(Connection connection, Credential credential)
+    protected int BlockProduction(EnvironmentType? envType, string envLabel, string advice)
     {
-        try
-        {
-            // The guard must not hang a command on a slow control plane.
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-            var resolver = TxcServices.Get<IEnvironmentTypeResolver>();
-            var resolved = await resolver.RefreshAsync(connection, credential, cts.Token).ConfigureAwait(false);
-            if (resolved is not null)
-            {
-                Logger.LogInformation(
-                    "Environment type of connection '{ConnectionId}' was not recorded; resolved it as {EnvType} from the Power Platform catalog.",
-                    connection.Id, resolved);
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(ex,
-                "Could not determine the environment type of connection '{ConnectionId}'; treating it as Production.",
-                connection.Id);
-        }
+        Logger.LogError(
+            "Blocked: this is a destructive operation targeting {EnvType} environment '{EnvLabel}'. {Advice}",
+            envType?.ToString() ?? "Unknown (treated as Production)", envLabel, advice);
+        return ExitValidationError;
     }
-
 }

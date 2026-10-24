@@ -87,12 +87,10 @@ public class EnvironmentDeleteCliCommand : ProfiledCliCommand, IDestructiveComma
         if (!IsProductionLike(target.EnvironmentType, target.DisplayName, target.EnvironmentUrl?.ToString()))
             return null;
 
-        Logger.LogError(
-            "Blocked: this is a destructive operation targeting {EnvType} environment '{EnvLabel}'. " +
-            "Pass --allow-production to confirm.",
-            target.EnvironmentType?.ToString() ?? "Unknown (treated as Production)",
-            target.DisplayName ?? EnvironmentId.ToString());
-        return ExitValidationError;
+        return BlockProduction(
+            target.EnvironmentType,
+            target.DisplayName ?? EnvironmentId.ToString(),
+            "Pass --allow-production to confirm.");
     }
 
     protected override async Task<int> ExecuteAsync()

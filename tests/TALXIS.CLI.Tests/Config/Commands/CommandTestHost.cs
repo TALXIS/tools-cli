@@ -57,6 +57,7 @@ internal sealed class CommandTestHost : IDisposable
         services.AddSingleton<ICredentialStore, CredentialStore>();
         services.AddSingleton<IGlobalConfigStore, GlobalConfigStore>();
         services.AddSingleton<TALXIS.CLI.Core.Bootstrapping.ConnectionUpsertService>();
+        services.AddSingleton<TALXIS.CLI.Core.Bootstrapping.CredentialSignIn>();
         services.AddSingleton<ICredentialVault>(Vault);
         services.AddSingleton<IHeadlessDetector>(Headless);
         services.AddSingleton<IConfirmationPrompter, FakeConfirmationPrompter>();
