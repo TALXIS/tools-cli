@@ -9,7 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.PowerPlatform.Dataverse.Client" Version="1.2.10" />
-    <PackageReference Include="TALXIS.Platform.Metadata.Packaging" Version="0.13.1" />
+    <PackageReference Include="TALXIS.Platform.Metadata.Packaging" Version="0.13.2" />
   </ItemGroup>
 
   <ItemGroup>

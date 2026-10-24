@@ -8,8 +8,8 @@
 
   <ItemGroup>
     <PackageReference Include="DotMake.CommandLine" Version="2.6.7" />
-    <PackageReference Include="TALXIS.Platform.Metadata.Serialization.Xml" Version="0.13.1" />
-    <PackageReference Include="TALXIS.Platform.Metadata.Packaging" Version="0.13.1" />
+    <PackageReference Include="TALXIS.Platform.Metadata.Serialization.Xml" Version="0.13.2" />
+    <PackageReference Include="TALXIS.Platform.Metadata.Packaging" Version="0.13.2" />
   </ItemGroup>
 
   <ItemGroup>
