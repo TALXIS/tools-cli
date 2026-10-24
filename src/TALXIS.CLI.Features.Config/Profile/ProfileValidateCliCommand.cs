@@ -49,7 +49,10 @@ public class ProfileValidateCliCommand : TxcLeafCommand
 
         if (context.Profile is null)
         {
-            Logger.LogError("Resolved configuration is ephemeral. 'txc config profile validate' requires a stored profile.");
+            Logger.LogError(
+                "Resolved configuration is ephemeral. 'txc config profile validate' requires a stored profile. " +
+                "Run 'txc config profile list' and 'txc config connection list' to check for an existing profile " +
+                "before creating a new one — confirm the target environment with the user if it's unclear.");
             return ExitValidationError;
         }
 

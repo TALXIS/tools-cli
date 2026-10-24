@@ -234,22 +234,24 @@ public sealed class AuthLoginCommandTests
     }
 
     [Fact]
-    public async Task Login_DeviceCode_TriggeredAutomatically_WhenBrowserUnavailable()
+    public async Task Login_FailsFast_WhenBrowserUnavailable_AndDeviceCodeNotExplicit()
     {
+        // Sign-in must always be a deliberate, manual choice made by a human — the
+        // command must never silently switch to device code on the caller's behalf,
+        // since nobody may be present to complete an unattended device-code prompt.
         using var host = new CommandTestHost(
             browserAvailable: false,
             loginResult: new InteractiveLoginResult("tomas@contoso.com", "t-guid"));
         var store = (ICredentialStore)host.Provider.GetService(typeof(ICredentialStore))!;
 
-        // No --device-code flag; auto-detection via FakeBrowserProbe should trigger device code
+        // No --device-code flag; the command must fail fast rather than auto-detect.
         var exit = await new AuthLoginCliCommand().RunAsync();
 
-        Assert.Equal(0, exit);
-        Assert.Equal(1, host.Login.Calls);
+        Assert.Equal(1, exit);
+        Assert.Equal(0, host.Login.Calls);
 
         var creds = await store.ListAsync(default);
-        var cred = Assert.Single(creds);
-        Assert.Equal(CredentialKind.DeviceCode, cred.Kind);
+        Assert.Empty(creds);
     }
 
     [Fact]

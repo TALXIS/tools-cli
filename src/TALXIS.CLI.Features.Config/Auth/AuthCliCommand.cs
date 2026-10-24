@@ -11,7 +11,7 @@ namespace TALXIS.CLI.Features.Config.Auth;
 /// </summary>
 [CliCommand(
     Name = "auth",
-    Description = "Manage Entra / Dataverse credentials stored in the OS vault.",
+    Description = "Manage Entra / Dataverse credentials stored in the OS vault — the \"who\". Interactive sign-in ('login') and device-code sign-in are manual actions performed deliberately by a human in their own terminal; they are never triggered automatically on a caller's behalf.",
     Children = new[]
     {
         typeof(AuthLoginCliCommand),
