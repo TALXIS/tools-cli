@@ -32,7 +32,8 @@ internal sealed class CommandTestHost : IDisposable
         InteractiveLoginResult? loginResult = null,
         string? currentDirectory = null,
         FakeConnectionProvider? dataverseProvider = null,
-        FakePowerPlatformEnvironmentCatalog? environmentCatalog = null)
+        FakePowerPlatformEnvironmentCatalog? environmentCatalog = null,
+        TALXIS.CLI.Core.Platforms.PowerPlatform.IEnvironmentManagementService? environmentManagement = null)
     {
         Temp = new TempConfigDir();
         Vault = new FakeVault();
@@ -66,6 +67,8 @@ internal sealed class CommandTestHost : IDisposable
         services.AddSingleton<IDeviceCodeLoginService>(Login);
         services.AddSingleton<IPowerPlatformEnvironmentCatalog>(EnvironmentCatalog);
         services.AddSingleton<IEnvironmentTypeResolver, TALXIS.CLI.Platform.Dataverse.Runtime.DataverseEnvironmentTypeResolver>();
+        if (environmentManagement is not null)
+            services.AddSingleton(environmentManagement);
         services.AddSingleton(_ =>
             MsalTokenCacheBinder
                 .CreateForTestingAsync(VaultOptions.MsalTokenCache(envReader), Temp.Paths)
