@@ -41,7 +41,8 @@ public class EnvironmentDeleteCliCommand : ProfiledCliCommand, IDestructiveComma
     /// environment is identified by <see cref="EnvironmentId"/>, which is
     /// independent of the profile's connection. The base guard would check
     /// the wrong environment. Instead we resolve the target environment's
-    /// type from the tenant catalog and apply the same check.
+    /// type from the tenant catalog and apply the same check. It fails closed:
+    /// if the type cannot be verified, the command is blocked.
     /// </summary>
     protected override async Task<int?> PreExecuteAsync()
     {
@@ -65,7 +66,7 @@ public class EnvironmentDeleteCliCommand : ProfiledCliCommand, IDestructiveComma
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex,
+            Logger.LogError(
                 "Blocked: could not look up environment {EnvironmentId} to verify its type ({Error}). " +
                 "Pass --allow-production to delete it without verification.",
                 EnvironmentId, ex.Message);

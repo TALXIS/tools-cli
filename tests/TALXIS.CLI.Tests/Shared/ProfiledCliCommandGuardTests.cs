@@ -18,6 +18,9 @@ public sealed class ProfiledCliCommandGuardTests
     {
         public bool Yes { get; set; } = true;
         public bool Executed { get; private set; }
+        public TimeSpan LookupTimeout { get; init; } = TimeSpan.FromSeconds(20);
+
+        protected override TimeSpan EnvironmentTypeLookupTimeout => LookupTimeout;
 
         protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(FakeDestructiveCommand));
 
@@ -162,6 +165,35 @@ public sealed class ProfiledCliCommandGuardTests
     }
 
     [Fact]
+    public async Task MissingType_CatalogHangs_TimesOutAndStaysBlocked()
+    {
+        using var host = new CommandTestHost();
+        host.EnvironmentCatalog.HangUntilCancelled = true;
+        await ProductionGuardTestSupport.SeedAsync(host);
+
+        var command = new FakeDestructiveCommand { LookupTimeout = TimeSpan.FromMilliseconds(100) };
+        var run = command.RunAsync();
+
+        Assert.Same(run, await Task.WhenAny(run, Task.Delay(TimeSpan.FromSeconds(10))));
+        Assert.Equal(2, await run);
+        Assert.False(command.Executed);
+    }
+
+    [Fact]
+    public async Task ConnectionUnreadable_BlocksDestructiveCommand()
+    {
+        CommandTestHost.FailingConnectionStore? store = null;
+        using var host = new CommandTestHost(decorateConnectionStore: inner => store = new CommandTestHost.FailingConnectionStore(inner));
+        await ProductionGuardTestSupport.SeedAsync(host, EnvironmentType.Production);
+        store!.FailReads = true;
+
+        // Profile resolution fails with something other than a configuration error.
+        var command = new FakeDestructiveCommand();
+        Assert.NotEqual(0, await command.RunAsync());
+        Assert.False(command.Executed);
+    }
+
+    [Fact]
     public async Task MissingType_CannotBeResolved_AllowProduction_Proceeds()
     {
         using var host = new CommandTestHost();
@@ -171,6 +203,7 @@ public sealed class ProfiledCliCommandGuardTests
         var command = new FakeDestructiveCommand { AllowProduction = true };
         Assert.Equal(0, await command.RunAsync());
         Assert.True(command.Executed);
+        Assert.Equal(0, host.EnvironmentCatalog.Lookups);
     }
 
     [Fact]

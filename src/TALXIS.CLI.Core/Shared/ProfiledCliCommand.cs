@@ -52,7 +52,7 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
         @"\b(prod|production|prd|live)\b",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    private static readonly TimeSpan EnvironmentTypeLookupTimeout = TimeSpan.FromSeconds(20);
+    protected virtual TimeSpan EnvironmentTypeLookupTimeout => TimeSpan.FromSeconds(20);
 
     [CliOption(
         Name = "--profile",
@@ -69,7 +69,7 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
 
     [CliOption(
         Name = "--allow-production",
-        Description = "Allow destructive operations against Production or Default environments.",
+        Description = "Allow destructive operations against Production or Default environments, or environments whose type cannot be determined.",
         Required = false)]
     public bool AllowProduction { get; set; }
 
@@ -107,8 +107,8 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
         // user/tenant identity for App Insights correlation (OTel semantic
         // conventions: enduser.id, enduser.scope). This runs for ALL profiled
         // commands, not just destructive ones.
+        var destructive = Attribute.IsDefined(GetType(), typeof(CliDestructiveAttribute));
         ResolvedProfileContext? resolvedContext = null;
-        ConfigurationResolutionException? resolutionFailure = null;
         try
         {
             var resolver = TxcServices.Get<IConfigurationResolver>();
@@ -116,30 +116,14 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
             Telemetry.ActivityIdentityTagger.TagFromResolvedProfile(
                 Activity.Current, resolvedContext.Credential, resolvedContext.Connection);
         }
-        catch (ConfigurationResolutionException ex)
+        catch (Exception) when (!destructive)
         {
-            resolutionFailure = ex;
-        }
-        catch (Exception) when (true)
-        {
-            // If profile resolution fails (DI not bootstrapped, unreadable
-            // store), let ExecuteAsync handle it — it will produce a better
-            // error message. Identity tags are best-effort; we never block a
-            // command for telemetry reasons.
+            // Identity tags are best-effort; ExecuteAsync reports the real error.
+            // A destructive command has no target to classify without a profile,
+            // so the exception propagates and RunAsync reports it.
         }
 
-        if (!Attribute.IsDefined(GetType(), typeof(CliDestructiveAttribute)))
-            return null;
-
-        // No profile means no target to classify: report why, rather than a
-        // confirmation prompt for a command that cannot run.
-        if (resolutionFailure is not null)
-        {
-            Logger.LogError("{Error}", resolutionFailure.Message);
-            return ExitValidationError;
-        }
-
-        if (resolvedContext is null)
+        if (!destructive || resolvedContext is null)
             return null;
 
         var connection = resolvedContext.Connection;
@@ -148,7 +132,7 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
         // or by an older version) would be blocked as unknown. Look it up once
         // with the resolved credential; the result is saved. Capped so a slow
         // control plane cannot hang the command.
-        if (connection.EnvironmentType is null)
+        if (connection.EnvironmentType is null && !AllowProduction)
         {
             using var cts = new CancellationTokenSource(EnvironmentTypeLookupTimeout);
             await TxcServices.Get<IEnvironmentTypeResolver>()

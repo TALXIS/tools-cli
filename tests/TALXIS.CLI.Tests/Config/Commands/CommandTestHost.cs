@@ -137,10 +137,13 @@ internal sealed class CommandTestHost : IDisposable
     internal sealed class FailingConnectionStore(IConnectionStore inner) : IConnectionStore
     {
         public bool FailUpserts { get; set; }
+        public bool FailReads { get; set; }
 
-        public Task<IReadOnlyList<ConnectionModel>> ListAsync(CancellationToken ct) => inner.ListAsync(ct);
+        public Task<IReadOnlyList<ConnectionModel>> ListAsync(CancellationToken ct)
+            => FailReads ? throw new IOException("config directory is not readable") : inner.ListAsync(ct);
 
-        public Task<ConnectionModel?> GetAsync(string id, CancellationToken ct) => inner.GetAsync(id, ct);
+        public Task<ConnectionModel?> GetAsync(string id, CancellationToken ct)
+            => FailReads ? throw new IOException("config directory is not readable") : inner.GetAsync(id, ct);
 
         public Task UpsertAsync(ConnectionModel connection, CancellationToken ct)
             => FailUpserts ? throw new IOException("config directory is not writable") : inner.UpsertAsync(connection, ct);
@@ -234,6 +237,8 @@ internal sealed class CommandTestHost : IDisposable
             new(StringComparer.OrdinalIgnoreCase);
 
         public Exception? Failure { get; set; }
+        public bool HangUntilCancelled { get; set; }
+        public int Lookups { get; private set; }
 
         public void Add(PowerPlatformEnvironmentSummary environment)
             => _environments[Normalize(environment.EnvironmentUrl)] = environment;
@@ -248,15 +253,17 @@ internal sealed class CommandTestHost : IDisposable
             return Task.FromResult(result);
         }
 
-        public Task<PowerPlatformEnvironmentSummary?> TryGetByEnvironmentUrlAsync(
+        public async Task<PowerPlatformEnvironmentSummary?> TryGetByEnvironmentUrlAsync(
             ConnectionModel connection,
             Credential credential,
             Uri environmentUrl,
             CancellationToken ct)
         {
+            Lookups++;
+            if (HangUntilCancelled) await Task.Delay(Timeout.Infinite, ct);
             if (Failure is not null) throw Failure;
             _environments.TryGetValue(Normalize(environmentUrl), out var environment);
-            return Task.FromResult(environment);
+            return environment;
         }
 
         private static string Normalize(Uri uri)

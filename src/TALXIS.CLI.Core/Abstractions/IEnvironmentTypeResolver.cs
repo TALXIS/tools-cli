@@ -40,9 +40,9 @@ public static class EnvironmentTypeResolverExtensions
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex,
-                "Could not refresh the environment type of connection '{ConnectionId}'; keeping the recorded value ({EnvType}).",
-                connection.Id, connection.EnvironmentType?.ToString() ?? "unknown");
+            logger.LogWarning(
+                "Could not refresh the environment type of connection '{ConnectionId}' ({Error}); keeping the recorded value ({EnvType}).",
+                connection.Id, ex.Message, connection.EnvironmentType?.ToString() ?? "unknown");
             return connection.EnvironmentType;
         }
     }

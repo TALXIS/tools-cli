@@ -1,8 +1,6 @@
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core.Abstractions;
-using TALXIS.CLI.Core.Headless;
 using TALXIS.CLI.Core.Model;
-using TALXIS.CLI.Core.Storage;
 
 namespace TALXIS.CLI.Core.Bootstrapping;
 
