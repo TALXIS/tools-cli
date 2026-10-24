@@ -30,6 +30,11 @@
 1. BPF entity → 2. BPFStage (repeat) → 3. BPFStageStep (repeat per stage)
 - Entity must have IsBPFEntity=1; XAML workflow needs Category=4, TriggerOnCreate=1
 
+## Flow Chain
+1. Flow (pp-flow, pick Trigger: manual/recurrence/dataverse) → 2. Edit definition JSON to add actions
+- Dataverse trigger: entity MUST exist; ConnectionReferenceLogicalName MUST point to an existing connection reference in Other/Customizations.xml
+- See flow-development skill for trigger parameters and action JSON rules
+
 ## Local vs Live
 - ALL chains above: use workspace tools (local, instant, reversible)
 - Environment tools ONLY for: inspection, layer troubleshooting, import, publish
