@@ -108,6 +108,22 @@ public sealed class ProductionGuardTests
     }
 
     [Fact]
+    public async Task MissingType_ResolvedButNotPersisted_IsBlocked()
+    {
+        FailingConnectionStore? store = null;
+        using var host = new CommandTestHost(decorateConnectionStore: inner => store = new FailingConnectionStore(inner));
+        host.EnvironmentCatalog.Add(CatalogEntry(EnvironmentType.Developer));
+        await ProductionGuardTestSupport.SeedAsync(host);
+        store!.FailUpserts = true;
+
+        // The catalog says Developer, but the type could not be recorded, so it
+        // stays "unknown" and the guard keeps its fail-safe behaviour.
+        var command = new FakeDestructiveCommand();
+        Assert.Equal(2, await command.RunAsync());
+        Assert.False(command.Executed);
+    }
+
+    [Fact]
     public async Task MissingType_CatalogSaysDeveloper_ButNameLooksLikeProduction_IsBlocked()
     {
         using var host = new CommandTestHost();

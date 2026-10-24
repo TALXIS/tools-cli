@@ -58,6 +58,9 @@ public sealed class DataverseEnvironmentTypeResolver : IEnvironmentTypeResolver
                 newType?.ToString() ?? "(null)",
                 environment.DisplayName);
 
+            var previous = (connection.EnvironmentType, connection.DisplayName, connection.OrganizationId,
+                connection.EnvironmentId, connection.UpdatedAt);
+
             // Only overwrite EnvironmentType when the API returned a value;
             // a null SKU should not clear a previously-set type.
             if (newType is not null)
@@ -67,7 +70,20 @@ public sealed class DataverseEnvironmentTypeResolver : IEnvironmentTypeResolver
                 connection.OrganizationId = orgId.ToString();
             connection.EnvironmentId = environment.EnvironmentId;
             connection.UpdatedAt = DateTimeOffset.UtcNow;
-            await _connectionStore.UpsertAsync(connection, ct).ConfigureAwait(false);
+
+            try
+            {
+                await _connectionStore.UpsertAsync(connection, ct).ConfigureAwait(false);
+            }
+            catch
+            {
+                // A failed or cancelled save must not leave the caller's instance
+                // claiming a type that was never stored: callers (the destructive
+                // guard, `profile validate`) act on this object.
+                (connection.EnvironmentType, connection.DisplayName, connection.OrganizationId,
+                    connection.EnvironmentId, connection.UpdatedAt) = previous;
+                throw;
+            }
         }
 
         return newType ?? connection.EnvironmentType;

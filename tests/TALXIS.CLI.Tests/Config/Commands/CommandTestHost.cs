@@ -33,7 +33,8 @@ internal sealed class CommandTestHost : IDisposable
         string? currentDirectory = null,
         FakeConnectionProvider? dataverseProvider = null,
         FakePowerPlatformEnvironmentCatalog? environmentCatalog = null,
-        TALXIS.CLI.Core.Platforms.PowerPlatform.IEnvironmentManagementService? environmentManagement = null)
+        TALXIS.CLI.Core.Platforms.PowerPlatform.IEnvironmentManagementService? environmentManagement = null,
+        Func<IConnectionStore, IConnectionStore>? decorateConnectionStore = null)
     {
         Temp = new TempConfigDir();
         Vault = new FakeVault();
@@ -53,7 +54,12 @@ internal sealed class CommandTestHost : IDisposable
         var envReader = new FakeEnvironmentReader(currentDirectory ?? Directory.GetCurrentDirectory());
         services.AddSingleton<IEnvironmentReader>(envReader);
         services.AddSingleton<IProfileStore, ProfileStore>();
-        services.AddSingleton<IConnectionStore, ConnectionStore>();
+        services.AddSingleton<ConnectionStore>();
+        services.AddSingleton<IConnectionStore>(sp =>
+        {
+            var store = sp.GetRequiredService<ConnectionStore>();
+            return decorateConnectionStore?.Invoke(store) ?? store;
+        });
         services.AddSingleton<ICredentialStore, CredentialStore>();
         services.AddSingleton<IGlobalConfigStore, GlobalConfigStore>();
         services.AddSingleton<TALXIS.CLI.Core.Bootstrapping.ConnectionUpsertService>();
