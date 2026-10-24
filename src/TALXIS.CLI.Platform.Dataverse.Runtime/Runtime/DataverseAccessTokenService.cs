@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Identity.Client;
 using TALXIS.CLI.Core.Abstractions;
+using TALXIS.CLI.Core.Headless;
 using TALXIS.CLI.Core.Identity;
 using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Platform.Dataverse.Runtime.Scopes;
@@ -141,9 +142,9 @@ public sealed class DataverseAccessTokenService : IDataverseAccessTokenService
 
         if (account is null)
         {
-            throw new InvalidOperationException(
-                $"No cached sign-in found for credential '{credential.Id}'. " +
-                "Run 'txc config auth login' and retry.");
+            throw new EnvironmentAuthRequiredException(
+                connection.EnvironmentUrl,
+                _headless.IsHeadless ? _headless.Reason : null);
         }
 
         try
@@ -219,9 +220,10 @@ public sealed class DataverseAccessTokenService : IDataverseAccessTokenService
                 }
             }
 
-            throw new InvalidOperationException(
-                $"Cached token for '{credential.Id}' expired or is missing consent. " +
-                "Run 'txc config auth login' and retry.", ex);
+            throw new EnvironmentAuthRequiredException(
+                connection.EnvironmentUrl,
+                _headless.IsHeadless ? _headless.Reason : null,
+                ex);
         }
     }
 
