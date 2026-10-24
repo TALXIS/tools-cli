@@ -12,7 +12,7 @@ namespace TALXIS.CLI.Features.Config.Connection;
 /// </summary>
 [CliCommand(
     Name = "connection",
-    Description = "Manage service endpoint metadata (Dataverse environments, etc.).",
+    Description = "Manage service endpoint metadata (Dataverse environments, etc.) — the \"where\", not the \"who\". Run 'connection list' before 'connection create' to check for an existing one targeting the same environment.",
     Children = new[]
     {
         typeof(ConnectionCreateCliCommand),

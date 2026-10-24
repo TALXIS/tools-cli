@@ -19,6 +19,18 @@ namespace TALXIS.CLI.MCP
 # Instructions for performing tasks over the repository
 Use the TALXIS CLI MCP Server (txc-mcp) for all development tasks. Call `guide_workspace`, `guide_environment`, `guide_deployment`, `guide_data`, `guide_config`, or `get_skill_details` to discover available tools and guidance.
 
+## Authentication
+
+- Never attempt to sign in yourself. `txc`/txc-mcp structurally refuses to start
+  an interactive browser or device-code flow on your behalf — there is no
+  headless fallback. If a tool call fails with an auth-required/expired-token
+  error, stop and ask the user to run `txc config auth login` manually in
+  their own terminal, then retry.
+- Never create a new profile or connection speculatively. Run
+  `config_profile_list` / `config_connection_list` (or `txc config profile
+  list` / `txc config connection list`) first and reuse an existing one that
+  already targets the environment you need.
+
 ## Project Structure and Naming Conventions
 
 **Note**: These are recommended naming conventions. Users may choose different naming styles based on their preferences or organizational standards.

@@ -44,16 +44,18 @@ public sealed class HeadlessAuthRequiredException : Exception
                 .OrderBy(s => s, StringComparer.Ordinal));
 
         return
-            $"Credential kind '{ToKebab(kind)}' requires an interactive TTY, " +
-            $"but this process is running in headless mode ({reason}). " +
+            $"Interactive sign-in requires a human to run it deliberately in their own terminal — " +
+            $"it is never performed automatically. Credential kind '{ToKebab(kind)}' requires an interactive " +
+            $"TTY, but this process is running in headless mode ({reason}). " +
             $"Permitted headless kinds: {permitted}. " +
-            "To run non-interactively, register a headless-capable credential with either " +
+            "To run non-interactively, ask a human to register a headless-capable credential with either " +
             "`txc config auth add-service-principal --alias <alias> --tenant <tenant> " +
             "--client-id <app-id> --secret-from-env <ENV_VAR_NAME>` or " +
             "`txc config auth add-federated --alias <alias> --tenant <tenant> --client-id <app-id>`, and bind it to the profile, " +
             "or supply the credential via environment variables " +
             "(AZURE_CLIENT_ID / AZURE_CLIENT_SECRET / AZURE_TENANT_ID for SPN, " +
-            "AZURE_FEDERATED_TOKEN_FILE for workload-identity federation).";
+            "AZURE_FEDERATED_TOKEN_FILE for workload-identity federation). " +
+            "Otherwise, ask the human to run `txc config auth login` themselves in an interactive terminal, then retry.";
     }
 
     private static string ToKebab(CredentialKind kind)
