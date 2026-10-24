@@ -40,7 +40,7 @@ For **bulk transactional data** or **ETL workloads**, consider the Dataverse Imp
 ### Prerequisites
 
 1. Install `txc` (the TALXIS CLI).
-2. Authenticate: `txc config auth login --profile myprofile`
+2. Create a profile and sign in: `txc config profile create --url https://contoso.crm4.dynamics.com/` (see [Profiles and authentication](profiles-and-authentication.md))
 3. Have a CMT schema file (`data_schema.xml`). You can create one with the [Configuration Migration Tool GUI](https://learn.microsoft.com/en-us/power-platform/admin/manage-configuration-data) or write it by hand (see [Schema File Reference](#4-schema-file-reference-data_schemaxml)).
 
 ### Export data
@@ -137,8 +137,8 @@ txc data package import <path> [options]
 | Argument / Option | Alias | Required | Default | Description |
 |---|---|---|---|---|
 | `<path>` *(argument)* | — | **Yes** | — | Path to the CMT data package (`.zip` file or folder containing `data.xml` and `data_schema.xml`). |
-| `--connection-count <N>` | — | No | `1` | How many parallel connections to open against the environment. More connections = faster import for large datasets. Each connection authenticates separately. |
-| `--batch-mode` | — | No | `false` | Send records in batches instead of one-by-one. Much faster for large imports. Batches use `ExecuteMultiple` or `UpsertMultiple` depending on org version. |
+| `--connection-count <N>` | — | No | `1` | Opens 1 primary management connection and `N-1` cloned worker connections. Only the cloned connections are used for parallel record import, so the effective parallelism is `N-1`. To get 4 parallel workers, pass `5`. |
+| `--batch-mode` | — | No | `false` | Send records in batches instead of one-by-one. Much faster for large imports. Batches use `ExecuteMultiple` or `UpsertMultiple` depending on org version. **⚠️ Even though the logs show M2M relationship records as processed, they are skipped in batch mode** — omit this flag or run a second pass without it if your package contains M2M relationships. |
 | `--batch-size <N>` | — | No | `600` | How many records to send per batch request. Only used when `--batch-mode` is on. Lower values are safer, higher values are faster. |
 | `--override-safety-checks` | — | No | `false` | **DANGEROUS:** Skip all duplicate checking. Every record will be created as new, even if it already exists. Use only when importing into a clean empty environment. |
 | `--prefetch-limit <N>` | — | No | `4000` | How many existing records to load into memory per entity for faster duplicate detection. If an entity has more records than this limit, each record is checked individually against the server (slower). Increase for large entities. |
@@ -662,12 +662,19 @@ The import command exposes several options that control parallelism, batching, a
 
 **Default:** `1`
 
-Opens **N** parallel `CrmServiceClient` connections to the target environment. During the preprocessing phase, records are distributed round-robin across the available connections. Each connection authenticates separately.
+Controls how many connections are opened against the target environment. Internally, CMT uses **one primary management connection** (`CrmConnection`) plus a pool of **cloned connections** (`ImportConnections`) for the actual parallel record import. Only the cloned pool is used for record distribution — the management connection is reserved for coordination.
 
-**When to increase:** Large imports (thousands of records). Typical sweet spot is 2–8 connections. Going beyond 8 rarely helps and may trigger throttling.
+This means:
+- `--connection-count 1` → 0 cloned connections (sequential import via the management connection)
+- `--connection-count 2` → 1 cloned connection (2 connections total, but only 1 doing parallel import)
+- `--connection-count 5` → 4 cloned connections (effective parallelism of 4)
+
+> **In short: the number of parallel import workers equals `N-1`.** To get 4 workers, pass `--connection-count 5`. This is the same behaviour as `pac data import --connection-count`.
+
+**When to increase:** Large imports (thousands of records). Typical sweet spot is `3`–`9` (giving 2–8 effective parallel workers). Going beyond `9` rarely helps and may trigger throttling.
 
 ```bash
-txc data package import data.zip --connection-count 4
+txc data package import data.zip --connection-count 5
 ```
 
 ### `--batch-mode`
@@ -676,7 +683,9 @@ txc data package import data.zip --connection-count 4
 
 When enabled, records are sent in batches using `ExecuteMultiple` requests instead of individual `Create` / `Update` calls. If the target organization is version **9.2.23083 or higher**, CMT automatically upgrades to `UpsertMultiple` for even better throughput.
 
-**When to use:** Any import with more than a few hundred records. The performance difference is dramatic — a 10,000-record import that takes 30 minutes one-by-one can complete in 2–3 minutes with batch mode.
+> **⚠️ Many-to-many (M2M) relationship records are skipped when `--batch-mode` is enabled.** CMT does not include M2M association records in batch requests. If your data package contains M2M relationships, import without `--batch-mode` or perform a second pass without it to populate those relationships.
+
+**When to use:** Any import with more than a few hundred records that does **not** rely on M2M relationships. The performance difference is dramatic — a 10,000-record import that takes 30 minutes one-by-one can complete in 2–3 minutes with batch mode.
 
 ```bash
 txc data package import data.zip --batch-mode
@@ -899,7 +908,7 @@ txc data package import data.zip --verbose --profile myprofile
 | **Schema validation failed** | Entity or field in schema doesn't exist in target | Verify target environment has all entities/fields. Check for typos in logical names. |
 | **Duplicate key error** | Record with same primary key already exists | Use dedup (`updateCompare`) or `--override-safety-checks` if target is empty. |
 | **Lookup resolution failed** | Referenced record doesn't exist in target | Check `<entityImportOrder>` — parent entities must come first. Verify the referenced record was exported. |
-| **Interactive authentication required** | Token expired or not cached | Run `txc config auth login --profile <name>` and retry. |
+| **Interactive authentication required** | Token expired or not cached | Run `txc config auth login` and retry. |
 | **Request size exceeded** | Batch too large (>16 MB) | Reduce `--batch-size` (try 100–200). |
 | **Throttling / 429 errors** | Too many parallel requests | Reduce `--connection-count`. Add retry logic in pipeline. |
 | **File not found in package** | `files/{guid}.bin` missing from zip | Re-export with `--export-files`. Ensure the zip wasn't modified after export. |
@@ -909,11 +918,11 @@ txc data package import data.zip --verbose --profile myprofile
 CMT commands require an authenticated connection to Dataverse. Before running export or import:
 
 ```bash
-# Login and cache credentials for a profile
-txc config auth login --profile myprofile
+# Create a profile for the environment (this signs you in)
+txc config profile create --url https://contoso.crm4.dynamics.com/ --name myprofile
 
 # Verify the profile is working
-txc config auth status --profile myprofile
+txc config profile validate myprofile
 ```
 
 If you get an "Interactive authentication required" error, your cached token has expired. Re-run `txc config auth login`.

@@ -4,36 +4,17 @@ using TALXIS.CLI.Features.Config.Profile;
 using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Core;
 using Xunit;
-using ConnectionModel = TALXIS.CLI.Core.Model.Connection;
 
 namespace TALXIS.CLI.Tests.Config.Commands.Profile;
 
 [Collection("TxcServicesSerial")]
 public sealed class ProfileValidateTests
 {
-    private static async Task SeedAsync(CommandTestHost host)
-    {
-        var creds = (ICredentialStore)host.Provider.GetService(typeof(ICredentialStore))!;
-        var conns = (IConnectionStore)host.Provider.GetService(typeof(IConnectionStore))!;
-        await creds.UpsertAsync(new Credential
-        {
-            Id = "cred",
-            Kind = CredentialKind.InteractiveBrowser,
-            TenantId = "contoso.onmicrosoft.com",
-        }, default);
-        await conns.UpsertAsync(new ConnectionModel
-        {
-            Id = "conn",
-            Provider = ProviderKind.Dataverse,
-            EnvironmentUrl = "https://contoso.crm.dynamics.com",
-        }, default);
-    }
-
     [Fact]
     public async Task Validate_ActiveProfile_ReturnsZero_AndInvokesProvider_LiveByDefault()
     {
         using var host = new CommandTestHost();
-        await SeedAsync(host);
+        await host.SeedConnectionAsync();
         await new ProfileCreateCliCommand { Name = "p", Auth = "cred", Connection = "conn" }.RunAsync();
 
         var exit = await new ProfileValidateCliCommand().RunAsync();
@@ -46,7 +27,7 @@ public sealed class ProfileValidateTests
     public async Task Validate_WithSkipLive_PassesStructuralMode()
     {
         using var host = new CommandTestHost();
-        await SeedAsync(host);
+        await host.SeedConnectionAsync();
         await new ProfileCreateCliCommand { Name = "p", Auth = "cred", Connection = "conn" }.RunAsync();
 
         var exit = await new ProfileValidateCliCommand { SkipLive = true }.RunAsync();
@@ -58,7 +39,7 @@ public sealed class ProfileValidateTests
     public async Task Validate_EmitsJsonWithProfileAndStatus()
     {
         using var host = new CommandTestHost();
-        await SeedAsync(host);
+        await host.SeedConnectionAsync();
         await new ProfileCreateCliCommand { Name = "p", Auth = "cred", Connection = "conn" }.RunAsync();
 
         var sw = new StringWriter();
@@ -95,7 +76,7 @@ public sealed class ProfileValidateTests
     public async Task Validate_ReturnsExit2_WhenConnectionMissing()
     {
         using var host = new CommandTestHost();
-        await SeedAsync(host);
+        await host.SeedConnectionAsync();
         await new ProfileCreateCliCommand { Name = "p", Auth = "cred", Connection = "conn" }.RunAsync();
 
         // Delete the connection directly to simulate an orphan reference.
@@ -111,7 +92,7 @@ public sealed class ProfileValidateTests
     {
         using var host = new CommandTestHost();
         host.Provider_Dataverse.Behavior = (_, _, _) => throw new InvalidOperationException("WhoAmI failed: 401");
-        await SeedAsync(host);
+        await host.SeedConnectionAsync();
         await new ProfileCreateCliCommand { Name = "p", Auth = "cred", Connection = "conn" }.RunAsync();
 
         var exit = await new ProfileValidateCliCommand().RunAsync();
@@ -122,7 +103,7 @@ public sealed class ProfileValidateTests
     public async Task Validate_Named_RespectsArgumentOverActive()
     {
         using var host = new CommandTestHost();
-        await SeedAsync(host);
+        await host.SeedConnectionAsync();
         await new ProfileCreateCliCommand { Name = "a", Auth = "cred", Connection = "conn" }.RunAsync();
         await new ProfileCreateCliCommand { Name = "b", Auth = "cred", Connection = "conn" }.RunAsync();
 
@@ -131,5 +112,22 @@ public sealed class ProfileValidateTests
 
         using var doc = JsonDocument.Parse(sw.ToString());
         Assert.Equal("b", doc.RootElement.GetProperty("profile").GetString());
+    }
+
+    [Fact]
+    public async Task Validate_RefreshEnvType_StillRecordsType_WhenLiveCheckFails()
+    {
+        using var host = new CommandTestHost();
+        host.EnvironmentCatalog.AddEnvironment(CommandTestHost.DefaultEnvironmentUrl, EnvironmentType.Developer);
+        host.Provider_Dataverse.Behavior = (_, _, _) => throw new HttpRequestException("host unreachable");
+        await host.SeedConnectionAsync();
+        await new ProfileCreateCliCommand { Name = "p", Auth = "cred", Connection = "conn" }.RunAsync();
+
+        var exit = await new ProfileValidateCliCommand { RefreshEnvType = true }.RunAsync();
+
+        // The live check fails, but the catalog refresh already ran and persisted the type.
+        Assert.Equal(1, exit);
+        var conns = (IConnectionStore)host.Provider.GetService(typeof(IConnectionStore))!;
+        Assert.Equal(EnvironmentType.Developer, (await conns.GetAsync("conn", default))!.EnvironmentType);
     }
 }

@@ -205,6 +205,18 @@ public sealed class AuthLoginCommandTests
     }
 
     [Fact]
+    public async Task Login_DeviceCodeFlag_UsesDeviceCode_EvenWhenBrowserAvailable()
+    {
+        using var host = new CommandTestHost(browserAvailable: true);
+        var store = (ICredentialStore)host.Provider.GetService(typeof(ICredentialStore))!;
+
+        using (OutputWriter.RedirectTo(new StringWriter()))
+            Assert.Equal(0, await new AuthLoginCliCommand { DeviceCode = true }.RunAsync());
+
+        Assert.Equal(CredentialKind.DeviceCode, Assert.Single(await store.ListAsync(default)).Kind);
+    }
+
+    [Fact]
     public async Task Login_DeviceCode_PersistsCredential_WhenFlagExplicit()
     {
         using var host = new CommandTestHost(

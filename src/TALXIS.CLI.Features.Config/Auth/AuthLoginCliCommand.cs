@@ -1,7 +1,6 @@
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
-using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Bootstrapping;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Core.Headless;
@@ -48,43 +47,23 @@ public class AuthLoginCliCommand : TxcLeafCommand
 
     protected override async Task<int> ExecuteAsync()
     {
-        var store = TxcServices.Get<ICredentialStore>();
-        var headless = TxcServices.Get<IHeadlessDetector>();
-        var browserProbe = TxcServices.Get<IBrowserAvailabilityProbe>();
+        var signIn = TxcServices.Get<CredentialSignInService>();
         var cloud = Cloud ?? CloudInstance.Public;
 
-        // Determine whether to use device code flow: explicit flag or
-        // or automatic detection of browser-isolated environments.
-        var useDeviceCode = DeviceCode || !browserProbe.IsBrowserAvailable;
+        var outcome = await signIn.SignInAsync(Tenant, cloud, Alias, DeviceCode, CancellationToken.None).ConfigureAwait(false);
+        var result = outcome.Credential;
 
-        if (useDeviceCode)
+        Logger.LogInformation("Signed in as {Upn} (tenant {Tenant}). Credential '{Alias}' saved.",
+            result.Upn, result.TenantId, result.Credential.Id);
+
+        OutputFormatter.WriteData(new
         {
-            var deviceCodeLogin = TxcServices.Get<IDeviceCodeLoginService>();
-            Logger.LogInformation("Starting device code sign-in (browser unavailable: {Reason})...",
-                browserProbe.UnavailableReason ?? "--device-code flag");
-
-            var result = await DeviceCodeCredentialBootstrapper.AcquireAndPersistAsync(
-                deviceCodeLogin, store, headless, Tenant, cloud, Alias, CancellationToken.None).ConfigureAwait(false);
-
-            Logger.LogInformation("Signed in as {Upn} (tenant {Tenant}). Credential '{Alias}' saved.",
-                result.Upn, result.TenantId, result.Credential.Id);
-
-            OutputFormatter.WriteData(new { id = result.Credential.Id, upn = result.Upn, tenantId = result.TenantId, cloud, flow = "device-code" });
-            return ExitSuccess;
-        }
-        else
-        {
-            var login = TxcServices.Get<IInteractiveLoginService>();
-            Logger.LogInformation("Starting interactive sign-in...");
-
-            var result = await InteractiveCredentialBootstrapper.AcquireAndPersistAsync(
-                login, store, headless, Tenant, cloud, Alias, CancellationToken.None).ConfigureAwait(false);
-
-            Logger.LogInformation("Signed in as {Upn} (tenant {Tenant}). Credential '{Alias}' saved.",
-                result.Upn, result.TenantId, result.Credential.Id);
-
-            OutputFormatter.WriteData(new { id = result.Credential.Id, upn = result.Upn, tenantId = result.TenantId, cloud, flow = "interactive-browser" });
-            return ExitSuccess;
-        }
+            id = result.Credential.Id,
+            upn = result.Upn,
+            tenantId = result.TenantId,
+            cloud,
+            flow = outcome.UsedDeviceCode ? "device-code" : "interactive-browser",
+        });
+        return ExitSuccess;
     }
 }

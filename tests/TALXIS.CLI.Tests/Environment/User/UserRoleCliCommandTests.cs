@@ -104,6 +104,7 @@ public sealed class UserRoleCliCommandTests
             services.AddLogging();
             services.AddSingleton<IDataverseUserService>(new FakeUserService(user, existingRoles, mutateException));
             services.AddSingleton<IDataverseRoleService>(new FakeRoleService(role));
+            services.AddSingleton<IConfigurationResolver>(new FixedResolver());
 
             _provider = services.BuildServiceProvider();
             TxcServices.Initialize(_provider);
@@ -114,6 +115,23 @@ public sealed class UserRoleCliCommandTests
             TxcServices.Reset();
             _provider.Dispose();
         }
+    }
+
+    /// <summary>Resolves a non-production profile so the destructive-operation guard lets the command run.</summary>
+    private sealed class FixedResolver : IConfigurationResolver
+    {
+        public Task<ResolvedProfileContext> ResolveAsync(string? profileName, CancellationToken ct)
+            => Task.FromResult(new ResolvedProfileContext(
+                Profile: null,
+                new Connection
+                {
+                    Id = "conn",
+                    Provider = ProviderKind.Dataverse,
+                    EnvironmentUrl = "https://contoso.crm.dynamics.com",
+                    EnvironmentType = EnvironmentType.Developer,
+                },
+                new Credential { Id = "cred" },
+                ResolutionSource.Ephemeral));
     }
 
     private sealed class FakeUserService(

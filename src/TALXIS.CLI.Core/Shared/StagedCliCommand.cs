@@ -24,6 +24,9 @@ public abstract class StagedCliCommand : ProfiledCliCommand
     [DefaultValue(false)]
     public bool Stage { get; set; }
 
+    /// <summary>Staging only edits a local changeset; every other mode reaches the environment.</summary>
+    protected override bool ExecutesRemotely => Apply || !Stage;
+
     /// <summary>
     /// Validates that exactly one of --apply or --stage is specified.
     /// Call this at the beginning of ExecuteAsync() in derived commands.

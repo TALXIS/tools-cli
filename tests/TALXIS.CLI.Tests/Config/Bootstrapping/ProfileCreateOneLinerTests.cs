@@ -13,6 +13,22 @@ namespace TALXIS.CLI.Tests.Config.Bootstrapping;
 [Collection("TxcServicesSerial")]
 public sealed class ProfileCreateOneLinerTests
 {
+    private const string DevboxUrl = "https://devbox.crm4.dynamics.com/";
+    private const string ContosoUrl = "https://contoso.crm4.dynamics.com/";
+
+    private static async Task<Connection> GetConnectionAsync(CommandTestHost host, string id)
+    {
+        var connection = await ((IConnectionStore)host.Provider.GetService(typeof(IConnectionStore))!).GetAsync(id, default);
+        Assert.NotNull(connection);
+        return connection!;
+    }
+
+    private static async Task<int> RunCreateAsync(string url, string? name = null)
+    {
+        using (OutputWriter.RedirectTo(new StringWriter()))
+            return await new ProfileCreateCliCommand { Url = url, Name = name }.RunAsync();
+    }
+
     [Fact]
     public async Task UrlMode_Bootstraps_Credential_Connection_Profile_AndActivates()
     {
@@ -280,6 +296,88 @@ public sealed class ProfileCreateOneLinerTests
         var connections = (IConnectionStore)host.Provider.GetService(typeof(IConnectionStore))!;
         Assert.NotNull(await profiles.GetAsync("my-profile", default));
         Assert.NotNull(await connections.GetAsync("my-profile", default));
+    }
+
+    [Fact]
+    public async Task UrlMode_ExplicitName_StillResolvesEnvironmentMetadata()
+    {
+        var catalog = new CommandTestHost.FakePowerPlatformEnvironmentCatalog();
+        catalog.AddEnvironment(DevboxUrl, EnvironmentType.Developer);
+
+        using var host = new CommandTestHost(environmentCatalog: catalog);
+        Assert.Equal(0, await RunCreateAsync(DevboxUrl, "devbox-2896"));
+
+        var connection = await GetConnectionAsync(host, "devbox-2896");
+        Assert.Equal(EnvironmentType.Developer, connection.EnvironmentType);
+        Assert.Equal("Contoso DevBox", connection.DisplayName);
+        Assert.Equal(CommandTestHost.FakePowerPlatformEnvironmentCatalog.DevboxEnvironmentId, connection.EnvironmentId);
+        Assert.Equal(CommandTestHost.FakePowerPlatformEnvironmentCatalog.DevboxOrganizationId.ToString(), connection.OrganizationId);
+    }
+
+    [Fact]
+    public async Task UrlMode_Recreate_WhenLookupFails_PreservesExistingMetadata()
+    {
+        var catalog = new CommandTestHost.FakePowerPlatformEnvironmentCatalog();
+        catalog.AddEnvironment(DevboxUrl, EnvironmentType.Developer);
+
+        using var host = new CommandTestHost(environmentCatalog: catalog);
+        Assert.Equal(0, await RunCreateAsync(DevboxUrl, "devbox-2896"));
+
+        catalog.Failure = new InvalidOperationException("admin lookup failed");
+        Assert.Equal(0, await RunCreateAsync(DevboxUrl, "devbox-2896"));
+
+        var connection = await GetConnectionAsync(host, "devbox-2896");
+        Assert.Equal(EnvironmentType.Developer, connection.EnvironmentType);
+        Assert.Equal("Contoso DevBox", connection.DisplayName);
+    }
+
+    [Theory]
+    [InlineData(typeof(HttpRequestException))]
+    [InlineData(typeof(TaskCanceledException))] // HttpClient timeout: not caller cancellation
+    public async Task UrlMode_ExplicitName_WhenLookupHitsTransportFailure_StillCreatesProfile(Type failure)
+    {
+        var catalog = new CommandTestHost.FakePowerPlatformEnvironmentCatalog
+        {
+            Failure = (Exception)Activator.CreateInstance(failure, "admin endpoint unavailable")!,
+        };
+
+        using var host = new CommandTestHost(environmentCatalog: catalog);
+        Assert.Equal(0, await RunCreateAsync(DevboxUrl, "devbox-2896"));
+
+        var connection = await GetConnectionAsync(host, "devbox-2896");
+        Assert.Null(connection.EnvironmentType);
+    }
+
+    [Theory]
+    [InlineData(true, CredentialKind.InteractiveBrowser)]
+    [InlineData(false, CredentialKind.DeviceCode)]
+    public async Task UrlMode_PicksSignInFlow_FromBrowserAvailability(bool browserAvailable, CredentialKind expectedKind)
+    {
+        using var host = new CommandTestHost(browserAvailable: browserAvailable);
+
+        Assert.Equal(0, await RunCreateAsync(ContosoUrl));
+
+        var creds = (ICredentialStore)host.Provider.GetService(typeof(ICredentialStore))!;
+        var credential = Assert.Single(await creds.ListAsync(default));
+        Assert.Equal(expectedKind, credential.Kind);
+        Assert.Equal(1, host.Login.Calls);
+    }
+
+    [Fact]
+    public async Task UrlMode_RerunWithBrowser_AfterDeviceCode_ReusesCredentialAndProfile()
+    {
+        using var host = new CommandTestHost(browserAvailable: false);
+
+        Assert.Equal(0, await RunCreateAsync(ContosoUrl));
+
+        // Same config, now with a browser: must not fork a second credential/profile for the same account.
+        host.BrowserProbe.IsBrowserAvailable = true;
+        Assert.Equal(0, await RunCreateAsync(ContosoUrl));
+
+        var creds = (ICredentialStore)host.Provider.GetService(typeof(ICredentialStore))!;
+        var profiles = (IProfileStore)host.Provider.GetService(typeof(IProfileStore))!;
+        Assert.Single(await creds.ListAsync(default));
+        Assert.Single(await profiles.ListAsync(default));
     }
 
     [Fact]

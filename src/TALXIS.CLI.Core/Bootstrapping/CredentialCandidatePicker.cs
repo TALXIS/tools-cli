@@ -1,12 +1,12 @@
+using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Model;
 
 namespace TALXIS.CLI.Core.Bootstrapping;
 
 /// <summary>
-/// Shared deterministic credential-selection logic used by both
-/// <see cref="InteractiveCredentialBootstrapper"/> and
-/// <see cref="DeviceCodeCredentialBootstrapper"/> to pick the best
-/// existing credential from a candidate set.
+/// Shared logic used by both <see cref="InteractiveCredentialBootstrapper"/>
+/// and <see cref="DeviceCodeCredentialBootstrapper"/> to find and pick the
+/// best existing credential for a sign-in result.
 /// </summary>
 internal static class CredentialCandidatePicker
 {
@@ -41,5 +41,49 @@ internal static class CredentialCandidatePicker
             .OrderBy(c => string.Equals(c.Id, upn, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
             .ThenBy(c => c.Id, StringComparer.OrdinalIgnoreCase)
             .First();
+    }
+
+    /// <summary>
+    /// Finds the stored credential a sign-in should update instead of creating a
+    /// duplicate. Browser and device-code credentials for the same account are
+    /// interchangeable, so a re-login with either flow reuses either kind.
+    /// </summary>
+    public static async Task<Credential?> FindExistingAsync(
+        ICredentialStore store,
+        InteractiveLoginResult result,
+        CloudInstance cloud,
+        string? explicitAlias,
+        CancellationToken ct)
+    {
+        var credentials = await store.ListAsync(ct).ConfigureAwait(false);
+        var candidates = credentials
+            .Where(c => c.Kind is CredentialKind.InteractiveBrowser or CredentialKind.DeviceCode)
+            .Where(c => string.Equals(c.TenantId, result.TenantId, StringComparison.OrdinalIgnoreCase))
+            .Where(c => c.Cloud == cloud)
+            .Where(c =>
+                string.IsNullOrWhiteSpace(result.ApplicationId)
+                || string.IsNullOrWhiteSpace(c.ApplicationId)
+                || string.Equals(c.ApplicationId, result.ApplicationId, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (!string.IsNullOrWhiteSpace(result.AccountId))
+        {
+            var exact = PickPreferred(
+                candidates.Where(c =>
+                    string.Equals(c.InteractiveAccountId, result.AccountId, StringComparison.OrdinalIgnoreCase)),
+                explicitAlias,
+                result.Upn);
+            if (exact is not null)
+                return exact;
+        }
+
+        // Backward compatibility for older credentials that predate persisted
+        // account ids: prefer stored interactive UPN, then legacy "UPN as id".
+        return PickPreferred(
+            candidates.Where(c =>
+                string.Equals(c.InteractiveUpn, result.Upn, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(c.Id, result.Upn, StringComparison.OrdinalIgnoreCase)),
+            explicitAlias,
+            result.Upn);
     }
 }

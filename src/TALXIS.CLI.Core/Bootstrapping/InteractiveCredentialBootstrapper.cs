@@ -41,7 +41,7 @@ public static class InteractiveCredentialBootstrapper
 
         var result = await login.LoginAsync(tenantId, cloud, ct).ConfigureAwait(false);
 
-        var existing = await FindExistingInteractiveCredentialAsync(
+        var existing = await CredentialCandidatePicker.FindExistingAsync(
             store,
             result,
             cloud,
@@ -74,44 +74,5 @@ public static class InteractiveCredentialBootstrapper
 
         await store.UpsertAsync(credential, ct).ConfigureAwait(false);
         return new InteractiveCredentialResult(credential, result.Upn, result.TenantId);
-    }
-
-    private static async Task<Credential?> FindExistingInteractiveCredentialAsync(
-        ICredentialStore store,
-        InteractiveLoginResult result,
-        CloudInstance cloud,
-        string? explicitAlias,
-        CancellationToken ct)
-    {
-        var credentials = await store.ListAsync(ct).ConfigureAwait(false);
-        var candidates = credentials
-            .Where(c => c.Kind == CredentialKind.InteractiveBrowser)
-            .Where(c => string.Equals(c.TenantId, result.TenantId, StringComparison.OrdinalIgnoreCase))
-            .Where(c => c.Cloud == cloud)
-            .Where(c =>
-                string.IsNullOrWhiteSpace(result.ApplicationId)
-                || string.IsNullOrWhiteSpace(c.ApplicationId)
-                || string.Equals(c.ApplicationId, result.ApplicationId, StringComparison.OrdinalIgnoreCase))
-            .ToList();
-
-        if (!string.IsNullOrWhiteSpace(result.AccountId))
-        {
-            var exact = CredentialCandidatePicker.PickPreferred(
-                candidates.Where(c =>
-                    string.Equals(c.InteractiveAccountId, result.AccountId, StringComparison.OrdinalIgnoreCase)),
-                explicitAlias,
-                result.Upn);
-            if (exact is not null)
-                return exact;
-        }
-
-        // Backward compatibility for older credentials that predate persisted
-        // account ids: prefer stored interactive UPN, then legacy "UPN as id".
-        return CredentialCandidatePicker.PickPreferred(
-            candidates.Where(c =>
-                string.Equals(c.InteractiveUpn, result.Upn, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(c.Id, result.Upn, StringComparison.OrdinalIgnoreCase)),
-            explicitAlias,
-            result.Upn);
     }
 }
