@@ -65,6 +65,7 @@ internal sealed class CommandTestHost : IDisposable
         services.AddSingleton<IBrowserAvailabilityProbe>(new FakeBrowserProbe(browserAvailable: browserAvailable ?? !headless));
         services.AddSingleton<IDeviceCodeLoginService>(Login);
         services.AddSingleton<IPowerPlatformEnvironmentCatalog>(EnvironmentCatalog);
+        services.AddSingleton<IEnvironmentTypeResolver, TALXIS.CLI.Platform.Dataverse.Runtime.DataverseEnvironmentTypeResolver>();
         services.AddSingleton(_ =>
             MsalTokenCacheBinder
                 .CreateForTestingAsync(VaultOptions.MsalTokenCache(envReader), Temp.Paths)

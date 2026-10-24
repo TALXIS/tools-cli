@@ -64,14 +64,17 @@ public class ProfileValidateCliCommand : TxcLeafCommand
             return ExitValidationError;
         }
 
-        var mode = SkipLive ? ValidationMode.Structural : ValidationMode.Live;
-        await provider.ValidateAsync(connection, credential, mode, CancellationToken.None).ConfigureAwait(false);
-
+        // Refresh first: it only needs the control-plane catalog, so it must
+        // still work when the live check fails because the environment itself
+        // is unreachable (network policy, instance down).
         EnvironmentType? refreshedEnvType = connection.EnvironmentType;
         if (RefreshEnvType)
         {
             refreshedEnvType = await TryRefreshEnvironmentTypeAsync(connection, credential).ConfigureAwait(false);
         }
+
+        var mode = SkipLive ? ValidationMode.Structural : ValidationMode.Live;
+        await provider.ValidateAsync(connection, credential, mode, CancellationToken.None).ConfigureAwait(false);
 
         OutputFormatter.WriteData(new
         {

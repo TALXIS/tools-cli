@@ -34,7 +34,10 @@ namespace TALXIS.CLI.Core;
 /// are blocked at runtime when the target environment is Production or
 /// Default (or unknown), unless <c>--allow-production</c> is passed.
 /// Detection uses both the API-reported <see cref="EnvironmentType"/> and
-/// name-based heuristics (keywords in DisplayName / EnvironmentUrl).
+/// name-based heuristics (keywords in DisplayName / EnvironmentUrl). When the
+/// connection has no recorded type, the guard looks it up from the Power
+/// Platform catalog (and persists it) before deciding; if that fails the
+/// environment stays "unknown" and is treated as Production.
 /// </para>
 /// </remarks>
 public abstract class ProfiledCliCommand : TxcLeafCommand
@@ -103,6 +106,7 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
         // conventions: enduser.id, enduser.scope). This runs for ALL profiled
         // commands, not just destructive ones.
         ResolvedProfileContext? resolvedContext = null;
+        ConfigurationResolutionException? resolutionFailure = null;
         try
         {
             var resolver = TxcServices.Get<IConfigurationResolver>();
@@ -110,16 +114,30 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
             Telemetry.ActivityIdentityTagger.TagFromResolvedProfile(
                 Activity.Current, resolvedContext.Credential, resolvedContext.Connection);
         }
+        catch (ConfigurationResolutionException ex)
+        {
+            resolutionFailure = ex;
+        }
         catch (Exception) when (true)
         {
-            // If profile resolution fails (missing config, DI not bootstrapped,
-            // invalid profile name), let ExecuteAsync handle it — it will produce
-            // a better error message. Identity tags are best-effort; we never
-            // block a command for telemetry reasons.
+            // If profile resolution fails (DI not bootstrapped, unreadable
+            // store), let ExecuteAsync handle it — it will produce a better
+            // error message. Identity tags are best-effort; we never block a
+            // command for telemetry reasons.
         }
 
         if (!Attribute.IsDefined(GetType(), typeof(CliDestructiveAttribute)))
             return null;
+
+        // Without a resolved profile there is no target to classify. Report the
+        // resolution error here so the user sees the real problem (unknown
+        // profile, nothing active) instead of a --yes/confirmation message
+        // for a command that could never have run.
+        if (resolutionFailure is not null)
+        {
+            Logger.LogError("{Error}", resolutionFailure.Message);
+            return ExitValidationError;
+        }
 
         if (resolvedContext is null)
             return null;
@@ -127,6 +145,13 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
         try
         {
             var connection = resolvedContext.Connection;
+
+            // Connections created without a catalog lookup (config connection
+            // create, an earlier failed lookup, older versions) carry no type
+            // and would be blocked as "Unknown". Ask the catalog once with the
+            // credential we already resolved; the result is persisted.
+            if (connection.EnvironmentType is null)
+                await TryResolveEnvironmentTypeAsync(connection, resolvedContext.Credential).ConfigureAwait(false);
 
             if (!IsProductionLike(connection.EnvironmentType, connection.DisplayName, connection.EnvironmentUrl))
                 return null;
@@ -142,16 +167,53 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
             }
 
             var envLabel = connection.DisplayName ?? connection.EnvironmentUrl ?? connection.Id;
-            var typeLabel = connection.EnvironmentType?.ToString() ?? "Unknown (treated as Production)";
+            if (connection.EnvironmentType is null)
+            {
+                Logger.LogError(
+                    "Blocked: this is a destructive operation targeting environment '{EnvLabel}', whose type could not be determined " +
+                    "(it is treated as Production). Run 'txc config profile validate --refresh-env-type' to record it, " +
+                    "or pass --allow-production to confirm.",
+                    envLabel);
+                return ExitValidationError;
+            }
+
             Logger.LogError(
                 "Blocked: this is a destructive operation targeting {EnvType} environment '{EnvLabel}'. " +
                 "Pass --allow-production to confirm, or switch to a non-production profile.",
-                typeLabel, envLabel);
+                connection.EnvironmentType, envLabel);
             return ExitValidationError;
         }
         catch (ConfigurationResolutionException)
         {
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Best-effort catalog lookup of the connection's environment type. Never
+    /// throws: on any failure the type stays unknown and the guard keeps its
+    /// fail-safe (production) behaviour.
+    /// </summary>
+    private async Task TryResolveEnvironmentTypeAsync(Connection connection, Credential credential)
+    {
+        try
+        {
+            // The guard must not hang a command on a slow control plane.
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            var resolver = TxcServices.Get<IEnvironmentTypeResolver>();
+            var resolved = await resolver.RefreshAsync(connection, credential, cts.Token).ConfigureAwait(false);
+            if (resolved is not null)
+            {
+                Logger.LogInformation(
+                    "Environment type of connection '{ConnectionId}' was not recorded; resolved it as {EnvType} from the Power Platform catalog.",
+                    connection.Id, resolved);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex,
+                "Could not determine the environment type of connection '{ConnectionId}'; treating it as Production.",
+                connection.Id);
         }
     }
 
