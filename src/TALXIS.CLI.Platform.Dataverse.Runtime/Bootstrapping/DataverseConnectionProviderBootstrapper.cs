@@ -226,11 +226,14 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
                 .TryGetByEnvironmentUrlAsync(ephemeralConnection, acquired.Credential, environmentUrl, ct)
                 .ConfigureAwait(false);
         }
-        catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException)
+        catch (Exception ex) when (!ct.IsCancellationRequested)
         {
+            // Best-effort by contract: admin API failures (HTTP status, transport
+            // errors, request timeouts, token acquisition) must not abort profile
+            // creation. Only caller-requested cancellation propagates.
             _logger.LogWarning(
                 ex,
-                "Could not resolve Power Platform environment metadata for '{Url}'. Falling back to the URL host.",
+                "Could not resolve Power Platform environment metadata for '{Url}'. Continuing with the metadata already stored on the connection, if any.",
                 request.EnvironmentUrl);
             return null;
         }

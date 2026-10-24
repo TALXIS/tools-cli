@@ -352,6 +352,33 @@ public sealed class ProfileCreateOneLinerTests
         Assert.Equal("Contoso DevBox", connection.DisplayName);
     }
 
+    [Theory]
+    [InlineData(typeof(HttpRequestException))]
+    [InlineData(typeof(TaskCanceledException))] // HttpClient timeout: not caller cancellation
+    public async Task UrlMode_ExplicitName_WhenLookupHitsTransportFailure_StillCreatesProfile(Type failure)
+    {
+        var catalog = new CommandTestHost.FakePowerPlatformEnvironmentCatalog
+        {
+            Failure = (Exception)Activator.CreateInstance(failure, "admin endpoint unavailable")!,
+        };
+
+        using var host = new CommandTestHost(environmentCatalog: catalog);
+        using (OutputWriter.RedirectTo(new StringWriter()))
+        {
+            var exit = await new ProfileCreateCliCommand
+            {
+                Url = "https://devbox.crm4.dynamics.com/",
+                Name = "devbox-2896",
+            }.RunAsync();
+            Assert.Equal(0, exit);
+        }
+
+        var connections = (IConnectionStore)host.Provider.GetService(typeof(IConnectionStore))!;
+        var connection = await connections.GetAsync("devbox-2896", default);
+        Assert.NotNull(connection);
+        Assert.Null(connection!.EnvironmentType);
+    }
+
     [Fact]
     public async Task UrlMode_InfersSovereignCloud_FromEnvironmentUrl_WhenCloudOmitted()
     {
