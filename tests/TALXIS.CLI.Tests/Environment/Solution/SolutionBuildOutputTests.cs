@@ -15,6 +15,8 @@ public class SolutionBuildOutputTests
     [InlineData("  Warning: LocalBranchBuildVersionNumber is null", nameof(BuildOutputSeverity.Warning))]
     [InlineData("    0 Warning(s)", nameof(BuildOutputSeverity.Info))]
     [InlineData("    0 Error(s)", nameof(BuildOutputSeverity.Info))]
+    [InlineData("src/App/index.ts(3,7): error TS2304: Cannot find name 'x'.", nameof(BuildOutputSeverity.Error))]
+    [InlineData("npm error code E404", nameof(BuildOutputSeverity.Info))]
     [InlineData("Build succeeded.", nameof(BuildOutputSeverity.Info))]
     [InlineData("  Solution: bin\\Debug\\net462\\Sln.zip packed successfully", nameof(BuildOutputSeverity.Info))]
     public void Classify_ReturnsExpectedSeverity(string line, string expected)
@@ -22,67 +24,36 @@ public class SolutionBuildOutputTests
         Assert.Equal(Enum.Parse<BuildOutputSeverity>(expected), SolutionBuildOutput.Classify(line));
     }
 
-    [Fact]
-    public void FindZips_ReturnsEmpty_WhenDirectoryMissing()
+    [Theory]
+    [InlineData("{\n  \"Properties\": {\n    \"OutputPath\": \"bin\\\\Debug/net472/\"\n  }\n}", "bin\\Debug/net472/")]
+    [InlineData("noise before\n{\"Properties\":{\"OutputPath\":\"bin/Release/net472/\"}}\nnoise after", "bin/Release/net472/")]
+    public void ParseOutputPath_ReadsTheProperty(string output, string expected)
     {
-        var (fresh, all) = SolutionBuildOutput.FindSolutionZips(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")), DateTime.UtcNow);
-        Assert.Empty(fresh);
-        Assert.Empty(all);
+        Assert.Equal(expected, SolutionBuildOutput.ParseOutputPath(output));
     }
 
-    [Fact]
-    public void FindZips_FindsZipInAnyTfmSubfolder()
+    [Theory]
+    [InlineData("")]
+    [InlineData("MSBUILD : error MSB1009: Project file does not exist.")]
+    [InlineData("{ not json }")]
+    [InlineData("{\"Properties\":{}}")]
+    [InlineData("{\"Properties\":{\"OutputPath\":\"\"}}")]
+    public void ParseOutputPath_ReturnsNull_WhenMissingOrInvalid(string output)
     {
-        using var dir = new TempDir();
-        var zip = dir.CreateFile(Path.Combine("net472", "Sln.zip"));
-
-        var (fresh, all) = SolutionBuildOutput.FindSolutionZips(dir.Path, DateTime.UtcNow.AddMinutes(-1));
-
-        Assert.Equal([zip], fresh);
-        Assert.Equal([zip], all);
+        Assert.Null(SolutionBuildOutput.ParseOutputPath(output));
     }
 
-    [Fact]
-    public void FindZips_ExcludesStaleZipsFromFresh()
+    [Theory]
+    [InlineData("bin\\Debug/net472/")]
+    [InlineData("bin/Debug/net472/")]
+    [InlineData("bin\\Debug\\net472\\")]
+    public void ResolveZipPath_NormalizesSeparators_AndUsesProjectName(string outputPath)
     {
-        using var dir = new TempDir();
-        var stale = dir.CreateFile(Path.Combine("net462", "Old.zip"));
-        File.SetLastWriteTimeUtc(stale, DateTime.UtcNow.AddHours(-2));
+        var projectDir = Path.Combine(Path.GetTempPath(), "txc-proj");
+        var csproj = Path.Combine(projectDir, "Solutions.DataModel.csproj");
 
-        var (fresh, all) = SolutionBuildOutput.FindSolutionZips(dir.Path, DateTime.UtcNow.AddMinutes(-1));
+        var zip = SolutionBuildOutput.ResolveZipPath(csproj, outputPath);
 
-        Assert.Empty(fresh);
-        Assert.Equal([stale], all);
-    }
-
-    [Fact]
-    public void FindZips_OrdersFreshNewestFirst()
-    {
-        using var dir = new TempDir();
-        var older = dir.CreateFile(Path.Combine("net462", "Older.zip"));
-        var newer = dir.CreateFile(Path.Combine("net472", "Newer.zip"));
-        File.SetLastWriteTimeUtc(older, DateTime.UtcNow.AddSeconds(-30));
-        File.SetLastWriteTimeUtc(newer, DateTime.UtcNow);
-
-        var (fresh, _) = SolutionBuildOutput.FindSolutionZips(dir.Path, DateTime.UtcNow.AddMinutes(-1));
-
-        Assert.Equal([newer, older], fresh);
-    }
-
-    private sealed class TempDir : IDisposable
-    {
-        public string Path { get; } = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "txc-tests-" + Guid.NewGuid().ToString("N"));
-
-        public TempDir() => Directory.CreateDirectory(Path);
-
-        public string CreateFile(string relativePath)
-        {
-            var fullPath = System.IO.Path.Combine(Path, relativePath);
-            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(fullPath)!);
-            File.WriteAllBytes(fullPath, [0x50, 0x4B]);
-            return fullPath;
-        }
-
-        public void Dispose() => Directory.Delete(Path, recursive: true);
+        Assert.Equal(Path.Combine(projectDir, "bin", "Debug", "net472", "Solutions.DataModel.zip"), zip);
     }
 }

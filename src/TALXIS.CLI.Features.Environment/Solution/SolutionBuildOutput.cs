@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace TALXIS.CLI.Features.Environment.Solution;
@@ -10,7 +11,7 @@ internal enum BuildOutputSeverity
 }
 
 /// <summary>
-/// Helpers for interpreting <c>dotnet build</c> output and locating the solution ZIP it produced.
+/// Helpers for interpreting <c>dotnet build</c> output and locating the solution ZIP it produces.
 /// </summary>
 internal static partial class SolutionBuildOutput
 {
@@ -35,19 +36,43 @@ internal static partial class SolutionBuildOutput
     }
 
     /// <summary>
-    /// Finds solution ZIPs under the build output directory (any target framework subfolder).
-    /// Fresh ZIPs are those written at or after <paramref name="buildStartUtc"/>, newest first.
+    /// Reads <c>OutputPath</c> from the JSON that <c>dotnet build -getProperty:OutputPath</c> prints.
+    /// Returns null when the output is not that JSON or the property is empty.
     /// </summary>
-    internal static (string[] Fresh, string[] All) FindSolutionZips(string binConfigDir, DateTime buildStartUtc)
+    internal static string? ParseOutputPath(string getPropertyOutput)
     {
-        if (!Directory.Exists(binConfigDir)) return (Array.Empty<string>(), Array.Empty<string>());
+        var start = getPropertyOutput.IndexOf('{');
+        var end = getPropertyOutput.LastIndexOf('}');
+        if (start < 0 || end < start) return null;
 
-        var all = Directory.GetFiles(binConfigDir, "*.zip", SearchOption.AllDirectories);
-        var fresh = all
-            .Where(f => File.GetLastWriteTimeUtc(f) >= buildStartUtc)
-            .OrderByDescending(File.GetLastWriteTimeUtc)
-            .ToArray();
+        try
+        {
+            using var doc = JsonDocument.Parse(getPropertyOutput[start..(end + 1)]);
+            if (!doc.RootElement.TryGetProperty("Properties", out var props)
+                || !props.TryGetProperty("OutputPath", out var value)
+                || value.ValueKind != JsonValueKind.String)
+                return null;
 
-        return (fresh, all);
+            var path = value.GetString();
+            return string.IsNullOrWhiteSpace(path) ? null : path;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// The path the Build SDK packs the solution to: <c>$(OutputPath)$(MSBuildProjectName).zip</c>.
+    /// MSBuild reports <c>OutputPath</c> relative to the project directory, often with mixed
+    /// separators (<c>bin\Release/net472/</c>), whatever the OS.
+    /// </summary>
+    internal static string ResolveZipPath(string csProjPath, string outputPath)
+    {
+        var projectDir = Path.GetDirectoryName(Path.GetFullPath(csProjPath))!;
+        var normalized = outputPath
+            .Replace('\\', Path.DirectorySeparatorChar)
+            .Replace('/', Path.DirectorySeparatorChar);
+        return Path.GetFullPath(Path.Combine(projectDir, normalized, Path.GetFileNameWithoutExtension(csProjPath) + ".zip"));
     }
 }

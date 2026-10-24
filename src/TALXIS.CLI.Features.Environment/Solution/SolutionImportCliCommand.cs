@@ -207,7 +207,12 @@ public class SolutionImportCliCommand : ProfiledCliCommand
         var config = Managed ? "Release" : "Debug";
         Logger.LogInformation("Building '{Project}' with configuration '{Config}'...", Path.GetFileName(csProjPath), config);
 
-        var buildStartUtc = DateTime.UtcNow;
+        // Ask MSBuild where this project packs its ZIP instead of guessing a target framework folder,
+        // and remove any ZIP already there so only this build can produce the one we import.
+        var zipPath = await ResolveExpectedZipPathAsync(csProjPath, config).ConfigureAwait(false);
+        if (zipPath is null) return null;
+        if (File.Exists(zipPath)) File.Delete(zipPath);
+
         var errorLineCount = 0;
 
         var psi = new ProcessStartInfo
@@ -258,26 +263,48 @@ public class SolutionImportCliCommand : ProfiledCliCommand
             return null;
         }
 
-        var outputDir = Path.Combine(Path.GetDirectoryName(csProjPath)!, "bin", config);
-        var (freshZips, allZips) = SolutionBuildOutput.FindSolutionZips(outputDir, buildStartUtc);
-
-        if (allZips.Length == 0)
+        if (!File.Exists(zipPath))
         {
-            Logger.LogError("No .zip file found in build output directory: {OutputDir}.", outputDir);
+            Logger.LogError("The build succeeded but did not produce the solution ZIP at the expected path: {ZipPath}.", zipPath);
             return null;
         }
-
-        if (freshZips.Length == 0)
-        {
-            Logger.LogError("The build did not produce a solution ZIP; only stale artifacts from a previous build exist in '{OutputDir}'. Refusing to import a stale ZIP.", outputDir);
-            return null;
-        }
-
-        var zipPath = freshZips[0];
-        if (freshZips.Length > 1)
-            Logger.LogWarning("Multiple .zip files produced in '{OutputDir}'. Using newest: {ZipPath}", outputDir, Path.GetFileName(zipPath));
 
         Logger.LogInformation("Using build output: {ZipPath}", zipPath);
         return zipPath;
+    }
+
+    /// <summary>
+    /// Evaluates the project (no build) to get the <c>OutputPath</c> the Build SDK packs the ZIP to.
+    /// </summary>
+    private async Task<string?> ResolveExpectedZipPathAsync(string csProjPath, string config)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = "dotnet",
+            Arguments = $"build \"{csProjPath}\" -c {config} -getProperty:OutputPath",
+            WorkingDirectory = Path.GetDirectoryName(csProjPath),
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        using var process = new Process { StartInfo = psi };
+        process.Start();
+        var stdoutTask = process.StandardOutput.ReadToEndAsync();
+        var stderrTask = process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync().ConfigureAwait(false);
+        var stdout = await stdoutTask.ConfigureAwait(false);
+        var stderr = await stderrTask.ConfigureAwait(false);
+
+        var outputPath = process.ExitCode == 0 ? SolutionBuildOutput.ParseOutputPath(stdout) : null;
+        if (outputPath is null)
+        {
+            Logger.LogError("Could not determine the build output path of '{Project}' (dotnet build -getProperty:OutputPath, exit code {ExitCode}). {Details}",
+                Path.GetFileName(csProjPath), process.ExitCode, (stdout + stderr).Trim());
+            return null;
+        }
+
+        return SolutionBuildOutput.ResolveZipPath(csProjPath, outputPath);
     }
 }
