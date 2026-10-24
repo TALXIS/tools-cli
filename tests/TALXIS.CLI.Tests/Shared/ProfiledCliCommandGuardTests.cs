@@ -3,7 +3,6 @@ using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Logging;
-using TALXIS.CLI.Platform.PowerPlatform.Control;
 using TALXIS.CLI.Tests.Config.Commands;
 using Xunit;
 using ConnectionModel = TALXIS.CLI.Core.Model.Connection;
@@ -31,16 +30,6 @@ public sealed class ProfiledCliCommandGuardTests
         }
     }
 
-    private static PowerPlatformEnvironmentSummary CatalogEntry(EnvironmentType? type, string displayName = "Contoso DevBox")
-        => new(
-            EnvironmentId: Guid.Parse("11111111-2222-3333-4444-555555555555"),
-            DisplayName: displayName,
-            EnvironmentUrl: new Uri(ProductionGuardTestSupport.EnvUrl + "/"),
-            UniqueName: "contoso-devbox",
-            DomainName: "devbox",
-            OrganizationId: Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
-            EnvironmentType: type);
-
     private static async Task<ConnectionModel> StoredConnectionAsync(CommandTestHost host)
     {
         var conns = (IConnectionStore)host.Provider.GetService(typeof(IConnectionStore))!;
@@ -53,7 +42,7 @@ public sealed class ProfiledCliCommandGuardTests
         using var host = new CommandTestHost();
         // A catalog failure would surface if the guard queried it needlessly.
         host.EnvironmentCatalog.Failure = new HttpRequestException("catalog must not be called");
-        await ProductionGuardTestSupport.SeedAsync(host, EnvironmentType.Developer);
+        await host.SeedActiveProfileAsync(EnvironmentType.Developer);
 
         var command = new FakeDestructiveCommand();
         Assert.Equal(0, await command.RunAsync());
@@ -64,7 +53,7 @@ public sealed class ProfiledCliCommandGuardTests
     public async Task ProductionType_IsBlocked()
     {
         using var host = new CommandTestHost();
-        await ProductionGuardTestSupport.SeedAsync(host, EnvironmentType.Production);
+        await host.SeedActiveProfileAsync(EnvironmentType.Production);
 
         var command = new FakeDestructiveCommand();
         Assert.Equal(2, await command.RunAsync());
@@ -75,7 +64,7 @@ public sealed class ProfiledCliCommandGuardTests
     public async Task ProductionType_AllowProduction_Proceeds()
     {
         using var host = new CommandTestHost();
-        await ProductionGuardTestSupport.SeedAsync(host, EnvironmentType.Production);
+        await host.SeedActiveProfileAsync(EnvironmentType.Production);
 
         var command = new FakeDestructiveCommand { AllowProduction = true };
         Assert.Equal(0, await command.RunAsync());
@@ -86,8 +75,8 @@ public sealed class ProfiledCliCommandGuardTests
     public async Task MissingType_IsResolvedFromCatalog_PersistedAndNotBlocked()
     {
         using var host = new CommandTestHost();
-        host.EnvironmentCatalog.Add(CatalogEntry(EnvironmentType.Developer));
-        await ProductionGuardTestSupport.SeedAsync(host);
+        host.EnvironmentCatalog.AddEnvironment(CommandTestHost.DefaultEnvironmentUrl, EnvironmentType.Developer);
+        await host.SeedActiveProfileAsync();
 
         var command = new FakeDestructiveCommand();
         Assert.Equal(0, await command.RunAsync());
@@ -102,8 +91,8 @@ public sealed class ProfiledCliCommandGuardTests
     public async Task MissingType_CatalogSaysProduction_IsBlocked()
     {
         using var host = new CommandTestHost();
-        host.EnvironmentCatalog.Add(CatalogEntry(EnvironmentType.Production));
-        await ProductionGuardTestSupport.SeedAsync(host);
+        host.EnvironmentCatalog.AddEnvironment(CommandTestHost.DefaultEnvironmentUrl, EnvironmentType.Production);
+        await host.SeedActiveProfileAsync();
 
         var command = new FakeDestructiveCommand();
         Assert.Equal(2, await command.RunAsync());
@@ -116,8 +105,8 @@ public sealed class ProfiledCliCommandGuardTests
     {
         CommandTestHost.FailingConnectionStore? store = null;
         using var host = new CommandTestHost(decorateConnectionStore: inner => store = new CommandTestHost.FailingConnectionStore(inner));
-        host.EnvironmentCatalog.Add(CatalogEntry(EnvironmentType.Developer));
-        await ProductionGuardTestSupport.SeedAsync(host);
+        host.EnvironmentCatalog.AddEnvironment(CommandTestHost.DefaultEnvironmentUrl, EnvironmentType.Developer);
+        await host.SeedActiveProfileAsync();
         store!.FailUpserts = true;
 
         // The catalog says Developer, but the type could not be recorded, so it
@@ -131,8 +120,8 @@ public sealed class ProfiledCliCommandGuardTests
     public async Task MissingType_CatalogSaysDeveloper_ButNameLooksLikeProduction_IsBlocked()
     {
         using var host = new CommandTestHost();
-        host.EnvironmentCatalog.Add(CatalogEntry(EnvironmentType.Developer, displayName: "Contoso Live"));
-        await ProductionGuardTestSupport.SeedAsync(host);
+        host.EnvironmentCatalog.AddEnvironment(CommandTestHost.DefaultEnvironmentUrl, EnvironmentType.Developer, displayName: "Contoso Live");
+        await host.SeedActiveProfileAsync();
 
         var command = new FakeDestructiveCommand();
         Assert.Equal(2, await command.RunAsync());
@@ -152,11 +141,11 @@ public sealed class ProfiledCliCommandGuardTests
                 host.EnvironmentCatalog.Failure = new HttpRequestException("proxy 502");
                 break;
             case "unknownSku":
-                host.EnvironmentCatalog.Add(CatalogEntry(type: null));
+                host.EnvironmentCatalog.AddEnvironment(CommandTestHost.DefaultEnvironmentUrl, null);
                 break;
             // "missing": environment is simply not in the catalog.
         }
-        await ProductionGuardTestSupport.SeedAsync(host);
+        await host.SeedActiveProfileAsync();
 
         var command = new FakeDestructiveCommand();
         Assert.Equal(2, await command.RunAsync());
@@ -169,7 +158,7 @@ public sealed class ProfiledCliCommandGuardTests
     {
         using var host = new CommandTestHost();
         host.EnvironmentCatalog.HangUntilCancelled = true;
-        await ProductionGuardTestSupport.SeedAsync(host);
+        await host.SeedActiveProfileAsync();
 
         var command = new FakeDestructiveCommand { LookupTimeout = TimeSpan.FromMilliseconds(100) };
         var run = command.RunAsync();
@@ -184,7 +173,7 @@ public sealed class ProfiledCliCommandGuardTests
     {
         CommandTestHost.FailingConnectionStore? store = null;
         using var host = new CommandTestHost(decorateConnectionStore: inner => store = new CommandTestHost.FailingConnectionStore(inner));
-        await ProductionGuardTestSupport.SeedAsync(host, EnvironmentType.Production);
+        await host.SeedActiveProfileAsync(EnvironmentType.Production);
         store!.FailReads = true;
 
         // Profile resolution fails with something other than a configuration error.
@@ -198,7 +187,7 @@ public sealed class ProfiledCliCommandGuardTests
     {
         using var host = new CommandTestHost();
         host.EnvironmentCatalog.Failure = new HttpRequestException("proxy 502");
-        await ProductionGuardTestSupport.SeedAsync(host);
+        await host.SeedActiveProfileAsync();
 
         var command = new FakeDestructiveCommand { AllowProduction = true };
         Assert.Equal(0, await command.RunAsync());

@@ -3,38 +3,18 @@ using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Features.Config.Profile;
 using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Core;
-using TALXIS.CLI.Platform.PowerPlatform.Control;
 using Xunit;
-using ConnectionModel = TALXIS.CLI.Core.Model.Connection;
 
 namespace TALXIS.CLI.Tests.Config.Commands.Profile;
 
 [Collection("TxcServicesSerial")]
 public sealed class ProfileValidateTests
 {
-    private static async Task SeedAsync(CommandTestHost host)
-    {
-        var creds = (ICredentialStore)host.Provider.GetService(typeof(ICredentialStore))!;
-        var conns = (IConnectionStore)host.Provider.GetService(typeof(IConnectionStore))!;
-        await creds.UpsertAsync(new Credential
-        {
-            Id = "cred",
-            Kind = CredentialKind.InteractiveBrowser,
-            TenantId = "contoso.onmicrosoft.com",
-        }, default);
-        await conns.UpsertAsync(new ConnectionModel
-        {
-            Id = "conn",
-            Provider = ProviderKind.Dataverse,
-            EnvironmentUrl = "https://contoso.crm.dynamics.com",
-        }, default);
-    }
-
     [Fact]
     public async Task Validate_ActiveProfile_ReturnsZero_AndInvokesProvider_LiveByDefault()
     {
         using var host = new CommandTestHost();
-        await SeedAsync(host);
+        await host.SeedConnectionAsync();
         await new ProfileCreateCliCommand { Name = "p", Auth = "cred", Connection = "conn" }.RunAsync();
 
         var exit = await new ProfileValidateCliCommand().RunAsync();
@@ -47,7 +27,7 @@ public sealed class ProfileValidateTests
     public async Task Validate_WithSkipLive_PassesStructuralMode()
     {
         using var host = new CommandTestHost();
-        await SeedAsync(host);
+        await host.SeedConnectionAsync();
         await new ProfileCreateCliCommand { Name = "p", Auth = "cred", Connection = "conn" }.RunAsync();
 
         var exit = await new ProfileValidateCliCommand { SkipLive = true }.RunAsync();
@@ -59,7 +39,7 @@ public sealed class ProfileValidateTests
     public async Task Validate_EmitsJsonWithProfileAndStatus()
     {
         using var host = new CommandTestHost();
-        await SeedAsync(host);
+        await host.SeedConnectionAsync();
         await new ProfileCreateCliCommand { Name = "p", Auth = "cred", Connection = "conn" }.RunAsync();
 
         var sw = new StringWriter();
@@ -96,7 +76,7 @@ public sealed class ProfileValidateTests
     public async Task Validate_ReturnsExit2_WhenConnectionMissing()
     {
         using var host = new CommandTestHost();
-        await SeedAsync(host);
+        await host.SeedConnectionAsync();
         await new ProfileCreateCliCommand { Name = "p", Auth = "cred", Connection = "conn" }.RunAsync();
 
         // Delete the connection directly to simulate an orphan reference.
@@ -112,7 +92,7 @@ public sealed class ProfileValidateTests
     {
         using var host = new CommandTestHost();
         host.Provider_Dataverse.Behavior = (_, _, _) => throw new InvalidOperationException("WhoAmI failed: 401");
-        await SeedAsync(host);
+        await host.SeedConnectionAsync();
         await new ProfileCreateCliCommand { Name = "p", Auth = "cred", Connection = "conn" }.RunAsync();
 
         var exit = await new ProfileValidateCliCommand().RunAsync();
@@ -123,7 +103,7 @@ public sealed class ProfileValidateTests
     public async Task Validate_Named_RespectsArgumentOverActive()
     {
         using var host = new CommandTestHost();
-        await SeedAsync(host);
+        await host.SeedConnectionAsync();
         await new ProfileCreateCliCommand { Name = "a", Auth = "cred", Connection = "conn" }.RunAsync();
         await new ProfileCreateCliCommand { Name = "b", Auth = "cred", Connection = "conn" }.RunAsync();
 
@@ -138,16 +118,9 @@ public sealed class ProfileValidateTests
     public async Task Validate_RefreshEnvType_StillRecordsType_WhenLiveCheckFails()
     {
         using var host = new CommandTestHost();
-        host.EnvironmentCatalog.Add(new PowerPlatformEnvironmentSummary(
-            EnvironmentId: Guid.Parse("11111111-2222-3333-4444-555555555555"),
-            DisplayName: "Contoso DevBox",
-            EnvironmentUrl: new Uri("https://contoso.crm.dynamics.com/"),
-            UniqueName: "contoso-devbox",
-            DomainName: "contoso",
-            OrganizationId: Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
-            EnvironmentType: EnvironmentType.Developer));
+        host.EnvironmentCatalog.AddEnvironment(CommandTestHost.DefaultEnvironmentUrl, EnvironmentType.Developer);
         host.Provider_Dataverse.Behavior = (_, _, _) => throw new HttpRequestException("host unreachable");
-        await SeedAsync(host);
+        await host.SeedConnectionAsync();
         await new ProfileCreateCliCommand { Name = "p", Auth = "cred", Connection = "conn" }.RunAsync();
 
         var exit = await new ProfileValidateCliCommand { RefreshEnvType = true }.RunAsync();

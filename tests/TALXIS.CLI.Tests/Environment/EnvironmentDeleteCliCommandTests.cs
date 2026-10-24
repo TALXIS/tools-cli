@@ -40,13 +40,13 @@ public sealed class EnvironmentDeleteCliCommandTests
     private static readonly Guid TargetEnvId = Guid.Parse("11111111-2222-3333-4444-555555555555");
 
     private static EnvironmentInfo TargetEnv(EnvironmentType? type, string displayName = "Contoso DevBox")
-        => new(TargetEnvId, displayName, new Uri(ProductionGuardTestSupport.EnvUrl + "/"), "contoso-devbox", Guid.NewGuid(), type);
+        => new(TargetEnvId, displayName, new Uri(CommandTestHost.DefaultEnvironmentUrl + "/"), "contoso-devbox", Guid.NewGuid(), type);
 
     private static async Task<(int Exit, FakeEnvironmentManagement Service)> RunEnvDeleteAsync(
         FakeEnvironmentManagement service, Func<EnvironmentDeleteCliCommand>? create = null, bool seed = true)
     {
         using var host = new CommandTestHost(environmentManagement: service);
-        if (seed) await ProductionGuardTestSupport.SeedAsync(host);
+        if (seed) await host.SeedActiveProfileAsync();
         var command = create?.Invoke() ?? new EnvironmentDeleteCliCommand { EnvironmentId = TargetEnvId, Yes = true };
         int exit;
         using (OutputWriter.RedirectTo(new StringWriter())) { exit = await command.RunAsync(); }

@@ -41,15 +41,15 @@ public class EnvironmentDeleteCliCommand : ProfiledCliCommand, IDestructiveComma
     /// environment is identified by <see cref="EnvironmentId"/>, which is
     /// independent of the profile's connection. The base guard would check
     /// the wrong environment. Instead we resolve the target environment's
-    /// type from the tenant catalog and apply the same check. It fails closed:
-    /// if the type cannot be verified, the command is blocked.
+    /// type from the tenant catalog and apply the same check. The delete is
+    /// irreversible, so it fails closed: if the type cannot be verified, the
+    /// command is blocked.
     /// </summary>
     protected override async Task<int?> PreExecuteAsync()
     {
         if (AllowProduction)
             return null;
 
-        // Irreversible, so fail closed: block whenever the target's type cannot be verified.
         IReadOnlyList<EnvironmentInfo> environments;
         try
         {

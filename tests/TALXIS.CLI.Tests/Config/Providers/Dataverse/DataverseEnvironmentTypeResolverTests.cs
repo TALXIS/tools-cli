@@ -1,6 +1,5 @@
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Model;
-using TALXIS.CLI.Platform.PowerPlatform.Control;
 using TALXIS.CLI.Tests.Config.Commands;
 using Xunit;
 using ConnectionModel = TALXIS.CLI.Core.Model.Connection;
@@ -10,30 +9,18 @@ namespace TALXIS.CLI.Tests.Config.Providers.Dataverse;
 [Collection("TxcServicesSerial")]
 public sealed class DataverseEnvironmentTypeResolverTests
 {
-    private static readonly Guid EnvId = Guid.Parse("11111111-2222-3333-4444-555555555555");
-
-    private static void AddDeveloperEnvironment(CommandTestHost host)
-        => host.EnvironmentCatalog.Add(new PowerPlatformEnvironmentSummary(
-            EnvironmentId: EnvId,
-            DisplayName: "Contoso DevBox",
-            EnvironmentUrl: new Uri(ProductionGuardTestSupport.EnvUrl + "/"),
-            UniqueName: "contoso-devbox",
-            DomainName: "devbox",
-            OrganizationId: Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
-            EnvironmentType: EnvironmentType.Developer));
-
     private static ConnectionModel UntypedConnection() => new()
     {
         Id = "conn",
         Provider = ProviderKind.Dataverse,
-        EnvironmentUrl = ProductionGuardTestSupport.EnvUrl,
+        EnvironmentUrl = CommandTestHost.DefaultEnvironmentUrl,
     };
 
     [Fact]
     public async Task Refresh_UpdatesConnectionAndPersists()
     {
         using var host = new CommandTestHost();
-        AddDeveloperEnvironment(host);
+        host.EnvironmentCatalog.AddEnvironment(CommandTestHost.DefaultEnvironmentUrl, EnvironmentType.Developer);
         var resolver = (IEnvironmentTypeResolver)host.Provider.GetService(typeof(IEnvironmentTypeResolver))!;
         var connection = UntypedConnection();
 
@@ -50,7 +37,7 @@ public sealed class DataverseEnvironmentTypeResolverTests
     {
         CommandTestHost.FailingConnectionStore? store = null;
         using var host = new CommandTestHost(decorateConnectionStore: inner => store = new CommandTestHost.FailingConnectionStore(inner));
-        AddDeveloperEnvironment(host);
+        host.EnvironmentCatalog.AddEnvironment(CommandTestHost.DefaultEnvironmentUrl, EnvironmentType.Developer);
         _ = host.Provider.GetService(typeof(IConnectionStore)); // the decorator is created on first resolve
         store!.FailUpserts = true;
         var resolver = (IEnvironmentTypeResolver)host.Provider.GetService(typeof(IEnvironmentTypeResolver))!;

@@ -128,10 +128,8 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
 
         var connection = resolvedContext.Connection;
 
-        // A connection with no recorded type (created without a catalog lookup,
-        // or by an older version) would be blocked as unknown. Look it up once
-        // with the resolved credential; the result is saved. Capped so a slow
-        // control plane cannot hang the command.
+        // Look up a missing type once with the resolved credential (saved on
+        // success). Capped so a slow control plane cannot hang the command.
         if (connection.EnvironmentType is null && !AllowProduction)
         {
             using var cts = new CancellationTokenSource(EnvironmentTypeLookupTimeout);

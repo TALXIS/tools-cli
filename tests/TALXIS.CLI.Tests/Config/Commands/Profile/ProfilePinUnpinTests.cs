@@ -1,10 +1,8 @@
-using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Features.Config.Profile;
 using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Core.Resolution;
 using TALXIS.CLI.Core.Storage;
 using Xunit;
-using ConnectionModel = TALXIS.CLI.Core.Model.Connection;
 
 namespace TALXIS.CLI.Tests.Config.Commands.Profile;
 
@@ -26,29 +24,11 @@ public sealed class ProfilePinUnpinTests : IDisposable
         catch { /* best effort */ }
     }
 
-    private async Task SeedAsync(CommandTestHost host)
-    {
-        var creds = (ICredentialStore)host.Provider.GetService(typeof(ICredentialStore))!;
-        var conns = (IConnectionStore)host.Provider.GetService(typeof(IConnectionStore))!;
-        await creds.UpsertAsync(new Credential
-        {
-            Id = "cred",
-            Kind = CredentialKind.InteractiveBrowser,
-            TenantId = "contoso.onmicrosoft.com",
-        }, default);
-        await conns.UpsertAsync(new ConnectionModel
-        {
-            Id = "conn",
-            Provider = ProviderKind.Dataverse,
-            EnvironmentUrl = "https://contoso.crm.dynamics.com",
-        }, default);
-    }
-
     [Fact]
     public async Task Pin_WritesWorkspaceFile_ForActiveProfile()
     {
         using var host = new CommandTestHost(currentDirectory: _cwd);
-        await SeedAsync(host);
+        await host.SeedConnectionAsync();
         await new ProfileCreateCliCommand { Name = "active", Auth = "cred", Connection = "conn" }.RunAsync();
 
         var exit = await new ProfilePinCliCommand().RunAsync();
@@ -64,7 +44,7 @@ public sealed class ProfilePinUnpinTests : IDisposable
     public async Task Pin_WithName_PinsSpecificProfile()
     {
         using var host = new CommandTestHost(currentDirectory: _cwd);
-        await SeedAsync(host);
+        await host.SeedConnectionAsync();
         await new ProfileCreateCliCommand { Name = "a", Auth = "cred", Connection = "conn" }.RunAsync();
         await new ProfileCreateCliCommand { Name = "b", Auth = "cred", Connection = "conn" }.RunAsync();
 
@@ -96,7 +76,7 @@ public sealed class ProfilePinUnpinTests : IDisposable
     public async Task Pin_IsIdempotent_OverwritesExistingFile()
     {
         using var host = new CommandTestHost(currentDirectory: _cwd);
-        await SeedAsync(host);
+        await host.SeedConnectionAsync();
         await new ProfileCreateCliCommand { Name = "a", Auth = "cred", Connection = "conn" }.RunAsync();
         await new ProfileCreateCliCommand { Name = "b", Auth = "cred", Connection = "conn" }.RunAsync();
 
@@ -112,7 +92,7 @@ public sealed class ProfilePinUnpinTests : IDisposable
     public async Task Unpin_RemovesWorkspaceFile_AndEmptyDirectory()
     {
         using var host = new CommandTestHost(currentDirectory: _cwd);
-        await SeedAsync(host);
+        await host.SeedConnectionAsync();
         await new ProfileCreateCliCommand { Name = "p", Auth = "cred", Connection = "conn" }.RunAsync();
         Assert.Equal(0, await new ProfilePinCliCommand().RunAsync());
 
@@ -135,7 +115,7 @@ public sealed class ProfilePinUnpinTests : IDisposable
     public async Task Unpin_KeepsSiblingFiles_InTxcDir()
     {
         using var host = new CommandTestHost(currentDirectory: _cwd);
-        await SeedAsync(host);
+        await host.SeedConnectionAsync();
         await new ProfileCreateCliCommand { Name = "p", Auth = "cred", Connection = "conn" }.RunAsync();
         Assert.Equal(0, await new ProfilePinCliCommand().RunAsync());
 

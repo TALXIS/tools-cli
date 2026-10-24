@@ -77,8 +77,8 @@ internal static class CredentialCandidatePicker
                 return exact;
         }
 
-        // Older credentials predate persisted account ids: match on the stored
-        // UPN, then on the legacy "UPN as id".
+        // Backward compatibility for older credentials that predate persisted
+        // account ids: prefer stored interactive UPN, then legacy "UPN as id".
         return PickPreferred(
             candidates.Where(c =>
                 string.Equals(c.InteractiveUpn, result.Upn, StringComparison.OrdinalIgnoreCase)

@@ -5,9 +5,11 @@ using TALXIS.CLI.Core.Headless;
 using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Core.Resolution;
 using TALXIS.CLI.Core.Storage;
+using TALXIS.CLI.Features.Config.Profile;
 using TALXIS.CLI.Core.Vault;
 using TALXIS.CLI.Core.Identity;
 using TALXIS.CLI.Platform.PowerPlatform.Control;
+using Xunit;
 using ConnectionModel = TALXIS.CLI.Core.Model.Connection;
 
 namespace TALXIS.CLI.Tests.Config.Commands;/// <summary>
@@ -93,6 +95,35 @@ internal sealed class CommandTestHost : IDisposable
         TxcServices.Initialize(Provider);
     }
 
+    public const string DefaultEnvironmentUrl = "https://contoso.crm.dynamics.com";
+
+    /// <summary>Seeds a credential ("cred") and a Dataverse connection ("conn") for profile tests.</summary>
+    public async Task SeedConnectionAsync(string environmentUrl = DefaultEnvironmentUrl, EnvironmentType? type = null)
+    {
+        var creds = (ICredentialStore)Provider.GetService(typeof(ICredentialStore))!;
+        var conns = (IConnectionStore)Provider.GetService(typeof(IConnectionStore))!;
+        await creds.UpsertAsync(new Credential
+        {
+            Id = "cred",
+            Kind = CredentialKind.InteractiveBrowser,
+            TenantId = "contoso.onmicrosoft.com",
+        }, default);
+        await conns.UpsertAsync(new ConnectionModel
+        {
+            Id = "conn",
+            Provider = ProviderKind.Dataverse,
+            EnvironmentUrl = environmentUrl,
+            EnvironmentType = type,
+        }, default);
+    }
+
+    /// <summary>Seeds the connection and creates profile "p" on it.</summary>
+    public async Task SeedActiveProfileAsync(EnvironmentType? type = null)
+    {
+        await SeedConnectionAsync(type: type);
+        Assert.Equal(0, await new ProfileCreateCliCommand { Name = "p", Auth = "cred", Connection = "conn" }.RunAsync());
+    }
+
     public void Dispose()
     {
         TxcServices.Reset();
@@ -131,8 +162,7 @@ internal sealed class CommandTestHost : IDisposable
     }
 
     /// <summary>
-    /// Connection store decorator whose writes can be switched to fail, to prove
-    /// callers do not act on state that was never persisted.
+    /// Connection store decorator whose reads or writes can be switched to fail.
     /// </summary>
     internal sealed class FailingConnectionStore(IConnectionStore inner) : IConnectionStore
     {
@@ -236,12 +266,25 @@ internal sealed class CommandTestHost : IDisposable
         private readonly Dictionary<string, PowerPlatformEnvironmentSummary> _environments =
             new(StringComparer.OrdinalIgnoreCase);
 
+        public static readonly Guid DevboxEnvironmentId = Guid.Parse("11111111-2222-3333-4444-555555555555");
+        public static readonly Guid DevboxOrganizationId = Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+
         public Exception? Failure { get; set; }
         public bool HangUntilCancelled { get; set; }
         public int Lookups { get; private set; }
 
         public void Add(PowerPlatformEnvironmentSummary environment)
             => _environments[Normalize(environment.EnvironmentUrl)] = environment;
+
+        public void AddEnvironment(string environmentUrl, EnvironmentType? type, string displayName = "Contoso DevBox")
+            => Add(new PowerPlatformEnvironmentSummary(
+                EnvironmentId: DevboxEnvironmentId,
+                DisplayName: displayName,
+                EnvironmentUrl: new Uri(environmentUrl),
+                UniqueName: "contoso-devbox",
+                DomainName: "devbox",
+                OrganizationId: DevboxOrganizationId,
+                EnvironmentType: type));
 
         public Task<IReadOnlyList<PowerPlatformEnvironmentSummary>> ListAsync(
             ConnectionModel connection,
