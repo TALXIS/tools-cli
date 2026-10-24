@@ -26,7 +26,8 @@ public sealed record EntityAttributeRecord(
     int? MaxLength,
     string? Description,
     string? OptionSetName = null,
-    string? OptionValues = null);
+    string? OptionValues = null,
+    string? RequiredLevel = null);
 
 /// <summary>
 /// Relationship summary for an entity, returned by
