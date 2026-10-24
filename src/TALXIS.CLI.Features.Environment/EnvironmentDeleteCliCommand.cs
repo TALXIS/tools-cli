@@ -41,41 +41,55 @@ public class EnvironmentDeleteCliCommand : ProfiledCliCommand, IDestructiveComma
     /// environment is identified by <see cref="EnvironmentId"/>, which is
     /// independent of the profile's connection. The base guard would check
     /// the wrong environment. Instead we resolve the target environment's
-    /// type from the tenant catalog and apply the same check.
+    /// type from the tenant catalog and apply the same check. The delete is
+    /// irreversible, so it fails closed: if the type cannot be verified, the
+    /// command is blocked.
     /// </summary>
     protected override async Task<int?> PreExecuteAsync()
     {
         if (AllowProduction)
             return null;
 
+        IReadOnlyList<EnvironmentInfo> environments;
         try
         {
             var resolver = TxcServices.Get<IConfigurationResolver>();
             await resolver.ResolveAsync(Profile, CancellationToken.None).ConfigureAwait(false);
 
             var service = TxcServices.Get<IEnvironmentManagementService>();
-            var environments = await service.ListAsync(Profile, credentialId: null, cloud: null, CancellationToken.None).ConfigureAwait(false);
-            var target = environments.FirstOrDefault(e => e.EnvironmentId == EnvironmentId);
-
-            if (target is null)
-                return null; // Not found — let ExecuteAsync handle the 404 from the API.
-
-            if (!IsProductionLike(target.EnvironmentType, target.DisplayName, target.EnvironmentUrl?.ToString()))
-                return null;
-
-            Logger.LogError(
-                "Blocked: this is a destructive operation targeting {EnvType} environment '{EnvLabel}'. " +
-                "Pass --allow-production to confirm.",
-                target.EnvironmentType?.ToString() ?? "Unknown",
-                target.DisplayName ?? EnvironmentId.ToString());
+            environments = await service.ListAsync(Profile, credentialId: null, cloud: null, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (ConfigurationResolutionException ex)
+        {
+            Logger.LogError("{Error}", ex.Message);
             return ExitValidationError;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // If we can't resolve the target, don't block — let the API call
-            // proceed and fail with its own error if needed.
-            return null;
+            Logger.LogError(
+                "Blocked: could not look up environment {EnvironmentId} to verify its type ({Error}). " +
+                "Pass --allow-production to delete it without verification.",
+                EnvironmentId, ex.Message);
+            return ExitValidationError;
         }
+
+        var target = environments.FirstOrDefault(e => e.EnvironmentId == EnvironmentId);
+        if (target is null)
+        {
+            Logger.LogError(
+                "Blocked: environment {EnvironmentId} was not found among the Dataverse-backed environments visible to this profile, " +
+                "so its type cannot be verified. Check the id, or pass --allow-production to delete it without verification.",
+                EnvironmentId);
+            return ExitValidationError;
+        }
+
+        if (!IsProductionLike(target.EnvironmentType, target.DisplayName, target.EnvironmentUrl?.ToString()))
+            return null;
+
+        return BlockProduction(
+            target.EnvironmentType,
+            target.DisplayName ?? EnvironmentId.ToString(),
+            "Pass --allow-production to confirm.");
     }
 
     protected override async Task<int> ExecuteAsync()

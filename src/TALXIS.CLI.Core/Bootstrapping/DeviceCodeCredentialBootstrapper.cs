@@ -43,7 +43,7 @@ public static class DeviceCodeCredentialBootstrapper
 
         var result = await login.LoginAsync(tenantId, cloud, ct).ConfigureAwait(false);
 
-        var existing = await FindExistingDeviceCodeCredentialAsync(
+        var existing = await CredentialCandidatePicker.FindExistingAsync(
             store, result, cloud, explicitAlias, ct).ConfigureAwait(false);
 
         var alias = existing?.Id;
@@ -72,50 +72,5 @@ public static class DeviceCodeCredentialBootstrapper
 
         await store.UpsertAsync(credential, ct).ConfigureAwait(false);
         return new InteractiveCredentialResult(credential, result.Upn, result.TenantId);
-    }
-
-    private static async Task<Credential?> FindExistingDeviceCodeCredentialAsync(
-        ICredentialStore store,
-        InteractiveLoginResult result,
-        CloudInstance cloud,
-        string? explicitAlias,
-        CancellationToken ct)
-    {
-        var credentials = await store.ListAsync(ct).ConfigureAwait(false);
-        // Match existing credentials of either DeviceCode or InteractiveBrowser
-        // kind — a user re-logging from Codespaces should reuse their existing
-        // credential entry rather than creating a duplicate.
-        var candidates = credentials
-            .Where(c => c.Kind is CredentialKind.DeviceCode or CredentialKind.InteractiveBrowser)
-            .Where(c => string.Equals(c.TenantId, result.TenantId, StringComparison.OrdinalIgnoreCase))
-            .Where(c => c.Cloud == cloud)
-            .Where(c =>
-                string.IsNullOrWhiteSpace(result.ApplicationId)
-                || string.IsNullOrWhiteSpace(c.ApplicationId)
-                || string.Equals(c.ApplicationId, result.ApplicationId, StringComparison.OrdinalIgnoreCase))
-            .ToList();
-
-        if (!string.IsNullOrWhiteSpace(result.AccountId))
-        {
-            // Route through PickPreferredCandidate to honour --alias and apply
-            // deterministic ordering even when multiple credentials share the
-            // same InteractiveAccountId (e.g., a DeviceCode and an InteractiveBrowser
-            // credential from the same account).
-            var exact = CredentialCandidatePicker.PickPreferred(
-                candidates.Where(c =>
-                    string.Equals(c.InteractiveAccountId, result.AccountId, StringComparison.OrdinalIgnoreCase)),
-                explicitAlias,
-                result.Upn);
-            if (exact is not null)
-                return exact;
-        }
-
-        // Fall back to UPN or legacy id-based matching with deterministic ordering.
-        return CredentialCandidatePicker.PickPreferred(
-            candidates.Where(c =>
-                string.Equals(c.InteractiveUpn, result.Upn, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(c.Id, result.Upn, StringComparison.OrdinalIgnoreCase)),
-            explicitAlias,
-            result.Upn);
     }
 }

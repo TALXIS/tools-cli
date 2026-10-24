@@ -44,7 +44,7 @@ public class ProfileCreateCliCommand : TxcLeafCommand
     [CliOption(Name = "--name", Aliases = ["-n"], Description = "Profile name (slug). Optional — derived from the Power Platform environment name and URL host, or from --connection when omitted.", Required = false)]
     public string? Name { get; set; }
 
-    [CliOption(Name = "--url", Description = "Service URL to bootstrap from. Triggers interactive sign-in, credential upsert, and connection creation in one step.", Required = false)]
+    [CliOption(Name = "--url", Description = "Service URL to bootstrap from. Triggers interactive sign-in (device code when no browser is available), credential upsert, and connection creation in one step.", Required = false)]
     public string? Url { get; set; }
 
     [CliOption(Name = "--no-select", Description = "Do not make the created profile active. Used only with --url.", Required = false)]
@@ -53,7 +53,7 @@ public class ProfileCreateCliCommand : TxcLeafCommand
     [CliOption(Name = "--provider", Description = "Connection provider. Optional in --url mode (inferred from the URL host).", Required = false)]
     public ProviderKind? Provider { get; set; }
 
-    [CliOption(Name = "--tenant", Description = "Entra tenant id or domain. Forwarded to interactive sign-in when used with --url.", Required = false)]
+    [CliOption(Name = "--tenant", Description = "Entra tenant id or domain. Forwarded to sign-in when used with --url.", Required = false)]
     public string? Tenant { get; set; }
 
     [CliOption(Name = "--cloud", Description = "Sovereign cloud. Default: public. Used only with --url.", Required = false)]

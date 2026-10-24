@@ -5,9 +5,11 @@ using TALXIS.CLI.Core.Headless;
 using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Core.Resolution;
 using TALXIS.CLI.Core.Storage;
+using TALXIS.CLI.Features.Config.Profile;
 using TALXIS.CLI.Core.Vault;
 using TALXIS.CLI.Core.Identity;
 using TALXIS.CLI.Platform.PowerPlatform.Control;
+using Xunit;
 using ConnectionModel = TALXIS.CLI.Core.Model.Connection;
 
 namespace TALXIS.CLI.Tests.Config.Commands;/// <summary>
@@ -25,6 +27,7 @@ internal sealed class CommandTestHost : IDisposable
     public FakeInteractiveLogin Login { get; }
     public FakeConnectionProvider Provider_Dataverse { get; }
     public FakePowerPlatformEnvironmentCatalog EnvironmentCatalog { get; }
+    public FakeBrowserProbe BrowserProbe { get; }
 
     public CommandTestHost(
         bool headless = false,
@@ -32,7 +35,9 @@ internal sealed class CommandTestHost : IDisposable
         InteractiveLoginResult? loginResult = null,
         string? currentDirectory = null,
         FakeConnectionProvider? dataverseProvider = null,
-        FakePowerPlatformEnvironmentCatalog? environmentCatalog = null)
+        FakePowerPlatformEnvironmentCatalog? environmentCatalog = null,
+        TALXIS.CLI.Core.Platforms.PowerPlatform.IEnvironmentManagementService? environmentManagement = null,
+        Func<IConnectionStore, IConnectionStore>? decorateConnectionStore = null)
     {
         Temp = new TempConfigDir();
         Vault = new FakeVault();
@@ -52,19 +57,29 @@ internal sealed class CommandTestHost : IDisposable
         var envReader = new FakeEnvironmentReader(currentDirectory ?? Directory.GetCurrentDirectory());
         services.AddSingleton<IEnvironmentReader>(envReader);
         services.AddSingleton<IProfileStore, ProfileStore>();
-        services.AddSingleton<IConnectionStore, ConnectionStore>();
+        services.AddSingleton<ConnectionStore>();
+        services.AddSingleton<IConnectionStore>(sp =>
+        {
+            var store = sp.GetRequiredService<ConnectionStore>();
+            return decorateConnectionStore?.Invoke(store) ?? store;
+        });
         services.AddSingleton<ICredentialStore, CredentialStore>();
         services.AddSingleton<IGlobalConfigStore, GlobalConfigStore>();
         services.AddSingleton<TALXIS.CLI.Core.Bootstrapping.ConnectionUpsertService>();
+        services.AddSingleton<TALXIS.CLI.Core.Bootstrapping.CredentialSignInService>();
         services.AddSingleton<ICredentialVault>(Vault);
         services.AddSingleton<IHeadlessDetector>(Headless);
         services.AddSingleton<IConfirmationPrompter, FakeConfirmationPrompter>();
         services.AddSingleton<IWorkspaceDiscovery, WorkspaceDiscovery>();
         services.AddSingleton<IConfigurationResolver, ConfigurationResolver>();
         services.AddSingleton<IInteractiveLoginService>(Login);
-        services.AddSingleton<IBrowserAvailabilityProbe>(new FakeBrowserProbe(browserAvailable: browserAvailable ?? !headless));
+        BrowserProbe = new FakeBrowserProbe(browserAvailable: browserAvailable ?? !headless);
+        services.AddSingleton<IBrowserAvailabilityProbe>(BrowserProbe);
         services.AddSingleton<IDeviceCodeLoginService>(Login);
         services.AddSingleton<IPowerPlatformEnvironmentCatalog>(EnvironmentCatalog);
+        services.AddSingleton<IEnvironmentTypeResolver, TALXIS.CLI.Platform.Dataverse.Runtime.DataverseEnvironmentTypeResolver>();
+        if (environmentManagement is not null)
+            services.AddSingleton(environmentManagement);
         services.AddSingleton(_ =>
             MsalTokenCacheBinder
                 .CreateForTestingAsync(VaultOptions.MsalTokenCache(envReader), Temp.Paths)
@@ -78,6 +93,35 @@ internal sealed class CommandTestHost : IDisposable
 
         Provider = services.BuildServiceProvider();
         TxcServices.Initialize(Provider);
+    }
+
+    public const string DefaultEnvironmentUrl = "https://contoso.crm.dynamics.com";
+
+    /// <summary>Seeds a credential ("cred") and a Dataverse connection ("conn") for profile tests.</summary>
+    public async Task SeedConnectionAsync(string environmentUrl = DefaultEnvironmentUrl, EnvironmentType? type = null)
+    {
+        var creds = (ICredentialStore)Provider.GetService(typeof(ICredentialStore))!;
+        var conns = (IConnectionStore)Provider.GetService(typeof(IConnectionStore))!;
+        await creds.UpsertAsync(new Credential
+        {
+            Id = "cred",
+            Kind = CredentialKind.InteractiveBrowser,
+            TenantId = "contoso.onmicrosoft.com",
+        }, default);
+        await conns.UpsertAsync(new ConnectionModel
+        {
+            Id = "conn",
+            Provider = ProviderKind.Dataverse,
+            EnvironmentUrl = environmentUrl,
+            EnvironmentType = type,
+        }, default);
+    }
+
+    /// <summary>Seeds the connection and creates profile "p" on it.</summary>
+    public async Task SeedActiveProfileAsync(EnvironmentType? type = null)
+    {
+        await SeedConnectionAsync(type: type);
+        Assert.Equal(0, await new ProfileCreateCliCommand { Name = "p", Auth = "cred", Connection = "conn" }.RunAsync());
     }
 
     public void Dispose()
@@ -115,6 +159,26 @@ internal sealed class CommandTestHost : IDisposable
             if (Behavior is not null) return Behavior(connection, credential, mode);
             return Task.CompletedTask;
         }
+    }
+
+    /// <summary>
+    /// Connection store decorator whose reads or writes can be switched to fail.
+    /// </summary>
+    internal sealed class FailingConnectionStore(IConnectionStore inner) : IConnectionStore
+    {
+        public bool FailUpserts { get; set; }
+        public bool FailReads { get; set; }
+
+        public Task<IReadOnlyList<ConnectionModel>> ListAsync(CancellationToken ct)
+            => FailReads ? throw new IOException("config directory is not readable") : inner.ListAsync(ct);
+
+        public Task<ConnectionModel?> GetAsync(string id, CancellationToken ct)
+            => FailReads ? throw new IOException("config directory is not readable") : inner.GetAsync(id, ct);
+
+        public Task UpsertAsync(ConnectionModel connection, CancellationToken ct)
+            => FailUpserts ? throw new IOException("config directory is not writable") : inner.UpsertAsync(connection, ct);
+
+        public Task<bool> DeleteAsync(string id, CancellationToken ct) => inner.DeleteAsync(id, ct);
     }
 
     internal sealed class FakeEnvironmentReader : IEnvironmentReader
@@ -190,13 +254,11 @@ internal sealed class CommandTestHost : IDisposable
 
     internal sealed class FakeBrowserProbe : IBrowserAvailabilityProbe
     {
-        public FakeBrowserProbe(bool browserAvailable)
-        {
-            IsBrowserAvailable = browserAvailable;
-            UnavailableReason = browserAvailable ? null : "test harness: browser unavailable";
-        }
-        public bool IsBrowserAvailable { get; }
-        public string? UnavailableReason { get; }
+        public FakeBrowserProbe(bool browserAvailable) { IsBrowserAvailable = browserAvailable; }
+
+        /// <summary>Settable so a test can switch flows between two runs against the same config.</summary>
+        public bool IsBrowserAvailable { get; set; }
+        public string? UnavailableReason => IsBrowserAvailable ? null : "test harness: browser unavailable";
     }
 
     internal sealed class FakePowerPlatformEnvironmentCatalog : IPowerPlatformEnvironmentCatalog
@@ -204,10 +266,25 @@ internal sealed class CommandTestHost : IDisposable
         private readonly Dictionary<string, PowerPlatformEnvironmentSummary> _environments =
             new(StringComparer.OrdinalIgnoreCase);
 
+        public static readonly Guid DevboxEnvironmentId = Guid.Parse("11111111-2222-3333-4444-555555555555");
+        public static readonly Guid DevboxOrganizationId = Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+
         public Exception? Failure { get; set; }
+        public bool HangUntilCancelled { get; set; }
+        public int Lookups { get; private set; }
 
         public void Add(PowerPlatformEnvironmentSummary environment)
             => _environments[Normalize(environment.EnvironmentUrl)] = environment;
+
+        public void AddEnvironment(string environmentUrl, EnvironmentType? type, string displayName = "Contoso DevBox")
+            => Add(new PowerPlatformEnvironmentSummary(
+                EnvironmentId: DevboxEnvironmentId,
+                DisplayName: displayName,
+                EnvironmentUrl: new Uri(environmentUrl),
+                UniqueName: "contoso-devbox",
+                DomainName: "devbox",
+                OrganizationId: DevboxOrganizationId,
+                EnvironmentType: type));
 
         public Task<IReadOnlyList<PowerPlatformEnvironmentSummary>> ListAsync(
             ConnectionModel connection,
@@ -219,15 +296,17 @@ internal sealed class CommandTestHost : IDisposable
             return Task.FromResult(result);
         }
 
-        public Task<PowerPlatformEnvironmentSummary?> TryGetByEnvironmentUrlAsync(
+        public async Task<PowerPlatformEnvironmentSummary?> TryGetByEnvironmentUrlAsync(
             ConnectionModel connection,
             Credential credential,
             Uri environmentUrl,
             CancellationToken ct)
         {
+            Lookups++;
+            if (HangUntilCancelled) await Task.Delay(Timeout.Infinite, ct);
             if (Failure is not null) throw Failure;
             _environments.TryGetValue(Normalize(environmentUrl), out var environment);
-            return Task.FromResult(environment);
+            return environment;
         }
 
         private static string Normalize(Uri uri)
