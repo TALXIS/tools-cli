@@ -145,7 +145,7 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
         switch (options.Type)
         {
             case "string":
-                await ExecuteCreateAttribute(conn, options, new StringAttributeMetadata
+                var strMeta = new StringAttributeMetadata
                 {
                     SchemaName = options.SchemaName,
                     DisplayName = displayLabel,
@@ -153,7 +153,9 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
                     RequiredLevel = requiredLevel,
                     MaxLength = options.MaxLength ?? 200,
                     FormatName = options.StringFormat is not null ? MapStringFormat(options.StringFormat) : StringFormatName.Text
-                }, ct).ConfigureAwait(false);
+                };
+                if (options.FormulaDefinition is not null) { strMeta.SourceType = 3; strMeta.FormulaDefinition = options.FormulaDefinition; }
+                await ExecuteCreateAttribute(conn, options, strMeta, ct).ConfigureAwait(false);
                 break;
 
             case "memo":
@@ -178,6 +180,7 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
                 if (options.MinValue.HasValue) intMeta.MinValue = (int)options.MinValue.Value;
                 if (options.MaxValue.HasValue) intMeta.MaxValue = (int)options.MaxValue.Value;
                 if (options.NumberFormat.HasValue()) intMeta.Format = MapIntegerFormat(options.NumberFormat!);
+                if (options.FormulaDefinition is not null) { intMeta.SourceType = 3; intMeta.FormulaDefinition = options.FormulaDefinition; }
                 await ExecuteCreateAttribute(conn, options, intMeta, ct).ConfigureAwait(false);
                 break;
 
@@ -192,6 +195,7 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
                 if (options.MinValue.HasValue) decMeta.MinValue = (decimal)options.MinValue.Value;
                 if (options.MaxValue.HasValue) decMeta.MaxValue = (decimal)options.MaxValue.Value;
                 if (options.Precision.HasValue) decMeta.Precision = options.Precision.Value;
+                if (options.FormulaDefinition is not null) { decMeta.SourceType = 3; decMeta.FormulaDefinition = options.FormulaDefinition; }
                 await ExecuteCreateAttribute(conn, options, decMeta, ct).ConfigureAwait(false);
                 break;
 
@@ -206,6 +210,7 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
                 if (options.MinValue.HasValue) dblMeta.MinValue = options.MinValue.Value;
                 if (options.MaxValue.HasValue) dblMeta.MaxValue = options.MaxValue.Value;
                 if (options.Precision.HasValue) dblMeta.Precision = options.Precision.Value;
+                if (options.FormulaDefinition is not null) { dblMeta.SourceType = 3; dblMeta.FormulaDefinition = options.FormulaDefinition; }
                 await ExecuteCreateAttribute(conn, options, dblMeta, ct).ConfigureAwait(false);
                 break;
 
@@ -221,11 +226,12 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
                 if (options.MaxValue.HasValue) moneyMeta.MaxValue = options.MaxValue.Value;
                 if (options.Precision.HasValue) moneyMeta.Precision = options.Precision.Value;
                 if (options.PrecisionSource.HasValue) moneyMeta.PrecisionSource = options.PrecisionSource.Value;
+                if (options.FormulaDefinition is not null) { moneyMeta.SourceType = 3; moneyMeta.FormulaDefinition = options.FormulaDefinition; }
                 await ExecuteCreateAttribute(conn, options, moneyMeta, ct).ConfigureAwait(false);
                 break;
 
             case "bool":
-                await ExecuteCreateAttribute(conn, options, new BooleanAttributeMetadata
+                var boolMeta = new BooleanAttributeMetadata
                 {
                     SchemaName = options.SchemaName,
                     DisplayName = displayLabel,
@@ -234,7 +240,9 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
                     OptionSet = new BooleanOptionSetMetadata(
                         new OptionMetadata(new Label(options.TrueLabel, 1033), 1),
                         new OptionMetadata(new Label(options.FalseLabel, 1033), 0))
-                }, ct).ConfigureAwait(false);
+                };
+                if (options.FormulaDefinition is not null) { boolMeta.SourceType = 3; boolMeta.FormulaDefinition = options.FormulaDefinition; }
+                await ExecuteCreateAttribute(conn, options, boolMeta, ct).ConfigureAwait(false);
                 break;
 
             case "datetime":
@@ -248,6 +256,7 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
                 };
                 if (options.DateTimeBehavior is not null)
                     dtMeta.DateTimeBehavior = MapDateTimeBehavior(options.DateTimeBehavior);
+                if (options.FormulaDefinition is not null) { dtMeta.SourceType = 3; dtMeta.FormulaDefinition = options.FormulaDefinition; }
                 await ExecuteCreateAttribute(conn, options, dtMeta, ct).ConfigureAwait(false);
                 break;
 
@@ -919,6 +928,7 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
             picklistMeta.OptionSet = BuildLocalOptionSet(options);
         }
 
+        if (options.FormulaDefinition is not null) { picklistMeta.SourceType = 3; picklistMeta.FormulaDefinition = options.FormulaDefinition; }
         await ExecuteCreateAttribute(conn, options, picklistMeta, ct).ConfigureAwait(false);
     }
 
@@ -944,6 +954,7 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
             multiMeta.OptionSet = BuildLocalOptionSet(options);
         }
 
+        if (options.FormulaDefinition is not null) { multiMeta.SourceType = 3; multiMeta.FormulaDefinition = options.FormulaDefinition; }
         await ExecuteCreateAttribute(conn, options, multiMeta, ct).ConfigureAwait(false);
     }
 

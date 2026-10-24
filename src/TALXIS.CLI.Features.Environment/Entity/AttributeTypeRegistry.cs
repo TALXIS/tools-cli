@@ -22,7 +22,7 @@ public static class AttributeTypeRegistry
     public static IReadOnlyList<string> SharedParameterNames { get; } = new[]
     {
         "entity", "name", "display-name", "description", "required", "solution",
-        "is-auditable", "is-searchable", "is-secured"
+        "is-auditable", "is-searchable", "is-secured", "formula-definition"
     };
 
     private static ReadOnlyCollection<AttributeTypeInfo> BuildAllTypes()
