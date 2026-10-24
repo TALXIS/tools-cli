@@ -40,7 +40,7 @@ For **bulk transactional data** or **ETL workloads**, consider the Dataverse Imp
 ### Prerequisites
 
 1. Install `txc` (the TALXIS CLI).
-2. Authenticate: `txc config auth login --profile myprofile`
+2. Create a profile and sign in: `txc config profile create --url https://contoso.crm4.dynamics.com/` (see [Profiles and authentication](profiles-and-authentication.md))
 3. Have a CMT schema file (`data_schema.xml`). You can create one with the [Configuration Migration Tool GUI](https://learn.microsoft.com/en-us/power-platform/admin/manage-configuration-data) or write it by hand (see [Schema File Reference](#4-schema-file-reference-data_schemaxml)).
 
 ### Export data
@@ -908,7 +908,7 @@ txc data package import data.zip --verbose --profile myprofile
 | **Schema validation failed** | Entity or field in schema doesn't exist in target | Verify target environment has all entities/fields. Check for typos in logical names. |
 | **Duplicate key error** | Record with same primary key already exists | Use dedup (`updateCompare`) or `--override-safety-checks` if target is empty. |
 | **Lookup resolution failed** | Referenced record doesn't exist in target | Check `<entityImportOrder>` — parent entities must come first. Verify the referenced record was exported. |
-| **Interactive authentication required** | Token expired or not cached | Run `txc config auth login --profile <name>` and retry. |
+| **Interactive authentication required** | Token expired or not cached | Run `txc config auth login` and retry. |
 | **Request size exceeded** | Batch too large (>16 MB) | Reduce `--batch-size` (try 100–200). |
 | **Throttling / 429 errors** | Too many parallel requests | Reduce `--connection-count`. Add retry logic in pipeline. |
 | **File not found in package** | `files/{guid}.bin` missing from zip | Re-export with `--export-files`. Ensure the zip wasn't modified after export. |
@@ -918,11 +918,11 @@ txc data package import data.zip --verbose --profile myprofile
 CMT commands require an authenticated connection to Dataverse. Before running export or import:
 
 ```bash
-# Login and cache credentials for a profile
-txc config auth login --profile myprofile
+# Create a profile for the environment (this signs you in)
+txc config profile create --url https://contoso.crm4.dynamics.com/ --name myprofile
 
 # Verify the profile is working
-txc config auth status --profile myprofile
+txc config profile validate myprofile
 ```
 
 If you get an "Interactive authentication required" error, your cached token has expired. Re-run `txc config auth login`.
