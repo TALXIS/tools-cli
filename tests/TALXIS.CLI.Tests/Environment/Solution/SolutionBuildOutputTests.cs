@@ -32,6 +32,21 @@ public class SolutionBuildOutputTests
         Assert.Equal(expected, SolutionBuildOutput.ParseOutputPath(output));
     }
 
+    [Fact]
+    public void ParseOutputPath_ReadsRealTwoPropertyOutput()
+    {
+        // Verbatim output of: dotnet build X.csproj -getProperty:OutputPath -getProperty:MSBuildProjectName
+        const string output = "{\n  \"Properties\": {\n    \"OutputPath\": \"bin\\\\Debug/net472/\",\n    \"MSBuildProjectName\": \"Solutions.Test\"\n  }\n}\n";
+        Assert.Equal("bin\\Debug/net472/", SolutionBuildOutput.ParseOutputPath(output));
+    }
+
+    [Fact]
+    public void ParseOutputPath_ReturnsNull_ForSinglePropertyPlainText()
+    {
+        // What MSBuild prints for a single -getProperty: not JSON, so the command must request two.
+        Assert.Null(SolutionBuildOutput.ParseOutputPath("bin\\Debug/net472/\n"));
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("MSBUILD : error MSB1009: Project file does not exist.")]

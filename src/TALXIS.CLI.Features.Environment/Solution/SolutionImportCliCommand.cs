@@ -275,13 +275,15 @@ public class SolutionImportCliCommand : ProfiledCliCommand
 
     /// <summary>
     /// Evaluates the project (no build) to get the <c>OutputPath</c> the Build SDK packs the ZIP to.
+    /// MSBuild prints plain text for a single <c>-getProperty</c> and JSON only for several, so a
+    /// second property is requested to get the JSON <see cref="SolutionBuildOutput.ParseOutputPath"/> reads.
     /// </summary>
     private async Task<string?> ResolveExpectedZipPathAsync(string csProjPath, string config)
     {
         var psi = new ProcessStartInfo
         {
             FileName = "dotnet",
-            Arguments = $"build \"{csProjPath}\" -c {config} -getProperty:OutputPath",
+            Arguments = $"build \"{csProjPath}\" -c {config} -getProperty:OutputPath -getProperty:MSBuildProjectName",
             WorkingDirectory = Path.GetDirectoryName(csProjPath),
             RedirectStandardOutput = true,
             RedirectStandardError = true,
