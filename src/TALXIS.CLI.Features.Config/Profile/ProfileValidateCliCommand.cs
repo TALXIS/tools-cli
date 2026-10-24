@@ -32,8 +32,10 @@ public class ProfileValidateCliCommand : TxcLeafCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ProfileValidateCliCommand));
 
+    // The initializer is what makes this optional: DotMake doesn't carry Required = false over to
+    // an argument, but it does turn the initializer into a default value (#214).
     [CliArgument(Description = "Profile name to validate. Defaults to the global active profile.", Required = false)]
-    public string? Name { get; set; }
+    public string? Name { get; set; } = null;
 
     [CliOption(Description = "Skip the live authenticated round-trip (WhoAmI); run structural checks only.")]
     public bool SkipLive { get; set; }
