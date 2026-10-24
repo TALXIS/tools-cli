@@ -7,22 +7,22 @@ Plugins are server-side .NET classes that execute custom business logic in respo
 ## Plugin Project Structure
 
 - Convention: `Plugins.{Domain}/` in `src/` (e.g., `Plugins.Sales`, `Plugins.Warehouse`)
-- `.csproj` requires: `ProjectType=Plugin`, `SignAssembly=true`, target `net462`
+- `.csproj` requires: `ProjectType=Plugin`, `SignAssembly=true`; the Build SDK targets `net472` (the template sets no `TargetFramework`)
 - Plugin classes follow `{Action}{Entity}Plugin.cs` naming (e.g., `ValidateContactPlugin.cs`)
 
 ## Registration Chain
 
-Plugin registration is a 3-step chain. **Order matters** — each step depends on the previous one.
+**Order matters** — each step depends on the previous one.
 
-1. **Create Plugin Project** → `workspace_component_create` with `Type: pp-plugin`
+1. **Create Plugin Project** → `txc workspace component create pp-plugin`
 2. **Write plugin classes** extending `PluginBase` (one `.cs` file per plugin)
-3. **Build the plugin project** → `dotnet build src/Plugins.{Domain}` — this MUST succeed before step 4
-4. **Register Assembly** → `workspace_component_create` with `Type: pp-plugin-assembly`
-   - Requires the plugin to be built first (reads compiled DLL for metadata)
-5. **Register Steps** → `workspace_component_create` with `Type: pp-plugin-assembly-step`
-6. **Link projects** → `dotnet add reference ../Plugins.{Domain}` from the Logic solution
+3. **Link projects** → `dotnet add reference ../Plugins.{Domain}` from the Logic solution
+4. **Build** → `dotnet build` the Logic solution. The build registers the plugin assembly in the solution itself (`GeneratePluginAssembly` defaults to true), so there is no separate assembly step.
+5. **Register Steps** → `txc workspace component create pp-plugin-assembly-step`
 
-Call `workspace_component_parameter_list` for required parameters at each step.
+Run `txc workspace component parameter list <template>` for the required parameters at each step.
+
+`pp-plugin-assembly` is only for solutions that set `GeneratePluginAssembly=false`. Don't run it after the build has registered the assembly: it adds a second assembly root, and the next build fails with "root components are not defined in customizations".
 
 **Prerequisites:** The plugin assembly and step templates use C# file-based apps (`.cs`) for code generation — runs natively with .NET 10 SDK.
 
