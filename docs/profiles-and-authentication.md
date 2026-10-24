@@ -75,7 +75,7 @@ txc config profile unpin
 
 ## Environment type and the production guard
 
-Each connection records the environment type from the Power Platform catalog (`Production`, `Sandbox`, `Developer`, ...). Destructive commands refuse to run against `Production` or `Default` environments, and against environments whose type is unknown, unless you pass `--allow-production`.
+Each connection records the environment type from the Power Platform catalog (`Production`, `Sandbox`, `Developer`, ...). Destructive commands refuse to run against `Production` or `Default` environments, against environments whose type is unknown, and against any environment whose name or URL contains `prod`, `production`, `prd` or `live`, unless you pass `--allow-production`.
 
 If a connection has no recorded type, `txc` looks it up from the catalog before deciding and saves the result. When that lookup fails, the command is blocked. To record the type yourself:
 
@@ -84,6 +84,8 @@ txc config profile validate --refresh-env-type
 ```
 
 Pass `--allow-production` only for environments that really are production.
+
+Connections created with `txc config connection create` (for example in CI) have no recorded type. The lookup needs an identity that can read the environment catalog; a service principal without that access is blocked and needs `--allow-production`.
 
 ## Headless and CI workflow
 

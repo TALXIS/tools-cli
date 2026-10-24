@@ -171,7 +171,7 @@ Prerequisites, before invoking any tool that touches a Dataverse
 environment (or any other Connection-bound tool):
 
 1. On the human's machine, run `txc config auth login` (interactive
-   browser), `txc config auth add-service-principal`, or
+   browser, or device code where no browser is available), `txc config auth add-service-principal`, or
    `txc config auth add-federated` once to register a credential entry.
    Interactive login also primes the MSAL token cache; service-principal
    and federated entries rely on their configured secret / OIDC
