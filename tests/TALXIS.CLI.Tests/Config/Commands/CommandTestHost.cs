@@ -32,7 +32,9 @@ internal sealed class CommandTestHost : IDisposable
         InteractiveLoginResult? loginResult = null,
         string? currentDirectory = null,
         FakeConnectionProvider? dataverseProvider = null,
-        FakePowerPlatformEnvironmentCatalog? environmentCatalog = null)
+        FakePowerPlatformEnvironmentCatalog? environmentCatalog = null,
+        TALXIS.CLI.Core.Platforms.PowerPlatform.IEnvironmentManagementService? environmentManagement = null,
+        Func<IConnectionStore, IConnectionStore>? decorateConnectionStore = null)
     {
         Temp = new TempConfigDir();
         Vault = new FakeVault();
@@ -52,10 +54,16 @@ internal sealed class CommandTestHost : IDisposable
         var envReader = new FakeEnvironmentReader(currentDirectory ?? Directory.GetCurrentDirectory());
         services.AddSingleton<IEnvironmentReader>(envReader);
         services.AddSingleton<IProfileStore, ProfileStore>();
-        services.AddSingleton<IConnectionStore, ConnectionStore>();
+        services.AddSingleton<ConnectionStore>();
+        services.AddSingleton<IConnectionStore>(sp =>
+        {
+            var store = sp.GetRequiredService<ConnectionStore>();
+            return decorateConnectionStore?.Invoke(store) ?? store;
+        });
         services.AddSingleton<ICredentialStore, CredentialStore>();
         services.AddSingleton<IGlobalConfigStore, GlobalConfigStore>();
         services.AddSingleton<TALXIS.CLI.Core.Bootstrapping.ConnectionUpsertService>();
+        services.AddSingleton<TALXIS.CLI.Core.Bootstrapping.CredentialSignIn>();
         services.AddSingleton<ICredentialVault>(Vault);
         services.AddSingleton<IHeadlessDetector>(Headless);
         services.AddSingleton<IConfirmationPrompter, FakeConfirmationPrompter>();
@@ -65,6 +73,9 @@ internal sealed class CommandTestHost : IDisposable
         services.AddSingleton<IBrowserAvailabilityProbe>(new FakeBrowserProbe(browserAvailable: browserAvailable ?? !headless));
         services.AddSingleton<IDeviceCodeLoginService>(Login);
         services.AddSingleton<IPowerPlatformEnvironmentCatalog>(EnvironmentCatalog);
+        services.AddSingleton<IEnvironmentTypeResolver, TALXIS.CLI.Platform.Dataverse.Runtime.DataverseEnvironmentTypeResolver>();
+        if (environmentManagement is not null)
+            services.AddSingleton(environmentManagement);
         services.AddSingleton(_ =>
             MsalTokenCacheBinder
                 .CreateForTestingAsync(VaultOptions.MsalTokenCache(envReader), Temp.Paths)

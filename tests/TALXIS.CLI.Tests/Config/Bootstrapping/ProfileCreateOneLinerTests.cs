@@ -283,6 +283,125 @@ public sealed class ProfileCreateOneLinerTests
     }
 
     [Fact]
+    public async Task UrlMode_ExplicitName_StillResolvesEnvironmentMetadata()
+    {
+        var catalog = new CommandTestHost.FakePowerPlatformEnvironmentCatalog();
+        catalog.Add(new PowerPlatformEnvironmentSummary(
+            EnvironmentId: Guid.Parse("11111111-2222-3333-4444-555555555555"),
+            DisplayName: "Contoso DevBox",
+            EnvironmentUrl: new Uri("https://devbox.crm4.dynamics.com/"),
+            UniqueName: "contoso-devbox",
+            DomainName: "devbox",
+            OrganizationId: Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
+            EnvironmentType: EnvironmentType.Developer));
+
+        using var host = new CommandTestHost(environmentCatalog: catalog);
+        using (OutputWriter.RedirectTo(new StringWriter()))
+        {
+            var exit = await new ProfileCreateCliCommand
+            {
+                Url = "https://devbox.crm4.dynamics.com/",
+                Name = "devbox-2896",
+            }.RunAsync();
+            Assert.Equal(0, exit);
+        }
+
+        var connections = (IConnectionStore)host.Provider.GetService(typeof(IConnectionStore))!;
+        var connection = await connections.GetAsync("devbox-2896", default);
+        Assert.NotNull(connection);
+        Assert.Equal(EnvironmentType.Developer, connection!.EnvironmentType);
+        Assert.Equal("Contoso DevBox", connection.DisplayName);
+        Assert.Equal(Guid.Parse("11111111-2222-3333-4444-555555555555"), connection.EnvironmentId);
+        Assert.Equal("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", connection.OrganizationId);
+    }
+
+    [Fact]
+    public async Task UrlMode_Recreate_WhenLookupFails_PreservesExistingMetadata()
+    {
+        var catalog = new CommandTestHost.FakePowerPlatformEnvironmentCatalog();
+        catalog.Add(new PowerPlatformEnvironmentSummary(
+            EnvironmentId: Guid.Parse("11111111-2222-3333-4444-555555555555"),
+            DisplayName: "Contoso DevBox",
+            EnvironmentUrl: new Uri("https://devbox.crm4.dynamics.com/"),
+            UniqueName: "contoso-devbox",
+            DomainName: "devbox",
+            OrganizationId: Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
+            EnvironmentType: EnvironmentType.Developer));
+
+        using var host = new CommandTestHost(environmentCatalog: catalog);
+        using (OutputWriter.RedirectTo(new StringWriter()))
+        {
+            Assert.Equal(0, await new ProfileCreateCliCommand
+            {
+                Url = "https://devbox.crm4.dynamics.com/",
+                Name = "devbox-2896",
+            }.RunAsync());
+
+            catalog.Failure = new InvalidOperationException("admin lookup failed");
+            Assert.Equal(0, await new ProfileCreateCliCommand
+            {
+                Url = "https://devbox.crm4.dynamics.com/",
+                Name = "devbox-2896",
+            }.RunAsync());
+        }
+
+        var connections = (IConnectionStore)host.Provider.GetService(typeof(IConnectionStore))!;
+        var connection = await connections.GetAsync("devbox-2896", default);
+        Assert.NotNull(connection);
+        Assert.Equal(EnvironmentType.Developer, connection!.EnvironmentType);
+        Assert.Equal("Contoso DevBox", connection.DisplayName);
+    }
+
+    [Theory]
+    [InlineData(typeof(HttpRequestException))]
+    [InlineData(typeof(TaskCanceledException))] // HttpClient timeout: not caller cancellation
+    public async Task UrlMode_ExplicitName_WhenLookupHitsTransportFailure_StillCreatesProfile(Type failure)
+    {
+        var catalog = new CommandTestHost.FakePowerPlatformEnvironmentCatalog
+        {
+            Failure = (Exception)Activator.CreateInstance(failure, "admin endpoint unavailable")!,
+        };
+
+        using var host = new CommandTestHost(environmentCatalog: catalog);
+        using (OutputWriter.RedirectTo(new StringWriter()))
+        {
+            var exit = await new ProfileCreateCliCommand
+            {
+                Url = "https://devbox.crm4.dynamics.com/",
+                Name = "devbox-2896",
+            }.RunAsync();
+            Assert.Equal(0, exit);
+        }
+
+        var connections = (IConnectionStore)host.Provider.GetService(typeof(IConnectionStore))!;
+        var connection = await connections.GetAsync("devbox-2896", default);
+        Assert.NotNull(connection);
+        Assert.Null(connection!.EnvironmentType);
+    }
+
+    [Theory]
+    [InlineData(true, CredentialKind.InteractiveBrowser)]
+    [InlineData(false, CredentialKind.DeviceCode)]
+    public async Task UrlMode_PicksSignInFlow_FromBrowserAvailability(bool browserAvailable, CredentialKind expectedKind)
+    {
+        using var host = new CommandTestHost(browserAvailable: browserAvailable);
+
+        using (OutputWriter.RedirectTo(new StringWriter()))
+        {
+            var exit = await new ProfileCreateCliCommand
+            {
+                Url = "https://contoso.crm4.dynamics.com/",
+            }.RunAsync();
+            Assert.Equal(0, exit);
+        }
+
+        var creds = (ICredentialStore)host.Provider.GetService(typeof(ICredentialStore))!;
+        var credential = Assert.Single(await creds.ListAsync(default));
+        Assert.Equal(expectedKind, credential.Kind);
+        Assert.Equal(1, host.Login.Calls);
+    }
+
+    [Fact]
     public async Task UrlMode_InfersSovereignCloud_FromEnvironmentUrl_WhenCloudOmitted()
     {
         using var host = new CommandTestHost();

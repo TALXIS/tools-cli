@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Bootstrapping;
-using TALXIS.CLI.Core.Headless;
 using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Core.Storage;
 using TALXIS.CLI.Platform.Dataverse.Runtime.Authority;
@@ -11,37 +10,35 @@ namespace TALXIS.CLI.Platform.Dataverse.Runtime.Bootstrapping;
 
 /// <summary>
 /// Dataverse implementation of <see cref="IConnectionProviderBootstrapper"/>.
-/// Drives: headless guard → interactive browser login → credential alias
-/// resolve + upsert → connection upsert. Called by <c>profile create --url</c>.
+/// Drives: sign-in (<see cref="CredentialSignIn"/> picks browser or device code)
+/// → credential alias resolve + upsert → connection upsert. Called by
+/// <c>profile create --url</c>.
 /// </summary>
 public sealed class DataverseConnectionProviderBootstrapper : IConnectionProviderBootstrapper
 {
-    private readonly IInteractiveLoginService _login;
+    private readonly CredentialSignIn _signIn;
     private readonly ICredentialStore _credentials;
     private readonly ConnectionUpsertService _connectionUpserts;
     private readonly IConnectionStore _connectionStore;
     private readonly IProfileStore _profiles;
     private readonly IPowerPlatformEnvironmentCatalog _environmentCatalog;
-    private readonly IHeadlessDetector _headless;
     private readonly ILogger<DataverseConnectionProviderBootstrapper> _logger;
 
     public DataverseConnectionProviderBootstrapper(
-        IInteractiveLoginService login,
+        CredentialSignIn signIn,
         ICredentialStore credentials,
         ConnectionUpsertService connections,
         IConnectionStore connectionStore,
         IProfileStore profiles,
         IPowerPlatformEnvironmentCatalog environmentCatalog,
-        IHeadlessDetector headless,
         ILogger<DataverseConnectionProviderBootstrapper> logger)
     {
-        _login = login ?? throw new ArgumentNullException(nameof(login));
+        _signIn = signIn ?? throw new ArgumentNullException(nameof(signIn));
         _credentials = credentials ?? throw new ArgumentNullException(nameof(credentials));
         _connectionUpserts = connections ?? throw new ArgumentNullException(nameof(connections));
         _connectionStore = connectionStore ?? throw new ArgumentNullException(nameof(connectionStore));
         _profiles = profiles ?? throw new ArgumentNullException(nameof(profiles));
         _environmentCatalog = environmentCatalog ?? throw new ArgumentNullException(nameof(environmentCatalog));
-        _headless = headless ?? throw new ArgumentNullException(nameof(headless));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -66,10 +63,9 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
             ?? DataverseCloudMap.TryInferFromEnvironmentUrl(environmentUrl)
             ?? CloudInstance.Public;
 
-        _logger.LogInformation("Starting interactive sign-in for '{Url}'...", request.EnvironmentUrl);
-        var acquired = await InteractiveCredentialBootstrapper.AcquireAndPersistAsync(
-            _login, _credentials, _headless,
-            request.TenantId, cloud, explicitAlias: null, ct).ConfigureAwait(false);
+        _logger.LogInformation("Signing in for '{Url}'...", request.EnvironmentUrl);
+        var acquired = (await _signIn.SignInAsync(
+            request.TenantId, cloud, explicitAlias: null, forceDeviceCode: false, ct).ConfigureAwait(false)).Credential;
 
         var names = await ResolveBindingNamesAsync(request, environmentUrl, cloud, acquired, ct).ConfigureAwait(false);
         if (names is null)
@@ -101,13 +97,13 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
             request.Provider,
             request.EnvironmentUrl,
             cloud,
-            organizationId: names.OrganizationId?.ToString(),
-            environmentId: names.EnvironmentId?.ToString(),
+            organizationId: names.Environment.OrganizationId?.ToString(),
+            environmentId: names.Environment.EnvironmentId?.ToString(),
             tenantId: request.TenantId ?? acquired.TenantId,
             description: request.Description,
             ct,
-            displayName: names.DisplayName,
-            environmentType: names.EnvironmentType).ConfigureAwait(false);
+            displayName: names.Environment.DisplayName,
+            environmentType: names.Environment.EnvironmentType).ConfigureAwait(false);
 
         if (upsert.Error is not null)
             return new ProfileBootstrapResult(names.ProfileName, acquired.Credential, null, acquired.Upn, upsert.Error);
@@ -115,13 +111,16 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
         return new ProfileBootstrapResult(names.ProfileName, acquired.Credential, upsert.Connection, acquired.Upn, null);
     }
 
+    private sealed record EnvironmentMetadata(
+        Guid? EnvironmentId,
+        string? DisplayName,
+        EnvironmentType? EnvironmentType,
+        Guid? OrganizationId);
+
     private sealed record BindingNames(
         string ProfileName,
         string ConnectionName,
-        Guid? EnvironmentId = null,
-        string? DisplayName = null,
-        EnvironmentType? EnvironmentType = null,
-        Guid? OrganizationId = null);
+        EnvironmentMetadata Environment);
 
     private async Task<BindingNames?> ResolveBindingNamesAsync(
         ProfileBootstrapRequest request,
@@ -136,49 +135,40 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
             ? null
             : await FindExistingProfileAsync(existingConnection.Id, acquired.Credential.Id, ct).ConfigureAwait(false);
 
+        // Resolve environment metadata on every path (not only when deriving
+        // a name) so EnvironmentType reaches the connection and the
+        // destructive-operation guard can tell dev/test apart from production.
+        var environment = await TryGetEnvironmentAsync(request, environmentUrl, cloud, acquired, ct).ConfigureAwait(false);
+
+        // Fall back to metadata already stored on the connection so a failed
+        // catalog lookup does not wipe values a previous refresh persisted.
+        Guid? organizationId = environment?.OrganizationId;
+        if (organizationId is null && Guid.TryParse(existingConnection?.OrganizationId, out var existingOrgId))
+            organizationId = existingOrgId;
+
+        var metadata = new EnvironmentMetadata(
+            environment?.EnvironmentId ?? existingConnection?.EnvironmentId,
+            environment?.DisplayName ?? existingConnection?.DisplayName,
+            environment?.EnvironmentType ?? existingConnection?.EnvironmentType,
+            organizationId);
+
         if (!string.IsNullOrEmpty(explicitName))
-            return new BindingNames(explicitName, existingConnection?.Id ?? explicitName);
+        {
+            return new BindingNames(explicitName, existingConnection?.Id ?? explicitName, metadata);
+        }
 
         if (existingProfile is not null)
-            return new BindingNames(existingProfile.Id, existingProfile.ConnectionRef!);
+        {
+            return new BindingNames(existingProfile.Id, existingProfile.ConnectionRef!, metadata);
+        }
 
         string? preferredBase = null;
-        Guid? resolvedEnvironmentId = null;
-        string? resolvedDisplayName = null;
-        EnvironmentType? resolvedEnvironmentType = null;
-        Guid? resolvedOrganizationId = null;
-        var ephemeralConnection = new Connection
+        if (environment is not null)
         {
-            Id = "(ephemeral)",
-            Provider = request.Provider,
-            EnvironmentUrl = environmentUrl.ToString().TrimEnd('/'),
-            Cloud = cloud,
-            TenantId = request.TenantId ?? acquired.TenantId,
-        };
-
-        try
-        {
-            var environment = await _environmentCatalog
-                .TryGetByEnvironmentUrlAsync(ephemeralConnection, acquired.Credential, environmentUrl, ct)
-                .ConfigureAwait(false);
-            if (environment is not null)
-            {
-                // Include tenant domain in the slug so multi-customer users can
-                // distinguish environments across tenants at a glance.
-                var tenantDomain = CredentialAliasResolver.ExtractTenantShortName(acquired.Upn);
-                preferredBase = ProviderUrlResolver.DeriveDefaultName(environment.DisplayName, request.EnvironmentUrl, tenantDomain);
-                resolvedEnvironmentId = environment.EnvironmentId;
-                resolvedDisplayName = environment.DisplayName;
-                resolvedEnvironmentType = environment.EnvironmentType;
-                resolvedOrganizationId = environment.OrganizationId;
-            }
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException)
-        {
-            _logger.LogWarning(
-                ex,
-                "Could not resolve Power Platform environment metadata for '{Url}'. Falling back to the URL host.",
-                request.EnvironmentUrl);
+            // Include tenant domain in the slug so multi-customer users can
+            // distinguish environments across tenants at a glance.
+            var tenantDomain = CredentialAliasResolver.ExtractTenantShortName(acquired.Upn);
+            preferredBase = ProviderUrlResolver.DeriveDefaultName(environment.DisplayName, request.EnvironmentUrl, tenantDomain);
         }
 
         if (string.IsNullOrEmpty(preferredBase))
@@ -197,8 +187,7 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
                     await _profiles.GetAsync(candidate, existsCt).ConfigureAwait(false) is not null,
                 ct).ConfigureAwait(false);
 
-            return new BindingNames(profileName, existingConnection.Id, resolvedEnvironmentId,
-                resolvedDisplayName, resolvedEnvironmentType, resolvedOrganizationId);
+            return new BindingNames(profileName, existingConnection.Id, metadata);
         }
 
         // Keep profile + connection names aligned so the mental model is
@@ -210,8 +199,42 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
                 || await _connectionStore.GetAsync(candidate, existsCt).ConfigureAwait(false) is not null,
             ct).ConfigureAwait(false);
 
-        return new BindingNames(sharedName, sharedName, resolvedEnvironmentId,
-            resolvedDisplayName, resolvedEnvironmentType, resolvedOrganizationId);
+        return new BindingNames(sharedName, sharedName, metadata);
+    }
+
+    private async Task<PowerPlatformEnvironmentSummary?> TryGetEnvironmentAsync(
+        ProfileBootstrapRequest request,
+        Uri environmentUrl,
+        CloudInstance cloud,
+        InteractiveCredentialResult acquired,
+        CancellationToken ct)
+    {
+        var ephemeralConnection = new Connection
+        {
+            Id = "(ephemeral)",
+            Provider = request.Provider,
+            EnvironmentUrl = environmentUrl.ToString().TrimEnd('/'),
+            Cloud = cloud,
+            TenantId = request.TenantId ?? acquired.TenantId,
+        };
+
+        try
+        {
+            return await _environmentCatalog
+                .TryGetByEnvironmentUrlAsync(ephemeralConnection, acquired.Credential, environmentUrl, ct)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            // Best-effort by contract: admin API failures (HTTP status, transport
+            // errors, request timeouts, token acquisition) must not abort profile
+            // creation. Only caller-requested cancellation propagates.
+            _logger.LogWarning(
+                ex,
+                "Could not resolve Power Platform environment metadata for '{Url}'. Continuing with the metadata already stored on the connection, if any.",
+                request.EnvironmentUrl);
+            return null;
+        }
     }
 
     private async Task<Connection?> FindExistingConnectionAsync(

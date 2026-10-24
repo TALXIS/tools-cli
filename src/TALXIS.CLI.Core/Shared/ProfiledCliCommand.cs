@@ -34,7 +34,10 @@ namespace TALXIS.CLI.Core;
 /// are blocked at runtime when the target environment is Production or
 /// Default (or unknown), unless <c>--allow-production</c> is passed.
 /// Detection uses both the API-reported <see cref="EnvironmentType"/> and
-/// name-based heuristics (keywords in DisplayName / EnvironmentUrl).
+/// name-based heuristics (keywords in DisplayName / EnvironmentUrl). When the
+/// connection has no recorded type, the guard looks it up from the Power
+/// Platform catalog (and persists it) before deciding; if that fails the
+/// environment stays "unknown" and is treated as Production.
 /// </para>
 /// </remarks>
 public abstract class ProfiledCliCommand : TxcLeafCommand
@@ -48,6 +51,9 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
     private static readonly Regex ProductionNamePattern = new(
         @"\b(prod|production|prd|live)\b",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    /// <summary>Upper bound for the guard's catalog lookup of a missing environment type.</summary>
+    private static readonly TimeSpan EnvironmentTypeLookupTimeout = TimeSpan.FromSeconds(20);
 
     [CliOption(
         Name = "--profile",
@@ -103,6 +109,7 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
         // conventions: enduser.id, enduser.scope). This runs for ALL profiled
         // commands, not just destructive ones.
         ResolvedProfileContext? resolvedContext = null;
+        ConfigurationResolutionException? resolutionFailure = null;
         try
         {
             var resolver = TxcServices.Get<IConfigurationResolver>();
@@ -110,49 +117,75 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
             Telemetry.ActivityIdentityTagger.TagFromResolvedProfile(
                 Activity.Current, resolvedContext.Credential, resolvedContext.Connection);
         }
+        catch (ConfigurationResolutionException ex)
+        {
+            resolutionFailure = ex;
+        }
         catch (Exception) when (true)
         {
-            // If profile resolution fails (missing config, DI not bootstrapped,
-            // invalid profile name), let ExecuteAsync handle it — it will produce
-            // a better error message. Identity tags are best-effort; we never
-            // block a command for telemetry reasons.
+            // If profile resolution fails (DI not bootstrapped, unreadable
+            // store), let ExecuteAsync handle it — it will produce a better
+            // error message. Identity tags are best-effort; we never block a
+            // command for telemetry reasons.
         }
 
         if (!Attribute.IsDefined(GetType(), typeof(CliDestructiveAttribute)))
             return null;
 
+        // Without a resolved profile there is no target to classify. Report the
+        // resolution error here so the user sees the real problem (unknown
+        // profile, nothing active) instead of a --yes/confirmation message
+        // for a command that could never have run.
+        if (resolutionFailure is not null)
+        {
+            Logger.LogError("{Error}", resolutionFailure.Message);
+            return ExitValidationError;
+        }
+
         if (resolvedContext is null)
             return null;
 
-        try
+        var connection = resolvedContext.Connection;
+
+        // Connections created without a catalog lookup (config connection
+        // create, an earlier failed lookup, older versions) carry no type and
+        // would be blocked as "Unknown". Ask the catalog once with the
+        // credential we already resolved; the result is persisted. The guard
+        // must not hang a command on a slow control plane, hence the timeout.
+        if (connection.EnvironmentType is null)
         {
-            var connection = resolvedContext.Connection;
-
-            if (!IsProductionLike(connection.EnvironmentType, connection.DisplayName, connection.EnvironmentUrl))
-                return null;
-
-            if (AllowProduction)
-            {
-                Logger.LogWarning(
-                    "Destructive operation allowed against {EnvType} environment '{ConnectionId}' ({Url}) via --allow-production.",
-                    connection.EnvironmentType?.ToString() ?? "Unknown",
-                    connection.Id,
-                    connection.EnvironmentUrl);
-                return null;
-            }
-
-            var envLabel = connection.DisplayName ?? connection.EnvironmentUrl ?? connection.Id;
-            var typeLabel = connection.EnvironmentType?.ToString() ?? "Unknown (treated as Production)";
-            Logger.LogError(
-                "Blocked: this is a destructive operation targeting {EnvType} environment '{EnvLabel}'. " +
-                "Pass --allow-production to confirm, or switch to a non-production profile.",
-                typeLabel, envLabel);
-            return ExitValidationError;
+            using var cts = new CancellationTokenSource(EnvironmentTypeLookupTimeout);
+            await EnvironmentTypeRefresher.TryRefreshAsync(connection, resolvedContext.Credential, Logger, cts.Token).ConfigureAwait(false);
         }
-        catch (ConfigurationResolutionException)
+
+        if (!IsProductionLike(connection.EnvironmentType, connection.DisplayName, connection.EnvironmentUrl))
+            return null;
+
+        if (AllowProduction)
         {
+            Logger.LogWarning(
+                "Destructive operation allowed against {EnvType} environment '{ConnectionId}' ({Url}) via --allow-production.",
+                connection.EnvironmentType?.ToString() ?? "Unknown",
+                connection.Id,
+                connection.EnvironmentUrl);
             return null;
         }
+
+        var advice = connection.EnvironmentType is null
+            ? "Run 'txc config profile validate --refresh-env-type' to record its type, or pass --allow-production to confirm."
+            : "Pass --allow-production to confirm, or switch to a non-production profile.";
+        return BlockProduction(connection.EnvironmentType, connection.DisplayName ?? connection.EnvironmentUrl ?? connection.Id, advice);
     }
 
+    /// <summary>
+    /// Logs the standard "blocked" error for a production-like target and
+    /// returns the exit code. Shared by every guard so the wording stays uniform.
+    /// </summary>
+    protected int BlockProduction(EnvironmentType? envType, string envLabel, string advice)
+    {
+        Logger.LogError(
+            "Blocked: this is a destructive operation targeting {EnvType} environment '{EnvLabel}'. {Advice}",
+            envType?.ToString() ?? "Unknown (treated as Production)", envLabel, advice);
+        return ExitValidationError;
+    }
 }

@@ -3,6 +3,7 @@ using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Features.Config.Profile;
 using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Core;
+using TALXIS.CLI.Platform.PowerPlatform.Control;
 using Xunit;
 using ConnectionModel = TALXIS.CLI.Core.Model.Connection;
 
@@ -131,5 +132,29 @@ public sealed class ProfileValidateTests
 
         using var doc = JsonDocument.Parse(sw.ToString());
         Assert.Equal("b", doc.RootElement.GetProperty("profile").GetString());
+    }
+
+    [Fact]
+    public async Task Validate_RefreshEnvType_StillRecordsType_WhenLiveCheckFails()
+    {
+        using var host = new CommandTestHost();
+        host.EnvironmentCatalog.Add(new PowerPlatformEnvironmentSummary(
+            EnvironmentId: Guid.Parse("11111111-2222-3333-4444-555555555555"),
+            DisplayName: "Contoso DevBox",
+            EnvironmentUrl: new Uri("https://contoso.crm.dynamics.com/"),
+            UniqueName: "contoso-devbox",
+            DomainName: "contoso",
+            OrganizationId: Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
+            EnvironmentType: EnvironmentType.Developer));
+        host.Provider_Dataverse.Behavior = (_, _, _) => throw new HttpRequestException("host unreachable");
+        await SeedAsync(host);
+        await new ProfileCreateCliCommand { Name = "p", Auth = "cred", Connection = "conn" }.RunAsync();
+
+        var exit = await new ProfileValidateCliCommand { RefreshEnvType = true }.RunAsync();
+
+        // The live check fails, but the catalog refresh already ran and persisted the type.
+        Assert.Equal(1, exit);
+        var conns = (IConnectionStore)host.Provider.GetService(typeof(IConnectionStore))!;
+        Assert.Equal(EnvironmentType.Developer, (await conns.GetAsync("conn", default))!.EnvironmentType);
     }
 }
