@@ -379,6 +379,28 @@ public sealed class ProfileCreateOneLinerTests
         Assert.Null(connection!.EnvironmentType);
     }
 
+    [Theory]
+    [InlineData(true, CredentialKind.InteractiveBrowser)]
+    [InlineData(false, CredentialKind.DeviceCode)]
+    public async Task UrlMode_PicksSignInFlow_FromBrowserAvailability(bool browserAvailable, CredentialKind expectedKind)
+    {
+        using var host = new CommandTestHost(browserAvailable: browserAvailable);
+
+        using (OutputWriter.RedirectTo(new StringWriter()))
+        {
+            var exit = await new ProfileCreateCliCommand
+            {
+                Url = "https://contoso.crm4.dynamics.com/",
+            }.RunAsync();
+            Assert.Equal(0, exit);
+        }
+
+        var creds = (ICredentialStore)host.Provider.GetService(typeof(ICredentialStore))!;
+        var credential = Assert.Single(await creds.ListAsync(default));
+        Assert.Equal(expectedKind, credential.Kind);
+        Assert.Equal(1, host.Login.Calls);
+    }
+
     [Fact]
     public async Task UrlMode_InfersSovereignCloud_FromEnvironmentUrl_WhenCloudOmitted()
     {

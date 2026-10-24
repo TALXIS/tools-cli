@@ -11,12 +11,15 @@ namespace TALXIS.CLI.Platform.Dataverse.Runtime.Bootstrapping;
 
 /// <summary>
 /// Dataverse implementation of <see cref="IConnectionProviderBootstrapper"/>.
-/// Drives: headless guard → interactive browser login → credential alias
+/// Drives: headless guard → interactive sign-in (browser, or device code when
+/// no local browser can complete the redirect) → credential alias
 /// resolve + upsert → connection upsert. Called by <c>profile create --url</c>.
 /// </summary>
 public sealed class DataverseConnectionProviderBootstrapper : IConnectionProviderBootstrapper
 {
     private readonly IInteractiveLoginService _login;
+    private readonly IDeviceCodeLoginService _deviceCodeLogin;
+    private readonly IBrowserAvailabilityProbe _browserProbe;
     private readonly ICredentialStore _credentials;
     private readonly ConnectionUpsertService _connectionUpserts;
     private readonly IConnectionStore _connectionStore;
@@ -27,6 +30,8 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
 
     public DataverseConnectionProviderBootstrapper(
         IInteractiveLoginService login,
+        IDeviceCodeLoginService deviceCodeLogin,
+        IBrowserAvailabilityProbe browserProbe,
         ICredentialStore credentials,
         ConnectionUpsertService connections,
         IConnectionStore connectionStore,
@@ -36,6 +41,8 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
         ILogger<DataverseConnectionProviderBootstrapper> logger)
     {
         _login = login ?? throw new ArgumentNullException(nameof(login));
+        _deviceCodeLogin = deviceCodeLogin ?? throw new ArgumentNullException(nameof(deviceCodeLogin));
+        _browserProbe = browserProbe ?? throw new ArgumentNullException(nameof(browserProbe));
         _credentials = credentials ?? throw new ArgumentNullException(nameof(credentials));
         _connectionUpserts = connections ?? throw new ArgumentNullException(nameof(connections));
         _connectionStore = connectionStore ?? throw new ArgumentNullException(nameof(connectionStore));
@@ -66,10 +73,25 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
             ?? DataverseCloudMap.TryInferFromEnvironmentUrl(environmentUrl)
             ?? CloudInstance.Public;
 
-        _logger.LogInformation("Starting interactive sign-in for '{Url}'...", request.EnvironmentUrl);
-        var acquired = await InteractiveCredentialBootstrapper.AcquireAndPersistAsync(
-            _login, _credentials, _headless,
-            request.TenantId, cloud, explicitAlias: null, ct).ConfigureAwait(false);
+        InteractiveCredentialResult acquired;
+        if (_browserProbe.IsBrowserAvailable)
+        {
+            _logger.LogInformation("Starting interactive sign-in for '{Url}'...", request.EnvironmentUrl);
+            acquired = await InteractiveCredentialBootstrapper.AcquireAndPersistAsync(
+                _login, _credentials, _headless,
+                request.TenantId, cloud, explicitAlias: null, ct).ConfigureAwait(false);
+        }
+        else
+        {
+            // Same selection as 'config auth login': browser sign-in redirects to
+            // localhost, which cannot work in Codespaces, SSH or containers.
+            _logger.LogInformation(
+                "Starting device code sign-in for '{Url}' (browser unavailable: {Reason})...",
+                request.EnvironmentUrl, _browserProbe.UnavailableReason);
+            acquired = await DeviceCodeCredentialBootstrapper.AcquireAndPersistAsync(
+                _deviceCodeLogin, _credentials, _headless,
+                request.TenantId, cloud, explicitAlias: null, ct).ConfigureAwait(false);
+        }
 
         var names = await ResolveBindingNamesAsync(request, environmentUrl, cloud, acquired, ct).ConfigureAwait(false);
         if (names is null)
