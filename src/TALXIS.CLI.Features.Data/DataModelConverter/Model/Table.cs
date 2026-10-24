@@ -1,4 +1,4 @@
-﻿using DocumentFormat.OpenXml.Vml.Office;
+using DocumentFormat.OpenXml.Vml.Office;
 using System.Text.Json.Serialization;
 using System;
 using System.Collections.Generic;
@@ -6,7 +6,9 @@ using System.Linq;
 using System.Text;
 using System.Xml.Linq;
 using System.Xml.Serialization;
+using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Features.Data.DataModelConverter.Extensions;
+using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Data.DataModelConverter.Model;
 
@@ -20,6 +22,8 @@ public enum TableType
 
 public class Table
 {
+    private static readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(Table));
+
     public Table() { }
 
     public Table(XElement element)
@@ -58,8 +62,24 @@ public class Table
         foreach (var element in xElements)
         {
             var row = TableRow.ParseXElement(element);
-            if (row != null)
+            if (row == null)
+                continue;
+
+            var existing = Rows.FirstOrDefault(x => string.Equals(x.Name, row.Name, StringComparison.OrdinalIgnoreCase));
+            if (existing == null)
+            {
                 Rows.Add(row);
+            }
+            else if (existing.RowType != row.RowType)
+            {
+                _logger.LogWarning(
+                    "Attribute {Table}.{Attribute} is declared as {ExistingType} and again as {NewType}; keeping the first.",
+                    LogicalName, row.Name, existing.RowType, row.RowType);
+            }
+            else if (row.MaxLenght > existing.MaxLenght)
+            {
+                existing.MaxLenght = row.MaxLenght;
+            }
         }
     }
 
@@ -71,6 +91,7 @@ public class Table
 
         if (ribbonDiff != null)
         {
+            root.RemoveDeclaredIn(ribbonDiff);
             ribbonDiff.Merge(root);
         }
         else
