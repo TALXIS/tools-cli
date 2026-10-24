@@ -225,6 +225,9 @@ txc data pkg import ./data-package \
   --prefetch-limit 100          # pre-cache record lookups
 
 txc data pkg convert --input export.xlsx --output data.xml
+
+# Tear down records inserted by a previous import (handy for CI test teardown):
+txc data pkg cleanup ./data-package --yes
 ```
 
 See [docs/configuration-migration.md](docs/configuration-migration.md) for the full deep-dive into CMT internals, deduplication logic, and tuning strategies.
