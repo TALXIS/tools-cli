@@ -54,6 +54,12 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
 
     protected virtual TimeSpan EnvironmentTypeLookupTimeout => TimeSpan.FromSeconds(20);
 
+    /// <summary>
+    /// False when this invocation never touches the environment (for example,
+    /// staging a change locally), so an unresolvable profile is not an error.
+    /// </summary>
+    protected virtual bool ExecutesRemotely => true;
+
     [CliOption(
         Name = "--profile",
         Aliases = ["-p"],
@@ -108,6 +114,7 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
         // conventions: enduser.id, enduser.scope). This runs for ALL profiled
         // commands, not just destructive ones.
         var destructive = Attribute.IsDefined(GetType(), typeof(CliDestructiveAttribute));
+        var failClosed = destructive && ExecutesRemotely;
         ResolvedProfileContext? resolvedContext = null;
         try
         {
@@ -116,11 +123,12 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
             Telemetry.ActivityIdentityTagger.TagFromResolvedProfile(
                 Activity.Current, resolvedContext.Credential, resolvedContext.Connection);
         }
-        catch (Exception) when (!destructive)
+        catch (Exception) when (!failClosed)
         {
             // Identity tags are best-effort; ExecuteAsync reports the real error.
-            // A destructive command has no target to classify without a profile,
-            // so the exception propagates and RunAsync reports it.
+            // A destructive command that reaches the environment has no target to
+            // classify without a profile, so the exception propagates and RunAsync
+            // reports it.
         }
 
         if (!destructive || resolvedContext is null)
@@ -150,8 +158,9 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
             return null;
         }
 
+        var profileName = resolvedContext.Profile is { } profile ? $" {profile.Id}" : "";
         var advice = connection.EnvironmentType is null
-            ? "Run 'txc config profile validate --refresh-env-type' to record its type, or pass --allow-production to confirm."
+            ? $"Run 'txc config profile validate{profileName} --refresh-env-type' to record its type, or pass --allow-production to confirm."
             : "Pass --allow-production to confirm, or switch to a non-production profile.";
         return BlockProduction(connection.EnvironmentType, connection.DisplayName ?? connection.EnvironmentUrl ?? connection.Id, advice);
     }

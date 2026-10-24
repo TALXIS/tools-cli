@@ -21,13 +21,40 @@ public sealed class ProfiledCliCommandGuardTests
 
         protected override TimeSpan EnvironmentTypeLookupTimeout => LookupTimeout;
 
-        protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(FakeDestructiveCommand));
+        public CapturingLogger Messages { get; } = new();
+
+        protected override ILogger Logger => Messages;
 
         protected override Task<int> ExecuteAsync()
         {
             Executed = true;
             return Task.FromResult(ExitSuccess);
         }
+    }
+
+    [CliDestructive("Removes something from the target environment.")]
+    private sealed class FakeStagedCommand : StagedCliCommand, IDestructiveCommand
+    {
+        public bool Yes { get; set; } = true;
+        public bool Executed { get; private set; }
+
+        protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(FakeStagedCommand));
+
+        protected override Task<int> ExecuteAsync()
+        {
+            Executed = true;
+            return Task.FromResult(ExitSuccess);
+        }
+    }
+
+    private sealed class CapturingLogger : ILogger
+    {
+        public List<string> Lines { get; } = new();
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+            => Lines.Add(formatter(state, exception));
     }
 
     private static async Task<ConnectionModel> StoredConnectionAsync(CommandTestHost host)
@@ -193,6 +220,51 @@ public sealed class ProfiledCliCommandGuardTests
         Assert.Equal(0, await command.RunAsync());
         Assert.True(command.Executed);
         Assert.Equal(0, host.EnvironmentCatalog.Lookups);
+    }
+
+    [Fact]
+    public async Task Staging_WithoutProfile_Proceeds()
+    {
+        using var host = new CommandTestHost();
+
+        var command = new FakeStagedCommand { Stage = true };
+        Assert.Equal(0, await command.RunAsync());
+        Assert.True(command.Executed);
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    public async Task NonStagingModes_WithoutProfile_AreBlocked(bool apply, bool stage)
+    {
+        using var host = new CommandTestHost();
+
+        var command = new FakeStagedCommand { Apply = apply, Stage = stage };
+        Assert.NotEqual(0, await command.RunAsync());
+        Assert.False(command.Executed);
+    }
+
+    [Fact]
+    public async Task Staging_AgainstProductionProfile_IsStillBlocked()
+    {
+        using var host = new CommandTestHost();
+        await host.SeedActiveProfileAsync(EnvironmentType.Production);
+
+        var command = new FakeStagedCommand { Stage = true };
+        Assert.Equal(2, await command.RunAsync());
+        Assert.False(command.Executed);
+    }
+
+    [Fact]
+    public async Task BlockedUnknownType_NamesTheResolvedProfileInTheRefreshHint()
+    {
+        using var host = new CommandTestHost();
+        await host.SeedActiveProfileAsync();
+
+        var command = new FakeDestructiveCommand { Profile = "p" };
+        Assert.Equal(2, await command.RunAsync());
+        Assert.Contains(command.Messages.Lines, l => l.Contains("txc config profile validate p --refresh-env-type"));
     }
 
     [Fact]
