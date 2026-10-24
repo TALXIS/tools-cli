@@ -2,7 +2,7 @@
 
 ## Overview
 
-A Power Platform monorepo follows a structured layout where solution projects, plugin projects, and package deployer projects coexist. Run `txc workspace explain` to inspect and understand your current repository structure.
+A Power Platform monorepo follows a structured layout where solution projects, plugin projects, and package deployer projects coexist. To see what a repository already contains, read its `.slnx` and each project's `ProjectType`.
 
 ## Repository Structure Convention
 
@@ -72,7 +72,6 @@ All auto-generation happens during `dotnet build` — no manual registration ste
 
 | Command | Purpose |
 |---|---|
-| `txc workspace explain` | Understand the current repo structure, solutions, and components |
 | `txc component type list` | List available component types for scaffolding |
 | `txc workspace component create` | Scaffold new components into a solution project |
 
@@ -85,7 +84,7 @@ All auto-generation happens during `dotnet build` — no manual registration ste
 
 ## Getting Started
 
-1. Run `txc workspace explain` to understand what's already in the repo
+1. Read the `.slnx` and the projects' `ProjectType` to see what's already in the repo
 2. Identify which solution project your changes belong to
 3. Use `txc workspace component create` to scaffold
 4. Build locally to validate before deploying
