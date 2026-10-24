@@ -33,8 +33,10 @@ public class ProfilePinCliCommand : TxcLeafCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ProfilePinCliCommand));
 
+    // The initializer is what makes this optional: DotMake doesn't carry Required = false over to
+    // an argument, but it does turn the initializer into a default value (#214).
     [CliArgument(Description = "Profile name to pin. Defaults to the global active profile.", Required = false)]
-    public string? Name { get; set; }
+    public string? Name { get; set; } = null;
 
     protected override async Task<int> ExecuteAsync()
     {
