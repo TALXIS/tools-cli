@@ -6,6 +6,23 @@
 2. **Add privileges** — `pp-security-role-privilege` template to grant table-level access.
 3. **Assign to app** — `pp-app-security-role` template to bind the role to a model-driven app.
 
+## Scope Resolution for `txc security ... --environment`
+
+For `txc security user`, `txc security service-principal`, `txc security role`, and `txc security team`, the `--environment <id>` flag always means the same thing: run the Dataverse environment-scoped implementation for that environment instead of the tenant-wide implementation.
+
+Resolution order:
+
+1. If `--environment <id>` is passed, `txc` uses that Dataverse environment.
+2. Otherwise, if the resolved profile is already connected to an environment, `txc` uses that active environment.
+3. Otherwise, `txc` falls back to the tenant-wide Entra / Power Platform admin implementation when that command supports one.
+
+`txc security team ...` has no tenant-wide fallback. It always requires `--environment` or an active environment connection.
+
+## Catalog vs Assignment Lists
+
+- `txc security role list [--environment <id>]` switches catalogs. Without an environment it lists tenant admin roles; with an environment it lists that environment's Dataverse security-role catalog. The catalogs are never combined.
+- `txc security user role list ... [--environment <id>]` and `txc security service-principal role list ... [--environment <id>]` list assignments. Without an environment they show tenant admin roles only. With an environment they show **both** tenant admin roles and that environment's Dataverse security-role assignments under separate labeled sections.
+
 ## Privilege Types
 
 | Privilege | Purpose |
@@ -46,86 +63,33 @@ When using `pp-security-role-privilege`, specify privileges as a JSON array:
 ```
 Each entry maps a privilege type to the desired depth. Omitted types default to `None`.
 
-## Assigning Roles to Environment Users, Service Principals, and Teams
+## Assigning Roles to Users, Service Principals, and Teams
 
-Once a security role exists (scaffolded above, or already present in the target environment),
-use these commands to find it and assign it to whoever needs it. All three principal kinds
-share the same shape: `list`/`get` to find the principal, `role list/add/remove` to manage its
-roles.
+1. **Find the role**
+   - Tenant catalog: `txc security role list [--filter <name>]`, `txc security role get --role <name-or-guid>`
+   - Dataverse catalog: `txc security role list --environment <id> [--filter <name>]`, `txc security role get --environment <id> --role <name-or-guid>`
+2. **Find the principal**
+   - User (tenant): `txc security user list [--filter <upn-or-name>]`, `txc security user get --user <upn-or-object-id>`
+   - User (Dataverse): `txc security user list --environment <id> [--enabled|--disabled|--all]`, `txc security user get --environment <id> --user <upn-or-guid>`
+   - Provision a Dataverse user immediately: `txc security user add --environment <id> --user <upn-or-object-id> [--role <name-or-guid>[,<name-or-guid>,...]]`
+   - Bootstrap yourself into a Dataverse environment: `txc security user self-elevate --environment <id>`
+   - Service principal (tenant): `txc security service-principal list [--filter <name>]`, `txc security service-principal get --service-principal <client-id-or-object-id>`
+   - Service principal (Dataverse): `txc security service-principal list --environment <id> [--enabled|--disabled|--all]`, `txc security service-principal get --environment <id> --service-principal <client-id-or-guid>`
+   - Create a Dataverse service principal: `txc security service-principal create --environment <id> --service-principal <entra-client-id> [--business-unit <name-or-guid>] [--role <name-or-guid>[,<name-or-guid>,...]]`
+   - Team (Dataverse only): `txc security team list --environment <id>`, `txc security team get --environment <id> --team <name-or-guid>`, `txc security team create --environment <id> --name <name> --type owner|access|aad-security-group|aad-office-group [--aad-object-id <guid>] [--membership-type <..>] [--business-unit <name-or-guid>]`
+3. **Assign or revoke the role**
+   - Tenant user roles: `txc security user role add --user <upn-or-object-id> --role <name-or-guid>` / `txc security user role remove --user .. --role ..`
+   - Dataverse user roles: `txc security user role add --environment <id> --user <upn-or-guid> --role <name-or-guid>` / `txc security user role remove --environment <id> --user .. --role ..`
+   - Tenant service-principal roles: `txc security service-principal role add --service-principal <client-id-or-object-id> --role <name-or-guid>` / `txc security service-principal role remove --service-principal .. --role ..`
+   - Dataverse service-principal roles: `txc security service-principal role add --environment <id> --service-principal <client-id-or-guid> --role <name-or-guid>` / `txc security service-principal role remove --environment <id> --service-principal .. --role ..`
+   - Dataverse team roles: `txc security team role add --environment <id> --team <name-or-guid> --role <name-or-guid>` / `txc security team role remove --environment <id> --team .. --role ..`
 
-1. **Find the role** — `txc environment role list [--filter <name>]` /
-   `txc environment role get --role <name-or-guid>`. This is a read-only browse of the roles
-   already defined in the target environment (via the scaffolding chain above or Dataverse's
-   built-in roles) — accepts either the role name or its GUID everywhere `--role` is used below.
-2. **Find the principal:**
-   - Regular (human) user: `txc environment user list [--enabled|--disabled|--all]` /
-     `txc environment user get --user <upn-or-guid>`. Regular users are normally provisioned by
-     background Entra sync the first time they sign in, so `list`/`get`/`update` (enable/disable)
-     is usually all you need. If the user has never signed in to this environment yet and you
-     need to assign a role before that happens, use `txc environment user add --user
-     <upn-or-object-id> [--role <name-or-guid>[,<name-or-guid>,...]]` to provision access
-     immediately — safe to run again for a user who already has access. To grant *yourself*
-     admin access when you have none at all in this environment, use `txc environment user
-     self-elevate` instead (a different, tenant-admin-privileged bootstrap path — see its own
-     help text).
-   - Service principal: `txc environment service-principal list [--enabled|--disabled|--all]`
-     / `txc environment service-principal get --service-principal <client-id-or-guid>`. If the service principal doesn't
-     exist yet, create it directly (the Entra app registration itself must already exist):
-     `txc environment service-principal create --service-principal <entra-client-id> [--business-unit <name-or-guid>]
-     [--role <name-or-guid>[,<name-or-guid>,...]]` — `--role` accepts a comma-separated list to
-     assign initial roles in the same step.
-   - Team: `txc environment team list` / `txc environment team get --team <name-or-guid>`. If it
-     doesn't exist yet: `txc environment team create --name <name> --type
-     owner|access|aad-security-group|aad-office-group [--aad-object-id <guid>]
-     [--membership-type <..>] [--business-unit <name-or-guid>]`, then (for `owner`/`access` teams
-     only — AAD-backed team membership is managed in Entra ID) `txc environment team member add
-     --team <name-or-guid> --user <upn-or-guid>`.
-3. **Assign or revoke the role:**
-   - `txc environment user role add --user <upn-or-guid> --role <name-or-guid>` /
-     `txc environment user role remove --user .. --role ..`
-   - `txc environment service-principal role add --service-principal <client-id-or-guid> --role <name-or-guid>` /
-     `txc environment service-principal role remove --service-principal .. --role ..`
-   - `txc environment team role add --team <name-or-guid> --role <name-or-guid>` /
-     `txc environment team role remove --team .. --role ..`
-   - Use `role list --user|--service-principal|--team ..` at any point to see currently assigned roles.
+## Tenant-Wide Admin Roles (`txc security ...` without `--environment`)
 
-## Tenant-Wide Admin Roles (`txc tenant ...`)
+These commands manage admin-level access across the whole tenant. They never create or modify anything in Entra ID — they only discover principals that already exist there and manage their tenant-wide admin roles.
 
-The commands above manage access **within one environment**. A separate, tenant-wide set of
-commands manages admin-level access **across the whole tenant** — e.g. who can administer
-Power Platform environments, connectors, or DLP policies tenant-wide. These commands never
-create or modify anything in Entra ID — they only discover principals that already exist there
-and manage their tenant-wide admin roles.
+- `txc security service-principal role add/remove ...`
+- `txc security user role add/remove ...`
+- `txc security group role add/remove ...`
 
-1. **Find the tenant role** — `txc tenant role list [--filter <name>]` /
-   `txc tenant role get --role <name-or-guid>`. This is the catalog every `--role` value below
-   is validated against.
-2. **Find the principal:**
-   - `txc tenant service-principal list [--filter <name>]` / `txc tenant service-principal get --service-principal <client-id-or-object-id>`
-   - `txc tenant user list [--filter <upn-or-name>]` / `txc tenant user get --user <upn-or-object-id>`
-   - Groups have no `list`/`get` — see the note below.
-3. **Assign or revoke the tenant role:**
-   - `txc tenant service-principal role add --service-principal .. --role <name-or-guid>` / `role remove --service-principal .. --role ..`
-   - `txc tenant user role add --user .. --role <name-or-guid>` / `role remove --user .. --role ..`
-   - `txc tenant group role add --group <object-id> --role <name-or-guid>` /
-     `role remove --group <object-id> --role ..`. Unlike service principals and users, `--group` must be the
-     group's Entra **object id (GUID)** — this CLI never looks groups up by display name, because
-     that would require the Microsoft Graph `Group.Read.All` permission, which is not
-     pre-consented for this CLI's Entra app registration in most tenants. This CLI never prompts
-     for extra consent, so find the object id yourself first, e.g. via the Entra admin center or
-     `az ad group show --group <name> --query id -o tsv`.
-   - For applications only, `--role admin-application` is a special value: it authorizes that
-     app to call this CLI's own `environment` admin commands (`create`/`list`/`update`/`delete`)
-     non-interactively, modeled as just another role the app can hold — not a separate
-     create/delete concept. Unlike every other role, this one is **not** a Power Platform RBAC
-     role assignment: it is implemented by registering the application with the Power Platform
-     Admin (BAP) API's `adminApplications` endpoint, the same mechanism Microsoft documents at
-     [Create a service principal to create and manage environments and other resources for
-     Power Platform](https://learn.microsoft.com/en-us/power-platform/admin/powerplatform-api-create-service-principal).
-     Because it uses a different API, `role list` marks it with `"isSynthetic": true` in its
-     output (every real RBAC role assignment shows `"isSynthetic": false`) — this is how a
-     consumer scripting against the JSON output can tell the two apart. Attempting
-     `--role admin-application` against a `--user` or `--group` fails with a validation error,
-     since only applications can be registered as environment-management service principals.
-   - Use `role list --app|--user|--group ..` at any point to see currently assigned tenant roles.
-
+For applications only, `--role admin-application` is a special value: it authorizes that app to call `txc` environment admin commands (`create`/`list`/`update`/`delete`) non-interactively. Unlike every other role, this one is implemented through the Power Platform Admin (BAP) API's `adminApplications` endpoint, so `role list` marks it with `"isSynthetic": true`.

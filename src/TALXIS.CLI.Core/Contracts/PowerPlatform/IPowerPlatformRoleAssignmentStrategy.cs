@@ -65,7 +65,7 @@ public sealed record PowerPlatformTenantRoleAssignment(
 /// Strategy abstraction for manipulating tenant-scoped role assignments.
 /// Concrete implementations handle either native Power Platform RBAC roles or
 /// synthetic/legacy role concepts such as <c>admin-application</c>.
-/// <see cref="TALXIS.CLI.Platform.PowerPlatform.Control.TenantRoleResolver"/> uses
+/// <see cref="TALXIS.CLI.Platform.PowerPlatform.Control.SecurityRoleResolver"/> uses
 /// <see cref="SupportsPrincipalType"/>/<see cref="CanHandle"/> to route work to
 /// the correct strategy instance without hardcoding per-strategy checks, so
 /// adding a new strategy (e.g. a future synthetic role) requires only a new

@@ -10,7 +10,8 @@ public interface IDataverseTeamService
     /// </summary>
     Task<IReadOnlyList<DataverseTeamRecord>> ListAsync(
         string? profileName,
-        CancellationToken ct);
+        CancellationToken ct,
+        Guid? environmentId = null);
 
     /// <summary>
     /// Resolves a single Dataverse team by team GUID or exact team name.
@@ -21,7 +22,8 @@ public interface IDataverseTeamService
     Task<DataverseTeamRecord?> GetAsync(
         string? profileName,
         string nameOrGuid,
-        CancellationToken ct);
+        CancellationToken ct,
+        Guid? environmentId = null);
 
     /// <summary>
     /// Creates a Dataverse team. When no business unit is supplied, the current
@@ -31,7 +33,8 @@ public interface IDataverseTeamService
     Task<DataverseTeamRecord> CreateAsync(
         string? profileName,
         DataverseTeamCreateOptions options,
-        CancellationToken ct);
+        CancellationToken ct,
+        Guid? environmentId = null);
 
     /// <summary>
     /// Deletes a Dataverse team resolved from a GUID or exact team name.
@@ -41,7 +44,8 @@ public interface IDataverseTeamService
     Task DeleteAsync(
         string? profileName,
         string nameOrGuid,
-        CancellationToken ct);
+        CancellationToken ct,
+        Guid? environmentId = null);
 
     /// <summary>
     /// Lists Dataverse users that are direct members of an owner or access
@@ -52,7 +56,8 @@ public interface IDataverseTeamService
     Task<IReadOnlyList<DataverseUserRecord>> ListMembersAsync(
         string? profileName,
         string teamIdOrName,
-        CancellationToken ct);
+        CancellationToken ct,
+        Guid? environmentId = null);
 
     /// <summary>
     /// Adds a Dataverse environment user to an owner or access team. Throws a
@@ -63,7 +68,8 @@ public interface IDataverseTeamService
         string? profileName,
         string teamIdOrName,
         string userIdOrUpn,
-        CancellationToken ct);
+        CancellationToken ct,
+        Guid? environmentId = null);
 
     /// <summary>
     /// Removes a Dataverse environment user from an owner or access team.
@@ -74,7 +80,8 @@ public interface IDataverseTeamService
         string? profileName,
         string teamIdOrName,
         string userIdOrUpn,
-        CancellationToken ct);
+        CancellationToken ct,
+        Guid? environmentId = null);
 
     /// <summary>
     /// Lists security roles assigned to the resolved Dataverse team. Throws
@@ -84,7 +91,8 @@ public interface IDataverseTeamService
     Task<IReadOnlyList<DataverseRoleRecord>> ListRolesAsync(
         string? profileName,
         string teamIdOrName,
-        CancellationToken ct);
+        CancellationToken ct,
+        Guid? environmentId = null);
 
     /// <summary>
     /// Assigns a Dataverse security role to the resolved team. Both the team
@@ -96,7 +104,8 @@ public interface IDataverseTeamService
         string? profileName,
         string teamIdOrName,
         string roleNameOrGuid,
-        CancellationToken ct);
+        CancellationToken ct,
+        Guid? environmentId = null);
 
     /// <summary>
     /// Removes a Dataverse security role from the resolved team. Both the team
@@ -108,5 +117,6 @@ public interface IDataverseTeamService
         string? profileName,
         string teamIdOrName,
         string roleNameOrGuid,
-        CancellationToken ct);
+        CancellationToken ct,
+        Guid? environmentId = null);
 }

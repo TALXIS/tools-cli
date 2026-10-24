@@ -10,7 +10,7 @@ namespace TALXIS.CLI.Platform.PowerPlatform.Control;
 /// Implements <see cref="IEnvironmentUserProvisioningService"/> by resolving
 /// the target Entra user via Microsoft Graph and provisioning them into the
 /// environment via the BAP admin <c>addUser</c> endpoint. Backs
-/// <c>txc environment user add</c>.
+/// <c>txc security user add --environment ...</c>.
 /// </summary>
 public sealed class EnvironmentUserProvisioningService : IEnvironmentUserProvisioningService
 {
@@ -38,19 +38,56 @@ public sealed class EnvironmentUserProvisioningService : IEnvironmentUserProvisi
     public async Task<EnvironmentUserProvisionResult> ProvisionUserAsync(
         string? profileName,
         string userIdOrUpn,
-        CancellationToken ct)
+        CancellationToken ct,
+        Guid? environmentId = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(userIdOrUpn);
 
-        var ctx = await _resolver.ResolveAsync(profileName, ct).ConfigureAwait(false);
-        var environmentId = await ResolveEnvironmentIdAsync(ctx.Connection, ctx.Credential, ct).ConfigureAwait(false);
+        var ctx = await ResolveContextAsync(profileName, environmentId, ct).ConfigureAwait(false);
+        var resolvedEnvironmentId = await ResolveEnvironmentIdAsync(ctx.Connection, ctx.Credential, ct).ConfigureAwait(false);
         var (aadObjectId, upn, displayName) = await ResolveGraphUserAsync(ctx.Connection, ctx.Credential, userIdOrUpn, ct)
             .ConfigureAwait(false);
 
-        await _bap.AddUserToEnvironmentAsync(ctx.Connection, ctx.Credential, environmentId, aadObjectId, ct)
+        await _bap.AddUserToEnvironmentAsync(ctx.Connection, ctx.Credential, resolvedEnvironmentId, aadObjectId, ct)
             .ConfigureAwait(false);
 
         return new EnvironmentUserProvisionResult(aadObjectId, upn, displayName);
+    }
+
+    private async Task<ResolvedProfileContext> ResolveContextAsync(
+        string? profileName,
+        Guid? environmentId,
+        CancellationToken ct)
+    {
+        var context = await _resolver.ResolveAsync(profileName, ct).ConfigureAwait(false);
+        if (!environmentId.HasValue)
+            return context;
+
+        var environment = (await _catalog.ListAsync(context.Connection, context.Credential, ct).ConfigureAwait(false))
+            .SingleOrDefault(candidate => candidate.EnvironmentId == environmentId.Value)
+            ?? throw new InvalidOperationException(
+                $"Power Platform environment '{environmentId}' was not found or is not accessible with the resolved profile.");
+
+        return new ResolvedProfileContext(
+            context.Profile,
+            new Connection
+            {
+                Id = context.Connection.Id,
+                Provider = context.Connection.Provider,
+                Description = context.Connection.Description,
+                EnvironmentUrl = environment.EnvironmentUrl.AbsoluteUri,
+                OrganizationId = environment.OrganizationId?.ToString(),
+                EnvironmentId = environment.EnvironmentId,
+                Cloud = context.Connection.Cloud,
+                TenantId = context.Connection.TenantId,
+                DisplayName = environment.DisplayName,
+                EnvironmentType = environment.EnvironmentType,
+                CreatedAt = context.Connection.CreatedAt,
+                UpdatedAt = context.Connection.UpdatedAt,
+                ExtraFields = context.Connection.ExtraFields,
+            },
+            context.Credential,
+            context.Source);
     }
 
     private async Task<(Guid AadObjectId, string? UserPrincipalName, string? DisplayName)> ResolveGraphUserAsync(

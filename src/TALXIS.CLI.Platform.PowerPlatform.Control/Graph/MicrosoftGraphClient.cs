@@ -12,10 +12,10 @@ public sealed record GraphUser(Guid Id, string? DisplayName, string? UserPrincip
 
 /// <summary>
 /// Small authenticated client for read-only Microsoft Graph directory lookups
-/// used by <c>txc tenant</c> commands. This client deliberately supports only
+/// used by <c>txc security</c> commands. This client deliberately supports only
 /// the GET endpoints required by the feature: service principals and users.
 /// Entra groups are intentionally never looked up through this client - see
-/// the remarks on <see cref="TenantRoleResolver"/>'s group resolution for why.
+/// the remarks on <see cref="SecurityRoleResolver"/>'s group resolution for why.
 /// </summary>
 public sealed class MicrosoftGraphClient
 {
