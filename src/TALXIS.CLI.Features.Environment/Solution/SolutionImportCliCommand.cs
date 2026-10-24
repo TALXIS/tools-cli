@@ -199,13 +199,16 @@ public class SolutionImportCliCommand : ProfiledCliCommand
     }
 
     /// <summary>
-    /// Runs <c>dotnet build</c> on a Build SDK project and locates the output ZIP.
+    /// Runs <c>dotnet build</c> on a Build SDK project and locates the ZIP produced by that build.
     /// Returns the ZIP path on success, or null on failure.
     /// </summary>
     private async Task<string?> BuildAndLocateZipAsync(string csProjPath)
     {
         var config = Managed ? "Release" : "Debug";
         Logger.LogInformation("Building '{Project}' with configuration '{Config}'...", Path.GetFileName(csProjPath), config);
+
+        var buildStartUtc = DateTime.UtcNow;
+        var errorLineCount = 0;
 
         var psi = new ProcessStartInfo
         {
@@ -219,7 +222,23 @@ public class SolutionImportCliCommand : ProfiledCliCommand
         };
 
         using var process = new Process { StartInfo = psi };
-        process.OutputDataReceived += (_, e) => { if (e.Data is not null) Logger.LogInformation("{Line}", e.Data); };
+        process.OutputDataReceived += (_, e) =>
+        {
+            if (e.Data is null) return;
+            switch (SolutionBuildOutput.Classify(e.Data))
+            {
+                case BuildOutputSeverity.Error:
+                    Interlocked.Increment(ref errorLineCount);
+                    Logger.LogError("{Line}", e.Data);
+                    break;
+                case BuildOutputSeverity.Warning:
+                    Logger.LogWarning("{Line}", e.Data);
+                    break;
+                default:
+                    Logger.LogInformation("{Line}", e.Data);
+                    break;
+            }
+        };
         process.ErrorDataReceived += (_, e) => { if (e.Data is not null) Logger.LogWarning("{Line}", e.Data); };
         process.Start();
         process.BeginOutputReadLine();
@@ -232,28 +251,31 @@ public class SolutionImportCliCommand : ProfiledCliCommand
             return null;
         }
 
-        // Build SDK convention: output ZIP is in bin/{config}/net462/*.zip
-        var outputDir = Path.Combine(Path.GetDirectoryName(csProjPath)!, "bin", config, "net462");
-        if (!Directory.Exists(outputDir))
+        // Older Build SDK versions report packager failures but still exit 0 (tools-devkit-build#47).
+        if (errorLineCount > 0)
         {
-            Logger.LogError("Build output directory not found: {OutputDir}.", outputDir);
+            Logger.LogError("Build succeeded but its output contains {Count} error line(s) (see above). Refusing to import.", errorLineCount);
             return null;
         }
 
-        var zipFiles = Directory.GetFiles(outputDir, "*.zip");
-        if (zipFiles.Length == 0)
+        var outputDir = Path.Combine(Path.GetDirectoryName(csProjPath)!, "bin", config);
+        var (freshZips, allZips) = SolutionBuildOutput.FindSolutionZips(outputDir, buildStartUtc);
+
+        if (allZips.Length == 0)
         {
             Logger.LogError("No .zip file found in build output directory: {OutputDir}.", outputDir);
             return null;
         }
 
-        // Pick the most recently written ZIP to avoid using stale build artifacts
-        var zipPath = zipFiles
-            .OrderByDescending(f => new FileInfo(f).LastWriteTimeUtc)
-            .First();
+        if (freshZips.Length == 0)
+        {
+            Logger.LogError("The build did not produce a solution ZIP; only stale artifacts from a previous build exist in '{OutputDir}'. Refusing to import a stale ZIP.", outputDir);
+            return null;
+        }
 
-        if (zipFiles.Length > 1)
-            Logger.LogWarning("Multiple .zip files found in '{OutputDir}'. Using newest: {ZipPath}", outputDir, Path.GetFileName(zipPath));
+        var zipPath = freshZips[0];
+        if (freshZips.Length > 1)
+            Logger.LogWarning("Multiple .zip files produced in '{OutputDir}'. Using newest: {ZipPath}", outputDir, Path.GetFileName(zipPath));
 
         Logger.LogInformation("Using build output: {ZipPath}", zipPath);
         return zipPath;
