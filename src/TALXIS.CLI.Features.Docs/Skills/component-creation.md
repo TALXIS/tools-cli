@@ -30,10 +30,11 @@ Scaffold components in dependency order:
 7. **Project Reference** — `dotnet add reference` from solution project to the separate project. The Build SDK auto-detects the project type and handles registration (assembly data.xml, web resource data.xml, etc.) during `dotnet build`
 8. **Ribbon Buttons** (`pp-ribbon-button`) — after entity and script library exist. References the web resource via `LibraryLogicalName=prefix_name`
 9. **Form Event Handlers** (`pp-form-event-handler`) — after entity, form, and script library exist. References via `libraryName=prefix_name.js` and `functionName=prefix_name.ClassName.methodName`
+10. **Cloud Flows** (`pp-flow`) — after the tables the flow reads or writes exist. Connector actions are written by hand and grounded in the connected environment (see [flow-development](flow-development.md))
 
 ## Key Parameter Conventions
 
-- **`LogicalName`** (in pp-entity, pp-entity-attribute, pp-optionset-global, pp-app-model): The name **without** publisher prefix. The template adds the prefix automatically. Example: `warehouseitem`, not `udpp_warehouseitem`.
+- **`LogicalName`** (in pp-entity, pp-entity-attribute, pp-optionset-global, pp-app-model, pp-flow): The name **without** publisher prefix. The template adds the prefix automatically. Example: `warehouseitem`, not `udpp_warehouseitem`.
 - **`EntitySchemaName`** (in pp-entity-attribute, pp-entity-form, pp-entity-view, pp-form-*): The entity name **with** publisher prefix. Example: `udpp_warehouseitem`.
 - **`EntityLogicalName`** (in pp-sitemap-subarea, pp-app-model-component, pp-ribbon-*): The entity name **with** publisher prefix. Example: `udpp_warehouseitem`.
 - **`AppName`** (in pp-sitemap-*, pp-app-model-component): The app module folder name **with** publisher prefix. Example: `udpp_warehouseapp`.

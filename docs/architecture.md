@@ -7,7 +7,7 @@ The `txc` CLI is organized around five architectural planes. Each plane maps to 
 | Plane | Responsibility | Projects |
 |-------|---------------|----------|
 | **Management** | CLI command groups, orchestration, user-facing workflows | `TALXIS.CLI.Features.*` |
-| **Control** | Power Platform admin APIs, environment provisioning, governance | `TALXIS.CLI.Platform.PowerPlatform.Control` |
+| **Control** | Power Platform service APIs: admin APIs, environment provisioning, governance, the per-environment API (settings, connector metadata) and connector design-time lookups | `TALXIS.CLI.Platform.PowerPlatform.Control` |
 | **Application** | Solution/package/deployment operations inside a Dataverse environment | `TALXIS.CLI.Platform.Dataverse.Application` |
 | **Runtime** | Dataverse-specific auth, tokens, connection creation, live checking | `TALXIS.CLI.Platform.Dataverse.Runtime` |
 | **Data** | Dataverse instance data access (CRUD, queries, imports), changeset apply pipeline | `TALXIS.CLI.Platform.Dataverse.Data` |
@@ -33,7 +33,8 @@ src/
   TALXIS.CLI.Features.Docs                      # txc docs (placeholder)
   TALXIS.CLI.Features.Workspace                 # txc workspace: scaffolding, templates, validation
 
-  TALXIS.CLI.Platform.PowerPlatform.Control     # Control plane: Power Platform admin API client
+  TALXIS.CLI.Platform.PowerPlatform.Control     # Control plane: Power Platform service API clients
+    PowerAutomate/                               # Connector metadata and design-time lookups
   TALXIS.CLI.Platform.Dataverse.Runtime         # Dataverse runtime: auth, MSAL, connection factory
   TALXIS.CLI.Platform.Dataverse.Application     # Application plane: services + SDK orchestration
     Sdk/                                         # Low-level SDK helpers (SolutionImporter, etc.)
@@ -50,14 +51,14 @@ src/
 - **Features** projects depend on **Core** and may reference platform projects for DI wiring.
 - **Platform** projects depend on **Core** and optionally on each other when one plane consumes another (e.g. Application → Dataverse.Runtime).
 - **Core** has no platform or feature dependencies. Shared MSAL/Entra identity infrastructure, provider-agnostic abstractions (`IAccessTokenService`, `IConnectionProvider`, `IConnectionProviderBootstrapper`), and service contracts all live here.
-- The **control plane** (`PowerPlatform.Control`) depends only on **Core**, not on Dataverse — it uses `IAccessTokenService` for token acquisition.
+- The **control plane** (`PowerPlatform.Control`) depends only on **Core**, not on Dataverse — it uses `IAccessTokenService` for token acquisition, and does not read Dataverse tables (enforced by `LayeringTests`). Where a feature needs both, e.g. connection references (Dataverse) and connector metadata (control plane), the feature command composes the two Core contracts.
 
 ## Where Does New Code Go?
 
 | If the code... | Put it in... |
 |----------------|-------------|
 | Is a CLI command or user workflow orchestration | `TALXIS.CLI.Features.*` |
-| Talks to the Power Platform admin API | `TALXIS.CLI.Platform.PowerPlatform.Control` |
+| Talks to a Power Platform service API (admin, per-environment, connector metadata) | `TALXIS.CLI.Platform.PowerPlatform.Control` |
 | Manages solutions, packages, or deployments inside an environment | `TALXIS.CLI.Platform.Dataverse.Application` |
 | Handles Dataverse-specific auth, tokens, or connections | `TALXIS.CLI.Platform.Dataverse.Runtime` |
 | Reads or writes Dataverse table data (CRUD, queries) | `TALXIS.CLI.Platform.Dataverse.Data` |
