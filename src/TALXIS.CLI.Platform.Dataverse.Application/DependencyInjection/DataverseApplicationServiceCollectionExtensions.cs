@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using TALXIS.CLI.Core.Contracts.Dataverse;
+using TALXIS.CLI.Logging;
 using TALXIS.CLI.Platform.Dataverse.Application.Pipeline;
 using TALXIS.CLI.Platform.Dataverse.Application.Services;
 using TALXIS.Platform.Metadata.Packaging;
@@ -40,7 +41,10 @@ public static class DataverseApplicationServiceCollectionExtensions
         services.AddSingleton<IPublisherService, DataversePublisherService>();
         services.AddSingleton<IMetadataIdResolver, DataverseMetadataIdResolver>();
         services.AddSingleton<ISolutionLayerMutationService, DataverseSolutionLayerMutationService>();
-        services.AddSingleton<ISolutionPackagerService, SolutionPackagerService>();
+        // The packager writes progress text to Console.Out; the wrapper moves it to the log so
+        // stdout stays the command's result (--format json, #217).
+        services.AddSingleton<ISolutionPackagerService>(_ => new LoggedSolutionPackagerService(
+            new SolutionPackagerService(), TxcLoggerFactory.CreateLogger("SolutionPackager")));
         services.AddSingleton<ISolutionExportService, DataverseSolutionExportService>();
         services.AddSingleton<IProjectReferenceMetadataReader, ProjectReferenceMetadataReader>();
         services.AddSingleton<ISolutionPullService, DataverseSolutionPullService>();
