@@ -26,7 +26,7 @@ Creates a `.zip` solution file from your local project. This is still a local op
 ```
 txc environment solution import
 ```
-Uploads the solution package to the target Dataverse environment. By default returns immediately with an `asyncOperationId`. **Do NOT use `--wait`** — solution imports take minutes and will time out the MCP request. Instead, monitor progress with `txc environment deployment get --async-operation-id <id>` (the id is printed by `txc environment solution import`) until status is `Completed` or `Failed`. Never query the `asyncoperation` table directly via SQL — `txc environment deployment get` parses the findings for you.
+Uploads the solution package to the target Dataverse environment. By default returns immediately with an `asyncOperationId`. **Don't use `--wait`** — solution imports take minutes, and `--wait` blocks the command (and any agent running it) for all of that time. Instead, monitor progress with `txc environment deployment get --async-operation-id <id>` (the id is printed by `txc environment solution import`) until status is `Completed` or `Failed`. Never query the `asyncoperation` table directly via SQL — `txc environment deployment get` parses the findings for you.
 
 ### 5. Publish
 ```

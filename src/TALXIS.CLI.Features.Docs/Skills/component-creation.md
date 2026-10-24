@@ -6,10 +6,10 @@ Scaffolding creates **local files** in your workspace — it does NOT create com
 
 ## Workflow Chain
 
-1. **`workspace_explain`** — understand what exists in the repo before creating anything
-2. **`component_type_list`** — discover available component types
-3. **`workspace_component_parameter_list`** — get required parameters for a component type
-4. **`workspace_component_create`** — scaffold the component locally
+1. **Read the workspace** — the `.slnx` and each project's `ProjectType` show what exists before you create anything
+2. **`txc component type list`** — discover available component types
+3. **`txc workspace component parameter list <template>`** — get required parameters for a component type
+4. **`txc workspace component create <template>`** — scaffold the component locally
 5. **Build locally** to validate: `dotnet build`
 6. **Run schema validation** to catch XML errors early:
    ```
