@@ -2,7 +2,7 @@
 
 ## Key Concept
 
-Forms are scaffolded via `pp-form-*` templates. Templates generate correct XML; the build validates it. Use `workspace_component_create` with the appropriate form template rather than writing form XML manually.
+Forms are scaffolded via `pp-form-*` templates. Templates generate correct XML; the build validates it. Use `txc workspace component create` with the appropriate form template rather than writing form XML manually.
 
 ## Form XML Hierarchy
 
@@ -22,9 +22,9 @@ Customizations add XML fragments at specific insertion points rather than replac
 ## Scaffolding Workflow
 
 1. Scaffold the Entity and Attributes **before** scaffolding a Form
-2. Use `workspace_component_create` with `pp-entity-form` (set `FormType=main`, `FormType=dialog`, or `FormType=quickCreate`)
+2. Use `txc workspace component create` with `pp-entity-form` (set `FormType=main`, `FormType=dialog`, or `FormType=quickCreate`)
 3. Templates handle ClassIDs, hierarchy, and required attributes automatically
-4. Call `workspace_component_parameter_list` for template-specific parameters
+4. Call `txc workspace component parameter list` for template-specific parameters
 
 ## What NOT to Do
 

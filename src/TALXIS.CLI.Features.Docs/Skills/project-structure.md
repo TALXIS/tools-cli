@@ -2,25 +2,11 @@
 
 ## Overview
 
-A Power Platform monorepo follows a structured layout where solution projects, plugin projects, and package deployer projects coexist. Use `workspace_explain` to inspect and understand your current repository structure.
+A Power Platform monorepo follows a structured layout where solution projects, plugin projects, and package deployer projects coexist. Run `txc workspace explain` to inspect and understand your current repository structure.
 
 ## Repository Structure Convention
 
-```
-├── src/                          # Source code directory
-│   ├── Solutions.DataModel/      # Dataverse schema and data model (.cdsproj)
-│   ├── Solutions.Logic/          # Business logic and plugins (.cdsproj)
-│   ├── Solutions.UI/             # User interface components (.cdsproj)
-│   ├── Solutions.UI.Scripts/     # TypeScript web resource library (.csproj)
-│   ├── Solutions.Security/       # Security roles and permissions (.cdsproj)
-│   ├── Plugins.{Domain}/        # Plugin projects (e.g., Plugins.Warehouse)
-│   └── Packages.Main/           # Package Deployer project
-├── pipelines/                   # CI/CD pipeline definitions
-│   ├── build.yml
-│   ├── deploy.yml
-│   └── test.yml
-└── tests/                       # Test projects
-```
+Every project lives under `src/` as an SDK-style `.csproj`, and all of them are listed in one `.slnx` at the repository root. Projects are named by role: `Solutions.*` (for example `Solutions.DataModel`, `Solutions.Logic`, `Solutions.UI`, `Solutions.Security`), `Plugins.{Domain}`, `Scripts.UI`, `Packages.Main`, and test projects as `src/Tests.*`. CI/CD workflows live in `.github/workflows/`. The project names are a convention, not a requirement: what the build cares about is each project's `ProjectType` (below) and its references.
 
 ## Project Types
 
@@ -36,7 +22,7 @@ These contain Dataverse solution metadata and components as XML files:
 Each solution project maps to one Dataverse solution. Solution projects are the **hub** — they reference other project types via `dotnet add reference`, and the Build SDK auto-handles each reference type during `dotnet build`.
 
 ### Plugin Projects (`ProjectType=Plugin`)
-- Scaffold with `pp-plugin` → `pp-plugin-assembly` → `pp-plugin-assembly-step`
+- Scaffold with `pp-plugin` → `dotnet build` → `pp-plugin-assembly-step`. The build registers the plugin assembly in the referencing solution (`GeneratePluginAssembly` defaults to true), so there is no `pp-plugin-assembly` step; running it after that build adds a second assembly root and the next build fails. See [plugin-development](plugin-development.md).
 - .NET class libraries containing plugin classes that extend `PluginBase`
 - Referenced by solution projects — Build SDK auto-generates plugin assembly data.xml
 
@@ -75,7 +61,7 @@ Solution projects act as the hub. When you add a project reference, the Build SD
 ```bash
 # From a solution project directory:
 dotnet add reference ../Plugins.Warehouse/Plugins.Warehouse.csproj      # Plugin → auto-generates assembly data.xml
-dotnet add reference ../Solutions.UI.Scripts/Solutions.UI.Scripts.csproj  # ScriptLibrary → auto-generates web resource
+dotnet add reference ../Scripts.UI/Scripts.UI.csproj                    # ScriptLibrary → auto-generates web resource
 dotnet add reference ../WorkflowActivities/WorkflowActivities.csproj     # WorkflowActivity → auto-generates assembly data.xml
 dotnet add reference ../Solutions.DataModel/Solutions.DataModel.csproj    # Solution → dependency chain
 ```
@@ -84,24 +70,24 @@ All auto-generation happens during `dotnet build` — no manual registration ste
 
 ## Key Tools
 
-| Tool | Purpose |
+| Command | Purpose |
 |---|---|
-| `workspace_explain` | Understand the current repo structure, solutions, and components |
-| `component_type_list` | List available component types for scaffolding |
-| `workspace_component_create` | Scaffold new components into a solution project |
+| `txc workspace explain` | Understand the current repo structure, solutions, and components |
+| `txc component type list` | List available component types for scaffolding |
+| `txc workspace component create` | Scaffold new components into a solution project |
 
 ## Naming Conventions
 
 - **Entity logical names**: lowercase with publisher prefix (e.g., `prefix_warehouseitem`)
 - **Display names**: Proper case (e.g., `Warehouse Item`)
 - **Publisher prefix**: Recommended convention is lowercase alphanumeric and 5 characters or fewer for consistency
-- **Branch naming**: `{userPrefix}/{feature-description}` (trunk-based development)
+- **Branch naming**: `users/<name>/<topic>` (trunk-based development)
 
 ## Getting Started
 
-1. Run `workspace_explain` to understand what's already in the repo
+1. Run `txc workspace explain` to understand what's already in the repo
 2. Identify which solution project your changes belong to
-3. Use `workspace_component_create` to scaffold
+3. Use `txc workspace component create` to scaffold
 4. Build locally to validate before deploying
 
 See also: [component-creation](component-creation.md), [deployment-workflow](deployment-workflow.md)

@@ -49,7 +49,7 @@ Some templates use C# file-based apps (`.cs`) for code generation. These run nat
 - ❌ Don't use `environment_entity_create` for development — it bypasses source control
 - ❌ Don't scaffold a Form or View before the Entity and its Attributes exist — XML references will break
 - ❌ Don't scaffold a Relationship if the target table hasn't been created yet
-- ❌ Don't run `pp-plugin-assembly` before building the plugin project (`dotnet build`) — it reads the compiled DLL
+- ❌ Don't run `pp-plugin-assembly` when the solution generates the assembly registration (`GeneratePluginAssembly`, the default) — the build registers it, and a second assembly root breaks the next build
 - ❌ Don't run `pp-webresource` for script libraries — the Build SDK auto-generates the web resource when a ScriptLibrary project is referenced via `dotnet add reference`
 - ❌ Don't call `npm install` or `npm run build` manually for script libraries — `dotnet build` handles everything
 - ❌ Don't manually create assembly data.xml for plugins or workflow activities — the Build SDK auto-generates them from project references
