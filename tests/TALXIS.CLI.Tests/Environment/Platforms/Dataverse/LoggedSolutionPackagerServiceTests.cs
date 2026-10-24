@@ -50,6 +50,23 @@ public sealed class LoggedSolutionPackagerServiceTests
         Assert.Contains((LogLevel.Information, "Packing folder"), log);
     }
 
+    [Fact]
+    public void Unpack_PackagerErrorAndWarningLines_KeepTheirSeverity()
+    {
+        var log = new List<(LogLevel Level, string Message)>();
+        var inner = new ChattyPackager
+        {
+            ExtraLines = new[] { "Error: Root component missing", "Warning: Skipping localization", "Errors found: 0" },
+        };
+
+        new LoggedSolutionPackagerService(inner, new CaptureLogger(log)).Unpack("solution.zip", "out", managed: false);
+
+        Assert.Contains((LogLevel.Error, "Error: Root component missing"), log);
+        Assert.Contains((LogLevel.Warning, "Warning: Skipping localization"), log);
+        Assert.Contains((LogLevel.Information, "Errors found: 0"), log);
+        Assert.Contains((LogLevel.Information, "Processing Component: Roles"), log);
+    }
+
     private sealed class ChattyPackager : ISolutionPackagerService
     {
         // The result's constructor is internal to the packaging library.
@@ -59,6 +76,7 @@ public sealed class LoggedSolutionPackagerServiceTests
 
         public TextWriter? SeenConsoleOut { get; private set; }
         public bool ThrowAfterPartialLine { get; init; }
+        public string[] ExtraLines { get; init; } = Array.Empty<string>();
 
         public SolutionPackagerResult Pack(string folder, string zipPath, bool managed)
         {
@@ -80,6 +98,8 @@ public sealed class LoggedSolutionPackagerServiceTests
             Console.Out.WriteLine();
             Console.Out.WriteLine("Processing Component: Roles");
             Console.Out.WriteLine(" - Catalog Viewer");
+            foreach (var line in ExtraLines)
+                Console.Out.WriteLine(line);
             Console.Out.Write("\r\nUnmanaged Extract complete.\r\n");
             return Result;
         }

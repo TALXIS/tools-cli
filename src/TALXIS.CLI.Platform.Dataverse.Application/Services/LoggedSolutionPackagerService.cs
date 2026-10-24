@@ -57,7 +57,10 @@ internal sealed class LoggedSolutionPackagerService : ISolutionPackagerService
 #pragma warning restore RS0030
     }
 
-    /// <summary>Turns written text into one log entry per non-blank line.</summary>
+    /// <summary>
+    /// Turns written text into one log entry per non-blank line, keeping the severity of the
+    /// packager's "Error: …" and "Warning: …" lines.
+    /// </summary>
     private sealed class LogLineWriter : TextWriter
     {
         private readonly ILogger _logger;
@@ -82,7 +85,21 @@ internal sealed class LoggedSolutionPackagerService : ISolutionPackagerService
             var text = _line.ToString().Trim();
             _line.Clear();
             if (text.Length > 0)
-                _logger.LogInformation("{PackagerOutput}", text);
+                _logger.Log(LevelOf(text), "{PackagerOutput}", text);
         }
+
+        private static LogLevel LevelOf(string line)
+        {
+            if (StartsWithWord(line, "error"))
+                return LogLevel.Error;
+            if (StartsWithWord(line, "warning") || StartsWithWord(line, "warn"))
+                return LogLevel.Warning;
+            return LogLevel.Information;
+        }
+
+        // "Error: …" or "Error …", but not a word that merely starts with it ("Errors found 0").
+        private static bool StartsWithWord(string line, string word)
+            => line.StartsWith(word, StringComparison.OrdinalIgnoreCase)
+               && (line.Length == word.Length || line[word.Length] is ':' or ' ');
     }
 }
