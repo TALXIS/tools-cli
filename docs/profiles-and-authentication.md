@@ -35,6 +35,8 @@ txc config profile create --url https://contoso.crm4.dynamics.com/
 
 That command creates the profile and selects it as the active profile.
 
+It signs you in through the browser. Where no browser can complete the redirect (Codespaces, SSH, containers), `txc` shows a device code to enter at the Microsoft sign-in page instead. `txc config auth login` chooses the same way, and its `--device-code` flag forces it. Neither works in non-interactive mode; use the [headless workflow](#headless-and-ci-workflow) there.
+
 If you want to bootstrap the profile without switching the active context:
 
 ```sh
@@ -70,6 +72,18 @@ Unpin a repository-level profile with:
 ```sh
 txc config profile unpin
 ```
+
+## Environment type and the production guard
+
+Each connection records the environment type from the Power Platform catalog (`Production`, `Sandbox`, `Developer`, ...). Destructive commands refuse to run against `Production` or `Default` environments, and against environments whose type is unknown, unless you pass `--allow-production`.
+
+If a connection has no recorded type, `txc` looks it up from the catalog before deciding and saves the result. When that lookup fails, the command is blocked. To record the type yourself:
+
+```sh
+txc config profile validate --refresh-env-type
+```
+
+Pass `--allow-production` only for environments that really are production.
 
 ## Headless and CI workflow
 

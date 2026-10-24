@@ -64,7 +64,7 @@ txc workspace explain
 txc config profile create --url https://contoso.crm4.dynamics.com/
 ```
 
-Drop in the Dataverse environment URL, sign in in the browser, and `txc` creates and selects the profile for you.
+Drop in the Dataverse environment URL, sign in in the browser (or with a device code where no browser is available), and `txc` creates and selects the profile for you.
 
 For explicit credential / connection / profile steps, repository pinning, or headless / CI setup, see [docs/profiles-and-authentication.md](docs/profiles-and-authentication.md).
 

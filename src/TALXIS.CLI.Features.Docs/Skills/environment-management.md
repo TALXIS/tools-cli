@@ -61,6 +61,7 @@ Profiles can be pinned to a workspace directory, so `txc` automatically uses the
 - **Pin profiles** to workspace directories to prevent cross-environment mistakes
 - **Validate profiles** after creation and after credential rotation
 - Never connect to production for routine development — use dev environments
+- If a destructive command is blocked as production, check the target first. Run `txc config profile validate --refresh-env-type` to record its real type, and use `--allow-production` only for an environment that really is production
 
 ## Common Scenarios
 
