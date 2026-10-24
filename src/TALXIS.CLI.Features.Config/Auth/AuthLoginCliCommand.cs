@@ -48,7 +48,7 @@ public class AuthLoginCliCommand : TxcLeafCommand
 
     protected override async Task<int> ExecuteAsync()
     {
-        var signIn = TxcServices.Get<CredentialSignIn>();
+        var signIn = TxcServices.Get<CredentialSignInService>();
         var cloud = Cloud ?? CloudInstance.Public;
 
         var outcome = await signIn.SignInAsync(Tenant, cloud, Alias, DeviceCode, CancellationToken.None).ConfigureAwait(false);

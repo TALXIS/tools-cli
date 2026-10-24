@@ -4,13 +4,14 @@ using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Logging;
 using TALXIS.CLI.Platform.PowerPlatform.Control;
+using TALXIS.CLI.Tests.Config.Commands;
 using Xunit;
 using ConnectionModel = TALXIS.CLI.Core.Model.Connection;
 
-namespace TALXIS.CLI.Tests.Config.Commands;
+namespace TALXIS.CLI.Tests.Shared;
 
 [Collection("TxcServicesSerial")]
-public sealed class ProductionGuardTests
+public sealed class ProfiledCliCommandGuardTests
 {
     [CliDestructive("Removes something from the target environment.")]
     private sealed class FakeDestructiveCommand : ProfiledCliCommand, IDestructiveCommand
@@ -110,8 +111,8 @@ public sealed class ProductionGuardTests
     [Fact]
     public async Task MissingType_ResolvedButNotPersisted_IsBlocked()
     {
-        FailingConnectionStore? store = null;
-        using var host = new CommandTestHost(decorateConnectionStore: inner => store = new FailingConnectionStore(inner));
+        CommandTestHost.FailingConnectionStore? store = null;
+        using var host = new CommandTestHost(decorateConnectionStore: inner => store = new CommandTestHost.FailingConnectionStore(inner));
         host.EnvironmentCatalog.Add(CatalogEntry(EnvironmentType.Developer));
         await ProductionGuardTestSupport.SeedAsync(host);
         store!.FailUpserts = true;

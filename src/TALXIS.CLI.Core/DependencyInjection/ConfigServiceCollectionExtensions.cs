@@ -34,7 +34,7 @@ public static class ConfigServiceCollectionExtensions
         services.AddSingleton<IBrowserAvailabilityProbe, BrowserAvailabilityProbe>();
         services.AddSingleton<IConfirmationPrompter, ConsoleConfirmationPrompter>();
         services.AddSingleton<TALXIS.CLI.Core.Bootstrapping.ConnectionUpsertService>();
-        services.AddSingleton<TALXIS.CLI.Core.Bootstrapping.CredentialSignIn>();
+        services.AddSingleton<TALXIS.CLI.Core.Bootstrapping.CredentialSignInService>();
 
         services.AddSingleton<IChangesetStore, InMemoryChangesetStore>();
 

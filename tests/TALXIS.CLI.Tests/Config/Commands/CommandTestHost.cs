@@ -25,6 +25,7 @@ internal sealed class CommandTestHost : IDisposable
     public FakeInteractiveLogin Login { get; }
     public FakeConnectionProvider Provider_Dataverse { get; }
     public FakePowerPlatformEnvironmentCatalog EnvironmentCatalog { get; }
+    public FakeBrowserProbe BrowserProbe { get; }
 
     public CommandTestHost(
         bool headless = false,
@@ -63,14 +64,15 @@ internal sealed class CommandTestHost : IDisposable
         services.AddSingleton<ICredentialStore, CredentialStore>();
         services.AddSingleton<IGlobalConfigStore, GlobalConfigStore>();
         services.AddSingleton<TALXIS.CLI.Core.Bootstrapping.ConnectionUpsertService>();
-        services.AddSingleton<TALXIS.CLI.Core.Bootstrapping.CredentialSignIn>();
+        services.AddSingleton<TALXIS.CLI.Core.Bootstrapping.CredentialSignInService>();
         services.AddSingleton<ICredentialVault>(Vault);
         services.AddSingleton<IHeadlessDetector>(Headless);
         services.AddSingleton<IConfirmationPrompter, FakeConfirmationPrompter>();
         services.AddSingleton<IWorkspaceDiscovery, WorkspaceDiscovery>();
         services.AddSingleton<IConfigurationResolver, ConfigurationResolver>();
         services.AddSingleton<IInteractiveLoginService>(Login);
-        services.AddSingleton<IBrowserAvailabilityProbe>(new FakeBrowserProbe(browserAvailable: browserAvailable ?? !headless));
+        BrowserProbe = new FakeBrowserProbe(browserAvailable: browserAvailable ?? !headless);
+        services.AddSingleton<IBrowserAvailabilityProbe>(BrowserProbe);
         services.AddSingleton<IDeviceCodeLoginService>(Login);
         services.AddSingleton<IPowerPlatformEnvironmentCatalog>(EnvironmentCatalog);
         services.AddSingleton<IEnvironmentTypeResolver, TALXIS.CLI.Platform.Dataverse.Runtime.DataverseEnvironmentTypeResolver>();
@@ -126,6 +128,24 @@ internal sealed class CommandTestHost : IDisposable
             if (Behavior is not null) return Behavior(connection, credential, mode);
             return Task.CompletedTask;
         }
+    }
+
+    /// <summary>
+    /// Connection store decorator whose writes can be switched to fail, to prove
+    /// callers do not act on state that was never persisted.
+    /// </summary>
+    internal sealed class FailingConnectionStore(IConnectionStore inner) : IConnectionStore
+    {
+        public bool FailUpserts { get; set; }
+
+        public Task<IReadOnlyList<ConnectionModel>> ListAsync(CancellationToken ct) => inner.ListAsync(ct);
+
+        public Task<ConnectionModel?> GetAsync(string id, CancellationToken ct) => inner.GetAsync(id, ct);
+
+        public Task UpsertAsync(ConnectionModel connection, CancellationToken ct)
+            => FailUpserts ? throw new IOException("config directory is not writable") : inner.UpsertAsync(connection, ct);
+
+        public Task<bool> DeleteAsync(string id, CancellationToken ct) => inner.DeleteAsync(id, ct);
     }
 
     internal sealed class FakeEnvironmentReader : IEnvironmentReader
@@ -201,13 +221,11 @@ internal sealed class CommandTestHost : IDisposable
 
     internal sealed class FakeBrowserProbe : IBrowserAvailabilityProbe
     {
-        public FakeBrowserProbe(bool browserAvailable)
-        {
-            IsBrowserAvailable = browserAvailable;
-            UnavailableReason = browserAvailable ? null : "test harness: browser unavailable";
-        }
-        public bool IsBrowserAvailable { get; }
-        public string? UnavailableReason { get; }
+        public FakeBrowserProbe(bool browserAvailable) { IsBrowserAvailable = browserAvailable; }
+
+        /// <summary>Settable so a test can switch flows between two runs against the same config.</summary>
+        public bool IsBrowserAvailable { get; set; }
+        public string? UnavailableReason => IsBrowserAvailable ? null : "test harness: browser unavailable";
     }
 
     internal sealed class FakePowerPlatformEnvironmentCatalog : IPowerPlatformEnvironmentCatalog

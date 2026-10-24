@@ -2,12 +2,13 @@ using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Core.Platforms.PowerPlatform;
 using TALXIS.CLI.Features.Environment;
+using TALXIS.CLI.Tests.Config.Commands;
 using Xunit;
 
-namespace TALXIS.CLI.Tests.Config.Commands;
+namespace TALXIS.CLI.Tests.Environment;
 
 [Collection("TxcServicesSerial")]
-public sealed class EnvironmentDeleteGuardTests
+public sealed class EnvironmentDeleteCliCommandTests
 {
     private sealed class FakeEnvironmentManagement : IEnvironmentManagementService
     {

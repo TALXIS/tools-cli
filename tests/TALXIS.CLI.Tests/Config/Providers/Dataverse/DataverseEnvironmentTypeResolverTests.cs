@@ -1,13 +1,14 @@
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Platform.PowerPlatform.Control;
+using TALXIS.CLI.Tests.Config.Commands;
 using Xunit;
 using ConnectionModel = TALXIS.CLI.Core.Model.Connection;
 
-namespace TALXIS.CLI.Tests.Config.Commands;
+namespace TALXIS.CLI.Tests.Config.Providers.Dataverse;
 
 [Collection("TxcServicesSerial")]
-public sealed class EnvironmentTypeResolverTests
+public sealed class DataverseEnvironmentTypeResolverTests
 {
     private static readonly Guid EnvId = Guid.Parse("11111111-2222-3333-4444-555555555555");
 
@@ -47,8 +48,8 @@ public sealed class EnvironmentTypeResolverTests
     [Fact]
     public async Task Refresh_WhenSaveFails_LeavesConnectionUnchanged()
     {
-        FailingConnectionStore? store = null;
-        using var host = new CommandTestHost(decorateConnectionStore: inner => store = new FailingConnectionStore(inner));
+        CommandTestHost.FailingConnectionStore? store = null;
+        using var host = new CommandTestHost(decorateConnectionStore: inner => store = new CommandTestHost.FailingConnectionStore(inner));
         AddDeveloperEnvironment(host);
         _ = host.Provider.GetService(typeof(IConnectionStore)); // the decorator is created on first resolve
         store!.FailUpserts = true;

@@ -10,13 +10,13 @@ namespace TALXIS.CLI.Platform.Dataverse.Runtime.Bootstrapping;
 
 /// <summary>
 /// Dataverse implementation of <see cref="IConnectionProviderBootstrapper"/>.
-/// Drives: sign-in (<see cref="CredentialSignIn"/> picks browser or device code)
+/// Drives: sign-in (<see cref="CredentialSignInService"/> picks browser or device code)
 /// → credential alias resolve + upsert → connection upsert. Called by
 /// <c>profile create --url</c>.
 /// </summary>
 public sealed class DataverseConnectionProviderBootstrapper : IConnectionProviderBootstrapper
 {
-    private readonly CredentialSignIn _signIn;
+    private readonly CredentialSignInService _signIn;
     private readonly ICredentialStore _credentials;
     private readonly ConnectionUpsertService _connectionUpserts;
     private readonly IConnectionStore _connectionStore;
@@ -25,7 +25,7 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
     private readonly ILogger<DataverseConnectionProviderBootstrapper> _logger;
 
     public DataverseConnectionProviderBootstrapper(
-        CredentialSignIn signIn,
+        CredentialSignInService signIn,
         ICredentialStore credentials,
         ConnectionUpsertService connections,
         IConnectionStore connectionStore,
@@ -135,13 +135,11 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
             ? null
             : await FindExistingProfileAsync(existingConnection.Id, acquired.Credential.Id, ct).ConfigureAwait(false);
 
-        // Resolve environment metadata on every path (not only when deriving
-        // a name) so EnvironmentType reaches the connection and the
-        // destructive-operation guard can tell dev/test apart from production.
+        // Look up environment metadata on every path, not only when deriving a
+        // name, so the guard can tell the environment type.
         var environment = await TryGetEnvironmentAsync(request, environmentUrl, cloud, acquired, ct).ConfigureAwait(false);
 
-        // Fall back to metadata already stored on the connection so a failed
-        // catalog lookup does not wipe values a previous refresh persisted.
+        // Fall back to stored metadata so a failed lookup does not wipe it.
         Guid? organizationId = environment?.OrganizationId;
         if (organizationId is null && Guid.TryParse(existingConnection?.OrganizationId, out var existingOrgId))
             organizationId = existingOrgId;
@@ -226,9 +224,7 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
         }
         catch (Exception ex) when (!ct.IsCancellationRequested)
         {
-            // Best-effort by contract: admin API failures (HTTP status, transport
-            // errors, request timeouts, token acquisition) must not abort profile
-            // creation. Only caller-requested cancellation propagates.
+            // Best-effort: any failure except caller cancellation falls back to stored metadata.
             _logger.LogWarning(
                 ex,
                 "Could not resolve Power Platform environment metadata for '{Url}'. Continuing with the metadata already stored on the connection, if any.",

@@ -48,9 +48,7 @@ public class EnvironmentDeleteCliCommand : ProfiledCliCommand, IDestructiveComma
         if (AllowProduction)
             return null;
 
-        // This is an irreversible tenant-level delete, so the guard fails
-        // closed: if the target's type cannot be verified, the command is
-        // blocked rather than allowed through.
+        // Irreversible, so fail closed: block whenever the target's type cannot be verified.
         IReadOnlyList<EnvironmentInfo> environments;
         try
         {

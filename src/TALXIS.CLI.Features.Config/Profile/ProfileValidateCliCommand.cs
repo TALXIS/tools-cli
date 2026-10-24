@@ -64,13 +64,13 @@ public class ProfileValidateCliCommand : TxcLeafCommand
             return ExitValidationError;
         }
 
-        // Refresh first: it only needs the control-plane catalog, so it must
-        // still work when the live check fails because the environment itself
-        // is unreachable (network policy, instance down).
+        // Refresh first: it needs only the catalog, so it works even when the
+        // live check fails because the environment is unreachable.
         EnvironmentType? refreshedEnvType = connection.EnvironmentType;
         if (RefreshEnvType)
         {
-            refreshedEnvType = await EnvironmentTypeRefresher.TryRefreshAsync(connection, credential, Logger, CancellationToken.None).ConfigureAwait(false);
+            refreshedEnvType = await TxcServices.Get<IEnvironmentTypeResolver>()
+                .TryRefreshAsync(connection, credential, Logger, CancellationToken.None).ConfigureAwait(false);
         }
 
         var mode = SkipLive ? ValidationMode.Structural : ValidationMode.Live;

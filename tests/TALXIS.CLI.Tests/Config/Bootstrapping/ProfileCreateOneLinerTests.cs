@@ -402,6 +402,29 @@ public sealed class ProfileCreateOneLinerTests
     }
 
     [Fact]
+    public async Task UrlMode_RerunWithBrowser_AfterDeviceCode_ReusesCredentialAndProfile()
+    {
+        using var host = new CommandTestHost(browserAvailable: false);
+
+        async Task<int> CreateAsync()
+        {
+            using (OutputWriter.RedirectTo(new StringWriter()))
+                return await new ProfileCreateCliCommand { Url = "https://contoso.crm4.dynamics.com/" }.RunAsync();
+        }
+
+        Assert.Equal(0, await CreateAsync());
+
+        // Same config, now with a browser: must not fork a second credential/profile for the same account.
+        host.BrowserProbe.IsBrowserAvailable = true;
+        Assert.Equal(0, await CreateAsync());
+
+        var creds = (ICredentialStore)host.Provider.GetService(typeof(ICredentialStore))!;
+        var profiles = (IProfileStore)host.Provider.GetService(typeof(IProfileStore))!;
+        Assert.Single(await creds.ListAsync(default));
+        Assert.Single(await profiles.ListAsync(default));
+    }
+
+    [Fact]
     public async Task UrlMode_InfersSovereignCloud_FromEnvironmentUrl_WhenCloudOmitted()
     {
         using var host = new CommandTestHost();

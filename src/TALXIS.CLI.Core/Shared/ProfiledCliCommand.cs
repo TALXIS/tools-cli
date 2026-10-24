@@ -52,7 +52,6 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
         @"\b(prod|production|prd|live)\b",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    /// <summary>Upper bound for the guard's catalog lookup of a missing environment type.</summary>
     private static readonly TimeSpan EnvironmentTypeLookupTimeout = TimeSpan.FromSeconds(20);
 
     [CliOption(
@@ -132,10 +131,8 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
         if (!Attribute.IsDefined(GetType(), typeof(CliDestructiveAttribute)))
             return null;
 
-        // Without a resolved profile there is no target to classify. Report the
-        // resolution error here so the user sees the real problem (unknown
-        // profile, nothing active) instead of a --yes/confirmation message
-        // for a command that could never have run.
+        // No profile means no target to classify: report why, rather than a
+        // confirmation prompt for a command that cannot run.
         if (resolutionFailure is not null)
         {
             Logger.LogError("{Error}", resolutionFailure.Message);
@@ -147,15 +144,15 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
 
         var connection = resolvedContext.Connection;
 
-        // Connections created without a catalog lookup (config connection
-        // create, an earlier failed lookup, older versions) carry no type and
-        // would be blocked as "Unknown". Ask the catalog once with the
-        // credential we already resolved; the result is persisted. The guard
-        // must not hang a command on a slow control plane, hence the timeout.
+        // A connection with no recorded type (created without a catalog lookup,
+        // or by an older version) would be blocked as unknown. Look it up once
+        // with the resolved credential; the result is saved. Capped so a slow
+        // control plane cannot hang the command.
         if (connection.EnvironmentType is null)
         {
             using var cts = new CancellationTokenSource(EnvironmentTypeLookupTimeout);
-            await EnvironmentTypeRefresher.TryRefreshAsync(connection, resolvedContext.Credential, Logger, cts.Token).ConfigureAwait(false);
+            await TxcServices.Get<IEnvironmentTypeResolver>()
+                .TryRefreshAsync(connection, resolvedContext.Credential, Logger, cts.Token).ConfigureAwait(false);
         }
 
         if (!IsProductionLike(connection.EnvironmentType, connection.DisplayName, connection.EnvironmentUrl))
@@ -177,10 +174,7 @@ public abstract class ProfiledCliCommand : TxcLeafCommand
         return BlockProduction(connection.EnvironmentType, connection.DisplayName ?? connection.EnvironmentUrl ?? connection.Id, advice);
     }
 
-    /// <summary>
-    /// Logs the standard "blocked" error for a production-like target and
-    /// returns the exit code. Shared by every guard so the wording stays uniform.
-    /// </summary>
+    /// <summary>Logs the "blocked" error for a production-like target and returns the exit code.</summary>
     protected int BlockProduction(EnvironmentType? envType, string envLabel, string advice)
     {
         Logger.LogError(

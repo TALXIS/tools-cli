@@ -77,9 +77,7 @@ public sealed class DataverseEnvironmentTypeResolver : IEnvironmentTypeResolver
             }
             catch
             {
-                // A failed or cancelled save must not leave the caller's instance
-                // claiming a type that was never stored: callers (the destructive
-                // guard, `profile validate`) act on this object.
+                // The caller's connection must not claim a type that was never stored.
                 (connection.EnvironmentType, connection.DisplayName, connection.OrganizationId,
                     connection.EnvironmentId, connection.UpdatedAt) = previous;
                 throw;
