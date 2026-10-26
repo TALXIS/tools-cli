@@ -9,9 +9,10 @@
 - ALWAYS use workspace tools, not environment tools
 
 ## Plugin Chain
-1. PluginProject → 2. Write plugin class → 3. PluginAssembly → 4. PluginStep (repeat) → 5. Optional: PluginTest
-- Assembly MUST exist before steps — steps reference it
-- See plugin-development skill for stage selection and SDK message GUIDs
+1. PluginProject → 2. Write plugin class, declare steps with [PluginStep] → 3. Reference the project from the Logic solution → 4. Build the solution (registers the assembly, generates the steps) → 5. Optional: PluginTest
+- PluginAssembly is NOT scaffolded by default: the solution build registers it (GeneratePluginAssembly=true). pp-plugin-assembly after a build adds a second root component and breaks the next build
+- Manual PluginStep (pp-plugin-assembly-step) only for what attributes cannot express; the assembly registration must exist first
+- See plugin-development skill for stage selection, attribute settings and message ids
 
 ## Form Modification
 1. workspace_explain → locate form XML

@@ -36,7 +36,7 @@ These contain Dataverse solution metadata and components as XML files:
 Each solution project maps to one Dataverse solution. Solution projects are the **hub** — they reference other project types via `dotnet add reference`, and the Build SDK auto-handles each reference type during `dotnet build`.
 
 ### Plugin Projects (`ProjectType=Plugin`)
-- Scaffold with `pp-plugin` → `pp-plugin-assembly` → `pp-plugin-assembly-step`
+- Scaffold with `pp-plugin`, reference it from a solution project and build: the build registers the assembly and, with `[PluginStep]` attributes, the steps (see [plugin-development](plugin-development.md); `pp-plugin-assembly` and `pp-plugin-assembly-step` are the manual path)
 - .NET class libraries containing plugin classes that extend `PluginBase`
 - Referenced by solution projects — Build SDK auto-generates plugin assembly data.xml
 
