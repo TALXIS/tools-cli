@@ -16,16 +16,16 @@ public class ConnectorGetCliCommand : ProfiledCliCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ConnectorGetCliCommand));
 
-    [CliArgument(Description = "Connector name, for example shared_commondataserviceforapps or shared_office365.")]
+    [CliArgument(Name = "connector", Description = "Connector name, for example shared_commondataserviceforapps or shared_office365.")]
     public string Connector { get; set; } = null!;
 
-    [CliOption(Name = "--search", Description = "Show only operations whose ID or summary contains this text.", Required = false)]
-    public string? Search { get; set; }
+    [CliOption(Name = "--filter", Description = "Show only operations whose ID or summary contains this text.", Required = false)]
+    public string? Filter { get; set; }
 
     protected override async Task<int> ExecuteAsync()
     {
         var service = TxcServices.Get<IConnectorMetadataService>();
-        var connector = await service.GetConnectorAsync(Profile, Connector, Search, CancellationToken.None)
+        var connector = await service.GetConnectorAsync(Profile, Connector, Filter, CancellationToken.None)
             .ConfigureAwait(false);
 
         OutputFormatter.WriteData(connector, PrintConnector);

@@ -96,7 +96,7 @@ public class ConnectorMetadataServiceTests
     {
         var fake = new Fake(_ => Json(HttpStatusCode.OK, """{ "value": [] }"""));
 
-        await fake.Service.SearchOperationsAsync(null, "send email", "shared_office365", "actions", 10, CancellationToken.None);
+        await fake.Service.SearchOperationsAsync(null, "send email", "shared_office365", "action", 10, CancellationToken.None);
 
         var request = Assert.Single(fake.Requests);
         Assert.Equal(HttpMethod.Post, request.Method);

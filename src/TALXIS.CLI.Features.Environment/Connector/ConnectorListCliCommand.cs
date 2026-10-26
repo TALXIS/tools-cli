@@ -16,13 +16,13 @@ public class ConnectorListCliCommand : ProfiledCliCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ConnectorListCliCommand));
 
-    [CliOption(Name = "--search", Description = "Show only connectors whose name or display name contains this text.", Required = false)]
-    public string? Search { get; set; }
+    [CliOption(Name = "--filter", Description = "Show only connectors whose name or display name contains this text.", Required = false)]
+    public string? Filter { get; set; }
 
     protected override async Task<int> ExecuteAsync()
     {
         var service = TxcServices.Get<IConnectorMetadataService>();
-        var connectors = await service.ListConnectorsAsync(Profile, Search, CancellationToken.None)
+        var connectors = await service.ListConnectorsAsync(Profile, Filter, CancellationToken.None)
             .ConfigureAwait(false);
 
         OutputFormatter.WriteList(connectors, PrintTable);

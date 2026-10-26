@@ -24,13 +24,13 @@ public class ConnectorOperationParameterGetCliCommand : ProfiledCliCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ConnectorOperationParameterGetCliCommand));
 
-    [CliArgument(Description = "Connector name, for example shared_commondataserviceforapps.")]
+    [CliArgument(Name = "connector", Description = "Connector name, for example shared_commondataserviceforapps.")]
     public string Connector { get; set; } = null!;
 
-    [CliArgument(Description = "Operation ID, for example CreateRecord.")]
+    [CliArgument(Name = "operation", Description = "Operation ID, for example CreateRecord.")]
     public string Operation { get; set; } = null!;
 
-    [CliArgument(Description = "Parameter name, as 'connector operation get' lists it, for example item or subscriptionRequest/scope.")]
+    [CliArgument(Name = "parameter", Description = "Parameter name, as 'connector operation get' lists it, for example item or subscriptionRequest/scope.")]
     public string Parameter { get; set; } = null!;
 
     [CliOption(Name = "--value", Description = "A value already chosen for a parameter this one depends on, as name=value (e.g. entityName=contacts). Can be repeated.", Required = false)]
@@ -42,12 +42,12 @@ public class ConnectorOperationParameterGetCliCommand : ProfiledCliCommand
     [CliOption(Name = "--use-connection", Description = "Read dynamic values through the connection. Pass only after the user has agreed to their connection being used.", Required = false)]
     public bool UseConnection { get; set; }
 
-    [CliOption(Name = "--search", Description = "Show only values or fields whose name or label contains this text (e.g. account among 800 tables).", Required = false)]
-    public string? Search { get; set; }
+    [CliOption(Name = "--filter", Description = "Show only values or fields whose name or label contains this text (e.g. account among 800 tables).", Required = false)]
+    public string? Filter { get; set; }
 
     protected override async Task<int> ExecuteAsync()
         => await DynamicValuesQuery.RunAsync(
-            new DynamicValuesRequest(Profile, Connector, Operation, Parameter, IsOutput: false, Value, ConnectionReference, UseConnection, Search),
+            new DynamicValuesRequest(Profile, Connector, Operation, Parameter, IsOutput: false, Value, ConnectionReference, UseConnection, Filter),
             Logger).ConfigureAwait(false)
             ? ExitSuccess
             : ExitValidationError;

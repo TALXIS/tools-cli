@@ -6,12 +6,12 @@ Commands are shown as CLI; the MCP tool name is in brackets (spaces become `_`).
 
 ## Three questions per connector step
 
-1. **Which operation?** → `txc environment connector operation search "<what the step does>"` [`environment_connector_operation_search`]. Narrow it with `--kind triggers|actions` and `--connector <name>` (e.g. `shared_teams`) when you know them. Take a hit that is not deprecated.
+1. **Which operation?** → `txc environment connector operation search "<what the step does>"` [`environment_connector_operation_search`]. Narrow it with `--kind trigger|action` and `--connector <name>` (e.g. `shared_teams`) when you know them. Take a hit that is not deprecated.
 2. **Which parameters does it need, and what does it return?** → `txc environment connector operation get <connector> <operation>` [`environment_connector_operation_get`]. One answer lists:
    - every parameter key with type, `required` and allowed values; a dynamic one also has `dependsOn` and `getValues`, the exact command for question 3;
    - every output with the expression that reads it in later steps (`@triggerOutputs()?['body/…']`, `@outputs('Step')?['body/value']`); a dynamic output (e.g. the columns of the chosen table) has `getFields`;
    - the action type and a JSON skeleton.
-3. **What values can a dynamic parameter take / which fields does a dynamic output have?** → run the `getValues` or `getFields` command it printed, filling each `--value` [`environment_connector_operation_parameter_get`, `environment_connector_operation_output_get`]. Add `--search <text>` to narrow long lists. The answer's `status`:
+3. **What values can a dynamic parameter take / which fields does a dynamic output have?** → run the `getValues` or `getFields` command it printed, filling each `--value` [`environment_connector_operation_parameter_get`, `environment_connector_operation_output_get`]. Add `--filter <text>` to narrow long lists. The answer's `status`:
    - `values` — allowed values with labels; use the value.
    - `fields` — sub-fields: input keys to set (`item/lastname`, `body/recipient`) or outputs with their read expression (`@items('<loop>')?['emailaddress1']`).
    - `needs-values` — choose the listed parameters first; the message has the command for each.

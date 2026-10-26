@@ -16,10 +16,10 @@ public class ConnectorOperationGetCliCommand : ProfiledCliCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ConnectorOperationGetCliCommand));
 
-    [CliArgument(Description = "Connector name, for example shared_commondataserviceforapps.")]
+    [CliArgument(Name = "connector", Description = "Connector name, for example shared_commondataserviceforapps.")]
     public string Connector { get; set; } = null!;
 
-    [CliArgument(Description = "Operation ID, for example CreateRecord.")]
+    [CliArgument(Name = "operation", Description = "Operation ID, for example CreateRecord.")]
     public string Operation { get; set; } = null!;
 
     protected override async Task<int> ExecuteAsync()

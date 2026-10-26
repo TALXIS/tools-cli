@@ -16,13 +16,13 @@ public class ConnectorOperationSearchCliCommand : ProfiledCliCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ConnectorOperationSearchCliCommand));
 
-    [CliArgument(Description = "Text to search for in operation names and descriptions, for example \"send email\".")]
+    [CliArgument(Name = "search", Description = "Text to search for in operation names and descriptions, for example \"send email\".")]
     public string Search { get; set; } = null!;
 
     [CliOption(Name = "--connector", Description = "Limit the search to one connector, for example shared_office365.", Required = false)]
     public string? Connector { get; set; }
 
-    [CliOption(Name = "--kind", Description = "Which operations to return: all, actions, or triggers.", Required = false)]
+    [CliOption(Name = "--kind", Description = "Which operations to return: all, action, or trigger.", Required = false)]
     public string Kind { get; set; } = "all";
 
     [CliOption(Name = "--top", Description = "Maximum number of results to return.", Required = false)]

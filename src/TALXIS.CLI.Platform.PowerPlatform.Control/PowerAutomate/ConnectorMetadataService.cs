@@ -75,7 +75,7 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
         var target = await ResolveTargetAsync(profileName, ct).ConfigureAwait(false);
         using var document = await SendForLookupAsync(
             PowerAutomateEndpointProvider.Connector(target.BaseUri, connector), target.Token,
-            $"Connector '{connector}' does not exist in this environment. Find the connector name with 'environment connector list --search <text>'.",
+            $"Connector '{connector}' does not exist in this environment. Find the connector name with 'environment connector list --filter <text>'.",
             ct).ConfigureAwait(false);
 
         return SwaggerOperationIndexer.Index(document.RootElement, connector, search);
@@ -93,18 +93,18 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
         var exclude = new JsonArray("Deprecated");
         switch (kind.ToLowerInvariant())
         {
-            case "actions":
+            case "action":
                 body["allTagsToInclude"] = new JsonArray("Action");
                 exclude.Add("Trigger");
                 break;
-            case "triggers":
+            case "trigger":
                 body["allTagsToInclude"] = new JsonArray("Trigger");
                 break;
             case "all":
                 break;
             default:
                 throw new ArgumentException(
-                    $"Unknown operation kind '{kind}'. Use 'all', 'actions', or 'triggers'.", nameof(kind));
+                    $"Unknown operation kind '{kind}'. Use 'all', 'action', or 'trigger'.", nameof(kind));
         }
 
         body["anyTagsToExclude"] = exclude;
