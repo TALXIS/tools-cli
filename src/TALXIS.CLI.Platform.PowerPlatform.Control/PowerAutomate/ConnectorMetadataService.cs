@@ -148,6 +148,8 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
         ArgumentException.ThrowIfNullOrWhiteSpace(operation);
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
         ArgumentNullException.ThrowIfNull(values);
+        if ((parameter is null) == (output is null))
+            throw new ArgumentException("Resolve exactly one parameter or one output.");
 
         var target = await ResolveTargetAsync(profileName, ct).ConfigureAwait(false);
 
@@ -182,9 +184,9 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
         var resolvingOutputs = output is not null;
         var targets = resolvingOutputs ? detail.Outputs ?? [] : detail.Parameters;
         var source = resolvingOutputs ? lookupSource with { Parameters = lookupSource.Outputs ?? [] } : lookupSource;
+        var name = output ?? parameter;
         var plan = DynamicLookupPlanner.Plan(source, connectorDocument.RootElement, connectionId, lookupValues)
-            .Where(p => targets.Any(d => d.Name == p.Parameter.Name))
-            .Where(p => (output ?? parameter) is not { } only || p.Parameter.Name == only)
+            .Where(p => p.Parameter.Name == name)
             .ToList();
         if (!useConnection)
             return new OperationResolution(detail, connection, false, plan.Select(p => p.Lookup).ToList());
@@ -201,21 +203,12 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
                 continue;
             }
 
-            try
-            {
-                using var response = await _client.SendAsync(
-                        planned.Method ?? HttpMethod.Get, planned.RequestUri, runtimeToken, planned.Body, ct, planned.Headers)
-                    .ConfigureAwait(false);
-                parameters = DynamicLookupPlanner.Apply(parameters, planned, response.RootElement, resolvingOutputs);
-                lookups.Add(planned.Lookup with { Status = DynamicLookupStatus.Resolved });
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                // One failed lookup (e.g. a choice the connection cannot see)
-                // must not hide the ones that did resolve.
-                _logger.LogDebug(ex, "Dynamic lookup {Operation} failed.", planned.Lookup.OperationId);
-                lookups.Add(planned.Lookup with { Status = DynamicLookupStatus.Failed, Reason = ex.Message });
-            }
+            // A failed lookup fails the command: it is the one answer asked for.
+            using var response = await _client.SendAsync(
+                    planned.Method ?? HttpMethod.Get, planned.RequestUri, runtimeToken, planned.Body, ct, planned.Headers)
+                .ConfigureAwait(false);
+            parameters = DynamicLookupPlanner.Apply(parameters, planned, response.RootElement, resolvingOutputs);
+            lookups.Add(planned.Lookup with { Status = DynamicLookupStatus.Resolved });
         }
 
         var resolved = resolvingOutputs ? detail with { Outputs = parameters } : detail with { Parameters = parameters };

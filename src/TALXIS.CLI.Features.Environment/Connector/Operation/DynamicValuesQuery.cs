@@ -176,10 +176,6 @@ internal static class DynamicValuesQuery
                 "a read-only metadata lookup made as that person; nothing is created or changed. " +
                 "Ask the user, and if they agree re-run with --use-connection."));
         }
-        else if (lookup.Status != DynamicLookupStatus.Resolved)
-        {
-            Write(Answer(DynamicValuesStatus.Unavailable, $"The lookup failed: {lookup.Reason}"));
-        }
         else if (request.IsOutput)
         {
             var fields = OutputViews.From(resolution.Operation)

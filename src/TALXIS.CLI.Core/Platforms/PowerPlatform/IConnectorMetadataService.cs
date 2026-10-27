@@ -120,7 +120,6 @@ public static class DynamicLookupStatus
     public const string Resolved = "resolved";
     /// <summary>Not callable, e.g. a missing input or a lookup that is not a GET.</summary>
     public const string Skipped = "skipped";
-    public const string Failed = "failed";
 }
 
 /// <summary>
@@ -179,16 +178,16 @@ public interface IConnectorMetadataService
         string? profileName, string connector, string operation, CancellationToken ct);
 
     /// <summary>
-    /// Resolves an operation's dynamic parameters (value lists and sub-schemas)
+    /// Resolves one dynamic parameter or output (a value list or a sub-schema)
     /// through an existing connection, the way the flow designer does.
     /// </summary>
     /// <param name="values">Values chosen for the operation's other parameters, which lookups take as inputs.</param>
-    /// <param name="parameter">Resolve only this parameter; null resolves every dynamic one.</param>
+    /// <param name="parameter">The parameter to resolve; pass this or <paramref name="output"/>.</param>
     /// <param name="useConnection">
     /// False returns the plan without calling the connection. Only pass true
     /// once the connection's owner has agreed to it being used.
     /// </param>
-    /// <param name="output">Resolve only this output (its fields) instead of parameters.</param>
+    /// <param name="output">The output to resolve (its fields); pass this or <paramref name="parameter"/>.</param>
     Task<OperationResolution> ResolveOperationAsync(
         string? profileName,
         string connector,

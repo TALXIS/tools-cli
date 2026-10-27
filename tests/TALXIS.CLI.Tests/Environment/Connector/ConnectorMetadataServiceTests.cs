@@ -191,31 +191,30 @@ public class ConnectorMetadataServiceTests
     });
 
     private static Task<TALXIS.CLI.Core.Platforms.PowerPlatform.OperationResolution> Resolve(
-        Fake fake, bool useConnection, params (string Name, string Value)[] values)
+        Fake fake, string parameter, bool useConnection, params (string Name, string Value)[] values)
         => fake.Service.ResolveOperationAsync(
             null, "shared_teams", "PostMessageToConversation", "mtj_sharedteams", ConnectionId,
-            values.ToDictionary(v => v.Name, v => v.Value), null, null, useConnection, CancellationToken.None);
+            values.ToDictionary(v => v.Name, v => v.Value), parameter, null, useConnection, CancellationToken.None);
 
     [Fact]
     public async Task Resolve_WithoutConsent_CallsNothingThroughTheConnection()
     {
         var fake = TeamsFake();
 
-        var plan = await Resolve(fake, useConnection: false, ("poster", "Flow bot"));
+        var plan = await Resolve(fake, "location", useConnection: false, ("poster", "Flow bot"));
 
         Assert.False(plan.ConnectionUsed);
-        Assert.DoesNotContain(fake.Requests, r => r.Uri.ToString().StartsWith(Runtime, StringComparison.Ordinal));
-        Assert.DoesNotContain(fake.Audiences, ApiHubAudiences.IsApiHub);
         Assert.Equal("Matej", plan.Connection.OwnerName);
         Assert.Equal("Connected", plan.Connection.Status);
-
-        var location = Assert.Single(plan.Lookups, l => l.Parameter == "location");
-        Assert.Equal("planned", location.Status);
+        Assert.Equal("planned", Assert.Single(plan.Lookups).Status);
 
         // body also needs the location, which has not been chosen yet.
-        var body = Assert.Single(plan.Lookups, l => l.Parameter == "body");
+        var body = Assert.Single((await Resolve(fake, "body", useConnection: false, ("poster", "Flow bot"))).Lookups);
         Assert.Equal("skipped", body.Status);
         Assert.Contains("'location'", body.Reason);
+
+        Assert.DoesNotContain(fake.Requests, r => r.Uri.ToString().StartsWith(Runtime, StringComparison.Ordinal));
+        Assert.DoesNotContain(fake.Audiences, ApiHubAudiences.IsApiHub);
     }
 
     [Fact]
@@ -223,20 +222,35 @@ public class ConnectorMetadataServiceTests
     {
         var fake = TeamsFake();
 
-        var result = await Resolve(fake, useConnection: true, ("poster", "Flow bot"), ("location", "Chat with Flow bot"));
+        var locations = await Resolve(fake, "location", useConnection: true, ("poster", "Flow bot"));
 
-        Assert.True(result.ConnectionUsed);
+        Assert.True(locations.ConnectionUsed);
         Assert.Contains(new Uri(ApiHubAudiences.Public), fake.Audiences);
         Assert.Contains(fake.Requests, r => r.Uri.AbsoluteUri == Runtime + "/" + ConnectionId + "/flowbot/messageType/ParentMessage/poster/Flow%20bot");
         Assert.Equal(["Channel", "Chat with Flow bot"],
-            Assert.Single(result.Operation.Parameters, p => p.Name == "location").AllowedValues);
+            Assert.Single(locations.Operation.Parameters, p => p.Name == "location").AllowedValues);
 
-        var names = result.Operation.Parameters.Select(p => p.Name).ToList();
+        var body = await Resolve(fake, "body", useConnection: true, ("poster", "Flow bot"), ("location", "Chat with Flow bot"));
+        var names = body.Operation.Parameters.Select(p => p.Name).ToList();
         Assert.Contains("body/recipient", names);
         Assert.Contains("body/messageBody", names);
         Assert.DoesNotContain("body", names);
-        Assert.True(Assert.Single(result.Operation.Parameters, p => p.Name == "body/recipient").Required);
-        Assert.All(result.Lookups.Where(l => l.Parameter != "tag"), l => Assert.Equal("resolved", l.Status));
+        Assert.True(Assert.Single(body.Operation.Parameters, p => p.Name == "body/recipient").Required);
+        Assert.Equal("resolved", Assert.Single(body.Lookups).Status);
+    }
+
+    [Fact]
+    public async Task Resolve_AFailedLookupFailsInsteadOfReportingAStatus()
+    {
+        var teams = TeamsFake();
+        var fake = new Fake(request => request.RequestUri!.ToString().StartsWith(Runtime, StringComparison.Ordinal)
+            ? Json(HttpStatusCode.Unauthorized, """{ "error": "connection expired" }""")
+            : teams.Respond(request));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => Resolve(fake, "location", useConnection: true, ("poster", "Flow bot")));
+
+        Assert.Contains("connection expired", ex.Message);
     }
 
     [Fact]
@@ -244,9 +258,9 @@ public class ConnectorMetadataServiceTests
     {
         var fake = TeamsFake();
 
-        var result = await Resolve(fake, useConnection: true, ("poster", "Flow bot"), ("location", "Channel"));
+        var result = await Resolve(fake, "tag", useConnection: true, ("poster", "Flow bot"), ("location", "Channel"));
 
-        var tag = Assert.Single(result.Lookups, l => l.Parameter == "tag");
+        var tag = Assert.Single(result.Lookups);
         Assert.Equal("skipped", tag.Status);
         Assert.Contains("DELETE", tag.Reason);
         Assert.DoesNotContain(fake.Requests, r => r.Method == HttpMethod.Delete);
@@ -308,7 +322,7 @@ public class ConnectorMetadataServiceTests
 
         var result = await fake.Service.ResolveOperationAsync(
             null, "shared_commondataserviceforapps", "SubscribeWebhookTrigger", "mtj_dataverse", ConnectionId,
-            new Dictionary<string, string> { ["subscriptionRequest/entityname"] = "account" }, null, null, useConnection: true, CancellationToken.None);
+            new Dictionary<string, string> { ["subscriptionRequest/entityname"] = "account" }, "subscriptionRequest/scope", null, useConnection: true, CancellationToken.None);
 
         var lookup = Assert.Single(result.Lookups);
         Assert.Equal("GetScopeFiltersWithOrganization", lookup.OperationId);
@@ -356,6 +370,8 @@ public class ConnectorMetadataServiceTests
         }
 
         public ConnectorMetadataService Service { get; }
+
+        public HttpResponseMessage Respond(HttpRequestMessage request) => _handler(request);
         public FakeCatalog Catalog { get; } = new();
         public List<Uri> Audiences { get; } = new();
         public List<RecordedRequest> Requests { get; } = new();
