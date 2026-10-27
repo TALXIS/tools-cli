@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using TALXIS.CLI.Core.Abstractions;
+using TALXIS.CLI.Core.Identity;
 using TALXIS.CLI.Core.Model;
 
 namespace TALXIS.CLI.Platform.PowerPlatform.Control.PowerAutomate;
@@ -39,8 +40,14 @@ internal sealed class PowerAutomateApiClient
         => _tokens.AcquireForResourceAsync(connection, credential, PowerAutomateEndpointProvider.Audience, ct);
 
     /// <summary>Token for calling a connector's runtime through a connection.</summary>
+    /// <remarks>
+    /// Verified live: the runtime's token exchange allows the audience
+    /// <c>https://apihub.azure.com</c> but rejects <c>https://apihub.azure.com/</c>.
+    /// The token service requests API Hub audiences with the single-slash scope
+    /// (<see cref="ApiHubAudiences"/>).
+    /// </remarks>
     public Task<string> AcquireRuntimeTokenAsync(Connection connection, Credential credential, CancellationToken ct)
-        => _tokens.AcquireForScopeAsync(connection, credential, PowerAutomateEndpointProvider.ConnectorRuntimeScope, ct);
+        => _tokens.AcquireForResourceAsync(connection, credential, ApiHubAudiences.For(connection.Cloud ?? CloudInstance.Public), ct);
 
     /// <summary>
     /// Sends a bearer-authorized request and returns the parsed JSON body. The

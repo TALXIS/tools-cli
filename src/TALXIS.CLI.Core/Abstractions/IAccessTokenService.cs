@@ -20,20 +20,4 @@ public interface IAccessTokenService
         Credential credential,
         Uri resourceUri,
         CancellationToken ct);
-
-    /// <summary>
-    /// Acquires a bearer token for an exact OAuth <paramref name="scope"/>
-    /// (e.g. <c>https://apihub.azure.com/.default</c>).
-    /// </summary>
-    /// <remarks>
-    /// <see cref="AcquireForResourceAsync"/> derives the scope as
-    /// <c>{resource}//.default</c>, the form Dataverse requires, which yields
-    /// an audience with a trailing slash. Some services only accept the
-    /// audience without it; they are called through this overload instead.
-    /// </remarks>
-    Task<string> AcquireForScopeAsync(
-        Connection connection,
-        Credential credential,
-        string scope,
-        CancellationToken ct);
 }

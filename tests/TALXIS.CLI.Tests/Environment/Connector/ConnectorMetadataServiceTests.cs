@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using TALXIS.CLI.Core.Abstractions;
+using TALXIS.CLI.Core.Identity;
 using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Platform.PowerPlatform.Control;
 using TALXIS.CLI.Platform.PowerPlatform.Control.PowerAutomate;
@@ -204,7 +205,7 @@ public class ConnectorMetadataServiceTests
 
         Assert.False(plan.ConnectionUsed);
         Assert.DoesNotContain(fake.Requests, r => r.Uri.ToString().StartsWith(Runtime, StringComparison.Ordinal));
-        Assert.Empty(fake.Scopes);
+        Assert.DoesNotContain(fake.Audiences, ApiHubAudiences.IsApiHub);
         Assert.Equal("Matej", plan.Connection.OwnerName);
         Assert.Equal("Connected", plan.Connection.Status);
 
@@ -225,7 +226,7 @@ public class ConnectorMetadataServiceTests
         var result = await Resolve(fake, useConnection: true, ("poster", "Flow bot"), ("location", "Chat with Flow bot"));
 
         Assert.True(result.ConnectionUsed);
-        Assert.Equal(["https://apihub.azure.com/.default"], fake.Scopes);
+        Assert.Contains(new Uri(ApiHubAudiences.Public), fake.Audiences);
         Assert.Contains(fake.Requests, r => r.Uri.AbsoluteUri == Runtime + "/" + ConnectionId + "/flowbot/messageType/ParentMessage/poster/Flow%20bot");
         Assert.Equal(["Channel", "Chat with Flow bot"],
             Assert.Single(result.Operation.Parameters, p => p.Name == "location").AllowedValues);
@@ -366,15 +367,7 @@ public class ConnectorMetadataServiceTests
         public Task<string> AcquireForResourceAsync(Connection connection, Credential credential, Uri resourceUri, CancellationToken ct)
         {
             Audiences.Add(resourceUri);
-            return Task.FromResult("token");
-        }
-
-        public List<string> Scopes { get; } = new();
-
-        public Task<string> AcquireForScopeAsync(Connection connection, Credential credential, string scope, CancellationToken ct)
-        {
-            Scopes.Add(scope);
-            return Task.FromResult("runtime-token");
+            return Task.FromResult(ApiHubAudiences.IsApiHub(resourceUri) ? "runtime-token" : "token");
         }
 
         public HttpClient Create() => new(new Handler(this));

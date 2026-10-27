@@ -27,14 +27,20 @@ public class ConnectionReferenceListCliCommand : ProfiledCliCommand
 
         // The connection behind each bound reference says whose it is and
         // whether it works, which is what tells two references apart.
+        // References that share a connection read it once.
         var metadata = TxcServices.Get<IConnectorMetadataService>();
+        var connections = new Dictionary<(string Connector, string ConnectionId), ConnectionDetail?>();
         var rows = new List<ConnectionReferenceView>();
         foreach (var r in references)
         {
             var connector = ConnectorName(r);
-            var connection = string.IsNullOrWhiteSpace(r.ConnectionId)
-                ? null
-                : await TryGetConnectionAsync(metadata, connector, r.ConnectionId).ConfigureAwait(false);
+            ConnectionDetail? connection = null;
+            if (!string.IsNullOrWhiteSpace(r.ConnectionId)
+                && !connections.TryGetValue((connector, r.ConnectionId), out connection))
+            {
+                connection = await TryGetConnectionAsync(metadata, connector, r.ConnectionId).ConfigureAwait(false);
+                connections[(connector, r.ConnectionId)] = connection;
+            }
 
             rows.Add(new ConnectionReferenceView(
                 r.LogicalName, r.DisplayName, connector, r.ConnectionId,
@@ -52,10 +58,17 @@ public class ConnectionReferenceListCliCommand : ProfiledCliCommand
         {
             return await metadata.GetConnectionAsync(Profile, connector, connectionId, CancellationToken.None).ConfigureAwait(false);
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        catch (ArgumentException ex)
         {
             // A connection the caller cannot see still lists as bound.
             Logger.LogDebug(ex, "Could not read connection {Connection}.", connectionId);
+            return null;
+        }
+        catch (InvalidOperationException ex)
+        {
+            // Anything but "not visible to you" (401, 5xx) leaves the row
+            // without owner and status, so say why instead of only showing "-".
+            Logger.LogWarning("Could not read connection {Connection} ({Connector}): {Reason}", connectionId, connector, ex.Message);
             return null;
         }
     }

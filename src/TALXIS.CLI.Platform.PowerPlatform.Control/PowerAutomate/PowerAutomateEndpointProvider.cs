@@ -1,4 +1,5 @@
 using TALXIS.CLI.Core.Model;
+using TALXIS.CLI.Platform.PowerPlatform.Control.Bap;
 
 namespace TALXIS.CLI.Platform.PowerPlatform.Control.PowerAutomate;
 
@@ -20,18 +21,7 @@ internal static class PowerAutomateEndpointProvider
     /// Microsoft's own tooling uses cannot be issued to the pinned public client
     /// (AADSTS65002).
     /// </remarks>
-    public static readonly Uri Audience = new("https://service.powerapps.com/");
-
-    /// <summary>
-    /// Scope for calling a connector's runtime (<c>…azure-apihub.net/apim/{connector}</c>)
-    /// through a connection, which is how design-time lookups are made.
-    /// </summary>
-    /// <remarks>
-    /// Verified live: the runtime's token exchange allows the audience
-    /// <c>https://apihub.azure.com</c> but rejects <c>https://apihub.azure.com/</c>,
-    /// which is what the <c>{resource}//.default</c> form would produce.
-    /// </remarks>
-    public const string ConnectorRuntimeScope = "https://apihub.azure.com/.default";
+    public static readonly Uri Audience = BapEndpointProvider.PowerAppsAudience;
 
     public const string ApiVersion = "1";
 
