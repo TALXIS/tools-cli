@@ -95,7 +95,7 @@ internal static class DynamicValuesQuery
             return false;
         }
 
-        ConnectionReferenceRecord? reference = null;
+        ReferenceCandidate? reference = null;
         string? owner = null;
 
         DynamicValuesAnswer Answer(string status, string message,
@@ -140,7 +140,7 @@ internal static class DynamicValuesQuery
             return true;
         }
 
-        var pick = await PickConnectionReferenceAsync(request, metadata, logger).ConfigureAwait(false);
+        var (pick, choices) = await PickConnectionReferenceAsync(request, metadata, logger).ConfigureAwait(false);
         if (pick.InputError is not null)
         {
             logger.LogError("{Error}", pick.InputError);
@@ -150,7 +150,7 @@ internal static class DynamicValuesQuery
         if (pick.Reference is null)
         {
             // A question for the user, not an error: answered on stdout like consent.
-            Write(Answer(pick.Status!, pick.Message!, choices: pick.Choices));
+            Write(Answer(pick.Status!, pick.Message!, choices: choices));
             return true;
         }
 
@@ -208,44 +208,20 @@ internal static class DynamicValuesQuery
             ? items
             : items.Where(i => text(i).Contains(search, StringComparison.OrdinalIgnoreCase)).ToList();
 
-    /// <summary>
-    /// The connection reference to read through, a question for the user
-    /// (<see cref="Status"/> with <see cref="Message"/>), or an input error.
-    /// </summary>
-    private sealed record ReferencePick(
-        ConnectionReferenceRecord? Reference,
-        string? InputError = null,
-        string? Status = null,
-        string? Message = null,
-        IReadOnlyList<ConnectionChoice>? Choices = null);
-
-    private static async Task<ReferencePick> PickConnectionReferenceAsync(
+    private static async Task<(ReferencePick Pick, IReadOnlyList<ConnectionChoice>? Choices)> PickConnectionReferenceAsync(
         DynamicValuesRequest request, IConnectorMetadataService metadata, ILogger logger)
     {
         var references = await TxcServices.Get<IConnectionReferenceService>()
             .ListAsync(request.Profile, request.Connector, CancellationToken.None).ConfigureAwait(false);
-        var bound = references.Where(r => !string.IsNullOrWhiteSpace(r.ConnectionId)).ToList();
+        var pick = ConnectionReferencePicker.Pick(
+            references.Select(r => new ReferenceCandidate(r.LogicalName, r.DisplayName, r.ConnectionId)).ToList(),
+            request.Connector, request.ConnectionReference);
+        if (pick.Bound is null)
+            return (pick, null);
 
-        if (!string.IsNullOrWhiteSpace(request.ConnectionReference))
-        {
-            var named = references.FirstOrDefault(r => string.Equals(r.LogicalName, request.ConnectionReference, StringComparison.OrdinalIgnoreCase));
-            if (named is null)
-                return new(null, InputError: $"Connection reference '{request.ConnectionReference}' for '{request.Connector}' does not exist. Available: {(references.Count == 0 ? "none" : string.Join(", ", references.Select(r => r.LogicalName)))}.");
-            if (string.IsNullOrWhiteSpace(named.ConnectionId))
-                return new(null, Status: DynamicValuesStatus.NeedsConnection,
-                    Message: $"Connection reference '{named.LogicalName}' is not bound to a connection. Ask the user to bind one, then run this again.");
-            return new(named);
-        }
-
-        if (bound.Count == 1)
-            return new(bound[0]);
-
-        if (bound.Count == 0)
-            return new(null, Status: DynamicValuesStatus.NeedsConnection,
-                Message: $"No connection reference for '{request.Connector}' is bound to a connection. Ask the user to create one (in a solution: New > More > Connection reference), then run this again.");
-
+        // Owner and status are what tell the user's references apart.
         var choices = new List<ConnectionChoice>();
-        foreach (var r in bound)
+        foreach (var r in pick.Bound)
         {
             var connection = await ConnectionDisplay.TryGetAsync(metadata, request.Profile, request.Connector, r.ConnectionId!, logger)
                 .ConfigureAwait(false);
@@ -253,10 +229,7 @@ internal static class DynamicValuesQuery
                 connection is null ? null : ConnectionDisplay.Owner(connection), connection?.Status));
         }
 
-        return new(null, Status: DynamicValuesStatus.NeedsChoice,
-            Message: $"'{request.Connector}' has {choices.Count} bound connection references (listed below). " +
-                "Ask the user which one the flow should use, then run this again with --connection-reference <logical name>.",
-            Choices: choices);
+        return (pick, choices);
     }
 
     private static void Write(DynamicValuesAnswer answer) => OutputFormatter.WriteData(answer, Print);
