@@ -32,8 +32,10 @@ public class ProfileValidateCliCommand : TxcLeafCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ProfileValidateCliCommand));
 
+    // The initializer is what makes this optional: DotMake doesn't carry Required = false over to
+    // an argument, but it does turn the initializer into a default value (#214).
     [CliArgument(Description = "Profile name to validate. Defaults to the global active profile.", Required = false)]
-    public string? Name { get; set; }
+    public string? Name { get; set; } = null;
 
     [CliOption(Description = "Skip the live authenticated round-trip (WhoAmI); run structural checks only.")]
     public bool SkipLive { get; set; }
@@ -64,14 +66,17 @@ public class ProfileValidateCliCommand : TxcLeafCommand
             return ExitValidationError;
         }
 
-        var mode = SkipLive ? ValidationMode.Structural : ValidationMode.Live;
-        await provider.ValidateAsync(connection, credential, mode, CancellationToken.None).ConfigureAwait(false);
-
+        // Refresh first: it needs only the catalog, so it works even when the
+        // live check fails because the environment is unreachable.
         EnvironmentType? refreshedEnvType = connection.EnvironmentType;
         if (RefreshEnvType)
         {
-            refreshedEnvType = await TryRefreshEnvironmentTypeAsync(connection, credential).ConfigureAwait(false);
+            refreshedEnvType = await TxcServices.Get<IEnvironmentTypeResolver>()
+                .TryRefreshAsync(connection, credential, Logger, CancellationToken.None).ConfigureAwait(false);
         }
+
+        var mode = SkipLive ? ValidationMode.Structural : ValidationMode.Live;
+        await provider.ValidateAsync(connection, credential, mode, CancellationToken.None).ConfigureAwait(false);
 
         OutputFormatter.WriteData(new
         {
@@ -84,23 +89,5 @@ public class ProfileValidateCliCommand : TxcLeafCommand
             status = "ok",
         });
         return ExitSuccess;
-    }
-
-    /// <summary>
-    /// Delegates to the registered <see cref="IEnvironmentTypeResolver"/> to
-    /// query the provider's control plane and update the connection metadata.
-    /// </summary>
-    private async Task<EnvironmentType?> TryRefreshEnvironmentTypeAsync(TALXIS.CLI.Core.Model.Connection connection, Credential credential)
-    {
-        try
-        {
-            var resolver = TxcServices.Get<IEnvironmentTypeResolver>();
-            return await resolver.RefreshAsync(connection, credential, CancellationToken.None).ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(ex, "Failed to refresh environment type. Current value unchanged.");
-            return connection.EnvironmentType;
-        }
     }
 }

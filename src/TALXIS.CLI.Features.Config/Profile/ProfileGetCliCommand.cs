@@ -23,8 +23,10 @@ public class ProfileGetCliCommand : TxcLeafCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ProfileGetCliCommand));
 
+    // The initializer is what makes this optional: DotMake doesn't carry Required = false over to
+    // an argument, but it does turn the initializer into a default value (#214).
     [CliArgument(Description = "Profile name. If omitted, shows the active profile.", Required = false)]
-    public string? Name { get; set; }
+    public string? Name { get; set; } = null;
 
     protected override async Task<int> ExecuteAsync()
     {

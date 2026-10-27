@@ -140,7 +140,7 @@ txc env delete <id> [--yes] [--wait]
 | `--yes` | No | — | Skip interactive confirmation prompt. Required in non-interactive (CI) environments. |
 | `--wait` | No | `false` | Block until deletion completes. |
 | `--profile`, `-p` | No | active | Profile supplying the admin identity and cloud. |
-| `--allow-production` | No | — | Required when targeting Production or Default environments (safety guard). |
+| `--allow-production` | No | — | Required when targeting Production or Default environments, or when the target's type cannot be verified: the lookup failed, or the environment is not in the catalog (for example, it has no Dataverse instance) (safety guard). |
 
 ### Examples
 
