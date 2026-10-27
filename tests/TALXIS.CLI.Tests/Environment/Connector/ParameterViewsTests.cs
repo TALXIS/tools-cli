@@ -7,7 +7,7 @@ namespace TALXIS.CLI.Tests.Environment.Connector;
 public class ParameterViewsTests
 {
     private static OperationDetail Teams() => new(
-        "shared_teams", "/providers/Microsoft.PowerApps/apis/shared_teams", "PostMessageToConversation", "Post message", null,
+        "shared_teams", "shared_teams", "PostMessageToConversation", "Post message", null,
         "OpenApiConnection", false,
         [
             new("poster", "string", true, "Post as", ["Flow bot", "User"], null, null, null, null),

@@ -44,7 +44,7 @@ internal static partial class OperationSchemaReader
 
         return new OperationDetail(
             Connector: connector,
-            ApiId: ConnectorIds.ToPath(connector),
+            ApiId: ConnectorIds.ToShort(connector),
             OperationId: operationId,
             Summary: JsonElementReader.TryGetString(properties, "summary"),
             Description: JsonElementReader.TryGetString(properties, "description"),

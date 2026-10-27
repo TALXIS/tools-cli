@@ -39,7 +39,7 @@ internal static class ConnectionReferencePicker
         {
             1 => new(bound[0]),
             0 => new(null, Status: DynamicValuesStatus.NeedsConnection,
-                Message: $"No connection reference for '{connector}' is bound to a connection. Ask the user to create one (in a solution: New > More > Connection reference), then run this again."),
+                Message: $"No connection reference for '{connector}' is bound to a connection. Ask the user to create one and bind it to a connection, then run this again. Don't create a connection without their agreement."),
             _ => new(null, Status: DynamicValuesStatus.NeedsChoice,
                 Message: $"'{connector}' has {bound.Count} bound connection references (listed below). " +
                     "Ask the user which one the flow should use, then run this again with --connection-reference <logical name>.",

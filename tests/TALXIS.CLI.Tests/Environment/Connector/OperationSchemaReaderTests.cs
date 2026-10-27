@@ -140,11 +140,11 @@ public class OperationSchemaReaderTests
     }
 
     [Fact]
-    public void Detail_CarriesTheApiIdAFlowDefinitionReferences()
+    public void Detail_CarriesTheShortApiId()
     {
         var operation = Read("""{ "properties": { "summary": "List rows", "isDeprecated": true } }""");
 
-        Assert.Equal("/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps", operation.ApiId);
+        Assert.Equal("shared_commondataserviceforapps", operation.ApiId);
         Assert.Equal("List rows", operation.Summary);
         Assert.True(operation.IsDeprecated);
         Assert.Empty(operation.Parameters);

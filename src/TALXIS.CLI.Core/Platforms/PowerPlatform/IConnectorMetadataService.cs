@@ -1,11 +1,18 @@
 namespace TALXIS.CLI.Core.Platforms.PowerPlatform;
 
 /// <summary>A connector as it appears in the environment's connector catalog.</summary>
+/// <param name="LogicalName">
+/// The name to use for <c>--connector</c>. Today that is the <paramref name="ApiId"/>
+/// for every connector; a custom connector's own logical name is accepted
+/// once connector names are resolved (TALXIS/tools-cli#201).
+/// </param>
+/// <param name="ApiId">The short connector id, e.g. <c>shared_teams</c>.</param>
 public sealed record ConnectorSummary(
-    string Name,
+    string LogicalName,
+    string ApiId,
     string? DisplayName,
-    string? Description,
-    string? Tier);
+    string? Tier,
+    string? Description);
 
 /// <summary>Kinds of connector operation, as a flow definition has to treat them.</summary>
 public static class ConnectorOperationKind
@@ -32,10 +39,12 @@ public sealed record ConnectorOperationSummary(
     bool IsDeprecated);
 
 /// <summary>A connector plus its operation index.</summary>
+/// <param name="LogicalName">As on <see cref="ConnectorSummary"/>.</param>
+/// <param name="ApiId">The short connector id, e.g. <c>shared_teams</c>.</param>
 public sealed record ConnectorDetail(
-    string Name,
-    string? DisplayName,
+    string LogicalName,
     string ApiId,
+    string? DisplayName,
     int OperationCount,
     int? MatchedOperations,
     IReadOnlyList<ConnectorOperationSummary> Operations);
@@ -112,7 +121,9 @@ public sealed record OperationParameter(
 /// <summary>
 /// Full specification of one connector operation: what a flow action needs in
 /// <c>type</c>, <c>inputs.host</c> and <c>inputs.parameters</c>, and what it
-/// returns. <see cref="Outputs"/> are named by the key expressions read them
+/// returns. <see cref="ApiId"/> is the short connector id (<c>shared_teams</c>);
+/// a flow definition's <c>host.apiId</c> takes its path form
+/// (<see cref="ConnectorIds.ToPath"/>). <see cref="Outputs"/> are named by the key expressions read them
 /// with (<c>body/value</c>); fields of array items carry a <c>[]</c> segment
 /// (<c>body/value[]/emailaddress1</c>), read inside a loop over the array.
 /// </summary>

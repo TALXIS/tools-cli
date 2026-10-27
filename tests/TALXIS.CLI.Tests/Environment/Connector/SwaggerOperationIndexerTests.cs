@@ -32,7 +32,7 @@ public class SwaggerOperationIndexerTests
         Assert.Equal(ConnectorOperationKind.Trigger, Op(detail, "GetOnNewItems").Kind);
         Assert.Equal(ConnectorOperationKind.WebhookTrigger, Op(detail, "OnNewFile").Kind);
         Assert.True(Op(detail, "PostItem").IsDeprecated);
-        Assert.Equal("/providers/Microsoft.PowerApps/apis/shared_sharepointonline", detail.ApiId);
+        Assert.Equal("shared_sharepointonline", detail.ApiId);
     }
 
     [Fact]

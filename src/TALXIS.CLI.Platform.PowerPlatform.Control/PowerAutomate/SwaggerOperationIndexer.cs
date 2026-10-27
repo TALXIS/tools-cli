@@ -71,9 +71,9 @@ internal static class SwaggerOperationIndexer
         }
 
         return new ConnectorDetail(
-            Name: name,
+            LogicalName: name,
+            ApiId: ConnectorIds.ToShort(name),
             DisplayName: displayName,
-            ApiId: ConnectorIds.ToPath(name),
             OperationCount: operations.Count,
             MatchedOperations: matched,
             Operations: result);

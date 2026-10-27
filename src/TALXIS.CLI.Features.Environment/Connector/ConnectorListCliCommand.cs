@@ -34,12 +34,12 @@ public class ConnectorListCliCommand : ProfiledCliCommand
     {
         if (connectors.Count == 0) { OutputWriter.WriteLine("No connectors found."); return; }
 
-        var nameWidth = Math.Max(connectors.Max(c => c.Name.Length), 20);
+        var nameWidth = Math.Max(connectors.Max(c => c.LogicalName.Length), 20);
         var header = $"{"Name".PadRight(nameWidth)} | {"Tier".PadRight(10)} | Display name";
         OutputWriter.WriteLine(header);
         OutputWriter.WriteLine(new string('-', header.Length));
         foreach (var c in connectors)
-            OutputWriter.WriteLine($"{c.Name.PadRight(nameWidth)} | {(c.Tier ?? "-").PadRight(10)} | {c.DisplayName}");
+            OutputWriter.WriteLine($"{c.LogicalName.PadRight(nameWidth)} | {(c.Tier ?? "-").PadRight(10)} | {c.DisplayName}");
     }
 #pragma warning restore TXC003
 }

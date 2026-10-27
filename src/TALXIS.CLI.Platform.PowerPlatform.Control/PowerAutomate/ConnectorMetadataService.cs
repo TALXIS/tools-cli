@@ -50,20 +50,21 @@ internal sealed class ConnectorMetadataService : IConnectorMetadataService
 
             var properties = JsonElementReader.TryGetObject(item, "properties") ?? default;
             var connector = new ConnectorSummary(
-                Name: name,
+                LogicalName: name,
+                ApiId: name,
                 DisplayName: JsonElementReader.TryGetString(properties, "displayName"),
-                Description: JsonElementReader.TryGetString(properties, "description"),
-                Tier: JsonElementReader.TryGetString(properties, "tier"));
+                Tier: JsonElementReader.TryGetString(properties, "tier"),
+                Description: JsonElementReader.TryGetString(properties, "description"));
 
             if (string.IsNullOrWhiteSpace(search)
-                || connector.Name.Contains(search, StringComparison.OrdinalIgnoreCase)
+                || connector.LogicalName.Contains(search, StringComparison.OrdinalIgnoreCase)
                 || (connector.DisplayName?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false))
             {
                 connectors.Add(connector);
             }
         }
 
-        connectors.Sort(static (a, b) => string.CompareOrdinal(a.Name, b.Name));
+        connectors.Sort(static (a, b) => string.CompareOrdinal(a.LogicalName, b.LogicalName));
         return connectors;
     }
 
@@ -71,6 +72,7 @@ internal sealed class ConnectorMetadataService : IConnectorMetadataService
         string? profileName, string connector, string? search, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connector);
+        connector = ResolveConnector(connector);
 
         var target = await ResolveTargetAsync(profileName, ct).ConfigureAwait(false);
         using var document = await SendForLookupAsync(
@@ -88,7 +90,7 @@ internal sealed class ConnectorMetadataService : IConnectorMetadataService
 
         var body = new JsonObject { ["searchText"] = search };
         if (!string.IsNullOrWhiteSpace(connector))
-            body["operationGroupName"] = connector;
+            body["operationGroupName"] = ResolveConnector(connector);
 
         var exclude = new JsonArray("Deprecated");
         switch (kind.ToLowerInvariant())
@@ -122,6 +124,7 @@ internal sealed class ConnectorMetadataService : IConnectorMetadataService
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connector);
         ArgumentException.ThrowIfNullOrWhiteSpace(operation);
+        connector = ResolveConnector(connector);
 
         var target = await ResolveTargetAsync(profileName, ct).ConfigureAwait(false);
         using var document = await SendForLookupAsync(
@@ -242,6 +245,7 @@ internal sealed class ConnectorMetadataService : IConnectorMetadataService
         string? profileName, string connector, string connectionId, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connector);
+        connector = ResolveConnector(connector);
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
 
         var target = await ResolveTargetAsync(profileName, ct).ConfigureAwait(false);
@@ -270,6 +274,15 @@ internal sealed class ConnectorMetadataService : IConnectorMetadataService
             OwnerPrincipalName: JsonElementReader.TryGetString(owner, "userPrincipalName") ?? JsonElementReader.TryGetString(owner, "email"),
             Status: status);
     }
+
+    /// <summary>
+    /// The connector id the metadata routes take, for a connector named as
+    /// <c>shared_teams</c> or <c>/providers/Microsoft.PowerApps/apis/shared_teams</c>.
+    /// Every connector argument goes through here, so resolving a custom
+    /// connector's logical name (TALXIS/tools-cli#201's IConnectorResolver)
+    /// replaces this one method.
+    /// </summary>
+    private static string ResolveConnector(string connector) => ConnectorIds.ToShort(connector);
 
     /// <summary>
     /// A GET of a named connector or operation, where a 404 means the caller

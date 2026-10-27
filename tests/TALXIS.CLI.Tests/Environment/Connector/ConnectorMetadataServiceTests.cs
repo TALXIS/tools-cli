@@ -91,7 +91,7 @@ public class ConnectorMetadataServiceTests
 
         var connectors = await fake.Service.ListConnectorsAsync(null, "outlook", CancellationToken.None);
 
-        Assert.Equal("shared_office365", Assert.Single(connectors).Name);
+        Assert.Equal("shared_office365", Assert.Single(connectors).LogicalName);
     }
 
     [Fact]
