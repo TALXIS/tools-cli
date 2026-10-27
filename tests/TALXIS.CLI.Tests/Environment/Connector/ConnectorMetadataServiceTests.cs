@@ -291,6 +291,12 @@ public class ConnectorMetadataServiceTests
                                       "body/entityName": { "parameterReference": "subscriptionRequest/entityname" } } } } } }
                 } } } }
                 """);
+        if (uri.Contains("/apiOperations/ListRecords?", StringComparison.Ordinal))
+            return Json(HttpStatusCode.OK, """
+                { "properties": { "inputsDefinition": { "properties": {
+                  "entityName": { "type": "string", "x-ms-dynamic-list": { "operationId": "GetEntitySets", "parameters": {} } }
+                } } } }
+                """);
         if (uri.Contains("/apiOperations/SubscribeWebhookTrigger", StringComparison.Ordinal))
             return Json(HttpStatusCode.OK, """
                 { "properties": { "inputsDefinition": { "properties": {
@@ -343,6 +349,22 @@ public class ConnectorMetadataServiceTests
         var scope = Assert.Single(result.Operation.Parameters, p => p.Name == "subscriptionRequest/scope");
         Assert.Equal(["1", "4"], scope.AllowedValues);
         Assert.Equal("Organization", scope.ValueLabels!["4"]);
+    }
+
+    [Fact]
+    public async Task Resolve_Dataverse_WithoutATwin_SaysSoInsteadOfPlanningLookupsThatCannotAnswer()
+    {
+        var fake = DataverseFake();
+
+        var result = await fake.Service.ResolveOperationAsync(
+            null, "shared_commondataserviceforapps", "ListRecords", "mtj_dataverse", ConnectionId,
+            new Dictionary<string, string>(), "entityName", null, useConnection: true, CancellationToken.None);
+
+        var lookup = Assert.Single(result.Lookups);
+        Assert.Equal("skipped", lookup.Status);
+        Assert.Contains("ListRecordsWithOrganization", lookup.Reason);
+        Assert.False(result.ConnectionUsed);
+        Assert.DoesNotContain(fake.Requests, r => r.Uri.ToString().StartsWith(DataverseRuntime, StringComparison.Ordinal));
     }
 
     private static HttpResponseMessage Json(HttpStatusCode status, string body)

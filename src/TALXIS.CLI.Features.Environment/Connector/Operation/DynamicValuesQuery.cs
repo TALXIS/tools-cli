@@ -140,7 +140,7 @@ internal static class DynamicValuesQuery
             return true;
         }
 
-        var pick = await PickConnectionReferenceAsync(request, metadata).ConfigureAwait(false);
+        var pick = await PickConnectionReferenceAsync(request, metadata, logger).ConfigureAwait(false);
         if (pick.InputError is not null)
         {
             logger.LogError("{Error}", pick.InputError);
@@ -220,7 +220,7 @@ internal static class DynamicValuesQuery
         IReadOnlyList<ConnectionChoice>? Choices = null);
 
     private static async Task<ReferencePick> PickConnectionReferenceAsync(
-        DynamicValuesRequest request, IConnectorMetadataService metadata)
+        DynamicValuesRequest request, IConnectorMetadataService metadata, ILogger logger)
     {
         var references = await TxcServices.Get<IConnectionReferenceService>()
             .ListAsync(request.Profile, request.Connector, CancellationToken.None).ConfigureAwait(false);
@@ -247,9 +247,10 @@ internal static class DynamicValuesQuery
         var choices = new List<ConnectionChoice>();
         foreach (var r in bound)
         {
-            var connection = await metadata.GetConnectionAsync(request.Profile, request.Connector, r.ConnectionId!, CancellationToken.None)
+            var connection = await ConnectionDisplay.TryGetAsync(metadata, request.Profile, request.Connector, r.ConnectionId!, logger)
                 .ConfigureAwait(false);
-            choices.Add(new ConnectionChoice(r.LogicalName, r.DisplayName, ConnectionDisplay.Owner(connection), connection.Status));
+            choices.Add(new ConnectionChoice(r.LogicalName, r.DisplayName,
+                connection is null ? null : ConnectionDisplay.Owner(connection), connection?.Status));
         }
 
         return new(null, Status: DynamicValuesStatus.NeedsChoice,

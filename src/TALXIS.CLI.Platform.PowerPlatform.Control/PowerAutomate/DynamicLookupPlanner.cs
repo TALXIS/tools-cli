@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using TALXIS.CLI.Core.Platforms.PowerPlatform;
 
 namespace TALXIS.CLI.Platform.PowerPlatform.Control.PowerAutomate;
@@ -16,7 +17,7 @@ namespace TALXIS.CLI.Platform.PowerPlatform.Control.PowerAutomate;
 /// Dataverse, declare their lookups as POSTs). Nothing else is ever sent
 /// through the user's connection.
 /// </remarks>
-internal static class DynamicLookupPlanner
+internal static partial class DynamicLookupPlanner
 {
     public const string ValuesKind = "values";
     public const string SchemaKind = "schema";
@@ -143,7 +144,8 @@ internal static class DynamicLookupPlanner
 
     private sealed record LookupRequest(string Path, Dictionary<string, string> Headers, JsonObject? Body);
 
-    private readonly record struct SwaggerOperation(string Method, string Path, JsonElement Definition);
+    /// <param name="PathItem">The path item, whose <c>parameters</c> apply to every method under it.</param>
+    private readonly record struct SwaggerOperation(string Method, string Path, JsonElement Definition, JsonElement PathItem);
 
     private static SwaggerOperation? FindOperation(JsonElement swagger, string operationId)
     {
@@ -160,7 +162,7 @@ internal static class DynamicLookupPlanner
                 if (method.Value.ValueKind == JsonValueKind.Object
                     && string.Equals(JsonRead.String(method.Value, "operationId"), operationId, StringComparison.Ordinal))
                 {
-                    return new SwaggerOperation(method.Name.ToUpperInvariant(), path.Name, method.Value);
+                    return new SwaggerOperation(method.Name.ToUpperInvariant(), path.Name, method.Value, path.Value);
                 }
             }
         }
@@ -172,7 +174,8 @@ internal static class DynamicLookupPlanner
     /// Renders the lookup's request from its swagger: path parameters
     /// substituted, query parameters appended, declared headers set, and
     /// <c>body/…</c> arguments assembled into the JSON body.
-    /// <c>connectionId</c> is the connection itself.
+    /// <c>connectionId</c> is the connection itself. Parameters declared on the
+    /// path item apply too, unless the operation redeclares them.
     /// </summary>
     private static LookupRequest BuildRequest(
         JsonElement swagger,
@@ -187,57 +190,89 @@ internal static class DynamicLookupPlanner
         var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         JsonObject? body = null;
 
-        if (operation.Definition.TryGetProperty("parameters", out var declared) && declared.ValueKind == JsonValueKind.Array)
+        foreach (var parameter in DeclaredParameters(swagger, operation))
         {
-            foreach (var raw in declared.EnumerateArray())
+            var name = JsonRead.String(parameter, "name")!;
+            var location = JsonRead.String(parameter, "in")!.ToLowerInvariant();
+
+            if (location == "body")
             {
-                var parameter = ResolveRef(swagger, raw);
-                var name = JsonRead.String(parameter, "name");
-                var location = JsonRead.String(parameter, "in")?.ToLowerInvariant();
-                if (name is null || location is null)
-                    continue;
+                body = BuildBody(arguments);
+                continue;
+            }
 
-                if (location == "body")
+            var value = string.Equals(name, "connectionId", StringComparison.Ordinal)
+                ? connectionId
+                : arguments.TryGetValue(name, out var given) && given is not null
+                    ? given
+                    : parameter.TryGetProperty("default", out var fallback) ? ScalarText(fallback) : null;
+
+            var required = parameter.TryGetProperty("required", out var flag) && flag.ValueKind == JsonValueKind.True;
+            if (value is null)
+            {
+                if (required || location == "path")
                 {
-                    body = BuildBody(arguments);
-                    continue;
+                    unfilled = name;
+                    return new LookupRequest(path, headers, body);
                 }
 
-                var value = string.Equals(name, "connectionId", StringComparison.Ordinal)
-                    ? connectionId
-                    : arguments.TryGetValue(name, out var given) && given is not null
-                        ? given
-                        : parameter.TryGetProperty("default", out var fallback) ? ScalarText(fallback) : null;
+                continue;
+            }
 
-                var required = parameter.TryGetProperty("required", out var flag) && flag.ValueKind == JsonValueKind.True;
-                if (value is null)
-                {
-                    if (required || location == "path")
-                    {
-                        unfilled = name;
-                        return new LookupRequest(path, headers, body);
-                    }
-
-                    continue;
-                }
-
-                switch (location)
-                {
-                    case "path":
-                        path = path.Replace("{" + name + "}", Uri.EscapeDataString(value), StringComparison.Ordinal);
-                        break;
-                    case "query":
-                        query.Append(query.Length == 0 ? '?' : '&')
-                            .Append(Uri.EscapeDataString(name)).Append('=').Append(Uri.EscapeDataString(value));
-                        break;
-                    case "header":
-                        headers[name] = value;
-                        break;
-                }
+            switch (location)
+            {
+                case "path":
+                    // Some connectors (SharePoint's dataset) expect a value that
+                    // itself contains slashes to be encoded twice.
+                    var encoded = Uri.EscapeDataString(value);
+                    if (string.Equals(JsonRead.String(parameter, "x-ms-url-encoding"), "double", StringComparison.OrdinalIgnoreCase))
+                        encoded = Uri.EscapeDataString(encoded);
+                    path = path.Replace("{" + name + "}", encoded, StringComparison.Ordinal);
+                    break;
+                case "query":
+                    query.Append(query.Length == 0 ? '?' : '&')
+                        .Append(Uri.EscapeDataString(name)).Append('=').Append(Uri.EscapeDataString(value));
+                    break;
+                case "header":
+                    headers[name] = value;
+                    break;
             }
         }
 
+        // A placeholder nothing declared would otherwise be sent literally.
+        if (PathPlaceholderRegex.Match(path) is { Success: true } left)
+            unfilled = left.Groups[1].Value;
+
         return new LookupRequest(path + query, headers, body);
+    }
+
+    [GeneratedRegex(@"\{([^{}]+)\}", RegexOptions.CultureInvariant)]
+    private static partial Regex PathPlaceholderRegex { get; }
+
+    /// <summary>
+    /// The operation's parameters followed by the path item's, with
+    /// <c>$ref</c>s resolved; a path-item parameter the operation redeclares
+    /// (same name and location) is the operation's.
+    /// </summary>
+    private static IEnumerable<JsonElement> DeclaredParameters(JsonElement swagger, SwaggerOperation operation)
+    {
+        var seen = new HashSet<(string, string)>();
+        foreach (var owner in new[] { operation.Definition, operation.PathItem })
+        {
+            if (!owner.TryGetProperty("parameters", out var declared) || declared.ValueKind != JsonValueKind.Array)
+                continue;
+
+            foreach (var raw in declared.EnumerateArray())
+            {
+                var parameter = ResolveRef(swagger, raw);
+                if (JsonRead.String(parameter, "name") is { } name
+                    && JsonRead.String(parameter, "in") is { } location
+                    && seen.Add((name, location.ToLowerInvariant())))
+                {
+                    yield return parameter;
+                }
+            }
+        }
     }
 
     /// <summary>

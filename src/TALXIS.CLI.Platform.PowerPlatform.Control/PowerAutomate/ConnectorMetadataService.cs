@@ -177,14 +177,23 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
             connection = ReadConnection(connectionId, document.RootElement);
         }
 
-        var (lookupSource, lookupValues) = await ResolveLookupSourceAsync(
+        var (lookupSource, lookupValues, unavailable) = await ResolveLookupSourceAsync(
             target, connector, operation, detail, values, ct).ConfigureAwait(false);
+        var name = output ?? parameter!;
+        if (unavailable is not null)
+        {
+            // Its own lookups are known not to answer outside the designer.
+            var asked = (output is null ? detail.Parameters : detail.Outputs ?? []).FirstOrDefault(p => p.Name == name);
+            var kind = asked is { DynamicValues: null, DynamicSchema: not null } ? DynamicLookupPlanner.SchemaKind : DynamicLookupPlanner.ValuesKind;
+            return new OperationResolution(detail, connection, false,
+                [new DynamicLookup(name, kind, operation, DynamicLookupStatus.Skipped, unavailable)]);
+        }
+
         // Outputs are planned the same way as parameters: a dynamic output's
         // fields come from a lookup just like a dynamic input's.
         var resolvingOutputs = output is not null;
         var targets = resolvingOutputs ? detail.Outputs ?? [] : detail.Parameters;
         var source = resolvingOutputs ? lookupSource with { Parameters = lookupSource.Outputs ?? [] } : lookupSource;
-        var name = output ?? parameter;
         var plan = DynamicLookupPlanner.Plan(source, connectorDocument.RootElement, connectionId, lookupValues)
             .Where(p => p.Parameter.Name == name)
             .ToList();
@@ -220,9 +229,10 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
     /// Usually the operation itself; see
     /// <see cref="PowerAutomateEndpointProvider.EnvironmentScopedTwin"/> for the
     /// exception, where the twin's lookups are used and the environment is the
-    /// profile's own.
+    /// profile's own. <c>Unavailable</c> says why nothing can be looked up when
+    /// such an operation has no twin.
     /// </summary>
-    private async Task<(OperationDetail Source, IReadOnlyDictionary<string, string> Values)> ResolveLookupSourceAsync(
+    private async Task<(OperationDetail Source, IReadOnlyDictionary<string, string> Values, string? Unavailable)> ResolveLookupSourceAsync(
         EnvironmentTarget target,
         string connector,
         string operation,
@@ -233,7 +243,7 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
         if (PowerAutomateEndpointProvider.EnvironmentScopedTwin(connector, operation) is not { } twin
             || string.IsNullOrWhiteSpace(target.Connection.EnvironmentUrl))
         {
-            return (detail, values);
+            return (detail, values, null);
         }
 
         try
@@ -246,13 +256,13 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
             {
                 [twin.EnvironmentParameter] = target.Connection.EnvironmentUrl.TrimEnd('/'),
             };
-            return (OperationSchemaReader.Read(connector, twin.Operation, document.RootElement), withEnvironment);
+            return (OperationSchemaReader.Read(connector, twin.Operation, document.RootElement), withEnvironment, null);
         }
         catch (ArgumentException ex)
         {
-            // No twin for this operation: plan its own lookups.
             _logger.LogDebug(ex, "No {Twin} twin for {Operation}.", twin.Operation, operation);
-            return (detail, values);
+            return (detail, values,
+                $"'{operation}' has no '{twin.Operation}' counterpart, and its own lookups only answer inside the flow designer. Choose the value with the user.");
         }
     }
 

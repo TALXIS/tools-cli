@@ -4,6 +4,7 @@ using TALXIS.CLI.Core;
 using TALXIS.CLI.Core.Contracts.Dataverse;
 using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Core.Platforms.PowerPlatform;
+using TALXIS.CLI.Features.Environment.Connector;
 using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.ConnectionReference;
@@ -38,39 +39,18 @@ public class ConnectionReferenceListCliCommand : ProfiledCliCommand
             if (!string.IsNullOrWhiteSpace(r.ConnectionId)
                 && !connections.TryGetValue((connector, r.ConnectionId), out connection))
             {
-                connection = await TryGetConnectionAsync(metadata, connector, r.ConnectionId).ConfigureAwait(false);
+                connection = await ConnectionDisplay.TryGetAsync(metadata, Profile, connector, r.ConnectionId, Logger).ConfigureAwait(false);
                 connections[(connector, r.ConnectionId)] = connection;
             }
 
             rows.Add(new ConnectionReferenceView(
                 r.LogicalName, r.DisplayName, connector, r.ConnectionId,
-                connection is null ? null : TALXIS.CLI.Features.Environment.Connector.ConnectionDisplay.Owner(connection),
+                connection is null ? null : ConnectionDisplay.Owner(connection),
                 connection?.Status ?? (string.IsNullOrWhiteSpace(r.ConnectionId) ? "not bound" : null)));
         }
 
         OutputFormatter.WriteList(rows, PrintTable);
         return ExitSuccess;
-    }
-
-    private async Task<ConnectionDetail?> TryGetConnectionAsync(IConnectorMetadataService metadata, string connector, string connectionId)
-    {
-        try
-        {
-            return await metadata.GetConnectionAsync(Profile, connector, connectionId, CancellationToken.None).ConfigureAwait(false);
-        }
-        catch (ArgumentException ex)
-        {
-            // A connection the caller cannot see still lists as bound.
-            Logger.LogDebug(ex, "Could not read connection {Connection}.", connectionId);
-            return null;
-        }
-        catch (InvalidOperationException ex)
-        {
-            // Anything but "not visible to you" (401, 5xx) leaves the row
-            // without owner and status, so say why instead of only showing "-".
-            Logger.LogWarning("Could not read connection {Connection} ({Connector}): {Reason}", connectionId, connector, ex.Message);
-            return null;
-        }
     }
 
 #pragma warning disable TXC003

@@ -318,6 +318,10 @@ internal static partial class OperationSchemaReader
         if (JsonRead.String(argument, "parameterReference") is { } reference)
             return (argument.TryGetProperty("required", out var required) && required.ValueKind == JsonValueKind.False ? "$ref?:" : "$ref:") + reference;
 
+        // The older x-ms-dynamic-values vocabulary names the source parameter "parameter".
+        if (JsonRead.String(argument, "parameter") is { } legacy)
+            return "$ref:" + legacy;
+
         if (argument.TryGetProperty("value", out var literal))
             return ToScalarString(literal) ?? literal.GetRawText();
 
