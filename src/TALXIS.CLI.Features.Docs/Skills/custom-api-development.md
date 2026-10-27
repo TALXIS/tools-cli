@@ -8,7 +8,7 @@ Custom APIs are custom messages (actions) in Dataverse that expose reusable busi
 
 - **Custom API** — reusable callable endpoint, typed request/response, synchronous with return value
 - **Plugin** — reactive logic triggered by data events (Create, Update, Delete)
-- **Power Automate** — low-code automation with connectors and approval flows
+- **Power Automate** — low-code automation with connectors and approval flows (see [flow-development](flow-development.md))
 
 Choose Custom API when multiple clients or flows need to invoke the same operation.
 
