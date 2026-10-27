@@ -71,7 +71,7 @@ public class ConnectionReferenceListCliCommand : ProfiledCliCommand
 
     /// <summary>The connector name (<c>shared_teams</c>), not the full api id, so rows stay distinguishable.</summary>
     private static string ConnectorName(ConnectionReferenceRecord r)
-        => r.ConnectorId is { } id ? id[(id.TrimEnd('/').LastIndexOf('/') + 1)..] : "-";
+        => r.ConnectorId is { } id ? ConnectorIds.ToShort(id) : "-";
 }
 
 /// <summary>A connection reference with the owner and status of the connection behind it.</summary>

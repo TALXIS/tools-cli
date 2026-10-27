@@ -4,6 +4,7 @@ using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Identity;
 using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Platform.PowerPlatform.Control;
+using TALXIS.CLI.Platform.PowerPlatform.Control.Http;
 using TALXIS.CLI.Platform.PowerPlatform.Control.PowerAutomate;
 using Xunit;
 
@@ -388,7 +389,8 @@ public class ConnectorMetadataServiceTests
                 EnvironmentId = storeEnvironmentId ? EnvironmentId : null,
                 Cloud = CloudInstance.Public,
             };
-            Service = new ConnectorMetadataService(this, Catalog, this, this);
+            Service = new ConnectorMetadataService(
+                this, new EnvironmentIdResolver(Catalog), new PowerAutomateApiClient(this, new RetryingHttpSender(this)));
         }
 
         public ConnectorMetadataService Service { get; }

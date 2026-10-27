@@ -23,9 +23,6 @@ internal static partial class DynamicLookupPlanner
     public const string SchemaKind = "schema";
     public const string TreeKind = "tree";
 
-    private const string ParameterReferencePrefix = "$ref:";
-    private const string OptionalReferencePrefix = "$ref?:";
-
     private const string BodyArgumentPrefix = "body/";
 
     private static readonly string[] AllowedMethods = ["GET", "POST"];
@@ -46,15 +43,15 @@ internal static partial class DynamicLookupPlanner
         string connectionId,
         IReadOnlyDictionary<string, string> values)
     {
-        var properties = JsonRead.Object(connectorPayload, "properties") ?? default;
-        var runtimeUrl = JsonRead.String(properties, "primaryRuntimeUrl")
+        var properties = JsonElementReader.TryGetObject(connectorPayload, "properties") ?? default;
+        var runtimeUrl = JsonElementReader.TryGetString(properties, "primaryRuntimeUrl")
             ?? (properties.ValueKind == JsonValueKind.Object
                 && properties.TryGetProperty("runtimeUrls", out var urls)
                 && urls.ValueKind == JsonValueKind.Array
                 && urls.GetArrayLength() > 0
                     ? urls[0].GetString()
                     : null);
-        var swagger = JsonRead.Object(properties, "swagger") ?? default;
+        var swagger = JsonElementReader.TryGetObject(properties, "swagger") ?? default;
         var lookups = new List<PlannedLookup>();
 
         foreach (var parameter in operation.Parameters)
@@ -90,23 +87,12 @@ internal static partial class DynamicLookupPlanner
 
         foreach (var (name, argument) in reference.Parameters ?? new Dictionary<string, string?>())
         {
-            if (argument is not null && argument.StartsWith(OptionalReferencePrefix, StringComparison.Ordinal))
-            {
-                if (values.TryGetValue(argument[OptionalReferencePrefix.Length..], out var optional))
-                    arguments[name] = optional;
-            }
-            else if (argument is not null && argument.StartsWith(ParameterReferencePrefix, StringComparison.Ordinal))
-            {
-                var source = argument[ParameterReferencePrefix.Length..];
-                if (values.TryGetValue(source, out var chosen))
-                    arguments[name] = chosen;
-                else
-                    missing.Add(source);
-            }
-            else
-            {
+            if (ResolverArgument.Referenced(argument, out var optional) is not { } source)
                 arguments[name] = argument;
-            }
+            else if (values.TryGetValue(source, out var chosen))
+                arguments[name] = chosen;
+            else if (!optional)
+                missing.Add(source);
         }
 
         var found = FindOperation(swagger, reference.OperationId);
@@ -149,7 +135,7 @@ internal static partial class DynamicLookupPlanner
 
     private static SwaggerOperation? FindOperation(JsonElement swagger, string operationId)
     {
-        if (JsonRead.Object(swagger, "paths") is not { } paths)
+        if (JsonElementReader.TryGetObject(swagger, "paths") is not { } paths)
             return null;
 
         foreach (var path in paths.EnumerateObject())
@@ -160,7 +146,7 @@ internal static partial class DynamicLookupPlanner
             foreach (var method in path.Value.EnumerateObject())
             {
                 if (method.Value.ValueKind == JsonValueKind.Object
-                    && string.Equals(JsonRead.String(method.Value, "operationId"), operationId, StringComparison.Ordinal))
+                    && string.Equals(JsonElementReader.TryGetString(method.Value, "operationId"), operationId, StringComparison.Ordinal))
                 {
                     return new SwaggerOperation(method.Name.ToUpperInvariant(), path.Name, method.Value, path.Value);
                 }
@@ -192,8 +178,8 @@ internal static partial class DynamicLookupPlanner
 
         foreach (var parameter in DeclaredParameters(swagger, operation))
         {
-            var name = JsonRead.String(parameter, "name")!;
-            var location = JsonRead.String(parameter, "in")!.ToLowerInvariant();
+            var name = JsonElementReader.TryGetString(parameter, "name")!;
+            var location = JsonElementReader.TryGetString(parameter, "in")!.ToLowerInvariant();
 
             if (location == "body")
             {
@@ -205,7 +191,7 @@ internal static partial class DynamicLookupPlanner
                 ? connectionId
                 : arguments.TryGetValue(name, out var given) && given is not null
                     ? given
-                    : parameter.TryGetProperty("default", out var fallback) ? ScalarText(fallback) : null;
+                    : parameter.TryGetProperty("default", out var fallback) ? OperationSchemaReader.ToScalarString(fallback) : null;
 
             var required = parameter.TryGetProperty("required", out var flag) && flag.ValueKind == JsonValueKind.True;
             if (value is null)
@@ -225,7 +211,7 @@ internal static partial class DynamicLookupPlanner
                     // Some connectors (SharePoint's dataset) expect a value that
                     // itself contains slashes to be encoded twice.
                     var encoded = Uri.EscapeDataString(value);
-                    if (string.Equals(JsonRead.String(parameter, "x-ms-url-encoding"), "double", StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals(JsonElementReader.TryGetString(parameter, "x-ms-url-encoding"), "double", StringComparison.OrdinalIgnoreCase))
                         encoded = Uri.EscapeDataString(encoded);
                     path = path.Replace("{" + name + "}", encoded, StringComparison.Ordinal);
                     break;
@@ -265,8 +251,8 @@ internal static partial class DynamicLookupPlanner
             foreach (var raw in declared.EnumerateArray())
             {
                 var parameter = ResolveRef(swagger, raw);
-                if (JsonRead.String(parameter, "name") is { } name
-                    && JsonRead.String(parameter, "in") is { } location
+                if (JsonElementReader.TryGetString(parameter, "name") is { } name
+                    && JsonElementReader.TryGetString(parameter, "in") is { } location
                     && seen.Add((name, location.ToLowerInvariant())))
                 {
                     yield return parameter;
@@ -370,10 +356,10 @@ internal static partial class DynamicLookupPlanner
         var values = new List<(string, string?)>();
         foreach (var item in items.EnumerateArray())
         {
-            if (ScalarText(Navigate(item, reference.ValuePath) ?? item) is not { } value)
+            if (OperationSchemaReader.ToScalarString(Navigate(item, reference.ValuePath) ?? item) is not { } value)
                 continue;
 
-            var title = Navigate(item, reference.TitlePath) is { } t ? ScalarText(t) : null;
+            var title = Navigate(item, reference.TitlePath) is { } t ? OperationSchemaReader.ToScalarString(t) : null;
             values.Add((value, title));
         }
 
@@ -416,7 +402,7 @@ internal static partial class DynamicLookupPlanner
 
     private static JsonElement ResolveRef(JsonElement swagger, JsonElement element)
     {
-        if (JsonRead.String(element, "$ref") is not { } reference || !reference.StartsWith("#/", StringComparison.Ordinal))
+        if (JsonElementReader.TryGetString(element, "$ref") is not { } reference || !reference.StartsWith("#/", StringComparison.Ordinal))
             return element;
 
         var current = swagger;
@@ -428,14 +414,4 @@ internal static partial class DynamicLookupPlanner
 
         return current;
     }
-
-    private static string? ScalarText(JsonElement value)
-        => value.ValueKind switch
-        {
-            JsonValueKind.String => value.GetString(),
-            JsonValueKind.Number => value.GetRawText(),
-            JsonValueKind.True => "true",
-            JsonValueKind.False => "false",
-            _ => null,
-        };
 }

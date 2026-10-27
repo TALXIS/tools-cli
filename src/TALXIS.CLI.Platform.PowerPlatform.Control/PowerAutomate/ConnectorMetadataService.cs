@@ -12,25 +12,23 @@ namespace TALXIS.CLI.Platform.PowerPlatform.Control.PowerAutomate;
 /// Reads Power Automate connector metadata from the environment bound to the
 /// profile through the per-environment <c>/powerautomate</c> routes.
 /// </summary>
-public sealed class ConnectorMetadataService : IConnectorMetadataService
+internal sealed class ConnectorMetadataService : IConnectorMetadataService
 {
     private readonly IConfigurationResolver _resolver;
-    private readonly IPowerPlatformEnvironmentCatalog _catalog;
+    private readonly IEnvironmentIdResolver _environmentIds;
     private readonly PowerAutomateApiClient _client;
     private readonly ILogger<ConnectorMetadataService> _logger;
 
     public ConnectorMetadataService(
         IConfigurationResolver resolver,
-        IPowerPlatformEnvironmentCatalog catalog,
-        IAccessTokenService tokens,
-        IHttpClientFactoryWrapper? httpFactory = null,
-        ILoggerFactory? loggerFactory = null)
+        IEnvironmentIdResolver environmentIds,
+        PowerAutomateApiClient client,
+        ILogger<ConnectorMetadataService>? logger = null)
     {
         _resolver = resolver ?? throw new ArgumentNullException(nameof(resolver));
-        _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
-        _logger = loggerFactory?.CreateLogger<ConnectorMetadataService>()
-            ?? NullLogger<ConnectorMetadataService>.Instance;
-        _client = new PowerAutomateApiClient(tokens, httpFactory, _logger);
+        _environmentIds = environmentIds ?? throw new ArgumentNullException(nameof(environmentIds));
+        _client = client ?? throw new ArgumentNullException(nameof(client));
+        _logger = logger ?? NullLogger<ConnectorMetadataService>.Instance;
     }
 
     public async Task<IReadOnlyList<ConnectorSummary>> ListConnectorsAsync(
@@ -42,18 +40,18 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
             .ConfigureAwait(false);
 
         var connectors = new List<ConnectorSummary>();
-        foreach (var item in JsonRead.Items(document.RootElement))
+        foreach (var item in ODataItems(document.RootElement))
         {
-            var name = JsonRead.String(item, "name");
+            var name = JsonElementReader.TryGetString(item, "name");
             if (string.IsNullOrWhiteSpace(name))
                 continue;
 
-            var properties = JsonRead.Object(item, "properties") ?? default;
+            var properties = JsonElementReader.TryGetObject(item, "properties") ?? default;
             var connector = new ConnectorSummary(
                 Name: name,
-                DisplayName: JsonRead.String(properties, "displayName"),
-                Description: JsonRead.String(properties, "description"),
-                Tier: JsonRead.String(properties, "tier"));
+                DisplayName: JsonElementReader.TryGetString(properties, "displayName"),
+                Description: JsonElementReader.TryGetString(properties, "description"),
+                Tier: JsonElementReader.TryGetString(properties, "tier"));
 
             if (string.IsNullOrWhiteSpace(search)
                 || connector.Name.Contains(search, StringComparison.OrdinalIgnoreCase)
@@ -282,20 +280,20 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
 
     private static ConnectionDetail ReadConnection(string connectionId, JsonElement payload)
     {
-        var properties = JsonRead.Object(payload, "properties") ?? default;
-        var owner = JsonRead.Object(properties, "createdBy") ?? default;
+        var properties = JsonElementReader.TryGetObject(payload, "properties") ?? default;
+        var owner = JsonElementReader.TryGetObject(properties, "createdBy") ?? default;
         string? status = null;
         if (properties.ValueKind == JsonValueKind.Object
             && properties.TryGetProperty("statuses", out var statuses)
             && statuses.ValueKind == JsonValueKind.Array)
         {
-            status = statuses.EnumerateArray().Select(e => JsonRead.String(e, "status")).FirstOrDefault(v => v is not null);
+            status = statuses.EnumerateArray().Select(e => JsonElementReader.TryGetString(e, "status")).FirstOrDefault(v => v is not null);
         }
 
         return new ConnectionDetail(
             ConnectionId: connectionId,
-            OwnerName: JsonRead.String(owner, "displayName"),
-            OwnerPrincipalName: JsonRead.String(owner, "userPrincipalName") ?? JsonRead.String(owner, "email"),
+            OwnerName: JsonElementReader.TryGetString(owner, "displayName"),
+            OwnerPrincipalName: JsonElementReader.TryGetString(owner, "userPrincipalName") ?? JsonElementReader.TryGetString(owner, "email"),
             Status: status);
     }
 
@@ -325,24 +323,24 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
     internal static IReadOnlyList<OperationSearchHit> ReadSearchHits(JsonElement root, int top)
     {
         var hits = new List<OperationSearchHit>();
-        foreach (var item in JsonRead.Items(root))
+        foreach (var item in ODataItems(root))
         {
-            var name = JsonRead.String(item, "name");
+            var name = JsonElementReader.TryGetString(item, "name");
             if (string.IsNullOrWhiteSpace(name))
                 continue;
 
-            var properties = JsonRead.Object(item, "properties") ?? default;
-            var summary = JsonRead.String(properties, "summary");
+            var properties = JsonElementReader.TryGetObject(item, "properties") ?? default;
+            var summary = JsonElementReader.TryGetString(properties, "summary");
             if (IsDeprecatedHit(properties, summary))
                 continue;
 
-            var group = JsonRead.Object(properties, "operationGroup") ?? default;
+            var group = JsonElementReader.TryGetObject(properties, "operationGroup") ?? default;
             hits.Add(new OperationSearchHit(
                 Name: name,
                 DisplayName: summary,
-                Description: JsonRead.String(properties, "description"),
-                ConnectorName: JsonRead.String(group, "name"),
-                ConnectorDisplayName: JsonRead.String(group, "displayName")));
+                Description: JsonElementReader.TryGetString(properties, "description"),
+                ConnectorName: JsonElementReader.TryGetString(group, "name"),
+                ConnectorDisplayName: JsonElementReader.TryGetString(group, "displayName")));
 
             if (top > 0 && hits.Count >= top)
                 break;
@@ -352,11 +350,21 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
     }
 
     private static bool IsDeprecatedHit(JsonElement properties, string? summary)
-        => (properties.ValueKind == JsonValueKind.Object
-                && properties.TryGetProperty("isDeprecated", out var flag)
-                && flag.ValueKind == JsonValueKind.True)
-            || string.Equals(JsonRead.String(properties, "status"), "Deprecated", StringComparison.OrdinalIgnoreCase)
+        => OperationSchemaReader.IsDeprecated(properties)
             || (summary?.Contains("(deprecated)", StringComparison.OrdinalIgnoreCase) ?? false);
+
+    /// <summary>Items of a bare array, or of the <c>value</c> array of an OData envelope.</summary>
+    private static IEnumerable<JsonElement> ODataItems(JsonElement root)
+    {
+        if (root.ValueKind == JsonValueKind.Array)
+            return root.EnumerateArray();
+
+        return root.ValueKind == JsonValueKind.Object
+            && root.TryGetProperty("value", out var value)
+            && value.ValueKind == JsonValueKind.Array
+                ? value.EnumerateArray()
+                : [];
+    }
 
     /// <summary>
     /// Resolves the profile to its per-environment API host and a token, once
@@ -365,38 +373,13 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
     private async Task<EnvironmentTarget> ResolveTargetAsync(string? profileName, CancellationToken ct)
     {
         var ctx = await _resolver.ResolveAsync(profileName, ct).ConfigureAwait(false);
-        var environmentId = await ResolveEnvironmentIdAsync(ctx, ct).ConfigureAwait(false);
+        var environmentId = await _environmentIds.ResolveAsync(ctx.Connection, ctx.Credential, ct).ConfigureAwait(false);
         var baseUri = PowerPlatformEnvironmentApiEndpoints.BuildBaseUri(
             environmentId, ctx.Connection.Cloud ?? CloudInstance.Public);
         var cloud = ctx.Connection.Cloud ?? CloudInstance.Public;
         var token = await _client.AcquireTokenAsync(ctx.Connection, ctx.Credential, ct).ConfigureAwait(false);
 
         return new EnvironmentTarget(baseUri, token, environmentId, cloud, ctx.Connection, ctx.Credential);
-    }
-
-    private async Task<Guid> ResolveEnvironmentIdAsync(ResolvedProfileContext ctx, CancellationToken ct)
-    {
-        if (ctx.Connection.EnvironmentId.HasValue)
-            return ctx.Connection.EnvironmentId.Value;
-
-        if (string.IsNullOrWhiteSpace(ctx.Connection.EnvironmentUrl)
-            || !Uri.TryCreate(ctx.Connection.EnvironmentUrl, UriKind.Absolute, out var environmentUrl))
-        {
-            throw new InvalidOperationException(
-                $"Connection '{ctx.Connection.Id}' has no EnvironmentUrl or EnvironmentId.");
-        }
-
-        _logger.LogDebug(
-            "EnvironmentId not stored on connection '{ConnectionId}'. Resolving via Power Platform catalog...",
-            ctx.Connection.Id);
-
-        var environment = await _catalog
-            .TryGetByEnvironmentUrlAsync(ctx.Connection, ctx.Credential, environmentUrl, ct)
-            .ConfigureAwait(false)
-            ?? throw new InvalidOperationException(
-                $"Could not resolve Power Platform environment for URL '{environmentUrl}'.");
-
-        return environment.EnvironmentId;
     }
 
     private sealed record EnvironmentTarget(

@@ -49,10 +49,33 @@ public sealed record OperationSearchHit(
     string? ConnectorDisplayName);
 
 /// <summary>
+/// How a <see cref="DynamicValuesRef"/> argument names another parameter of
+/// the same operation: <c>$ref:name</c>, or <c>$ref?:name</c> when it is
+/// passed only if chosen. Anything else is a literal.
+/// </summary>
+public static class ResolverArgument
+{
+    private const string Prefix = "$ref:";
+    private const string OptionalPrefix = "$ref?:";
+
+    public static string Reference(string parameter, bool optional = false)
+        => (optional ? OptionalPrefix : Prefix) + parameter;
+
+    /// <summary>The parameter an argument refers to, or null for a literal.</summary>
+    public static string? Referenced(string? argument, out bool optional)
+    {
+        optional = argument?.StartsWith(OptionalPrefix, StringComparison.Ordinal) ?? false;
+        if (optional)
+            return argument![OptionalPrefix.Length..];
+        return argument?.StartsWith(Prefix, StringComparison.Ordinal) ?? false ? argument[Prefix.Length..] : null;
+    }
+}
+
+/// <summary>
 /// A pointer to the connector operation that resolves a parameter at design
 /// time (the designer's dropdowns, tree pickers and dynamic sub-schemas).
 /// Arguments that reference another parameter of the same operation are
-/// rendered as <c>$ref:name</c>.
+/// written as <see cref="ResolverArgument"/> describes.
 /// </summary>
 /// <remarks>
 /// <see cref="ItemsPath"/>, <see cref="ValuePath"/> and <see cref="TitlePath"/>

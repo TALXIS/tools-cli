@@ -18,15 +18,15 @@ internal static class SwaggerOperationIndexer
     /// </summary>
     public static ConnectorDetail Index(JsonElement connectorPayload, string fallbackName, string? search)
     {
-        var name = JsonRead.String(connectorPayload, "name") ?? fallbackName;
-        var properties = JsonRead.Object(connectorPayload, "properties");
-        var displayName = properties is { } p ? JsonRead.String(p, "displayName") : null;
+        var name = JsonElementReader.TryGetString(connectorPayload, "name") ?? fallbackName;
+        var properties = JsonElementReader.TryGetObject(connectorPayload, "properties");
+        var displayName = properties is { } p ? JsonElementReader.TryGetString(p, "displayName") : null;
 
         var operations = new List<ConnectorOperationSummary>();
 
         if (properties is { } props
-            && JsonRead.Object(props, "swagger") is { } swagger
-            && JsonRead.Object(swagger, "paths") is { } paths)
+            && JsonElementReader.TryGetObject(props, "swagger") is { } swagger
+            && JsonElementReader.TryGetObject(swagger, "paths") is { } paths)
         {
             foreach (var pathEntry in paths.EnumerateObject())
             {
@@ -42,14 +42,14 @@ internal static class SwaggerOperationIndexer
                     }
 
                     var operation = methodEntry.Value;
-                    var operationId = JsonRead.String(operation, "operationId");
+                    var operationId = JsonElementReader.TryGetString(operation, "operationId");
                     if (string.IsNullOrWhiteSpace(operationId) || IsInternal(operation))
                         continue;
 
                     operations.Add(new ConnectorOperationSummary(
                         OperationId: operationId,
                         Kind: ResolveKind(pathEntry.Value, operation),
-                        Summary: JsonRead.String(operation, "summary") ?? JsonRead.String(operation, "description"),
+                        Summary: JsonElementReader.TryGetString(operation, "summary") ?? JsonElementReader.TryGetString(operation, "description"),
                         Method: methodEntry.Name.ToUpperInvariant(),
                         Path: pathEntry.Name,
                         IsDeprecated: IsDeprecated(operation)));
@@ -73,7 +73,7 @@ internal static class SwaggerOperationIndexer
         return new ConnectorDetail(
             Name: name,
             DisplayName: displayName,
-            ApiId: PowerAutomateEndpointProvider.BuildApiId(name),
+            ApiId: ConnectorIds.ToPath(name),
             OperationCount: operations.Count,
             MatchedOperations: matched,
             Operations: result);
@@ -100,10 +100,10 @@ internal static class SwaggerOperationIndexer
     /// the designer never offers them and a flow must not call them.
     /// </summary>
     private static bool IsInternal(JsonElement operation)
-        => string.Equals(JsonRead.String(operation, "x-ms-visibility"), "internal", StringComparison.OrdinalIgnoreCase);
+        => string.Equals(JsonElementReader.TryGetString(operation, "x-ms-visibility"), "internal", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsDeprecated(JsonElement operation)
         => (operation.TryGetProperty("deprecated", out var deprecated) && deprecated.ValueKind == JsonValueKind.True)
-            || (JsonRead.Object(operation, "x-ms-api-annotation") is { } annotation
-                && string.Equals(JsonRead.String(annotation, "status"), "Deprecated", StringComparison.OrdinalIgnoreCase));
+            || (JsonElementReader.TryGetObject(operation, "x-ms-api-annotation") is { } annotation
+                && string.Equals(JsonElementReader.TryGetString(annotation, "status"), "Deprecated", StringComparison.OrdinalIgnoreCase));
 }

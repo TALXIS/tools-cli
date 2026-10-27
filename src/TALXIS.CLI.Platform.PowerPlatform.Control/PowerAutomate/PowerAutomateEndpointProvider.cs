@@ -96,8 +96,4 @@ internal static class PowerAutomateEndpointProvider
             && !operation.EndsWith("WithOrganization", StringComparison.Ordinal)
                 ? (operation + "WithOrganization", "organization")
                 : null;
-
-    /// <summary>The id a flow definition uses to reference a connector.</summary>
-    public static string BuildApiId(string connector)
-        => $"/providers/Microsoft.PowerApps/apis/{connector}";
 }
