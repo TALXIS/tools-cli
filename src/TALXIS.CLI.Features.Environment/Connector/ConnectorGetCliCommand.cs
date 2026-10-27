@@ -35,7 +35,7 @@ public class ConnectorGetCliCommand : ProfiledCliCommand
 #pragma warning disable TXC003
     private static void PrintConnector(ConnectorDetail connector)
     {
-        OutputWriter.WriteLine($"{connector.DisplayName ?? connector.Name} ({connector.ApiId})");
+        OutputWriter.WriteLine($"{connector.DisplayName ?? connector.LogicalName} ({connector.ApiId})");
         OutputWriter.WriteLine(connector.MatchedOperations is { } matched
             ? $"{matched} of {connector.OperationCount} operations matched"
             : $"{connector.OperationCount} operations");

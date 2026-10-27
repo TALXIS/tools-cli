@@ -17,7 +17,7 @@ Commands are shown as CLI; the MCP tool name is in brackets (spaces become `_`).
    - `needs-values` — choose the listed parameters first; the message has the command for each.
    - `needs-consent` — the answer is read through the user's connection (the message says which and whose). Ask once per connection, e.g. *"May I use your Dataverse connection mtj_dataverse to read table metadata? It only reads; nothing is changed."* If they agree, re-run with `--use-connection` and keep passing it for that connection for the rest of the task.
    - `needs-choice` — several connection references could be used; `choices` describes each (display name, owner, status). Ask the user which the flow should use, then re-run with `--connection-reference <logical name>` and keep passing it.
-   - `needs-connection` — no connection reference for the connector is bound. Ask the user to create one (in a solution: New → More → Connection reference) and re-run. Don't create connections yourself; never ask for a sample flow.
+   - `needs-connection` — no connection reference for the connector is bound. Ask the user to create one and bind it to a connection, then re-run. A connection signs in as a person: never create one without the user's agreement, and never ask for a sample flow.
 
 Ask question 3 only for parameters you set and outputs you read. Then write the step into the definition and `dotnet build`.
 

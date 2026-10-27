@@ -15,7 +15,7 @@ public class FlowSnippetTests
             DynamicValues: null, DynamicTree: null, DynamicSchema: schema, ValueLabels: labels);
 
     private static OperationDetail Trigger() => new(
-        "shared_commondataserviceforapps", "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+        "shared_commondataserviceforapps", "shared_commondataserviceforapps",
         "SubscribeWebhookTrigger", "When a row is added, modified or deleted", null, "OpenApiConnectionWebhook", false,
         [
             Param("subscriptionRequest/message", "integer", allowed: ["1", "3"], labels: new Dictionary<string, string> { ["3"] = "Modified" }),
@@ -34,6 +34,7 @@ public class FlowSnippetTests
         Assert.Null(step["runAfter"]);
         Assert.Equal("@parameters('$authentication')", (string?)step["inputs"]!["authentication"]);
         Assert.Equal("shared_commondataserviceforapps", (string?)step["inputs"]!["host"]!["connectionName"]);
+        Assert.Equal("/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps", (string?)step["inputs"]!["host"]!["apiId"]);
 
         // Required parameters are present, optional ones stay out.
         var parameters = step["inputs"]!["parameters"]!.AsObject();
@@ -53,7 +54,7 @@ public class FlowSnippetTests
     [Fact]
     public void UnresolvedSubSchema_PointsToResolve()
     {
-        var action = new OperationDetail("shared_commondataserviceforapps", "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+        var action = new OperationDetail("shared_commondataserviceforapps", "shared_commondataserviceforapps",
             "CreateRecord", "Add a new row", null, "OpenApiConnection", false,
             [Param("entityName"), Param("item", "object", schema: new DynamicValuesRef("GetMetadataForPostEntity", null))]);
 

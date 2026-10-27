@@ -81,8 +81,6 @@ internal static class OutputViews
 
 internal static class ParameterViews
 {
-    private const string ParameterReferencePrefix = "$ref:";
-
     public static IReadOnlyList<ParameterView> From(OperationDetail operation)
         => operation.Parameters.Select(p => From(operation, p)).ToList();
 
@@ -111,8 +109,8 @@ internal static class ParameterViews
     /// <summary>The parameters of the operation a lookup takes as inputs.</summary>
     public static List<string> Dependencies(DynamicValuesRef reference)
         => (reference.Parameters?.Values ?? [])
-            .Where(v => v is not null && v.StartsWith(ParameterReferencePrefix, StringComparison.Ordinal))
-            .Select(v => v![ParameterReferencePrefix.Length..])
+            .Select(v => ResolverArgument.Referenced(v, out var optional) is { } name && !optional ? name : null)
+            .OfType<string>()
             .Distinct(StringComparer.Ordinal)
             .ToList();
 

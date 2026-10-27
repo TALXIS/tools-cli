@@ -3,7 +3,9 @@ using System.Text.Json;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Identity;
 using TALXIS.CLI.Core.Model;
+using TALXIS.CLI.Core.Platforms.PowerPlatform;
 using TALXIS.CLI.Platform.PowerPlatform.Control;
+using TALXIS.CLI.Platform.PowerPlatform.Control.Http;
 using TALXIS.CLI.Platform.PowerPlatform.Control.PowerAutomate;
 using Xunit;
 
@@ -89,7 +91,7 @@ public class ConnectorMetadataServiceTests
 
         var connectors = await fake.Service.ListConnectorsAsync(null, "outlook", CancellationToken.None);
 
-        Assert.Equal("shared_office365", Assert.Single(connectors).Name);
+        Assert.Equal("shared_office365", Assert.Single(connectors).LogicalName);
     }
 
     [Fact]
@@ -190,32 +192,37 @@ public class ConnectorMetadataServiceTests
         return Json(HttpStatusCode.NotFound, "{}");
     });
 
-    private static Task<TALXIS.CLI.Core.Platforms.PowerPlatform.OperationResolution> Resolve(
-        Fake fake, bool useConnection, params (string Name, string Value)[] values)
-        => fake.Service.ResolveOperationAsync(
-            null, "shared_teams", "PostMessageToConversation", "mtj_sharedteams", ConnectionId,
-            values.ToDictionary(v => v.Name, v => v.Value), null, null, useConnection, CancellationToken.None);
+    private static Task<OperationResolution> Resolve(
+        Fake fake, string parameter, bool useConnection, params (string Name, string Value)[] values)
+        => Resolve(fake, "shared_teams", "PostMessageToConversation", parameter, useConnection, values);
+
+    private static async Task<OperationResolution> Resolve(
+        Fake fake, string connector, string operation, string parameter, bool useConnection, params (string Name, string Value)[] values)
+    {
+        var detail = await fake.Service.GetOperationAsync(null, connector, operation, CancellationToken.None);
+        return await fake.Service.ResolveOperationAsync(
+            null,
+            new OperationResolutionRequest(detail, parameter, IsOutput: false, values.ToDictionary(v => v.Name, v => v.Value), ConnectionId, useConnection),
+            CancellationToken.None);
+    }
 
     [Fact]
     public async Task Resolve_WithoutConsent_CallsNothingThroughTheConnection()
     {
         var fake = TeamsFake();
 
-        var plan = await Resolve(fake, useConnection: false, ("poster", "Flow bot"));
+        var plan = await Resolve(fake, "location", useConnection: false, ("poster", "Flow bot"));
 
         Assert.False(plan.ConnectionUsed);
-        Assert.DoesNotContain(fake.Requests, r => r.Uri.ToString().StartsWith(Runtime, StringComparison.Ordinal));
-        Assert.DoesNotContain(fake.Audiences, ApiHubAudiences.IsApiHub);
-        Assert.Equal("Matej", plan.Connection.OwnerName);
-        Assert.Equal("Connected", plan.Connection.Status);
-
-        var location = Assert.Single(plan.Lookups, l => l.Parameter == "location");
-        Assert.Equal("planned", location.Status);
+        Assert.Equal("planned", Assert.Single(plan.Lookups).Status);
 
         // body also needs the location, which has not been chosen yet.
-        var body = Assert.Single(plan.Lookups, l => l.Parameter == "body");
+        var body = Assert.Single((await Resolve(fake, "body", useConnection: false, ("poster", "Flow bot"))).Lookups);
         Assert.Equal("skipped", body.Status);
         Assert.Contains("'location'", body.Reason);
+
+        Assert.DoesNotContain(fake.Requests, r => r.Uri.ToString().StartsWith(Runtime, StringComparison.Ordinal));
+        Assert.DoesNotContain(fake.Audiences, ApiHubAudiences.IsApiHub);
     }
 
     [Fact]
@@ -223,20 +230,56 @@ public class ConnectorMetadataServiceTests
     {
         var fake = TeamsFake();
 
-        var result = await Resolve(fake, useConnection: true, ("poster", "Flow bot"), ("location", "Chat with Flow bot"));
+        var locations = await Resolve(fake, "location", useConnection: true, ("poster", "Flow bot"));
 
-        Assert.True(result.ConnectionUsed);
+        Assert.True(locations.ConnectionUsed);
         Assert.Contains(new Uri(ApiHubAudiences.Public), fake.Audiences);
         Assert.Contains(fake.Requests, r => r.Uri.AbsoluteUri == Runtime + "/" + ConnectionId + "/flowbot/messageType/ParentMessage/poster/Flow%20bot");
         Assert.Equal(["Channel", "Chat with Flow bot"],
-            Assert.Single(result.Operation.Parameters, p => p.Name == "location").AllowedValues);
+            Assert.Single(locations.Operation.Parameters, p => p.Name == "location").AllowedValues);
 
-        var names = result.Operation.Parameters.Select(p => p.Name).ToList();
+        var body = await Resolve(fake, "body", useConnection: true, ("poster", "Flow bot"), ("location", "Chat with Flow bot"));
+        var names = body.Operation.Parameters.Select(p => p.Name).ToList();
         Assert.Contains("body/recipient", names);
         Assert.Contains("body/messageBody", names);
         Assert.DoesNotContain("body", names);
-        Assert.True(Assert.Single(result.Operation.Parameters, p => p.Name == "body/recipient").Required);
-        Assert.All(result.Lookups.Where(l => l.Parameter != "tag"), l => Assert.Equal("resolved", l.Status));
+        Assert.True(Assert.Single(body.Operation.Parameters, p => p.Name == "body/recipient").Required);
+        Assert.Equal("resolved", Assert.Single(body.Lookups).Status);
+    }
+
+    [Fact]
+    public async Task GetConnection_ReadsItsOwnerAndStatus()
+    {
+        var connection = await TeamsFake().Service.GetConnectionAsync(null, "shared_teams", ConnectionId, CancellationToken.None);
+
+        Assert.Equal("Matej", connection.OwnerName);
+        Assert.Equal("matej@contoso.com", connection.OwnerPrincipalName);
+        Assert.Equal("Connected", connection.Status);
+    }
+
+    [Fact]
+    public async Task SeveralCallsInOneCommand_ResolveTheProfileOnce()
+    {
+        var fake = TeamsFake();
+
+        await Resolve(fake, "location", useConnection: false, ("poster", "Flow bot"));
+        await fake.Service.GetConnectionAsync(null, "shared_teams", ConnectionId, CancellationToken.None);
+
+        Assert.Equal(1, fake.ProfileResolutions);
+    }
+
+    [Fact]
+    public async Task Resolve_AFailedLookupFailsInsteadOfReportingAStatus()
+    {
+        var teams = TeamsFake();
+        var fake = new Fake(request => request.RequestUri!.ToString().StartsWith(Runtime, StringComparison.Ordinal)
+            ? Json(HttpStatusCode.Unauthorized, """{ "error": "connection expired" }""")
+            : teams.Respond(request));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => Resolve(fake, "location", useConnection: true, ("poster", "Flow bot")));
+
+        Assert.Contains("connection expired", ex.Message);
     }
 
     [Fact]
@@ -244,9 +287,9 @@ public class ConnectorMetadataServiceTests
     {
         var fake = TeamsFake();
 
-        var result = await Resolve(fake, useConnection: true, ("poster", "Flow bot"), ("location", "Channel"));
+        var result = await Resolve(fake, "tag", useConnection: true, ("poster", "Flow bot"), ("location", "Channel"));
 
-        var tag = Assert.Single(result.Lookups, l => l.Parameter == "tag");
+        var tag = Assert.Single(result.Lookups);
         Assert.Equal("skipped", tag.Status);
         Assert.Contains("DELETE", tag.Reason);
         Assert.DoesNotContain(fake.Requests, r => r.Method == HttpMethod.Delete);
@@ -275,6 +318,12 @@ public class ConnectorMetadataServiceTests
                       "itemsPath": "value", "itemValuePath": "Value", "itemTitlePath": "DisplayName",
                       "parameters": { "organization": { "parameterReference": "organization" },
                                       "body/entityName": { "parameterReference": "subscriptionRequest/entityname" } } } } } }
+                } } } }
+                """);
+        if (uri.Contains("/apiOperations/ListRecords?", StringComparison.Ordinal))
+            return Json(HttpStatusCode.OK, """
+                { "properties": { "inputsDefinition": { "properties": {
+                  "entityName": { "type": "string", "x-ms-dynamic-list": { "operationId": "GetEntitySets", "parameters": {} } }
                 } } } }
                 """);
         if (uri.Contains("/apiOperations/SubscribeWebhookTrigger", StringComparison.Ordinal))
@@ -306,9 +355,8 @@ public class ConnectorMetadataServiceTests
     {
         var fake = DataverseFake();
 
-        var result = await fake.Service.ResolveOperationAsync(
-            null, "shared_commondataserviceforapps", "SubscribeWebhookTrigger", "mtj_dataverse", ConnectionId,
-            new Dictionary<string, string> { ["subscriptionRequest/entityname"] = "account" }, null, null, useConnection: true, CancellationToken.None);
+        var result = await Resolve(fake, "shared_commondataserviceforapps", "SubscribeWebhookTrigger", "subscriptionRequest/scope",
+            useConnection: true, ("subscriptionRequest/entityname", "account"));
 
         var lookup = Assert.Single(result.Lookups);
         Assert.Equal("GetScopeFiltersWithOrganization", lookup.OperationId);
@@ -329,6 +377,20 @@ public class ConnectorMetadataServiceTests
         var scope = Assert.Single(result.Operation.Parameters, p => p.Name == "subscriptionRequest/scope");
         Assert.Equal(["1", "4"], scope.AllowedValues);
         Assert.Equal("Organization", scope.ValueLabels!["4"]);
+    }
+
+    [Fact]
+    public async Task Resolve_Dataverse_WithoutATwin_SaysSoInsteadOfPlanningLookupsThatCannotAnswer()
+    {
+        var fake = DataverseFake();
+
+        var result = await Resolve(fake, "shared_commondataserviceforapps", "ListRecords", "entityName", useConnection: true);
+
+        var lookup = Assert.Single(result.Lookups);
+        Assert.Equal("skipped", lookup.Status);
+        Assert.Contains("ListRecordsWithOrganization", lookup.Reason);
+        Assert.False(result.ConnectionUsed);
+        Assert.DoesNotContain(fake.Requests, r => r.Uri.ToString().StartsWith(DataverseRuntime, StringComparison.Ordinal));
     }
 
     private static HttpResponseMessage Json(HttpStatusCode status, string body)
@@ -352,17 +414,25 @@ public class ConnectorMetadataServiceTests
                 EnvironmentId = storeEnvironmentId ? EnvironmentId : null,
                 Cloud = CloudInstance.Public,
             };
-            Service = new ConnectorMetadataService(this, Catalog, this, this);
+            Service = new ConnectorMetadataService(
+                this, new EnvironmentIdResolver(Catalog), new PowerAutomateApiClient(this, new RetryingHttpSender(this)));
         }
 
         public ConnectorMetadataService Service { get; }
+
+        public HttpResponseMessage Respond(HttpRequestMessage request) => _handler(request);
         public FakeCatalog Catalog { get; } = new();
         public List<Uri> Audiences { get; } = new();
         public List<RecordedRequest> Requests { get; } = new();
 
+        public int ProfileResolutions { get; private set; }
+
         public Task<ResolvedProfileContext> ResolveAsync(string? profileName, CancellationToken ct)
-            => Task.FromResult(new ResolvedProfileContext(
+        {
+            ProfileResolutions++;
+            return Task.FromResult(new ResolvedProfileContext(
                 null, _connection, new Credential { Id = "cred", Kind = CredentialKind.InteractiveBrowser }, ResolutionSource.Ephemeral));
+        }
 
         public Task<string> AcquireForResourceAsync(Connection connection, Credential credential, Uri resourceUri, CancellationToken ct)
         {

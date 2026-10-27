@@ -107,6 +107,25 @@ public class OperationSchemaReaderTests
         Assert.Equal("ListFolders", Param(operation, "folder").DynamicTree!.OperationId);
     }
 
+    [Fact]
+    public void OlderDynamicValuesVocabulary_ReadsItsParameterReference()
+    {
+        // x-ms-dynamic-values names the source parameter "parameter", where
+        // x-ms-dynamic-list says "parameterReference".
+        var operation = Read("""
+            { "properties": { "inputsDefinition": { "properties": {
+              "location": { "type": "string", "x-ms-dynamic-values": { "operationId": "GetMessageLocations",
+                "value-collection": "value", "value-path": "id", "value-title": "name",
+                "parameters": { "poster": { "parameter": "poster" }, "messageType": "ParentMessage" } } }
+            } } } }
+            """);
+
+        var values = Param(operation, "location").DynamicValues!;
+        Assert.Equal("$ref:poster", values.Parameters!["poster"]);
+        Assert.Equal("ParentMessage", values.Parameters["messageType"]);
+        Assert.Equal(("value", "id", "name"), (values.ItemsPath, values.ValuePath, values.TitlePath));
+    }
+
     [Theory]
     // Seen live: operationType is stated, and family is just the operation's name.
     [InlineData("""{ "operationType": "OpenApiConnectionWebhook", "annotation": { "family": "SubscribeWebhookTrigger" } }""", "SubscribeWebhookTrigger", "OpenApiConnectionWebhook")]
@@ -121,11 +140,11 @@ public class OperationSchemaReaderTests
     }
 
     [Fact]
-    public void Detail_CarriesTheApiIdAFlowDefinitionReferences()
+    public void Detail_CarriesTheShortApiId()
     {
         var operation = Read("""{ "properties": { "summary": "List rows", "isDeprecated": true } }""");
 
-        Assert.Equal("/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps", operation.ApiId);
+        Assert.Equal("shared_commondataserviceforapps", operation.ApiId);
         Assert.Equal("List rows", operation.Summary);
         Assert.True(operation.IsDeprecated);
         Assert.Empty(operation.Parameters);

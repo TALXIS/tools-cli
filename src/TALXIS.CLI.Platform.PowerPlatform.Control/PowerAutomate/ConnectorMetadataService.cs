@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
@@ -12,25 +13,24 @@ namespace TALXIS.CLI.Platform.PowerPlatform.Control.PowerAutomate;
 /// Reads Power Automate connector metadata from the environment bound to the
 /// profile through the per-environment <c>/powerautomate</c> routes.
 /// </summary>
-public sealed class ConnectorMetadataService : IConnectorMetadataService
+internal sealed class ConnectorMetadataService : IConnectorMetadataService
 {
     private readonly IConfigurationResolver _resolver;
-    private readonly IPowerPlatformEnvironmentCatalog _catalog;
+    private readonly IEnvironmentIdResolver _environmentIds;
     private readonly PowerAutomateApiClient _client;
     private readonly ILogger<ConnectorMetadataService> _logger;
+    private readonly ConcurrentDictionary<string, Task<ResolvedProfile>> _profiles = new(StringComparer.Ordinal);
 
     public ConnectorMetadataService(
         IConfigurationResolver resolver,
-        IPowerPlatformEnvironmentCatalog catalog,
-        IAccessTokenService tokens,
-        IHttpClientFactoryWrapper? httpFactory = null,
-        ILoggerFactory? loggerFactory = null)
+        IEnvironmentIdResolver environmentIds,
+        PowerAutomateApiClient client,
+        ILogger<ConnectorMetadataService>? logger = null)
     {
         _resolver = resolver ?? throw new ArgumentNullException(nameof(resolver));
-        _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
-        _logger = loggerFactory?.CreateLogger<ConnectorMetadataService>()
-            ?? NullLogger<ConnectorMetadataService>.Instance;
-        _client = new PowerAutomateApiClient(tokens, httpFactory, _logger);
+        _environmentIds = environmentIds ?? throw new ArgumentNullException(nameof(environmentIds));
+        _client = client ?? throw new ArgumentNullException(nameof(client));
+        _logger = logger ?? NullLogger<ConnectorMetadataService>.Instance;
     }
 
     public async Task<IReadOnlyList<ConnectorSummary>> ListConnectorsAsync(
@@ -42,28 +42,29 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
             .ConfigureAwait(false);
 
         var connectors = new List<ConnectorSummary>();
-        foreach (var item in JsonRead.Items(document.RootElement))
+        foreach (var item in ODataItems(document.RootElement))
         {
-            var name = JsonRead.String(item, "name");
+            var name = JsonElementReader.TryGetString(item, "name");
             if (string.IsNullOrWhiteSpace(name))
                 continue;
 
-            var properties = JsonRead.Object(item, "properties") ?? default;
+            var properties = JsonElementReader.TryGetObject(item, "properties") ?? default;
             var connector = new ConnectorSummary(
-                Name: name,
-                DisplayName: JsonRead.String(properties, "displayName"),
-                Description: JsonRead.String(properties, "description"),
-                Tier: JsonRead.String(properties, "tier"));
+                LogicalName: name,
+                ApiId: name,
+                DisplayName: JsonElementReader.TryGetString(properties, "displayName"),
+                Tier: JsonElementReader.TryGetString(properties, "tier"),
+                Description: JsonElementReader.TryGetString(properties, "description"));
 
             if (string.IsNullOrWhiteSpace(search)
-                || connector.Name.Contains(search, StringComparison.OrdinalIgnoreCase)
+                || connector.LogicalName.Contains(search, StringComparison.OrdinalIgnoreCase)
                 || (connector.DisplayName?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false))
             {
                 connectors.Add(connector);
             }
         }
 
-        connectors.Sort(static (a, b) => string.CompareOrdinal(a.Name, b.Name));
+        connectors.Sort(static (a, b) => string.CompareOrdinal(a.LogicalName, b.LogicalName));
         return connectors;
     }
 
@@ -71,6 +72,7 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
         string? profileName, string connector, string? search, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connector);
+        connector = ResolveConnector(connector);
 
         var target = await ResolveTargetAsync(profileName, ct).ConfigureAwait(false);
         using var document = await SendForLookupAsync(
@@ -88,7 +90,7 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
 
         var body = new JsonObject { ["searchText"] = search };
         if (!string.IsNullOrWhiteSpace(connector))
-            body["operationGroupName"] = connector;
+            body["operationGroupName"] = ResolveConnector(connector);
 
         var exclude = new JsonArray("Deprecated");
         switch (kind.ToLowerInvariant())
@@ -122,6 +124,7 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connector);
         ArgumentException.ThrowIfNullOrWhiteSpace(operation);
+        connector = ResolveConnector(connector);
 
         var target = await ResolveTargetAsync(profileName, ct).ConfigureAwait(false);
         using var document = await SendForLookupAsync(
@@ -133,61 +136,44 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
     }
 
     public async Task<OperationResolution> ResolveOperationAsync(
-        string? profileName,
-        string connector,
-        string operation,
-        string connectionReference,
-        string connectionId,
-        IReadOnlyDictionary<string, string> values,
-        string? parameter,
-        string? output,
-        bool useConnection,
-        CancellationToken ct)
+        string? profileName, OperationResolutionRequest request, CancellationToken ct)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(connector);
-        ArgumentException.ThrowIfNullOrWhiteSpace(operation);
-        ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
-        ArgumentNullException.ThrowIfNull(values);
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.Name);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.ConnectionId);
+        ArgumentNullException.ThrowIfNull(request.Values);
 
+        var detail = request.Operation;
+        var (connector, operation, name) = (detail.Connector, detail.OperationId, request.Name);
         var target = await ResolveTargetAsync(profileName, ct).ConfigureAwait(false);
 
         // Metadata only so far: none of these calls go through the connection.
-        OperationDetail detail;
-        using (var document = await SendForLookupAsync(
-            PowerAutomateEndpointProvider.Operation(target.BaseUri, connector, operation), target.Token,
-            $"Operation '{operation}' does not exist on connector '{connector}'. List its operations with 'environment connector get {connector}'.",
-            ct).ConfigureAwait(false))
-        {
-            detail = OperationSchemaReader.Read(connector, operation, document.RootElement);
-        }
-
         using var connectorDocument = await SendForLookupAsync(
             PowerAutomateEndpointProvider.Connector(target.BaseUri, connector), target.Token,
             $"Connector '{connector}' does not exist in this environment.",
             ct).ConfigureAwait(false);
 
-        ConnectionDetail connection;
-        using (var document = await SendForLookupAsync(
-            PowerAutomateEndpointProvider.Connection(target.Cloud, target.EnvironmentId, connector, connectionId), target.Token,
-            $"Connection '{connectionId}' behind '{connectionReference}' does not exist or is not visible to you.",
-            ct).ConfigureAwait(false))
+        var (lookupSource, lookupValues, unavailable) = await ResolveLookupSourceAsync(
+            target, connector, operation, detail, request.Values, ct).ConfigureAwait(false);
+        if (unavailable is not null)
         {
-            connection = ReadConnection(connectionId, document.RootElement);
+            // Its own lookups are known not to answer outside the designer.
+            var asked = (request.IsOutput ? detail.Outputs ?? [] : detail.Parameters).FirstOrDefault(p => p.Name == name);
+            var kind = asked is { DynamicValues: null, DynamicSchema: not null } ? DynamicLookupPlanner.SchemaKind : DynamicLookupPlanner.ValuesKind;
+            return new OperationResolution(detail, false,
+                [new DynamicLookup(name, kind, operation, DynamicLookupStatus.Skipped, unavailable)]);
         }
 
-        var (lookupSource, lookupValues) = await ResolveLookupSourceAsync(
-            target, connector, operation, detail, values, ct).ConfigureAwait(false);
         // Outputs are planned the same way as parameters: a dynamic output's
         // fields come from a lookup just like a dynamic input's.
-        var resolvingOutputs = output is not null;
+        var resolvingOutputs = request.IsOutput;
         var targets = resolvingOutputs ? detail.Outputs ?? [] : detail.Parameters;
         var source = resolvingOutputs ? lookupSource with { Parameters = lookupSource.Outputs ?? [] } : lookupSource;
-        var plan = DynamicLookupPlanner.Plan(source, connectorDocument.RootElement, connectionId, lookupValues)
-            .Where(p => targets.Any(d => d.Name == p.Parameter.Name))
-            .Where(p => (output ?? parameter) is not { } only || p.Parameter.Name == only)
+        var plan = DynamicLookupPlanner.Plan(source, connectorDocument.RootElement, request.ConnectionId, lookupValues)
+            .Where(p => p.Parameter.Name == name)
             .ToList();
-        if (!useConnection)
-            return new OperationResolution(detail, connection, false, plan.Select(p => p.Lookup).ToList());
+        if (!request.UseConnection)
+            return new OperationResolution(detail, false, plan.Select(p => p.Lookup).ToList());
 
         var runtimeToken = await _client.AcquireRuntimeTokenAsync(target.Connection, target.Credential, ct).ConfigureAwait(false);
         var parameters = targets;
@@ -201,25 +187,16 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
                 continue;
             }
 
-            try
-            {
-                using var response = await _client.SendAsync(
-                        planned.Method ?? HttpMethod.Get, planned.RequestUri, runtimeToken, planned.Body, ct, planned.Headers)
-                    .ConfigureAwait(false);
-                parameters = DynamicLookupPlanner.Apply(parameters, planned, response.RootElement, resolvingOutputs);
-                lookups.Add(planned.Lookup with { Status = DynamicLookupStatus.Resolved });
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                // One failed lookup (e.g. a choice the connection cannot see)
-                // must not hide the ones that did resolve.
-                _logger.LogDebug(ex, "Dynamic lookup {Operation} failed.", planned.Lookup.OperationId);
-                lookups.Add(planned.Lookup with { Status = DynamicLookupStatus.Failed, Reason = ex.Message });
-            }
+            // A failed lookup fails the command: it is the one answer asked for.
+            using var response = await _client.SendAsync(
+                    planned.Method ?? HttpMethod.Get, planned.RequestUri, runtimeToken, planned.Body, ct, planned.Headers)
+                .ConfigureAwait(false);
+            parameters = DynamicLookupPlanner.Apply(parameters, planned, response.RootElement, resolvingOutputs);
+            lookups.Add(planned.Lookup with { Status = DynamicLookupStatus.Resolved });
         }
 
         var resolved = resolvingOutputs ? detail with { Outputs = parameters } : detail with { Parameters = parameters };
-        return new OperationResolution(resolved, connection, true, lookups);
+        return new OperationResolution(resolved, true, lookups);
     }
 
     /// <summary>
@@ -227,9 +204,10 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
     /// Usually the operation itself; see
     /// <see cref="PowerAutomateEndpointProvider.EnvironmentScopedTwin"/> for the
     /// exception, where the twin's lookups are used and the environment is the
-    /// profile's own.
+    /// profile's own. <c>Unavailable</c> says why nothing can be looked up when
+    /// such an operation has no twin.
     /// </summary>
-    private async Task<(OperationDetail Source, IReadOnlyDictionary<string, string> Values)> ResolveLookupSourceAsync(
+    private async Task<(OperationDetail Source, IReadOnlyDictionary<string, string> Values, string? Unavailable)> ResolveLookupSourceAsync(
         EnvironmentTarget target,
         string connector,
         string operation,
@@ -240,7 +218,7 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
         if (PowerAutomateEndpointProvider.EnvironmentScopedTwin(connector, operation) is not { } twin
             || string.IsNullOrWhiteSpace(target.Connection.EnvironmentUrl))
         {
-            return (detail, values);
+            return (detail, values, null);
         }
 
         try
@@ -253,13 +231,13 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
             {
                 [twin.EnvironmentParameter] = target.Connection.EnvironmentUrl.TrimEnd('/'),
             };
-            return (OperationSchemaReader.Read(connector, twin.Operation, document.RootElement), withEnvironment);
+            return (OperationSchemaReader.Read(connector, twin.Operation, document.RootElement), withEnvironment, null);
         }
         catch (ArgumentException ex)
         {
-            // No twin for this operation: plan its own lookups.
             _logger.LogDebug(ex, "No {Twin} twin for {Operation}.", twin.Operation, operation);
-            return (detail, values);
+            return (detail, values,
+                $"'{operation}' has no '{twin.Operation}' counterpart, and its own lookups only answer inside the flow designer. Choose the value with the user.");
         }
     }
 
@@ -267,6 +245,7 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
         string? profileName, string connector, string connectionId, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connector);
+        connector = ResolveConnector(connector);
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
 
         var target = await ResolveTargetAsync(profileName, ct).ConfigureAwait(false);
@@ -279,22 +258,31 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
 
     private static ConnectionDetail ReadConnection(string connectionId, JsonElement payload)
     {
-        var properties = JsonRead.Object(payload, "properties") ?? default;
-        var owner = JsonRead.Object(properties, "createdBy") ?? default;
+        var properties = JsonElementReader.TryGetObject(payload, "properties") ?? default;
+        var owner = JsonElementReader.TryGetObject(properties, "createdBy") ?? default;
         string? status = null;
         if (properties.ValueKind == JsonValueKind.Object
             && properties.TryGetProperty("statuses", out var statuses)
             && statuses.ValueKind == JsonValueKind.Array)
         {
-            status = statuses.EnumerateArray().Select(e => JsonRead.String(e, "status")).FirstOrDefault(v => v is not null);
+            status = statuses.EnumerateArray().Select(e => JsonElementReader.TryGetString(e, "status")).FirstOrDefault(v => v is not null);
         }
 
         return new ConnectionDetail(
             ConnectionId: connectionId,
-            OwnerName: JsonRead.String(owner, "displayName"),
-            OwnerPrincipalName: JsonRead.String(owner, "userPrincipalName") ?? JsonRead.String(owner, "email"),
+            OwnerName: JsonElementReader.TryGetString(owner, "displayName"),
+            OwnerPrincipalName: JsonElementReader.TryGetString(owner, "userPrincipalName") ?? JsonElementReader.TryGetString(owner, "email"),
             Status: status);
     }
+
+    /// <summary>
+    /// The connector id the metadata routes take, for a connector named as
+    /// <c>shared_teams</c> or <c>/providers/Microsoft.PowerApps/apis/shared_teams</c>.
+    /// Every connector argument goes through here, so resolving a custom
+    /// connector's logical name (TALXIS/tools-cli#201's IConnectorResolver)
+    /// replaces this one method.
+    /// </summary>
+    private static string ResolveConnector(string connector) => ConnectorIds.ToShort(connector);
 
     /// <summary>
     /// A GET of a named connector or operation, where a 404 means the caller
@@ -322,24 +310,24 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
     internal static IReadOnlyList<OperationSearchHit> ReadSearchHits(JsonElement root, int top)
     {
         var hits = new List<OperationSearchHit>();
-        foreach (var item in JsonRead.Items(root))
+        foreach (var item in ODataItems(root))
         {
-            var name = JsonRead.String(item, "name");
+            var name = JsonElementReader.TryGetString(item, "name");
             if (string.IsNullOrWhiteSpace(name))
                 continue;
 
-            var properties = JsonRead.Object(item, "properties") ?? default;
-            var summary = JsonRead.String(properties, "summary");
+            var properties = JsonElementReader.TryGetObject(item, "properties") ?? default;
+            var summary = JsonElementReader.TryGetString(properties, "summary");
             if (IsDeprecatedHit(properties, summary))
                 continue;
 
-            var group = JsonRead.Object(properties, "operationGroup") ?? default;
+            var group = JsonElementReader.TryGetObject(properties, "operationGroup") ?? default;
             hits.Add(new OperationSearchHit(
                 Name: name,
                 DisplayName: summary,
-                Description: JsonRead.String(properties, "description"),
-                ConnectorName: JsonRead.String(group, "name"),
-                ConnectorDisplayName: JsonRead.String(group, "displayName")));
+                Description: JsonElementReader.TryGetString(properties, "description"),
+                ConnectorName: JsonElementReader.TryGetString(group, "name"),
+                ConnectorDisplayName: JsonElementReader.TryGetString(group, "displayName")));
 
             if (top > 0 && hits.Count >= top)
                 break;
@@ -349,52 +337,51 @@ public sealed class ConnectorMetadataService : IConnectorMetadataService
     }
 
     private static bool IsDeprecatedHit(JsonElement properties, string? summary)
-        => (properties.ValueKind == JsonValueKind.Object
-                && properties.TryGetProperty("isDeprecated", out var flag)
-                && flag.ValueKind == JsonValueKind.True)
-            || string.Equals(JsonRead.String(properties, "status"), "Deprecated", StringComparison.OrdinalIgnoreCase)
+        => OperationSchemaReader.IsDeprecated(properties)
             || (summary?.Contains("(deprecated)", StringComparison.OrdinalIgnoreCase) ?? false);
 
+    /// <summary>Items of a bare array, or of the <c>value</c> array of an OData envelope.</summary>
+    private static IEnumerable<JsonElement> ODataItems(JsonElement root)
+    {
+        if (root.ValueKind == JsonValueKind.Array)
+            return root.EnumerateArray();
+
+        return root.ValueKind == JsonValueKind.Object
+            && root.TryGetProperty("value", out var value)
+            && value.ValueKind == JsonValueKind.Array
+                ? value.EnumerateArray()
+                : [];
+    }
+
     /// <summary>
-    /// Resolves the profile to its per-environment API host and a token, once
-    /// per command, so a command logs and authenticates a single time.
+    /// The profile's per-environment API host and a token. The profile is
+    /// resolved once per profile name: a command calls this service several
+    /// times (operation, connection, lookup) and should resolve, log and look
+    /// up its environment id a single time. Each CLI command, including each
+    /// MCP tool call, runs in its own process, so this never outlives one
+    /// command. Tokens are not kept here; the token service caches them.
     /// </summary>
     private async Task<EnvironmentTarget> ResolveTargetAsync(string? profileName, CancellationToken ct)
     {
-        var ctx = await _resolver.ResolveAsync(profileName, ct).ConfigureAwait(false);
-        var environmentId = await ResolveEnvironmentIdAsync(ctx, ct).ConfigureAwait(false);
-        var baseUri = PowerPlatformEnvironmentApiEndpoints.BuildBaseUri(
-            environmentId, ctx.Connection.Cloud ?? CloudInstance.Public);
-        var cloud = ctx.Connection.Cloud ?? CloudInstance.Public;
-        var token = await _client.AcquireTokenAsync(ctx.Connection, ctx.Credential, ct).ConfigureAwait(false);
+        var profile = await _profiles.GetOrAdd(profileName ?? string.Empty, _ => ResolveProfileAsync(profileName, ct))
+            .ConfigureAwait(false);
+        var token = await _client.AcquireTokenAsync(profile.Connection, profile.Credential, ct).ConfigureAwait(false);
 
-        return new EnvironmentTarget(baseUri, token, environmentId, cloud, ctx.Connection, ctx.Credential);
+        return new EnvironmentTarget(profile.BaseUri, token, profile.EnvironmentId, profile.Cloud, profile.Connection, profile.Credential);
     }
 
-    private async Task<Guid> ResolveEnvironmentIdAsync(ResolvedProfileContext ctx, CancellationToken ct)
+    private async Task<ResolvedProfile> ResolveProfileAsync(string? profileName, CancellationToken ct)
     {
-        if (ctx.Connection.EnvironmentId.HasValue)
-            return ctx.Connection.EnvironmentId.Value;
+        var ctx = await _resolver.ResolveAsync(profileName, ct).ConfigureAwait(false);
+        var environmentId = await _environmentIds.ResolveAsync(ctx.Connection, ctx.Credential, ct).ConfigureAwait(false);
+        var cloud = ctx.Connection.Cloud ?? CloudInstance.Public;
+        var baseUri = PowerPlatformEnvironmentApiEndpoints.BuildBaseUri(environmentId, cloud);
 
-        if (string.IsNullOrWhiteSpace(ctx.Connection.EnvironmentUrl)
-            || !Uri.TryCreate(ctx.Connection.EnvironmentUrl, UriKind.Absolute, out var environmentUrl))
-        {
-            throw new InvalidOperationException(
-                $"Connection '{ctx.Connection.Id}' has no EnvironmentUrl or EnvironmentId.");
-        }
-
-        _logger.LogDebug(
-            "EnvironmentId not stored on connection '{ConnectionId}'. Resolving via Power Platform catalog...",
-            ctx.Connection.Id);
-
-        var environment = await _catalog
-            .TryGetByEnvironmentUrlAsync(ctx.Connection, ctx.Credential, environmentUrl, ct)
-            .ConfigureAwait(false)
-            ?? throw new InvalidOperationException(
-                $"Could not resolve Power Platform environment for URL '{environmentUrl}'.");
-
-        return environment.EnvironmentId;
+        return new ResolvedProfile(baseUri, environmentId, cloud, ctx.Connection, ctx.Credential);
     }
+
+    private sealed record ResolvedProfile(
+        Uri BaseUri, Guid EnvironmentId, CloudInstance Cloud, Connection Connection, Credential Credential);
 
     private sealed record EnvironmentTarget(
         Uri BaseUri, string Token, Guid EnvironmentId, CloudInstance Cloud, Connection Connection, Credential Credential);

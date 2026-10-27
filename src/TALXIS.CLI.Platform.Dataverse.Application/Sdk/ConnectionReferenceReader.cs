@@ -2,6 +2,7 @@ using Microsoft.PowerPlatform.Dataverse.Client;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Query;
 using TALXIS.CLI.Core.Contracts.Dataverse;
+using TALXIS.CLI.Core.Platforms.PowerPlatform;
 
 namespace TALXIS.CLI.Platform.Dataverse.Application.Sdk;
 
@@ -25,7 +26,7 @@ internal static class ConnectionReferenceReader
 
         // connectorid holds the full api id a flow definition also uses.
         if (!string.IsNullOrWhiteSpace(connector))
-            query.Criteria.AddCondition("connectorid", ConditionOperator.Equal, $"/providers/Microsoft.PowerApps/apis/{connector}");
+            query.Criteria.AddCondition("connectorid", ConditionOperator.Equal, ConnectorIds.ToPath(connector));
 
         query.AddOrder("connectionreferencelogicalname", OrderType.Ascending);
 
