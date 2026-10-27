@@ -3,6 +3,7 @@ using System.Text.Json;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Identity;
 using TALXIS.CLI.Core.Model;
+using TALXIS.CLI.Core.Platforms.PowerPlatform;
 using TALXIS.CLI.Platform.PowerPlatform.Control;
 using TALXIS.CLI.Platform.PowerPlatform.Control.Http;
 using TALXIS.CLI.Platform.PowerPlatform.Control.PowerAutomate;
@@ -191,11 +192,19 @@ public class ConnectorMetadataServiceTests
         return Json(HttpStatusCode.NotFound, "{}");
     });
 
-    private static Task<TALXIS.CLI.Core.Platforms.PowerPlatform.OperationResolution> Resolve(
+    private static Task<OperationResolution> Resolve(
         Fake fake, string parameter, bool useConnection, params (string Name, string Value)[] values)
-        => fake.Service.ResolveOperationAsync(
-            null, "shared_teams", "PostMessageToConversation", "mtj_sharedteams", ConnectionId,
-            values.ToDictionary(v => v.Name, v => v.Value), parameter, null, useConnection, CancellationToken.None);
+        => Resolve(fake, "shared_teams", "PostMessageToConversation", parameter, useConnection, values);
+
+    private static async Task<OperationResolution> Resolve(
+        Fake fake, string connector, string operation, string parameter, bool useConnection, params (string Name, string Value)[] values)
+    {
+        var detail = await fake.Service.GetOperationAsync(null, connector, operation, CancellationToken.None);
+        return await fake.Service.ResolveOperationAsync(
+            null,
+            new OperationResolutionRequest(detail, parameter, IsOutput: false, values.ToDictionary(v => v.Name, v => v.Value), ConnectionId, useConnection),
+            CancellationToken.None);
+    }
 
     [Fact]
     public async Task Resolve_WithoutConsent_CallsNothingThroughTheConnection()
@@ -205,8 +214,6 @@ public class ConnectorMetadataServiceTests
         var plan = await Resolve(fake, "location", useConnection: false, ("poster", "Flow bot"));
 
         Assert.False(plan.ConnectionUsed);
-        Assert.Equal("Matej", plan.Connection.OwnerName);
-        Assert.Equal("Connected", plan.Connection.Status);
         Assert.Equal("planned", Assert.Single(plan.Lookups).Status);
 
         // body also needs the location, which has not been chosen yet.
@@ -238,6 +245,27 @@ public class ConnectorMetadataServiceTests
         Assert.DoesNotContain("body", names);
         Assert.True(Assert.Single(body.Operation.Parameters, p => p.Name == "body/recipient").Required);
         Assert.Equal("resolved", Assert.Single(body.Lookups).Status);
+    }
+
+    [Fact]
+    public async Task GetConnection_ReadsItsOwnerAndStatus()
+    {
+        var connection = await TeamsFake().Service.GetConnectionAsync(null, "shared_teams", ConnectionId, CancellationToken.None);
+
+        Assert.Equal("Matej", connection.OwnerName);
+        Assert.Equal("matej@contoso.com", connection.OwnerPrincipalName);
+        Assert.Equal("Connected", connection.Status);
+    }
+
+    [Fact]
+    public async Task SeveralCallsInOneCommand_ResolveTheProfileOnce()
+    {
+        var fake = TeamsFake();
+
+        await Resolve(fake, "location", useConnection: false, ("poster", "Flow bot"));
+        await fake.Service.GetConnectionAsync(null, "shared_teams", ConnectionId, CancellationToken.None);
+
+        Assert.Equal(1, fake.ProfileResolutions);
     }
 
     [Fact]
@@ -327,9 +355,8 @@ public class ConnectorMetadataServiceTests
     {
         var fake = DataverseFake();
 
-        var result = await fake.Service.ResolveOperationAsync(
-            null, "shared_commondataserviceforapps", "SubscribeWebhookTrigger", "mtj_dataverse", ConnectionId,
-            new Dictionary<string, string> { ["subscriptionRequest/entityname"] = "account" }, "subscriptionRequest/scope", null, useConnection: true, CancellationToken.None);
+        var result = await Resolve(fake, "shared_commondataserviceforapps", "SubscribeWebhookTrigger", "subscriptionRequest/scope",
+            useConnection: true, ("subscriptionRequest/entityname", "account"));
 
         var lookup = Assert.Single(result.Lookups);
         Assert.Equal("GetScopeFiltersWithOrganization", lookup.OperationId);
@@ -357,9 +384,7 @@ public class ConnectorMetadataServiceTests
     {
         var fake = DataverseFake();
 
-        var result = await fake.Service.ResolveOperationAsync(
-            null, "shared_commondataserviceforapps", "ListRecords", "mtj_dataverse", ConnectionId,
-            new Dictionary<string, string>(), "entityName", null, useConnection: true, CancellationToken.None);
+        var result = await Resolve(fake, "shared_commondataserviceforapps", "ListRecords", "entityName", useConnection: true);
 
         var lookup = Assert.Single(result.Lookups);
         Assert.Equal("skipped", lookup.Status);
@@ -400,9 +425,14 @@ public class ConnectorMetadataServiceTests
         public List<Uri> Audiences { get; } = new();
         public List<RecordedRequest> Requests { get; } = new();
 
+        public int ProfileResolutions { get; private set; }
+
         public Task<ResolvedProfileContext> ResolveAsync(string? profileName, CancellationToken ct)
-            => Task.FromResult(new ResolvedProfileContext(
+        {
+            ProfileResolutions++;
+            return Task.FromResult(new ResolvedProfileContext(
                 null, _connection, new Credential { Id = "cred", Kind = CredentialKind.InteractiveBrowser }, ResolutionSource.Ephemeral));
+        }
 
         public Task<string> AcquireForResourceAsync(Connection connection, Credential credential, Uri resourceUri, CancellationToken ct)
         {

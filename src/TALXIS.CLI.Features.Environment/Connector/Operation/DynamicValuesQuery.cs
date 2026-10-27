@@ -157,11 +157,10 @@ internal static class DynamicValuesQuery
         reference = pick.Reference;
 
         var resolution = await metadata.ResolveOperationAsync(
-            request.Profile, request.Connector, request.Operation, reference.LogicalName, reference.ConnectionId!, values,
-            request.IsOutput ? null : request.Name, request.IsOutput ? request.Name : null, request.UseConnection,
+            request.Profile,
+            new OperationResolutionRequest(operation, request.Name, request.IsOutput, values, reference.ConnectionId!, request.UseConnection),
             CancellationToken.None).ConfigureAwait(false);
 
-        owner = ConnectionDisplay.Owner(resolution.Connection);
         var lookup = resolution.Lookups.FirstOrDefault();
 
         if (lookup is null || lookup.Status == DynamicLookupStatus.Skipped)
@@ -171,6 +170,10 @@ internal static class DynamicValuesQuery
         }
         else if (!resolution.ConnectionUsed)
         {
+            // Who the lookup would act as is what the user is asked about.
+            var connection = await ConnectionDisplay.TryGetAsync(metadata, request.Profile, request.Connector, reference.ConnectionId!, logger)
+                .ConfigureAwait(false);
+            owner = connection is null ? null : ConnectionDisplay.Owner(connection);
             Write(Answer(DynamicValuesStatus.NeedsConsent,
                 $"Reading this uses connection reference '{reference.LogicalName}' ({reference.DisplayName}), owned by {owner ?? "an unknown user"}: " +
                 "a read-only metadata lookup made as that person; nothing is created or changed. " +

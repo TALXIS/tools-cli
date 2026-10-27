@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
@@ -18,6 +19,7 @@ internal sealed class ConnectorMetadataService : IConnectorMetadataService
     private readonly IEnvironmentIdResolver _environmentIds;
     private readonly PowerAutomateApiClient _client;
     private readonly ILogger<ConnectorMetadataService> _logger;
+    private readonly ConcurrentDictionary<string, Task<ResolvedProfile>> _profiles = new(StringComparer.Ordinal);
 
     public ConnectorMetadataService(
         IConfigurationResolver resolver,
@@ -131,72 +133,44 @@ internal sealed class ConnectorMetadataService : IConnectorMetadataService
     }
 
     public async Task<OperationResolution> ResolveOperationAsync(
-        string? profileName,
-        string connector,
-        string operation,
-        string connectionReference,
-        string connectionId,
-        IReadOnlyDictionary<string, string> values,
-        string? parameter,
-        string? output,
-        bool useConnection,
-        CancellationToken ct)
+        string? profileName, OperationResolutionRequest request, CancellationToken ct)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(connector);
-        ArgumentException.ThrowIfNullOrWhiteSpace(operation);
-        ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
-        ArgumentNullException.ThrowIfNull(values);
-        if ((parameter is null) == (output is null))
-            throw new ArgumentException("Resolve exactly one parameter or one output.");
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.Name);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.ConnectionId);
+        ArgumentNullException.ThrowIfNull(request.Values);
 
+        var detail = request.Operation;
+        var (connector, operation, name) = (detail.Connector, detail.OperationId, request.Name);
         var target = await ResolveTargetAsync(profileName, ct).ConfigureAwait(false);
 
         // Metadata only so far: none of these calls go through the connection.
-        OperationDetail detail;
-        using (var document = await SendForLookupAsync(
-            PowerAutomateEndpointProvider.Operation(target.BaseUri, connector, operation), target.Token,
-            $"Operation '{operation}' does not exist on connector '{connector}'. List its operations with 'environment connector get {connector}'.",
-            ct).ConfigureAwait(false))
-        {
-            detail = OperationSchemaReader.Read(connector, operation, document.RootElement);
-        }
-
         using var connectorDocument = await SendForLookupAsync(
             PowerAutomateEndpointProvider.Connector(target.BaseUri, connector), target.Token,
             $"Connector '{connector}' does not exist in this environment.",
             ct).ConfigureAwait(false);
 
-        ConnectionDetail connection;
-        using (var document = await SendForLookupAsync(
-            PowerAutomateEndpointProvider.Connection(target.Cloud, target.EnvironmentId, connector, connectionId), target.Token,
-            $"Connection '{connectionId}' behind '{connectionReference}' does not exist or is not visible to you.",
-            ct).ConfigureAwait(false))
-        {
-            connection = ReadConnection(connectionId, document.RootElement);
-        }
-
         var (lookupSource, lookupValues, unavailable) = await ResolveLookupSourceAsync(
-            target, connector, operation, detail, values, ct).ConfigureAwait(false);
-        var name = output ?? parameter!;
+            target, connector, operation, detail, request.Values, ct).ConfigureAwait(false);
         if (unavailable is not null)
         {
             // Its own lookups are known not to answer outside the designer.
-            var asked = (output is null ? detail.Parameters : detail.Outputs ?? []).FirstOrDefault(p => p.Name == name);
+            var asked = (request.IsOutput ? detail.Outputs ?? [] : detail.Parameters).FirstOrDefault(p => p.Name == name);
             var kind = asked is { DynamicValues: null, DynamicSchema: not null } ? DynamicLookupPlanner.SchemaKind : DynamicLookupPlanner.ValuesKind;
-            return new OperationResolution(detail, connection, false,
+            return new OperationResolution(detail, false,
                 [new DynamicLookup(name, kind, operation, DynamicLookupStatus.Skipped, unavailable)]);
         }
 
         // Outputs are planned the same way as parameters: a dynamic output's
         // fields come from a lookup just like a dynamic input's.
-        var resolvingOutputs = output is not null;
+        var resolvingOutputs = request.IsOutput;
         var targets = resolvingOutputs ? detail.Outputs ?? [] : detail.Parameters;
         var source = resolvingOutputs ? lookupSource with { Parameters = lookupSource.Outputs ?? [] } : lookupSource;
-        var plan = DynamicLookupPlanner.Plan(source, connectorDocument.RootElement, connectionId, lookupValues)
+        var plan = DynamicLookupPlanner.Plan(source, connectorDocument.RootElement, request.ConnectionId, lookupValues)
             .Where(p => p.Parameter.Name == name)
             .ToList();
-        if (!useConnection)
-            return new OperationResolution(detail, connection, false, plan.Select(p => p.Lookup).ToList());
+        if (!request.UseConnection)
+            return new OperationResolution(detail, false, plan.Select(p => p.Lookup).ToList());
 
         var runtimeToken = await _client.AcquireRuntimeTokenAsync(target.Connection, target.Credential, ct).ConfigureAwait(false);
         var parameters = targets;
@@ -219,7 +193,7 @@ internal sealed class ConnectorMetadataService : IConnectorMetadataService
         }
 
         var resolved = resolvingOutputs ? detail with { Outputs = parameters } : detail with { Parameters = parameters };
-        return new OperationResolution(resolved, connection, true, lookups);
+        return new OperationResolution(resolved, true, lookups);
     }
 
     /// <summary>
@@ -367,20 +341,34 @@ internal sealed class ConnectorMetadataService : IConnectorMetadataService
     }
 
     /// <summary>
-    /// Resolves the profile to its per-environment API host and a token, once
-    /// per command, so a command logs and authenticates a single time.
+    /// The profile's per-environment API host and a token. The profile is
+    /// resolved once per profile name: a command calls this service several
+    /// times (operation, connection, lookup) and should resolve, log and look
+    /// up its environment id a single time. Each CLI command, including each
+    /// MCP tool call, runs in its own process, so this never outlives one
+    /// command. Tokens are not kept here; the token service caches them.
     /// </summary>
     private async Task<EnvironmentTarget> ResolveTargetAsync(string? profileName, CancellationToken ct)
     {
+        var profile = await _profiles.GetOrAdd(profileName ?? string.Empty, _ => ResolveProfileAsync(profileName, ct))
+            .ConfigureAwait(false);
+        var token = await _client.AcquireTokenAsync(profile.Connection, profile.Credential, ct).ConfigureAwait(false);
+
+        return new EnvironmentTarget(profile.BaseUri, token, profile.EnvironmentId, profile.Cloud, profile.Connection, profile.Credential);
+    }
+
+    private async Task<ResolvedProfile> ResolveProfileAsync(string? profileName, CancellationToken ct)
+    {
         var ctx = await _resolver.ResolveAsync(profileName, ct).ConfigureAwait(false);
         var environmentId = await _environmentIds.ResolveAsync(ctx.Connection, ctx.Credential, ct).ConfigureAwait(false);
-        var baseUri = PowerPlatformEnvironmentApiEndpoints.BuildBaseUri(
-            environmentId, ctx.Connection.Cloud ?? CloudInstance.Public);
         var cloud = ctx.Connection.Cloud ?? CloudInstance.Public;
-        var token = await _client.AcquireTokenAsync(ctx.Connection, ctx.Credential, ct).ConfigureAwait(false);
+        var baseUri = PowerPlatformEnvironmentApiEndpoints.BuildBaseUri(environmentId, cloud);
 
-        return new EnvironmentTarget(baseUri, token, environmentId, cloud, ctx.Connection, ctx.Credential);
+        return new ResolvedProfile(baseUri, environmentId, cloud, ctx.Connection, ctx.Credential);
     }
+
+    private sealed record ResolvedProfile(
+        Uri BaseUri, Guid EnvironmentId, CloudInstance Cloud, Connection Connection, Credential Credential);
 
     private sealed record EnvironmentTarget(
         Uri BaseUri, string Token, Guid EnvironmentId, CloudInstance Cloud, Connection Connection, Credential Credential);

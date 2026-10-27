@@ -158,14 +158,31 @@ public sealed record DynamicLookup(
     IReadOnlyList<string>? MissingValues = null);
 
 /// <summary>
-/// The outcome of resolving an operation's dynamic parameters. When
+/// One dynamic parameter or output of an operation to resolve through a connection.
+/// </summary>
+/// <param name="Operation">The operation as <see cref="IConnectorMetadataService.GetOperationAsync"/> returned it.</param>
+/// <param name="Name">The parameter, or with <paramref name="IsOutput"/> the output, to resolve.</param>
+/// <param name="Values">Values chosen for the operation's other parameters, which lookups take as inputs.</param>
+/// <param name="UseConnection">
+/// False returns the plan without calling the connection. Only pass true
+/// once the connection's owner has agreed to it being used.
+/// </param>
+public sealed record OperationResolutionRequest(
+    OperationDetail Operation,
+    string Name,
+    bool IsOutput,
+    IReadOnlyDictionary<string, string> Values,
+    string ConnectionId,
+    bool UseConnection);
+
+/// <summary>
+/// The outcome of resolving one dynamic parameter or output. When
 /// <see cref="ConnectionUsed"/> is false this is only the plan: nothing has
 /// been called through the connection, and <see cref="Lookups"/> lists what
 /// would be.
 /// </summary>
 public sealed record OperationResolution(
     OperationDetail Operation,
-    ConnectionDetail Connection,
     bool ConnectionUsed,
     IReadOnlyList<DynamicLookup> Lookups);
 
@@ -191,7 +208,7 @@ public interface IConnectorMetadataService
 
     /// <summary>
     /// Searches operations across connectors. <paramref name="kind"/> is
-    /// <c>all</c>, <c>actions</c> or <c>triggers</c>.
+    /// <c>all</c>, <c>action</c> or <c>trigger</c>.
     /// </summary>
     Task<IReadOnlyList<OperationSearchHit>> SearchOperationsAsync(
         string? profileName, string search, string? connector, string kind, int top, CancellationToken ct);
@@ -204,26 +221,10 @@ public interface IConnectorMetadataService
     /// Resolves one dynamic parameter or output (a value list or a sub-schema)
     /// through an existing connection, the way the flow designer does.
     /// </summary>
-    /// <param name="values">Values chosen for the operation's other parameters, which lookups take as inputs.</param>
-    /// <param name="parameter">The parameter to resolve; pass this or <paramref name="output"/>.</param>
-    /// <param name="useConnection">
-    /// False returns the plan without calling the connection. Only pass true
-    /// once the connection's owner has agreed to it being used.
-    /// </param>
-    /// <param name="output">The output to resolve (its fields); pass this or <paramref name="parameter"/>.</param>
     Task<OperationResolution> ResolveOperationAsync(
-        string? profileName,
-        string connector,
-        string operation,
-        string connectionReference,
-        string connectionId,
-        IReadOnlyDictionary<string, string> values,
-        string? parameter,
-        string? output,
-        bool useConnection,
-        CancellationToken ct);
+        string? profileName, OperationResolutionRequest request, CancellationToken ct);
 
-    /// <summary>A connection's display name, owner and status.</summary>
+    /// <summary>A connection's owner and status.</summary>
     Task<ConnectionDetail> GetConnectionAsync(
         string? profileName, string connector, string connectionId, CancellationToken ct);
 }
