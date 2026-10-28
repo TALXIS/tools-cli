@@ -20,6 +20,8 @@ src/
 
 This is a default: the build cares about each project's `ProjectType` and references, not names. Existing projects, folders and the solution file are never renamed.
 
+In an empty repository, first run `dotnet new sln --name <Name>` (writes `<Name>.slnx`) and create `src/`: the templates fail without them. Then scaffold from the root with `--output src/<Project>`; if `dotnet sln list` misses a project, `dotnet sln add` it.
+
 ## Project Types
 
 Each `.csproj` declares `<ProjectType>` and the Build SDK routes it to its build logic. Solution projects are the **hub**: reference each project from one (`dotnet add <solution-project> reference <project>.csproj`), then `dotnet build <solution-project>` generates its registration data.

@@ -7,8 +7,8 @@
 
 ## Registration Chain
 
-1. `txc workspace component create pp-plugin --output src/Plugins.Warehouse --param PublisherName=<publisher> --param Company=<company>`
-2. Write classes extending `PluginBase`.
+1. (Empty repository: set up the solution file and `src/` first, see [project-structure](project-structure.md).) `txc workspace component create pp-plugin --output src/Plugins.Warehouse --param PublisherName=<publisher> --param Company=<company>`
+2. Write classes extending `PluginBase`; the constructor calls `: base(typeof(X))`.
 3. Reference the project from the solution project that holds the registrations: `dotnet add src/Solutions.Logic reference src/Plugins.Warehouse/Plugins.Warehouse.csproj`
 4. Declare steps (below).
 5. Build the solution project, not just the plugin: `dotnet build src/Solutions.Logic`. Current Build SDKs register the assembly there (`GeneratePluginAssembly` defaults to true) and generate `[PluginStep]` steps.
