@@ -1,7 +1,9 @@
 namespace TALXIS.CLI.Features.Environment.Connector.Operation;
 
 /// <summary>A connection reference as far as choosing one goes.</summary>
-internal sealed record ReferenceCandidate(string LogicalName, string? DisplayName, string? ConnectionId);
+/// <param name="ConnectionId">The connection it is bound to and usable through; null when unbound or broken.</param>
+/// <param name="Owner">Who the connection signs in as.</param>
+internal sealed record ReferenceCandidate(string LogicalName, string? DisplayName, string? ConnectionId, string? Owner = null, string? Status = null);
 
 /// <summary>
 /// The reference to read through; otherwise a question for the user

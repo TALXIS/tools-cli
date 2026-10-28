@@ -15,21 +15,21 @@ namespace TALXIS.CLI.Platform.PowerPlatform.Control;
 public sealed class EnvironmentUserProvisioningService : IEnvironmentUserProvisioningService
 {
     private readonly IConfigurationResolver _resolver;
-    private readonly IPowerPlatformEnvironmentCatalog _catalog;
+    private readonly IEnvironmentIdResolver _environmentIds;
     private readonly MicrosoftGraphClient _graph;
     private readonly BapAdminApiClient _bap;
     private readonly EnvironmentSettingsClient _settings;
 
     public EnvironmentUserProvisioningService(
         IConfigurationResolver resolver,
-        IPowerPlatformEnvironmentCatalog catalog,
+        IEnvironmentIdResolver environmentIds,
         MicrosoftGraphClient graph,
         EnvironmentSettingsClient settings,
         IAccessTokenService tokens,
         IHttpClientFactoryWrapper? httpFactory = null)
     {
         _resolver = resolver ?? throw new ArgumentNullException(nameof(resolver));
-        _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
+        _environmentIds = environmentIds ?? throw new ArgumentNullException(nameof(environmentIds));
         _graph = graph ?? throw new ArgumentNullException(nameof(graph));
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _bap = new BapAdminApiClient(tokens ?? throw new ArgumentNullException(nameof(tokens)), httpFactory);
@@ -43,7 +43,7 @@ public sealed class EnvironmentUserProvisioningService : IEnvironmentUserProvisi
         ArgumentException.ThrowIfNullOrWhiteSpace(userIdOrUpn);
 
         var ctx = await _resolver.ResolveAsync(profileName, ct).ConfigureAwait(false);
-        var environmentId = await ResolveEnvironmentIdAsync(ctx.Connection, ctx.Credential, ct).ConfigureAwait(false);
+        var environmentId = await _environmentIds.ResolveAsync(ctx.Connection, ctx.Credential, ct).ConfigureAwait(false);
         var (aadObjectId, upn, displayName) = await ResolveGraphUserAsync(ctx.Connection, ctx.Credential, userIdOrUpn, ct)
             .ConfigureAwait(false);
 
@@ -75,27 +75,6 @@ public sealed class EnvironmentUserProvisioningService : IEnvironmentUserProvisi
 
         var user = matches[0];
         return (user.Id, user.UserPrincipalName, user.DisplayName);
-    }
-
-    private async Task<Guid> ResolveEnvironmentIdAsync(Connection connection, Credential credential, CancellationToken ct)
-    {
-        if (connection.EnvironmentId.HasValue)
-            return connection.EnvironmentId.Value;
-
-        if (string.IsNullOrWhiteSpace(connection.EnvironmentUrl)
-            || !Uri.TryCreate(connection.EnvironmentUrl, UriKind.Absolute, out var environmentUrl))
-        {
-            throw new InvalidOperationException(
-                $"Connection '{connection.Id}' has no EnvironmentUrl or EnvironmentId.");
-        }
-
-        var environment = await _catalog
-            .TryGetByEnvironmentUrlAsync(connection, credential, environmentUrl, ct)
-            .ConfigureAwait(false);
-
-        return environment?.EnvironmentId
-            ?? throw new InvalidOperationException(
-                $"Could not resolve Power Platform environment for URL '{connection.EnvironmentUrl}'.");
     }
 
     /// <inheritdoc />

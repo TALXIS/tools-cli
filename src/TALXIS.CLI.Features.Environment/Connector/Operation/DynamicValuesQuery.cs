@@ -140,7 +140,7 @@ internal static class DynamicValuesQuery
             return true;
         }
 
-        var (pick, choices) = await PickConnectionReferenceAsync(request, metadata, logger).ConfigureAwait(false);
+        var (pick, choices) = await PickConnectionReferenceAsync(request).ConfigureAwait(false);
         if (pick.InputError is not null)
         {
             logger.LogError("{Error}", pick.InputError);
@@ -171,9 +171,7 @@ internal static class DynamicValuesQuery
         else if (!resolution.ConnectionUsed)
         {
             // Who the lookup would act as is what the user is asked about.
-            var connection = await ConnectionDisplay.TryGetAsync(metadata, request.Profile, request.Connector, reference.ConnectionId!, logger)
-                .ConfigureAwait(false);
-            owner = connection is null ? null : ConnectionDisplay.Owner(connection);
+            owner = reference.Owner;
             Write(Answer(DynamicValuesStatus.NeedsConsent,
                 $"Reading this uses connection reference '{reference.LogicalName}' ({reference.DisplayName}), owned by {owner ?? "an unknown user"}: " +
                 "a read-only metadata lookup made as that person; nothing is created or changed. " +
@@ -212,26 +210,23 @@ internal static class DynamicValuesQuery
             : items.Where(i => text(i).Contains(search, StringComparison.OrdinalIgnoreCase)).ToList();
 
     private static async Task<(ReferencePick Pick, IReadOnlyList<ConnectionChoice>? Choices)> PickConnectionReferenceAsync(
-        DynamicValuesRequest request, IConnectorMetadataService metadata, ILogger logger)
+        DynamicValuesRequest request)
     {
         var references = await TxcServices.Get<IConnectionReferenceService>()
-            .ListAsync(request.Profile, request.Connector, CancellationToken.None).ConfigureAwait(false);
+            .ListAsync(request.Profile, new ConnectionReferenceListOptions(null, request.Connector, null, false, null), CancellationToken.None)
+            .ConfigureAwait(false);
+
+        // Only a working binding can be read through; a broken or unreadable
+        // one counts as unbound.
         var pick = ConnectionReferencePicker.Pick(
-            references.Select(r => new ReferenceCandidate(r.LogicalName, r.DisplayName, r.ConnectionId)).ToList(),
+            references.Select(r => new ReferenceCandidate(
+                r.LogicalName, r.DisplayName,
+                r.BindingStatus == ConnectionBindingStatus.Bound ? r.ConnectionId : null,
+                r.ConnectionOwner, r.BindingStatus)).ToList(),
             request.Connector, request.ConnectionReference);
-        if (pick.Bound is null)
-            return (pick, null);
 
         // Owner and status are what tell the user's references apart.
-        var choices = new List<ConnectionChoice>();
-        foreach (var r in pick.Bound)
-        {
-            var connection = await ConnectionDisplay.TryGetAsync(metadata, request.Profile, request.Connector, r.ConnectionId!, logger)
-                .ConfigureAwait(false);
-            choices.Add(new ConnectionChoice(r.LogicalName, r.DisplayName,
-                connection is null ? null : ConnectionDisplay.Owner(connection), connection?.Status));
-        }
-
+        var choices = pick.Bound?.Select(r => new ConnectionChoice(r.LogicalName, r.DisplayName, r.Owner, r.Status)).ToList();
         return (pick, choices);
     }
 

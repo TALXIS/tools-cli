@@ -8,15 +8,16 @@ using TALXIS.CLI.Logging;
 namespace TALXIS.CLI.Features.Environment.Connector.Operation;
 
 [CliReadOnly]
+[CliWorkflow("environment-inspection")]
 [CliCommand(
     Name = "get",
     Description = "Answers which parameters an operation needs and what it returns, from the LIVE connected environment. Lists every inputs.parameters key with type, requiredness and allowed values, and every output with the expression that reads it. For dynamic parameters and outputs it gives the exact txc command that fetches their values or fields. Also gives the action type and a JSON skeleton. Requires an active profile."
 )]
-public class ConnectorOperationGetCliCommand : ProfiledCliCommand
+public class ConnectorOperationGetCliCommand : ConnectivityCommandBase
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ConnectorOperationGetCliCommand));
 
-    [CliArgument(Name = "connector", Description = "Connector name, for example shared_commondataserviceforapps.")]
+    [CliArgument(Name = "connector", Description = ConnectorDescriptions.Identifier)]
     public string Connector { get; set; } = null!;
 
     [CliArgument(Name = "operation", Description = "Operation ID, for example CreateRecord.")]

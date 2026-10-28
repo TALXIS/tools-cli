@@ -42,7 +42,7 @@ txc env entity list --format text
 | `1` (`ExitError`) | Runtime/operational error | Service call failed, network error, unexpected exception |
 | `2` (`ExitValidationError`) | Input validation error or resource not found | Bad arguments, missing required input, entity not found |
 
-The base class `TxcLeafCommand.RunAsync()` catches unhandled exceptions and returns `ExitError` (1) automatically. Commands only need explicit exit code handling for validation errors (2).
+The base class `TxcLeafCommand.RunAsync()` catches unhandled exceptions and returns `ExitError` (1) automatically. Commands only need explicit exit code handling for validation errors (2). A command may return `1` after writing its payload when the result is a state the caller must act on (for example `connection create` returning `consent-required`, or `connection test` returning `unhealthy`); consumers read the payload regardless of the exit code.
 
 ## Command implementation pattern
 

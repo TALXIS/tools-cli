@@ -4,11 +4,11 @@ namespace TALXIS.CLI.Features.Environment.Connector;
 
 /// <summary>
 /// <c>txc environment connector</c> — browse Power Automate connector metadata
-/// in the connected environment while authoring a cloud flow locally.
+/// in the connected environment while authoring a flow locally.
 /// </summary>
 [CliCommand(
     Name = "connector",
-    Description = "Browse Power Automate connectors and their operations in the connected environment, to ground locally authored cloud flows.",
+    Description = "Browse Power Automate connectors and their operations in the connected environment. " + ConnectorDescriptions.Workflow,
     Children = new[]
     {
         typeof(ConnectorListCliCommand),

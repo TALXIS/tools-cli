@@ -41,7 +41,7 @@ internal static partial class FlowSnippet
                 ["host"] = new JsonObject
                 {
                     ["apiId"] = ConnectorIds.ToPath(operation.ApiId),
-                    ["connectionName"] = operation.Connector,
+                    ["connectionName"] = operation.ApiId,
                     ["operationId"] = operation.OperationId,
                 },
                 ["parameters"] = parameters,
@@ -56,14 +56,14 @@ internal static partial class FlowSnippet
         {
             ["connectionReferences"] = new JsonObject
             {
-                [operation.Connector] = new JsonObject
+                [operation.ApiId] = new JsonObject
                 {
                     ["runtimeSource"] = "embedded",
                     ["connection"] = new JsonObject
                     {
                         ["connectionReferenceLogicalName"] = "<connection reference logical name: see 'txc environment connection-reference list'>",
                     },
-                    ["api"] = new JsonObject { ["name"] = operation.Connector },
+                    ["api"] = new JsonObject { ["name"] = operation.ApiId },
                 },
             },
             [operation.IsTrigger ? "triggers" : "actions"] = new JsonObject

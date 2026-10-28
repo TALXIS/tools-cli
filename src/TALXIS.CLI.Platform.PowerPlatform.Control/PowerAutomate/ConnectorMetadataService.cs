@@ -17,6 +17,7 @@ internal sealed class ConnectorMetadataService : IConnectorMetadataService
 {
     private readonly IConfigurationResolver _resolver;
     private readonly IEnvironmentIdResolver _environmentIds;
+    private readonly IConnectorResolver _connectors;
     private readonly PowerAutomateApiClient _client;
     private readonly ILogger<ConnectorMetadataService> _logger;
     private readonly ConcurrentDictionary<string, Task<ResolvedProfile>> _profiles = new(StringComparer.Ordinal);
@@ -24,63 +25,30 @@ internal sealed class ConnectorMetadataService : IConnectorMetadataService
     public ConnectorMetadataService(
         IConfigurationResolver resolver,
         IEnvironmentIdResolver environmentIds,
+        IConnectorResolver connectors,
         PowerAutomateApiClient client,
         ILogger<ConnectorMetadataService>? logger = null)
     {
         _resolver = resolver ?? throw new ArgumentNullException(nameof(resolver));
         _environmentIds = environmentIds ?? throw new ArgumentNullException(nameof(environmentIds));
+        _connectors = connectors ?? throw new ArgumentNullException(nameof(connectors));
         _client = client ?? throw new ArgumentNullException(nameof(client));
         _logger = logger ?? NullLogger<ConnectorMetadataService>.Instance;
-    }
-
-    public async Task<IReadOnlyList<ConnectorSummary>> ListConnectorsAsync(
-        string? profileName, string? search, CancellationToken ct)
-    {
-        var target = await ResolveTargetAsync(profileName, ct).ConfigureAwait(false);
-        using var document = await _client.SendAsync(
-            HttpMethod.Get, PowerAutomateEndpointProvider.Connectors(target.BaseUri), target.Token, null, ct)
-            .ConfigureAwait(false);
-
-        var connectors = new List<ConnectorSummary>();
-        foreach (var item in ODataItems(document.RootElement))
-        {
-            var name = JsonElementReader.TryGetString(item, "name");
-            if (string.IsNullOrWhiteSpace(name))
-                continue;
-
-            var properties = JsonElementReader.TryGetObject(item, "properties") ?? default;
-            var connector = new ConnectorSummary(
-                LogicalName: name,
-                ApiId: name,
-                DisplayName: JsonElementReader.TryGetString(properties, "displayName"),
-                Tier: JsonElementReader.TryGetString(properties, "tier"),
-                Description: JsonElementReader.TryGetString(properties, "description"));
-
-            if (string.IsNullOrWhiteSpace(search)
-                || connector.LogicalName.Contains(search, StringComparison.OrdinalIgnoreCase)
-                || (connector.DisplayName?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false))
-            {
-                connectors.Add(connector);
-            }
-        }
-
-        connectors.Sort(static (a, b) => string.CompareOrdinal(a.LogicalName, b.LogicalName));
-        return connectors;
     }
 
     public async Task<ConnectorDetail> GetConnectorAsync(
         string? profileName, string connector, string? search, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connector);
-        connector = ResolveConnector(connector);
+        var resolved = await _connectors.ResolveAsync(profileName, connector, ct).ConfigureAwait(false);
 
         var target = await ResolveTargetAsync(profileName, ct).ConfigureAwait(false);
         using var document = await SendForLookupAsync(
-            PowerAutomateEndpointProvider.Connector(target.BaseUri, connector), target.Token,
+            PowerAutomateEndpointProvider.Connector(target.BaseUri, resolved.ApiId), target.Token,
             $"Connector '{connector}' does not exist in this environment. Find the connector name with 'environment connector list --filter <text>'.",
             ct).ConfigureAwait(false);
 
-        return SwaggerOperationIndexer.Index(document.RootElement, connector, search);
+        return SwaggerOperationIndexer.Index(document.RootElement, resolved.ApiId, search) with { LogicalName = resolved.LogicalName };
     }
 
     public async Task<IReadOnlyList<OperationSearchHit>> SearchOperationsAsync(
@@ -89,9 +57,6 @@ internal sealed class ConnectorMetadataService : IConnectorMetadataService
         ArgumentException.ThrowIfNullOrWhiteSpace(search);
 
         var body = new JsonObject { ["searchText"] = search };
-        if (!string.IsNullOrWhiteSpace(connector))
-            body["operationGroupName"] = ResolveConnector(connector);
-
         var exclude = new JsonArray("Deprecated");
         switch (kind.ToLowerInvariant())
         {
@@ -110,6 +75,8 @@ internal sealed class ConnectorMetadataService : IConnectorMetadataService
         }
 
         body["anyTagsToExclude"] = exclude;
+        if (!string.IsNullOrWhiteSpace(connector))
+            body["operationGroupName"] = (await _connectors.ResolveAsync(profileName, connector, ct).ConfigureAwait(false)).ApiId;
 
         var target = await ResolveTargetAsync(profileName, ct).ConfigureAwait(false);
         using var document = await _client.SendAsync(
@@ -124,15 +91,17 @@ internal sealed class ConnectorMetadataService : IConnectorMetadataService
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connector);
         ArgumentException.ThrowIfNullOrWhiteSpace(operation);
-        connector = ResolveConnector(connector);
+        var resolved = await _connectors.ResolveAsync(profileName, connector, ct).ConfigureAwait(false);
 
         var target = await ResolveTargetAsync(profileName, ct).ConfigureAwait(false);
         using var document = await SendForLookupAsync(
-            PowerAutomateEndpointProvider.Operation(target.BaseUri, connector, operation), target.Token,
+            PowerAutomateEndpointProvider.Operation(target.BaseUri, resolved.ApiId, operation), target.Token,
             $"Operation '{operation}' does not exist on connector '{connector}'. List its operations with 'environment connector get {connector}'.",
             ct).ConfigureAwait(false);
 
-        return OperationSchemaReader.Read(connector, operation, document.RootElement);
+        // Named by what --connector takes, so the next command can reuse it;
+        // the apiId is the environment's.
+        return OperationSchemaReader.Read(resolved.ApiId, operation, document.RootElement) with { Connector = resolved.LogicalName };
     }
 
     public async Task<OperationResolution> ResolveOperationAsync(
@@ -144,7 +113,7 @@ internal sealed class ConnectorMetadataService : IConnectorMetadataService
         ArgumentNullException.ThrowIfNull(request.Values);
 
         var detail = request.Operation;
-        var (connector, operation, name) = (detail.Connector, detail.OperationId, request.Name);
+        var (connector, operation, name) = (detail.ApiId, detail.OperationId, request.Name);
         var target = await ResolveTargetAsync(profileName, ct).ConfigureAwait(false);
 
         // Metadata only so far: none of these calls go through the connection.
@@ -240,49 +209,6 @@ internal sealed class ConnectorMetadataService : IConnectorMetadataService
                 $"'{operation}' has no '{twin.Operation}' counterpart, and its own lookups only answer inside the flow designer. Choose the value with the user.");
         }
     }
-
-    public async Task<ConnectionDetail> GetConnectionAsync(
-        string? profileName, string connector, string connectionId, CancellationToken ct)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(connector);
-        connector = ResolveConnector(connector);
-        ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
-
-        var target = await ResolveTargetAsync(profileName, ct).ConfigureAwait(false);
-        using var document = await SendForLookupAsync(
-            PowerAutomateEndpointProvider.Connection(target.Cloud, target.EnvironmentId, connector, connectionId), target.Token,
-            $"Connection '{connectionId}' does not exist or is not visible to you.",
-            ct).ConfigureAwait(false);
-        return ReadConnection(connectionId, document.RootElement);
-    }
-
-    private static ConnectionDetail ReadConnection(string connectionId, JsonElement payload)
-    {
-        var properties = JsonElementReader.TryGetObject(payload, "properties") ?? default;
-        var owner = JsonElementReader.TryGetObject(properties, "createdBy") ?? default;
-        string? status = null;
-        if (properties.ValueKind == JsonValueKind.Object
-            && properties.TryGetProperty("statuses", out var statuses)
-            && statuses.ValueKind == JsonValueKind.Array)
-        {
-            status = statuses.EnumerateArray().Select(e => JsonElementReader.TryGetString(e, "status")).FirstOrDefault(v => v is not null);
-        }
-
-        return new ConnectionDetail(
-            ConnectionId: connectionId,
-            OwnerName: JsonElementReader.TryGetString(owner, "displayName"),
-            OwnerPrincipalName: JsonElementReader.TryGetString(owner, "userPrincipalName") ?? JsonElementReader.TryGetString(owner, "email"),
-            Status: status);
-    }
-
-    /// <summary>
-    /// The connector id the metadata routes take, for a connector named as
-    /// <c>shared_teams</c> or <c>/providers/Microsoft.PowerApps/apis/shared_teams</c>.
-    /// Every connector argument goes through here, so resolving a custom
-    /// connector's logical name (TALXIS/tools-cli#201's IConnectorResolver)
-    /// replaces this one method.
-    /// </summary>
-    private static string ResolveConnector(string connector) => ConnectorIds.ToShort(connector);
 
     /// <summary>
     /// A GET of a named connector or operation, where a 404 means the caller
