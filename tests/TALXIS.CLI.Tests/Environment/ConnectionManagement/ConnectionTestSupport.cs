@@ -231,6 +231,7 @@ internal static class ConnectionFixtures
         services.AddSingleton<IConfigurationResolver>(new FixedConfigurationResolver(new ResolvedProfileContext(null, Connection(), credential, ResolutionSource.CommandLine)));
         services.AddSingleton<IPowerPlatformEnvironmentCatalog>(new UnusedCatalog());
         services.AddSingleton(query ?? new FakeConnectorQuery());
+        services.AddSingleton<ICustomConnectorNameSource, TALXIS.CLI.Platform.Dataverse.Application.Services.DataverseCustomConnectorNameSource>();
         services.AddSingleton<IAccessTokenService>(tokens);
         services.AddSingleton<IHttpClientFactoryWrapper>(platform.Http);
         services.AddSingleton(new MicrosoftGraphClient(tokens, platform.Http));

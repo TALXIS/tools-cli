@@ -13,7 +13,7 @@ public static class PowerPlatformConnectivityServiceCollectionExtensions
     /// Registers connector, connection and Power Automate connector metadata services.
     /// Every collaborator is a singleton, so there is one connector catalog
     /// cache per process. Needs <c>IConfigurationResolver</c>,
-    /// <c>IPowerPlatformEnvironmentCatalog</c>, <c>IDataverseQueryService</c>,
+    /// <c>IPowerPlatformEnvironmentCatalog</c>, <c>ICustomConnectorNameSource</c>,
     /// <c>IAccessTokenService</c> and <c>MicrosoftGraphClient</c> from the
     /// composition root.
     /// </summary>

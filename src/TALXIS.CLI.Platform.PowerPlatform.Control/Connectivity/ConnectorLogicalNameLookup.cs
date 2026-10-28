@@ -1,7 +1,4 @@
-using System.Text.Json;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
-using TALXIS.CLI.Core.Contracts.Dataverse;
+using TALXIS.CLI.Core.Platforms.PowerPlatform;
 
 namespace TALXIS.CLI.Platform.PowerPlatform.Control.Connectivity;
 
@@ -25,77 +22,31 @@ internal sealed record ConnectorLogicalNames(
 }
 
 /// <summary>
-/// Reads the stable logical name of custom connectors (Dataverse
-/// <c>connector.name</c>) from the <c>connector</c> table. Only a query that
-/// reached Dataverse and failed there (no such table, no read privilege) counts
-/// as "lookup unavailable"; connection and authentication failures surface.
+/// The logical names of custom connectors, from <see cref="ICustomConnectorNameSource"/>
+/// (they live in Dataverse, which the control plane does not query itself).
 /// </summary>
 internal sealed class ConnectorLogicalNameLookup
 {
-    private const string Table = "connectors";
-    private const string Columns = "connectorid,name,connectorinternalid";
+    private readonly ICustomConnectorNameSource _names;
 
-    private readonly IDataverseQueryService _query;
-    private readonly ILogger _logger;
-
-    public ConnectorLogicalNameLookup(IDataverseQueryService query, ILogger<ConnectorLogicalNameLookup>? logger = null)
-    {
-        _query = query ?? throw new ArgumentNullException(nameof(query));
-        _logger = logger ?? NullLogger<ConnectorLogicalNameLookup>.Instance;
-    }
+    public ConnectorLogicalNameLookup(ICustomConnectorNameSource names)
+        => _names = names ?? throw new ArgumentNullException(nameof(names));
 
     /// <summary>The apiId of the custom connector with this logical name, or null when there is none or Dataverse cannot say.</summary>
-    public async Task<string?> TryFindApiIdAsync(string? profileName, string logicalName, CancellationToken ct)
-    {
-        var escaped = logicalName.Replace("'", "''", StringComparison.Ordinal);
-        try
-        {
-            var result = await _query.QueryODataAsync(
-                profileName, Table, Columns, $"name eq '{escaped}'",
-                orderBy: null, top: 2, includeAnnotations: false, ct).ConfigureAwait(false);
-
-            return result.Records
-                .Select(record => JsonElementReader.TryGetString(record, "connectorinternalid"))
-                .FirstOrDefault(id => !string.IsNullOrWhiteSpace(id));
-        }
-        catch (DataverseQueryException ex)
-        {
-            _logger.LogDebug(ex, "Could not look up connector logical name '{LogicalName}' in Dataverse.", logicalName);
-            return null;
-        }
-    }
+    public Task<string?> TryFindApiIdAsync(string? profileName, string logicalName, CancellationToken ct)
+        => _names.TryFindApiIdAsync(profileName, logicalName, ct);
 
     public async Task<ConnectorLogicalNames> ReadAllAsync(string? profileName, CancellationToken ct)
-    {
-        try
-        {
-            var result = await _query.QueryODataAsync(
-                profileName, Table, Columns, filter: null,
-                orderBy: null, top: null, includeAnnotations: false, ct).ConfigureAwait(false);
-
-            return ToLogicalNames(result.Records);
-        }
-        catch (DataverseQueryException ex)
-        {
-            _logger.LogWarning(ex, "Could not read connector logical names from Dataverse; custom connectors are named by apiId.");
-            return ConnectorLogicalNames.None;
-        }
-    }
-
-    private static ConnectorLogicalNames ToLogicalNames(IReadOnlyList<JsonElement> records)
     {
         var byRow = new Dictionary<Guid, string>();
         var byApi = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var record in records)
+        foreach (var name in await _names.ReadAllAsync(profileName, ct).ConfigureAwait(false))
         {
-            var name = JsonElementReader.TryGetString(record, "name");
-            if (string.IsNullOrWhiteSpace(name))
-                continue;
-            if (Guid.TryParse(JsonElementReader.TryGetString(record, "connectorid"), out var rowId))
-                byRow[rowId] = name;
-            if (JsonElementReader.TryGetString(record, "connectorinternalid") is { Length: > 0 } internalId)
-                byApi[internalId] = name;
+            if (name.ConnectorRowId is { } rowId)
+                byRow[rowId] = name.LogicalName;
+            if (name.ApiId is { } apiId)
+                byApi[apiId] = name.LogicalName;
         }
 
         return new ConnectorLogicalNames(byRow, byApi);
