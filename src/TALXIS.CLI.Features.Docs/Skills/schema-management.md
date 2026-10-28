@@ -12,7 +12,7 @@
 |---|---|
 | Tables | `txc environment entity list\|describe\|get\|create\|update\|delete` |
 | Columns | `txc environment entity attribute get\|create\|update\|delete`; types: `txc environment entity attribute type list`, `type describe <type>` |
-| Relationships | `txc environment entity relationship create\|list\|delete` |
+| Relationships | `txc environment entity relationship create\|list\|delete` (create is many-to-many only; a lookup is `attribute create --type lookup --target-entity <table>`) |
 | Option sets | `txc environment optionset list\|get\|create\|delete`; options: `txc environment optionset option add\|remove` |
 
 Every create, update and delete needs exactly one of `--apply` (run now) or `--stage` (add to a changeset, run later with `txc environment changeset apply --strategy batch|transaction|bulk`). Deletes also ask for confirmation unless `--yes`.

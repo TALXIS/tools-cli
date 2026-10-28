@@ -27,9 +27,9 @@ This gives independent deployment cycles, smaller packages, clear ownership and 
 | `txc environment solution get <solution-name>` | Version, publisher, etc. |
 | `txc environment solution component list <solution-name>` | Components in a solution |
 | `txc environment component layer list --id <guid> --type <type>` (or `--entity <logicalName> [--attribute <name>]`) | Layer stack of a component |
-| `txc environment component layer get --id <guid> --type <type>` (same selectors) | One layer entry |
+| `txc environment component layer get --id <guid> --type <type>` (same selectors) | The active layer's component definition (JSON) |
 
-"Which solution owns this component?": `layer list` for it (`--entity` for a table, plus `--attribute` for a column); the topmost managed layer is the effective owner.
+"Which solution owns this component?": `layer list` for it (`--entity` for a table, plus `--attribute` for a column); the topmost managed layer (highest `order`; 1 is the System base) is the effective owner.
 
 ## Publisher Rules
 

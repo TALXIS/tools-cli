@@ -13,7 +13,7 @@ The three `query` commands are read-only and take `--top <n>` and `--include-ann
 
 ## OData
 
-`txc environment data query odata <entity-set-or-path>` takes the entity **set** name (plural, e.g. `accounts`). `--select`, `--filter`, `--order-by` and `--top` build the query string. For `$expand`, `$apply` or any other option, pass the whole OData path as the argument and no other options (they append `?...`). Examples with `$` use single quotes (bash, PowerShell).
+`txc environment data query odata <entity-set-or-path>` takes the entity **set** name (plural, e.g. `accounts`). `--select`, `--filter`, `--order-by` and `--top` build the query string. For `$expand`, `$apply` or any other option, pass the whole OData path as the argument and no other options (they append `?...`; HTTP 400 otherwise). Examples with `$` use single quotes (bash, PowerShell).
 
 ```
 txc environment data query odata accounts --select name,revenue --filter "revenue gt 1000000 and statecode eq 0" --order-by "createdon desc" --top 50
@@ -22,7 +22,7 @@ txc environment data query odata 'accounts?$apply=groupby((statuscode),aggregate
 ```
 The command follows `@odata.nextLink` pages itself and stops at `--top`. If the server rejects a path form, use SQL (`JOIN`, `GROUP BY`) or FetchXML (`<link-entity>`, `aggregate="true"`).
 
-Lookups and option sets return raw GUIDs/integers; `--include-annotations` (also on `record get`, and with a full path) adds display values as `@OData.Community.Display.V1.FormattedValue`.
+Lookups and option sets return raw GUIDs/integers (OData `--select` needs `_<lookup>_value` for a lookup; the bare name is silently dropped); `--include-annotations` (also on `record get`, and with a full path) adds display values as `@OData.Community.Display.V1.FormattedValue`.
 
 ## SQL
 ```sql

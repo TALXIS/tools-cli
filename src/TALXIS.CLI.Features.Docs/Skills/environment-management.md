@@ -37,7 +37,7 @@ txc config profile validate <profile>
 | Command | Purpose |
 |---|---|
 | `txc config profile list` | Show all profiles |
-| `txc config profile get [<name>]` | Show the profile (active one by default) with its connection URL and credential |
+| `txc config profile get [<name>]` | Show the profile (the global active one by default, not the workspace pin) with its connection URL and credential |
 | `txc config profile validate [<name>]` | Test that the profile can connect |
 | `txc config profile select <name>` | Make a profile the global active one |
 | `txc config auth list` / `txc config connection list` | Show registered credentials / connections |
