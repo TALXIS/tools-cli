@@ -32,6 +32,7 @@ public class SkillToolNameConsistencyTests
         RegexOptions.Compiled);
 
     private readonly HashSet<string> _validToolNames;
+    private readonly HashSet<string> _commandNames;
 
     // MCP-specific tools registered directly in Program.cs (not via McpToolRegistry.Catalog).
     // Keep this list in sync with the IsGuideTool helper and the get_skill_details/execute_operation
@@ -48,9 +49,29 @@ public class SkillToolNameConsistencyTests
         "get_skill_details",
     };
 
+    // Commands marked [McpIgnore] are not MCP tools but are real CLI commands the docs may name.
+    private static readonly string[] CliOnlyCommandNames =
+    {
+        "config_auth_login",
+        "config_clear",
+        "data_transform_server_start",
+    };
+
+    // A `txc <words>` command written in a code span, or at the start of a line in a code block.
+    // The words are the command path plus any plain words after it (for example a template name);
+    // arguments, options and placeholders start with a character outside [a-z] and end the match.
+    private static readonly Regex TxcCommandPattern = new(
+        @"(?:`|^\s*)txc ([a-z][a-z0-9-]*(?: [a-z][a-z0-9-]*)*)",
+        RegexOptions.Compiled | RegexOptions.Multiline);
+
     public SkillToolNameConsistencyTests()
     {
         var registry = new McpToolRegistry();
+        _commandNames = registry.Catalog
+            .GetAllEntries()
+            .Select(e => e.Descriptor.Name)
+            .Concat(CliOnlyCommandNames)
+            .ToHashSet(StringComparer.Ordinal);
         _validToolNames = registry.Catalog
             .GetAllEntries()
             .Select(e => e.Descriptor.Name)
@@ -130,6 +151,46 @@ public class SkillToolNameConsistencyTests
             missing.Count == 0,
             "These public docs do not start with the shared 'Running these commands' preamble "
             + "(title, blank line, preamble):\n" + string.Join("\n", missing));
+    }
+
+    [Fact]
+    public void PublicSkills_AllTxcCommandPaths_ExistInCommandTree()
+    {
+        // The docs are written in CLI form (`txc a b c`), which the tool-name test above cannot see.
+        // A command path is valid when a leading run of its words is a command, or when it is a
+        // command group named in prose (`txc config profile`).
+        var loader = new PublicSkillLoader();
+        loader.LoadIndex();
+
+        var docsAssembly = AppDomain.CurrentDomain.GetAssemblies()
+            .FirstOrDefault(a => a.GetName().Name == "TALXIS.CLI.Features.Docs");
+        if (docsAssembly is null) return;
+
+        var skills = LoadEmbeddedMarkdown(docsAssembly, "TALXIS.CLI.Features.Docs.Skills.");
+        Assert.NotEmpty(skills);
+
+        var unknown = new List<string>();
+        foreach (var (skillId, content) in skills)
+        {
+            foreach (Match m in TxcCommandPattern.Matches(content))
+            {
+                var words = m.Groups[1].Value.Split(' ');
+                var isCommand = Enumerable.Range(1, words.Length)
+                    .Any(k => _commandNames.Contains(string.Join("_", words.Take(k))));
+                if (isCommand) continue;
+
+                var group = string.Join("_", words) + "_";
+                if (_commandNames.Any(n => n.StartsWith(group, StringComparison.Ordinal))) continue;
+
+                unknown.Add($"  public/{skillId}.md → 'txc {m.Groups[1].Value}'");
+            }
+        }
+
+        Assert.True(
+            unknown.Count == 0,
+            "Public docs name txc commands that do not exist in the command tree. "
+            + "This usually means a command was renamed or mistyped. Unknown commands:\n"
+            + string.Join("\n", unknown.Distinct()));
     }
 
     private void AssertAllReferencesResolve(
