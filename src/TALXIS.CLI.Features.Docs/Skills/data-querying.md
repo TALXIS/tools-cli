@@ -4,42 +4,37 @@
 
 ## Choosing a Query Language
 
-| Scenario | Language | Tool |
+| Scenario | Language | Command |
 |---|---|---|
-| Analytics, joins, aggregation | SQL | `environment_data_query_sql` |
-| CRUD, filtering, lookup expansion | OData | `environment_data_query_odata` |
-| Complex Dataverse-native queries (linked entities, conditions) | FetchXML | `environment_data_query_fetchxml` |
-| Single record by primary key | — | `environment_data_record_get` |
-| Quick record listing with filters | OData | `environment_data_query_odata` (use `$top` to cap results) |
-| Record counts | SQL | `environment_data_query_sql` (`SELECT COUNT(*) FROM <table>`) |
+| Analytics, joins, aggregation | SQL | `txc environment data query sql "<select>"` |
+| Filtering and column selection on one table | OData | `txc environment data query odata <entity-set> ...` |
+| Complex Dataverse-native queries (linked entities, conditions, aggregates) | FetchXML | `txc environment data query fetchxml "<fetch>...</fetch>"` or `--file <fetch.xml>` |
+| Single record by primary key | — | `txc environment data record get <record-guid> --entity <logicalName>` |
+| Quick record listing with filters | OData | `txc environment data query odata <entity-set> --filter "<expr>" --top <n>` |
+| Record counts | SQL | `txc environment data query sql "SELECT COUNT(*) FROM <table>"` |
+
+The three `query` commands are read-only and take `--top <n>` and `--include-annotations`.
 
 ## OData Query Patterns
 
+`txc environment data query odata <entity-set>` takes the entity **set** name (the plural Web API name, e.g. `accounts`) and builds the query from four options: `--select` (`$select`), `--filter` (`$filter`), `--order-by` (`$orderby`) and `--top` (`$top`). There is no option for `$expand` or `$apply`: use SQL (joins, `GROUP BY`) or FetchXML (linked entities, aggregates) for those.
+
 ### Selecting and Filtering
 ```
-?$select=name,revenue&$filter=revenue gt 1000000 and statecode eq 0
+txc environment data query odata accounts --select name,revenue --filter "revenue gt 1000000 and statecode eq 0"
 ```
 
-### Expanding Lookups
+### Ordering and Limiting
 ```
-?$select=name&$expand=primarycontactid($select=fullname,emailaddress1)
+txc environment data query odata accounts --select name --order-by "createdon desc" --top 50
 ```
-Resolves lookup references inline — avoids separate requests.
+The command follows `@odata.nextLink` pages itself and stops at `--top`; you do not need to page manually.
 
-### Ordering and Paging
-```
-?$select=name&$orderby=createdon desc&$top=50
-```
-For large result sets, follow `@odata.nextLink` in the response to fetch subsequent pages.
-
-### Server-Side Aggregation ($apply)
-```
-?$apply=groupby((statuscode),aggregate($count as count))
-```
-Use `$apply` for GROUP BY equivalents — runs server-side, avoids pulling all records.
+### Expanding Lookups and Aggregation
+Lookup values come back as GUIDs; to read related columns use a SQL `JOIN` or a FetchXML `<link-entity>` (see below). For GROUP BY equivalents use SQL (`SELECT statuscode, COUNT(*) FROM account GROUP BY statuscode`) or FetchXML with `aggregate="true"`; both run server-side.
 
 ### Formatted Values
-Lookups and option sets return raw GUIDs/integers by default. The response includes formatted display values in `@OData.Community.Display.V1.FormattedValue` annotations — use these for human-readable output.
+Lookups and option sets return raw GUIDs/integers by default. Pass `--include-annotations` (all three `query` commands and `record get` accept it) to also get the display values, as `@OData.Community.Display.V1.FormattedValue` annotations next to each column — use these for human-readable output.
 
 ## SQL Patterns
 

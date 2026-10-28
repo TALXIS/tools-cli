@@ -10,11 +10,11 @@ Business Process Flows (BPFs) guide users through stages and steps on a record f
 
 BPF creation follows a strict 3-step chain. **Order matters.**
 
-1. **Create BPF Entity** → `workspace_component_create` with `componentType: "pp-bpf"`
-2. **Add Stages** → `workspace_component_create` with `componentType: "pp-bpf-stage"`
-3. **Add Steps to Stages** → `workspace_component_create` with `componentType: "pp-bpf-stage-step"`
+1. **Create BPF Entity** → `txc workspace component create pp-bpf --output <project-dir> --param PublisherPrefix=<prefix> --param BPFName=<name> --param PrimaryEntity=<entity>`
+2. **Add Stages** → `txc workspace component create pp-bpf-stage --output <project-dir> --param BPFLogicalName=<bpf-logical-name> --param StageName=<stage> ...`
+3. **Add Steps to Stages** → `txc workspace component create pp-bpf-stage-step --output <project-dir> --param BPFLogicalName=<bpf-logical-name> --param StageName=<stage> ...`
 
-Call `workspace_component_parameter_list` for required parameters at each step.
+`<project-dir>` is the folder of the solution project that owns the BPF (find it in the repository, for example with `dotnet sln list`). The `--param` names above are the ones these templates require today; run `txc workspace component parameter list <template>` (for example `pp-bpf-stage`) for the full, current list at each step.
 
 ## Architecture Decisions
 

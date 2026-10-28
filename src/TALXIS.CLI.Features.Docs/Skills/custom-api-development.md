@@ -17,11 +17,11 @@ Choose Custom API when multiple clients or flows need to invoke the same operati
 ## Registration Workflow
 
 1. **Create the backing plugin** first (see [plugin-development](plugin-development.md))
-2. **Scaffold Custom API** → `workspace_component_create` with `componentType: "pp-api-endpoint"`
-3. **Add request parameters** → scaffold each input parameter
-4. **Add response properties** → scaffold each output property
+2. **Scaffold Custom API** → `txc workspace component create pp-api-endpoint --output <project-dir> --param CustomizationPrefix=<prefix> --param ApiLogicalName=<Name> --param DisplayName="<Display name>" --param Description="<description>"`
+3. **Shape request parameters** → the template also creates one placeholder string request parameter (`StringParameter`); rename it and add more by copying its folder under `customapirequestparameters/` and editing the XML (`name` is `{prefix}_{apiname}.{ParamName}`; the `type` code sets the data type)
+4. **Shape response properties** → same for the placeholder `StringProperty` under `customapiresponseproperties/`
 
-Call `workspace_component_parameter_list` for required parameters at each step.
+`<project-dir>` is the folder of the solution project that owns the API (find it in the repository, for example with `dotnet sln list`). There is no separate template for individual parameters or properties. Run `txc workspace component parameter list pp-api-endpoint` for the full, current parameter list.
 
 ## Naming Convention
 

@@ -52,37 +52,42 @@ Separate concerns into dedicated solutions:
 - Clear ownership for team collaboration
 - Reduced merge conflicts
 
-## Inspection Tools
+## Inspection Commands
 
-| Tool | Purpose |
+| Command | Purpose |
 |---|---|
-| `environment_solution_list` | List all solutions in the environment |
-| `environment_solution_get` | Details of a specific solution (version, publisher, etc.) |
-| `environment_solution_component_list` | All components in a solution |
-| `environment_component_layer_list` | Layer stack for a specific component |
-| `environment_component_layer_get` | Details of a specific layer entry |
+| `txc environment solution list [--managed true\|false]` | List all solutions in the environment |
+| `txc environment solution get <solution-name>` | Details of a specific solution (version, publisher, etc.) |
+| `txc environment solution component list <solution-name>` | All components in a solution |
+| `txc environment component layer list --id <guid> --type <type>` (or `--entity <logicalName> [--attribute <name>]`) | Layer stack for a specific component |
+| `txc environment component layer get --id <guid> --type <type>` (same selectors) | Details of a specific layer entry |
 
 ## Common Workflows
 
 ### "Which solution owns this component?"
-1. `environment_component_layer_list` with the component ID
+1. `txc environment component layer list --id <component-guid> --type <type>` (or `--entity <logicalName>` for a table, add `--attribute <name>` for a column)
 2. Review the layer stack — the topmost managed layer is the effective owner
-3. `environment_component_layer_get` for details on specific layers
+3. `txc environment component layer get` with the same selectors for details on specific layers
 
 ### "What's in this solution?"
-1. `environment_solution_get` for solution metadata
-2. `environment_solution_component_list` for the full component inventory
+1. `txc environment solution get <solution-name>` for solution metadata
+2. `txc environment solution component list <solution-name>` for the full component inventory
 
 ### Publisher Rules
+Defaults, in order of precedence: what the user asks for, then the publisher and prefix the target repository or environment already uses (`txc environment publisher list`), then these:
 - One publisher per organization for consistency
-- Prefix: recommended repo convention is max 5 characters, lowercase alphanumeric only (e.g., `udpp`); `txc environment publisher create --prefix` accepts 2–8 lowercase alphanumeric characters
+- Prefix: recommended convention is max 5 characters, lowercase alphanumeric only (e.g., `udpp`); the command itself accepts 2–8 alphanumeric characters, starting with a letter and not starting with `mscrm`
 - All components created under this publisher share the prefix
+
+```
+txc environment publisher create <unique-name> --display-name "<Display Name>" --prefix <prefix> --option-value-prefix <10000-99999>
+```
 
 ## What NOT to Do
 
 - ❌ Don't deploy unmanaged solutions to production — always use managed for proper lifecycle management
 - ❌ Don't put all components in a single solution — segment by concern for independent deployment cycles
-- ❌ Don't uninstall solutions without running `environment_solution_uninstall-check` — may cascade-delete data
+- ❌ Don't uninstall solutions without running `txc environment solution uninstall-check <solution-name>` — may cascade-delete data
 - ❌ Don't ignore layer conflicts — the topmost layer always wins, and unmanaged active layers override everything
 
 See also: [deployment-workflow](deployment-workflow.md), [troubleshooting](troubleshooting.md)

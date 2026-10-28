@@ -4,7 +4,7 @@
 
 ## Key Concept
 
-Forms are scaffolded via `pp-form-*` templates. Templates generate correct XML; the build validates it. Use `txc workspace component create` with the appropriate form template rather than writing form XML manually.
+Forms are scaffolded via `pp-form-*` templates. Templates generate correct XML; the build validates it. Use `txc workspace component create <template> --output <project-dir>` with the appropriate form template (see below) rather than writing form XML manually. `<project-dir>` is the folder of the solution project that owns the form.
 
 ## Form XML Hierarchy
 
@@ -24,9 +24,9 @@ Customizations add XML fragments at specific insertion points rather than replac
 ## Scaffolding Workflow
 
 1. Scaffold the Entity and Attributes **before** scaffolding a Form
-2. Use `txc workspace component create` with `pp-entity-form` (set `FormType=main`, `FormType=dialog`, or `FormType=quickCreate`)
+2. Run `txc workspace component create pp-entity-form --output <project-dir> --param FormType=main --param EntitySchemaName=<prefix_table>` (`FormType` is `main`, `dialog`, or `quickCreate`)
 3. Templates handle ClassIDs, hierarchy, and required attributes automatically
-4. Call `txc workspace component parameter list` for template-specific parameters
+4. Run `txc workspace component parameter list pp-entity-form` (or any other template name) for template-specific parameters
 
 ## What NOT to Do
 
@@ -47,7 +47,11 @@ Build forms top-down. Each level is a separate template call:
 6. **`pp-form-cell`** — Add a cell inside the row (provides the label)
 7. **`pp-form-control`** — Add the field control inside the cell
 
-All form fragment templates require `FormId`, `FormType`, and `EntitySchemaName` parameters. Generate the `FormId` GUID once and reuse it across all calls for the same form.
+All form fragment templates require `FormId`, `FormType`, and `EntitySchemaName` parameters, passed as `--param` values. Generate the `FormId` GUID once and reuse it across all calls for the same form, for example:
+
+```
+txc workspace component create pp-form-tab --output <project-dir> --param FormId=<form-guid> --param FormType=main --param EntitySchemaName=<prefix_table>
+```
 
 ### ControlType values for pp-form-control
 `Text`, `MultilineText`, `WholeNumber`, `Decimal`, `Float`, `Currency`, `DateTime`, `Lookup`, `OptionSet`, `SubGrid`, `Button`

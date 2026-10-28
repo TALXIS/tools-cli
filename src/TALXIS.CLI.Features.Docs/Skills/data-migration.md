@@ -8,31 +8,36 @@ The Configuration Migration Tool (CMT) pipeline is the standard approach for mov
 
 ### Export
 ```
-Tool: data_package_export
+txc data package export --schema <schema-file.xml> --output <package-dir> [--zip] [--overwrite] [--export-files]
 ```
-Exports data from a source environment using a schema file that defines which tables and columns to include. Produces XML data files packaged together.
+Exports data from a source environment using a schema file that defines which tables and columns to include. Produces XML data files packaged together (a folder, or a `.zip` with `--zip`; `--overwrite` is needed to replace an existing output; `--export-files` also downloads file and image columns).
 
 ### Import
 ```
-Tool: data_package_import
+txc data package import <package-dir-or-zip> [--batch-mode] [--batch-size <n>]
 ```
-Imports the data package into the target environment. Handles record creation, updates, and relationship mapping.
+Imports the data package into the target environment. Handles record creation, updates, and relationship mapping. `--batch-mode` is much faster for large imports but skips many-to-many relationship records, so omit it (or run a second pass without it) when the package contains them.
 
 ## When to Use What
 
-| Scenario | Approach | Tools |
+| Scenario | Approach | Commands |
 |---|---|---|
-| Single record creation | Record-level | `environment_data_record_create` |
-| Single record update | Record-level | `environment_data_record_update` |
-| Batch of 10–100 records | Bulk upsert | `environment_data_bulk_upsert` |
-| Large dataset (100+) | CMT pipeline | `data_package_export` → `data_package_import` |
+| Single record creation | Record-level | `txc environment data record create --entity <logicalName> --data '<json>' --apply` |
+| Single record update | Record-level | `txc environment data record update <record-guid> --entity <logicalName> --data '<json>' --apply` |
+| Batch of 10–100 records | Bulk upsert | `txc environment data bulk upsert --entity <logicalName> --file <records.json>` |
+| Large dataset (100+) | CMT pipeline | `txc data package export` → `txc data package import` |
 | Full environment clone | CMT pipeline | Export all tables with complete schema |
 | Seed/reference data | CMT pipeline | Version the schema file in source control |
 
+The record-level commands (`txc environment data record create`, `update`, `delete`, ...) and the entity, column, relationship and option-set mutating commands need exactly one of `--apply` (run now) or `--stage` (add to a changeset; run it later with `txc environment changeset apply --strategy batch|transaction|bulk`). The `environment data bulk` commands and the package commands do not.
+
 ## Bulk Operations
 
-### `environment_data_bulk_upsert`
-Creates or updates records based on a key field. Best for:
+### `txc environment data bulk upsert`
+```
+txc environment data bulk upsert --entity <logicalName> --file <records.json>
+```
+`--file` is a JSON array of records (or pass the array inline with `--data`). Creates or updates each record by its primary or alternate key, which the record itself carries; there is no separate key option. `environment data bulk create` and `bulk update` take the same arguments. Best for:
 - Syncing reference data across environments
 - Loading seed data during environment provisioning
 - Batch updates where you have a natural key
@@ -41,10 +46,10 @@ Creates or updates records based on a key field. Best for:
 
 After any data operation, verify the results:
 
-| Tool | Best For |
+| Command | Best For |
 |---|---|
-| `environment_data_query_sql` | Quick counts and simple filters (SQL-like syntax) |
-| `environment_data_query_odata` | Complex filtering, expand related records |
+| `txc environment data query sql "<select>"` | Quick counts, simple filters and joins (SQL-like syntax) |
+| `txc environment data query odata <entity-set> --filter "<expr>"` | Filtering and selecting columns on one table |
 
 ### Verification Checklist
 - Record counts match expected totals
@@ -56,10 +61,10 @@ After any data operation, verify the results:
 
 ### Cloning Data Between Environments
 ```
-1. data_package_export { schemaFile: "migration-schema.xml" }     — on source env profile
-2. Switch to target environment profile
-3. data_package_import { packagePath: "<output from step 1>" }
-4. Verify: environment_data_query_sql { query: "SELECT COUNT(*) FROM prefix_tablename" }
+1. txc data package export --schema migration-schema.xml --output <package-dir> --profile <source-profile>
+2. (Target environment: pass --profile <target-profile> on the next commands, or make it active with txc config profile select <target-profile>)
+3. txc data package import <package-dir> --profile <target-profile>
+4. Verify: txc environment data query sql "SELECT COUNT(*) FROM <prefix_tablename>" --profile <target-profile>
 ```
 
 ## Best Practices
@@ -68,7 +73,7 @@ After any data operation, verify the results:
 - For recurring migrations, automate the export → import pipeline
 
 ## What NOT to Do
-- ❌ Don't use `environment_data_record_create` in a loop for bulk data — use `environment_data_bulk_upsert` or the CMT pipeline
+- ❌ Don't use `txc environment data record create` in a loop for bulk data — use `txc environment data bulk upsert` or the CMT pipeline
 - ❌ Don't import directly to production without testing on dev/test first
 - ❌ Don't skip post-import verification — silent data issues are hard to catch later
 
@@ -79,7 +84,7 @@ After any data operation, verify the results:
 **FK-Ordered Import:** When importing multiple related tables, import in dependency order:
 1. Tables with no foreign keys first (reference data)
 2. Then tables that depend on them (transactional data)
-3. Use `data record bulk upsert` for idempotent re-runs
+3. Use `txc environment data bulk upsert` for idempotent re-runs
 
 **Lookup Resolution:** Before importing records with lookups, query the target table to build a name→GUID map. Use this to populate lookup fields in the import data.
 
