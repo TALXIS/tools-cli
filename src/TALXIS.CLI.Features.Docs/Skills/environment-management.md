@@ -1,5 +1,7 @@
 # Environment Setup & Profiles
 
+> **Running these commands.** Commands are written for the CLI: `txc <command>` (`txc <command> --help` lists its arguments and options). If the TALXIS MCP server is connected instead, every command is also a tool named by joining its words with `_` (`txc workspace component create` is the tool `workspace_component_create`). The tool list is generated from the CLI commands, so each tool takes the arguments and options of its command, and the CLI help is the reference on either route.
+
 ## Overview
 
 `txc` uses a three-tier configuration model to connect to Dataverse environments:

@@ -87,6 +87,48 @@ public class SkillToolNameConsistencyTests
         AssertAllReferencesResolve(skills, "public");
     }
 
+    // Public docs are served both by `txc docs get` and over MCP (get_skill_details), so each one
+    // says up front that a command can be run as `txc <command>` or, with the MCP server, as the
+    // tool named by joining the command words with "_". Keep the wording in one place: change it
+    // here and in every doc together.
+    private const string RunningPreamble =
+        "> **Running these commands.** Commands are written for the CLI: `txc <command>` "
+        + "(`txc <command> --help` lists its arguments and options). If the TALXIS MCP server is "
+        + "connected instead, every command is also a tool named by joining its words with `_` "
+        + "(`txc workspace component create` is the tool `workspace_component_create`). The tool list "
+        + "is generated from the CLI commands, so each tool takes the arguments and options of its "
+        + "command, and the CLI help is the reference on either route.";
+
+    [Fact]
+    public void PublicSkills_StartWithTheSameRunningPreamble()
+    {
+        var loader = new PublicSkillLoader();
+        loader.LoadIndex();
+
+        var docsAssembly = AppDomain.CurrentDomain.GetAssemblies()
+            .FirstOrDefault(a => a.GetName().Name == "TALXIS.CLI.Features.Docs");
+        if (docsAssembly is null) return;
+
+        var skills = LoadEmbeddedMarkdown(docsAssembly, "TALXIS.CLI.Features.Docs.Skills.");
+        Assert.NotEmpty(skills);
+
+        // The preamble must be the first paragraph after the title.
+        var missing = skills
+            .Where(s =>
+            {
+                var lines = s.Value.Replace("\r\n", "\n").Split('\n');
+                return lines.Length < 3 || !lines[0].StartsWith("# ") || lines[1] != "" || lines[2] != RunningPreamble;
+            })
+            .Select(s => $"  {s.Key}.md")
+            .OrderBy(n => n, StringComparer.Ordinal)
+            .ToList();
+
+        Assert.True(
+            missing.Count == 0,
+            "These public docs do not start with the shared 'Running these commands' preamble "
+            + "(title, blank line, preamble):\n" + string.Join("\n", missing));
+    }
+
     private void AssertAllReferencesResolve(
         IReadOnlyDictionary<string, string> skills,
         string skillCategory)
