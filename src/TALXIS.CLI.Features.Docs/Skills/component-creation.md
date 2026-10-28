@@ -8,10 +8,14 @@ Scaffolding creates **local files** in your workspace — it does NOT create com
 
 ## Workflow Chain
 
-1. **Read the workspace** — the `.slnx` and each project's `ProjectType` show what exists before you create anything
+1. **Read the workspace** — the solution file (`.slnx`, or `.sln` in older repos; `dotnet sln list` lists its projects) and each project's `ProjectType` show what exists before you create anything. Never assume project names or folders: the request comes first, then what the repository already has, then our defaults
 2. **`txc component type list`** — discover available component types
 3. **`txc workspace component parameter list <template>`** — get required parameters for a component type
-4. **`txc workspace component create <template>`** — scaffold the component locally
+4. **`txc workspace component create <template> --output <dir> --param <key>=<value>`** — scaffold the component locally. `--output` is required: the directory the component is scaffolded into (a solution project's folder for solution components, the new project's folder for a separate project). Repeat `--param` per parameter, for example:
+   ```
+   txc workspace component create pp-entity-form --output src/Solutions.DataModel --param FormType=main --param EntitySchemaName=prefix_table
+   ```
+   (`src/Solutions.DataModel` is the default layout; use the solution project the repository has.)
 5. **Build locally** to validate: `dotnet build`
 6. **Run schema validation** to catch XML errors early:
    ```
@@ -29,7 +33,7 @@ Scaffold components in dependency order:
 4. **Forms** — after entity and its attributes exist
 5. **Views** — after entity and its attributes exist
 6. **Separate projects** (Plugin, ScriptLibrary, WorkflowActivity, CodeApp, PCF) — scaffold with their respective `pp-*` template, creates a separate .csproj
-7. **Project Reference** — `dotnet add reference` from solution project to the separate project. The Build SDK auto-detects the project type and handles registration (assembly data.xml, web resource data.xml, etc.) during `dotnet build`
+7. **Project Reference** — `dotnet add <solution-project> reference <separate-project>` from the solution project to the separate project, then build the solution project (`dotnet build <solution-project>`). The Build SDK auto-detects the project type and handles registration (assembly data.xml, web resource data.xml, etc.) during that build. For plugin steps (`[PluginStep]` vs `pp-plugin-assembly-step`) see [plugin-development](plugin-development.md)
 8. **Ribbon Buttons** (`pp-ribbon-button`) — after entity and script library exist. References the web resource via `LibraryLogicalName=prefix_name`
 9. **Form Event Handlers** (`pp-form-event-handler`) — after entity, form, and script library exist. References via `libraryName=prefix_name.js` and `functionName=prefix_name.ClassName.methodName`
 
@@ -48,10 +52,10 @@ Some templates use C# file-based apps (`.cs`) for code generation. These run nat
 
 ## What NOT to Do
 
-- ❌ Don't use `environment_entity_create` for development — it bypasses source control
+- ❌ Don't use `txc environment entity create` for development — it changes the live environment and bypasses source control
 - ❌ Don't scaffold a Form or View before the Entity and its Attributes exist — XML references will break
 - ❌ Don't scaffold a Relationship if the target table hasn't been created yet
-- ❌ Don't run `pp-plugin-assembly` when the solution generates the assembly registration (`GeneratePluginAssembly`, the default) — the build registers it, and a second assembly root breaks the next build
+- ❌ Don't run `pp-plugin-assembly` when the solution generates the assembly registration (`GeneratePluginAssembly`, the default is true) — the build registers it, and a second assembly root breaks the next build. It is only for solutions that set `GeneratePluginAssembly=false`; see [plugin-development](plugin-development.md)
 - ❌ Don't run `pp-webresource` for script libraries — the Build SDK auto-generates the web resource when a ScriptLibrary project is referenced via `dotnet add reference`
 - ❌ Don't call `npm install` or `npm run build` manually for script libraries — `dotnet build` handles everything
 - ❌ Don't manually create assembly data.xml for plugins or workflow activities — the Build SDK auto-generates them from project references

@@ -4,18 +4,18 @@
 
 ## Overview
 
-A Power Platform monorepo follows a structured layout where solution projects, plugin projects, and package deployer projects coexist. To see what a repository already contains, read its `.slnx` and each project's `ProjectType`.
+A Power Platform monorepo follows a structured layout where solution projects, plugin projects, and package deployer projects coexist. To see what a repository already contains, read its solution file (`.slnx`, or `.sln` in older repos) and each project's `ProjectType`. `dotnet sln list` lists the projects of the solution file, and searching the `.csproj` files for `<ProjectType>` (for example `grep -r "<ProjectType>" --include=*.csproj .`) shows each one's type.
 
 ## Repository Structure Convention
 
-Every project lives under `src/` as an SDK-style `.csproj`, and all of them are listed in one `.slnx` at the repository root. Projects are named by role: `Solutions.*` (for example `Solutions.DataModel`, `Solutions.Logic`, `Solutions.UI`, `Solutions.Security`), `Plugins.{Domain}`, `Scripts.UI`, `Packages.Main`, and test projects as `src/Tests.*`. CI/CD workflows live in `.github/workflows/`. The project names are a convention, not a requirement: what the build cares about is each project's `ProjectType` (below) and its references.
+This is our default layout. Precedence: what the request says first, then what the repository already has (existing project names, folders and solution file are respected, never renamed or assumed), then these defaults. By default every project lives under `src/` as an SDK-style `.csproj`, and all of them are listed in one solution file at the repository root (`.slnx`; older repos use `.sln`). Default project names are by role: `Solutions.*` (for example `Solutions.DataModel`, `Solutions.Logic`, `Solutions.UI`, `Solutions.Security`), `Plugins.{Domain}`, `Scripts.UI`, `Packages.Main`, and test projects as `src/Tests.*`. CI/CD workflows live in `.github/workflows/`. The names are a convention, not a requirement: what the build cares about is each project's `ProjectType` (below) and its references.
 
 ## Project Types
 
 All projects use `<ProjectType>` in their `.csproj` to declare their type. The Build SDK routes each type to its specific build logic automatically.
 
 ### Solution Projects (`ProjectType=Solution`)
-These contain Dataverse solution metadata and components as XML files:
+These contain Dataverse solution metadata and components as XML files (default names shown):
 - **Solutions.DataModel** — Tables, columns, relationships, option sets
 - **Solutions.Logic** — Workflows, business rules, plugin step registrations
 - **Solutions.UI** — Forms, views, model-driven apps, sitemaps
@@ -24,9 +24,9 @@ These contain Dataverse solution metadata and components as XML files:
 Each solution project maps to one Dataverse solution. Solution projects are the **hub** — they reference other project types via `dotnet add reference`, and the Build SDK auto-handles each reference type during `dotnet build`.
 
 ### Plugin Projects (`ProjectType=Plugin`)
-- Scaffold with `pp-plugin` → `dotnet build` → `pp-plugin-assembly-step`. The build registers the plugin assembly in the referencing solution (`GeneratePluginAssembly` defaults to true), so there is no `pp-plugin-assembly` step; running it after that build adds a second assembly root and the next build fails. See [plugin-development](plugin-development.md).
+- Scaffold with `pp-plugin`, reference it from the solution project that holds the registrations (`dotnet add <solution-project> reference <plugin-project>`) and build that solution project (`dotnet build <solution-project>`), not just the plugin. The build registers the plugin assembly in the referencing solution (`GeneratePluginAssembly` defaults to true), so there is no `pp-plugin-assembly` step; running it after that build adds a second assembly root and the next build fails. Steps come from `[PluginStep]` attributes on the classes (the same build generates them); `pp-plugin-assembly-step` is only for what attributes cannot express or an older Build SDK. See [plugin-development](plugin-development.md).
 - .NET class libraries containing plugin classes that extend `PluginBase`
-- Referenced by solution projects — Build SDK auto-generates plugin assembly data.xml
+- Referenced by solution projects — Build SDK auto-generates plugin assembly data.xml when that solution project is built
 
 ### Script Library Projects (`ProjectType=ScriptLibrary`)
 - Scaffold with `pp-script-library` (provides `PublisherPrefix` and `LibraryName`)
@@ -61,7 +61,7 @@ Each solution project maps to one Dataverse solution. Solution projects are the 
 Solution projects act as the hub. When you add a project reference, the Build SDK **auto-detects the referenced project's type** via the `GetProjectType` MSBuild protocol and handles it accordingly:
 
 ```bash
-# From a solution project directory:
+# From a solution project directory (names are examples; use the repository's own):
 dotnet add reference ../Plugins.Warehouse/Plugins.Warehouse.csproj      # Plugin → auto-generates assembly data.xml
 dotnet add reference ../Scripts.UI/Scripts.UI.csproj                    # ScriptLibrary → auto-generates web resource
 dotnet add reference ../WorkflowActivities/WorkflowActivities.csproj     # WorkflowActivity → auto-generates assembly data.xml
@@ -75,9 +75,11 @@ All auto-generation happens during `dotnet build` — no manual registration ste
 | Command | Purpose |
 |---|---|
 | `txc component type list` | List available component types for scaffolding |
-| `txc workspace component create` | Scaffold new components into a solution project |
+| `txc workspace component create <type> --output <dir>` | Scaffold new components into a solution project (add `--param <key>=<value>` per parameter) |
 
 ## Naming Conventions
+
+These are recommended defaults. What the request says wins, then the repository's existing conventions.
 
 - **Entity logical names**: lowercase with publisher prefix (e.g., `prefix_warehouseitem`)
 - **Display names**: Proper case (e.g., `Warehouse Item`)
@@ -86,9 +88,9 @@ All auto-generation happens during `dotnet build` — no manual registration ste
 
 ## Getting Started
 
-1. Read the `.slnx` and the projects' `ProjectType` to see what's already in the repo
+1. Read the solution file (`.slnx`, or `.sln`) with `dotnet sln list` and the projects' `ProjectType` to see what's already in the repo
 2. Identify which solution project your changes belong to
-3. Use `txc workspace component create` to scaffold
+3. Use `txc workspace component create <type> --output <dir> --param <key>=<value>` to scaffold (`--output` is required; `txc workspace component parameter list <type>` shows the parameters)
 4. Build locally to validate before deploying
 
 See also: [component-creation](component-creation.md), [deployment-workflow](deployment-workflow.md)
