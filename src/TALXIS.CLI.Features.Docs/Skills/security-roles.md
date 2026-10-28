@@ -23,11 +23,12 @@
 
 | Level | Scope |
 |---|---|
-| None | No access |
-| User / Basic | Own records only |
-| BusinessUnit | Records in the user's business unit |
-| ParentChild | Records in the user's BU and child BUs |
+| Basic | Own records only (the UI calls it User) |
+| Local | Records in the user's business unit (UI: Business Unit) |
+| Deep | Records in the user's business unit and its child units (UI: Parent: Child Business Units) |
 | Global | All records in the organization |
+
+These four are the values the build accepts; any other level fails `dotnet build` with `TXVAL001`. From templates release N on, the scaffold also accepts the UI names `User`, `BusinessUnit` and `ParentChild` as aliases and rejects unknown levels. For no access, leave the privilege out.
 
 ## Design Pattern: One Role Per Persona
 
@@ -35,16 +36,15 @@ Create a dedicated role for each user persona (e.g., `Sales Rep`, `Warehouse Man
 
 ## PrivilegeTypeAndLevel Format
 
-When using `pp-security-role-privilege`, specify privileges as a JSON array:
-```json
-[
-  { "type": "Read", "level": "Global" },
-  { "type": "Write", "level": "BusinessUnit" },
-  { "type": "Create", "level": "User" },
-  { "type": "Delete", "level": "None" }
-]
+`pp-security-role-privilege` grants one role privileges on one table. The table comes from `EntityLogicalName`; `PrivilegeTypeAndLevel` lists the privilege types (from the table above) with their level:
+```bash
+txc workspace component create pp-security-role-privilege \
+  --output src/Solutions.Security \
+  --param "RoleName=Warehouse worker" \
+  --param "EntityLogicalName=<prefix>_warehouseitem" \
+  --param "PrivilegeTypeAndLevel=[{ PrivilegeType: Read, Level: Global }, { PrivilegeType: Write, Level: Basic }]"
 ```
-Each entry maps a privilege type to the desired depth. Omitted types default to `None`.
+Privilege types you leave out are not granted.
 
 ## Assigning Roles to Environment Users, Service Principals, and Teams
 
