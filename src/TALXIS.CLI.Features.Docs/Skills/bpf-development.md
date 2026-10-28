@@ -1,37 +1,23 @@
 # Business Process Flow Development
 
-## Key Concept
-
-Business Process Flows (BPFs) guide users through stages and steps on a record form. BPFs are a special entity type (`IsBPFEntity=1`) that combine entity creation, XAML workflow authoring, and relationship configuration.
+Business Process Flows (BPFs) guide users through stages and steps on a record form. A BPF is a special entity (`IsBPFEntity=1`; without it Dataverse treats it as a regular entity) combining entity creation, XAML workflow and relationships.
 
 ## BPF Scaffolding Chain
 
-BPF creation follows a strict 3-step chain. **Order matters.**
+Strict order; each step needs the previous one:
 
-1. **Create BPF Entity** → `txc workspace component create pp-bpf --output <project-dir> --param PublisherPrefix=<prefix> --param BPFName=<name> --param PrimaryEntity=<entity>`
-2. **Add Stages** → `txc workspace component create pp-bpf-stage --output <project-dir> --param BPFLogicalName=<bpf-logical-name> --param StageName=<stage> ...`
-3. **Add Steps to Stages** → `txc workspace component create pp-bpf-stage-step --output <project-dir> --param BPFLogicalName=<bpf-logical-name> --param StageName=<stage> ...`
+1. `txc workspace component create pp-bpf --output <project-dir> --param PublisherPrefix=<prefix> --param BPFName=<name> --param PrimaryEntity=<entity>`
+2. `txc workspace component create pp-bpf-stage --output <project-dir> --param BPFLogicalName=<bpf-logical-name> --param StageName=<stage> ...`
+3. `txc workspace component create pp-bpf-stage-step --output <project-dir> --param BPFLogicalName=<bpf-logical-name> --param StageName=<stage> ...`
 
-`<project-dir>` is the folder of the solution project that owns the BPF (find it in the repository, for example with `dotnet sln list`). `<prefix>` is the customization prefix of the target solution (see [component-creation](component-creation.md)). The templates themselves mark only `PublisherPrefix` and `BPFName` (`pp-bpf`) and `BPFLogicalName` (`pp-bpf-stage`, `pp-bpf-stage-step`) as required, but in practice also pass `PrimaryEntity` and `StageName` as shown, or placeholders can remain in the generated files. Run `txc workspace component parameter list <template>` (for example `pp-bpf-stage`) for the full, current list at each step.
+`<project-dir>` is the solution project that owns the BPF; `<prefix>` is its customization prefix ([component-creation](component-creation.md)). Templates mark only `PublisherPrefix`, `BPFName` (`pp-bpf`) and `BPFLogicalName` (stage templates) required, but also pass `PrimaryEntity` and `StageName`, or placeholders can remain in the generated files. `txc workspace component parameter list <template>` shows the rest.
 
-## Architecture Decisions
+## Design
 
-- **Simple Linear BPF** — single entity, sequential stages, no branching (approval, onboarding)
-- **Cross-Entity BPF** — spans multiple tables (e.g., Lead → Opportunity → Quote); requires relationships between entities
-- **BPF with Branching** — conditional paths based on field values (e.g., customer tier routing)
+- **Linear** — one entity, sequential stages (approval, onboarding)
+- **Cross-entity** — spans tables (Lead → Opportunity → Quote); each stage names its entity and the entities need relationships
+- **Branching** — conditional paths on field values; keep a clear forward progression, no circular branches
 
-## Relationship to Primary Entity
-
-- The BPF entity has a many-to-one relationship to the primary entity
-- Cross-entity BPFs: each stage specifies which entity it operates on
-- Ensure all referenced entities and attributes exist before scaffolding
-
-## What NOT to Do
-
-- ❌ Don't create stages before the BPF entity — the XAML workflow must exist first
-- ❌ Don't forget `IsBPFEntity=1` — without it, Dataverse treats it as a regular entity
-- ❌ Don't reference attributes that don't exist on the stage's entity
-- ❌ Don't create circular branch paths — BPFs must have a clear forward progression
-- ❌ Don't skip the `TriggerOnCreate=1` setting if the BPF should auto-start
+The BPF entity has a many-to-one relationship to the primary entity. Referenced entities and attributes must exist before scaffolding. Set `TriggerOnCreate=1` if the BPF should auto-start.
 
 See also: [component-creation](component-creation.md), [form-xml-reference](form-xml-reference.md)

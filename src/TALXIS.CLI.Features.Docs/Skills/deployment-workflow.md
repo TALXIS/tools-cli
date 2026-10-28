@@ -6,95 +6,82 @@
 local dev → build → pack → import → publish → verify
 ```
 
-Each step has specific `txc` commands and checkpoints.
-
-## Step-by-Step
-
 ### 1. Local Development
-Use `txc workspace component create <type> --output <project-dir> [--param <name>=<value> ...]` to scaffold components (see [component-creation](component-creation.md)). Edit XML files. Write plugin code. All local, all in source control.
+`txc workspace component create <type> --output <project-dir> [--param <name>=<value> ...]` scaffolds components (see [component-creation](component-creation.md)). All local, in source control.
 
 ### 2. Build
-Build the solution project locally to catch errors early — malformed XML, missing references, schema violations.
+Build the solution project locally to catch malformed XML, missing references and schema violations early.
 
 ### 3. Pack
 ```
 txc environment solution pack <unpacked-solution-folder> --output <solution.zip> [--managed]
 ```
-Creates a `.zip` solution file from an **unpacked solution folder** (add `--managed` for a managed package). This is still a local operation — no environment interaction yet. For a TALXIS Build SDK solution project the build in step 2 (see Build Configuration below) already produces the package, and `txc environment solution import` accepts the project directory or the built `.zip` directly, so this step is only needed for a plain unpacked folder.
+Local only. For a TALXIS Build SDK solution project the build already produces the package and `txc environment solution import` accepts the project directory or the built `.zip`, so pack is only for a plain unpacked folder.
 
 ### 4. Import
 ```
 txc environment solution import <solution.zip|unpacked-folder|project-dir> [--wait]
 ```
-Uploads the solution package to the target Dataverse environment (the path defaults to the current directory). By default it returns immediately with an `asyncOperationId`.
+The path defaults to the current directory. By default it returns immediately with an `asyncOperationId`.
 
-Solution imports can take minutes, and `--wait` blocks until they finish. **If the caller has a timeout** (an MCP request, a short shell timeout, a tool that gives up after some minutes), **do not use `--wait`**: start the import, then poll `txc environment deployment get --async-operation-id <guid>` (the id is printed by `txc environment solution import`) until status is `Completed` or `Failed`. Where nothing times out (a CI job, a terminal you can leave running), `--wait` is fine and simpler. Never query the `asyncoperation` table directly via SQL — `txc environment deployment get` parses the findings for you.
+`--wait` blocks until the import finishes (can take minutes). **If the caller has a timeout** (an MCP request, a short shell timeout), **do not use `--wait`**: poll `txc environment deployment get --async-operation-id <guid>` until status is `Completed` or `Failed`. Where nothing times out (a CI job), `--wait` is fine. Never query the `asyncoperation` table directly; `deployment get` parses the findings.
 
 ### 5. Publish
 ```
 txc environment solution publish
 ```
-Publishes all customizations. Without this step, changes to forms, views, and other UI components won't be visible to users.
+Without it, changes to forms, views and other UI components are not visible to users.
 
 ### 6. Verify
 ```
 txc environment deployment get --latest
 ```
-Check the deployment status and review any findings (warnings, errors, informational messages).
+Review the status and findings (warnings, errors).
 
-## Build Configuration: Managed vs Unmanaged
+## Managed vs Unmanaged
 
-For a TALXIS Build SDK solution project the build configuration decides whether the package is **managed** or **unmanaged**, and getting it wrong is a common deployment failure. By default `Debug` builds unmanaged and any other configuration (such as `Release`) builds managed; the project property `SolutionPackageType` (`Unmanaged` or `Managed`) overrides that, so check the project before relying on the default. For a plain unpacked folder, `txc environment solution pack` produces unmanaged unless you add `--managed`.
+For a Build SDK solution project, `Debug` builds unmanaged and any other configuration (e.g. `Release`) builds managed; the project property `SolutionPackageType` (`Unmanaged` or `Managed`) overrides that, so check the project. `txc environment solution pack` produces unmanaged unless `--managed`.
 
 | Config | Solutions | Use for |
 |---|---|---|
-| `Debug` (`dotnet build -c Debug`) | **unmanaged** | dev/test environments that already hold unmanaged solutions |
-| `Release` (`dotnet build -c Release`) | **managed** | staging/production |
+| `dotnet build -c Debug` | unmanaged | dev/test environments holding unmanaged solutions |
+| `dotnet build -c Release` | managed | staging/production |
 
-**You cannot overwrite an unmanaged solution with a managed one (or vice versa).** A managed package (for example from `-c Release`) imported over an existing unmanaged solution fails with:
-
-> You can't overwrite an unmanaged version of this solution with a managed version.
-
-When deploying, first check what's already there:
-1. Are the existing solutions on the environment managed or unmanaged? (`txc environment solution list --managed true` / `--managed false`, or `txc environment solution get <solution-name>`)
-2. Build with the matching configuration.
-3. On a mismatch, either uninstall the existing solution and re-import, or rebuild with the correct configuration.
+An unmanaged solution cannot be overwritten by a managed one (or vice versa); the import fails with "You can't overwrite an unmanaged version of this solution with a managed version." Before deploying:
+1. Check what the environment holds: `txc environment solution list --managed true` / `--managed false`, or `txc environment solution get <solution-name>`.
+2. Build with the matching configuration; on a mismatch, uninstall the existing solution and re-import, or rebuild.
 
 ## Pre-Flight Checks
-
-Before deploying, validate:
 
 | Check | Command |
 |---|---|
 | Auth/connection is valid | `txc config profile validate [<name>]` |
-| Connected to correct environment | `txc config profile get [<name>]` |
+| Correct environment | `txc config profile get [<name>]` |
 | Solution can be safely removed | `txc environment solution uninstall-check <solution-name>` |
 
 ## Changeset Workflow
 
-Mutating record, table, column, relationship and option-set commands take `--apply` (run now) or `--stage` (add the operation to a local changeset instead). Staged operations are kept in `.txc/changeset.json` of the current directory, so run the staging and the apply from the same directory.
+Mutating record, table, column, relationship and option-set commands take `--apply` (run now) or `--stage` (add to a local changeset). Staged operations live in `.txc/changeset.json` of the current directory, so stage and apply from the same directory.
 
 | Command | Purpose |
 |---|---|
-| `txc environment changeset status` | Check current changeset state |
-| `txc environment changeset apply --strategy batch\|transaction\|bulk` | Run the staged operations (`--continue-on-error` applies to `batch`) |
-| `txc environment changeset discard` | Drop the staged operations (add `--yes` to skip the confirmation) |
-
-Changesets let you group several operations and review them with `status` before running them.
+| `txc environment changeset status` | Show staged operations |
+| `txc environment changeset apply --strategy batch\|transaction\|bulk` | Run them (`--continue-on-error` applies to `batch`) |
+| `txc environment changeset discard` | Drop them (`--yes` skips the confirmation) |
 
 ## Troubleshooting Deployments
 
 If import fails:
-1. `txc environment deployment get --latest` — check error findings (or `--async-operation-id <id>` from the import output)
-2. `txc environment component layer list --entity <logicalName>` (or `--id <guid> --type <type>`) — look for conflicting layers
-3. `txc environment component dependency required --entity <logicalName>` (same selectors) — find missing dependencies
-4. Fix locally, rebuild, and retry
+1. `txc environment deployment get --latest` (or `--async-operation-id <id>`): read the error findings
+2. `txc environment component layer list --entity <logicalName>` (or `--id <guid> --type <type>`): conflicting layers
+3. `txc environment component dependency required --entity <logicalName>` (same selectors): missing dependencies
+4. Fix locally, rebuild, retry
 
 ## What NOT to Do
 
-- ❌ Don't skip the local build step — XML errors are much faster to catch locally than at import time
-- ❌ Don't deploy unmanaged solutions to production — use managed for proper versioning and clean uninstall
-- ❌ Don't skip `txc environment solution publish` after import — UI changes (forms, views) remain invisible without it
-- ❌ Don't retry a failed import without first checking `txc environment deployment get --latest` — you'll repeat the same error
+- ❌ Don't skip the local build
+- ❌ Don't deploy unmanaged solutions to production
+- ❌ Don't skip `txc environment solution publish` after import
+- ❌ Don't retry a failed import without reading `txc environment deployment get --latest`
 
 See also: [troubleshooting](troubleshooting.md), [solution-layering](solution-layering.md)
