@@ -1,0 +1,3 @@
+> **Running these commands.** Commands are CLI: `txc <command>` (`--help` lists arguments and options). With the MCP server connected, most are also tools named by joining the command words with `_` (`workspace_component_create`; hyphens stay: `environment_solution_uninstall-check`). Not in your tool list? Use `execute_operation`. A tool's schema names its arguments, which can differ from the CLI options. A link like `[x](x.md)` is a doc id: `txc docs get x`.
+>
+> **Names and layout.** Names, folders and prefixes here are defaults. The user's request comes first, then what the repository already has (discover it: `dotnet sln list`, `txc environment publisher list`), then these defaults.
