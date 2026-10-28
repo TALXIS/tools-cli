@@ -30,15 +30,7 @@ When a component behaves unexpectedly or changes don't take effect:
 
 ## Authentication Issues
 
-```
-401/403 or connection errors
-  └─→ txc config profile validate [<profile>]
-       ├─→ "Invalid" → txc config profile get [<profile>] (connection and auth names)
-       │    └─→ txc config connection get <connection> (URL); txc config auth get <alias> (credential)
-       │         └─→ Re-create auth: txc config auth add-service-principal (see environment-management)
-       └─→ "Valid" but failing
-            └─→ Check the service principal's security roles, then environment-level access in the Power Platform admin center
-```
+401/403 or connection errors: [environment-management](environment-management.md), Troubleshooting Auth.
 
 ## Dependency Problems
 
@@ -47,10 +39,7 @@ When a component behaves unexpectedly or changes don't take effect:
 
 ## Wrong Environment
 
-If data or schema doesn't match expectations:
-1. `txc config profile get` shows the active profile with its connection URL
-2. Confirm it is the intended dev/test/prod
-3. Switch: `txc config profile select <name>`, or `--profile <name>` on one command
+Data or schema not as expected: [environment-management](environment-management.md), Switching Environments (`txc config profile get` shows the active profile and its URL).
 
 ## Common Dataverse Error Codes
 

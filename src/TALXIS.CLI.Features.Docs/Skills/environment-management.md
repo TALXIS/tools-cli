@@ -10,7 +10,7 @@ Auth (credential alias)  ┐
 Connection (provider + environment URL) ┘
 ```
 
-A connection holds the provider and environment URL, not credentials; one auth can serve several connections. Commands run against the active profile; `--profile <name>` (or `TXC_PROFILE`) overrides it for one command.
+One auth can serve several connections. Commands run as the active profile.
 
 ## First-Time Setup
 
@@ -42,12 +42,11 @@ txc config profile validate <profile>
 | `txc config profile select <name>` | Make a profile the global active one |
 | `txc config auth list` / `txc config connection list` | Show registered credentials / connections |
 
-`txc config profile pin [<name>]` makes a profile the default for this repository (writes `.txc/workspace.json`; the active profile when no name is given), which prevents running against the wrong environment. `select` sets the global active profile, used where no pin applies. Order of use: `--profile`, `TXC_PROFILE`, the workspace pin, the global active profile.
+`txc config profile pin [<name>]` makes a profile the default for this repository (writes `.txc/workspace.json` in the current directory, applying to that directory tree; the active profile when no name is given). `select` sets the global active profile, used where no pin applies. Order of use: `--profile`, `TXC_PROFILE`, the workspace pin, the global active profile.
 
 ## Best Practices
 
-- Interactive sign-in is fine on a developer's machine; use a service principal (or federated credential) for CI/CD and unattended runs
-- Separate profiles per environment (dev, test, prod), pinned to workspace directories; validate after creation and credential rotation
+- Separate profiles per environment (dev, test, prod); validate after creation and credential rotation
 - Don't connect to production for routine development
 - Each person signs in with their own account or service principal; don't share credentials
 - If a destructive command is blocked as production, check the target first: `txc config profile validate <profile> --refresh-env-type` records its real type. Add `--allow-production` only for an environment that really is production
@@ -65,7 +64,7 @@ For one command, `--profile test` avoids changing the active profile.
 If `txc config profile validate <profile>` fails:
 1. Check the URL: `txc config profile get <profile>`, then `txc config connection get <connection>`
 2. Verify the service principal exists in the target environment's Azure AD
-3. Confirm it has a Dataverse security role (see [security-roles](security-roles.md))
+3. Confirm it has a Dataverse security role (see [security-roles](security-roles.md)) and environment-level access (Power Platform admin center)
 4. Check whether the client secret expired (create a new one, re-run `txc config auth add-service-principal` for the same alias)
 
 See also: [troubleshooting](troubleshooting.md), [deployment-workflow](deployment-workflow.md)

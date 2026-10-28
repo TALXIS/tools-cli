@@ -20,7 +20,7 @@ txc environment data query odata accounts --select name,revenue --filter "revenu
 txc environment data query odata 'accounts?$select=name&$expand=primarycontactid($select=fullname,emailaddress1)'
 txc environment data query odata 'accounts?$apply=groupby((statuscode),aggregate($count as count))'
 ```
-The command follows `@odata.nextLink` pages itself and stops at `--top`. The path forms were not run against a live environment; if the server rejects one, use SQL (`JOIN`, `GROUP BY`) or FetchXML (`<link-entity>`, `aggregate="true"`).
+The command follows `@odata.nextLink` pages itself and stops at `--top`. If the server rejects a path form, use SQL (`JOIN`, `GROUP BY`) or FetchXML (`<link-entity>`, `aggregate="true"`).
 
 Lookups and option sets return raw GUIDs/integers; `--include-annotations` (also on `record get`, and with a full path) adds display values as `@OData.Community.Display.V1.FormattedValue`.
 

@@ -1,7 +1,5 @@
 # Plugin & Custom Code Development
 
-Plugins are server-side .NET classes that run business logic on Dataverse events.
-
 ## Plugin Project
 
 - Default: `src/Plugins.{Domain}/`, classes `{Action}{Entity}Plugin.cs`.
@@ -28,17 +26,20 @@ One way per class, message, entity and stage; if the repository's plugins regist
 
 - Needs `GeneratePluginAssembly` not `false` (otherwise the attribute is silently ignored) and Build SDK >= 1.10.0 in **both** the plugin and the solution project (`Sdk="TALXIS.DevKit.Build.Sdk/<version>"`). An older solution project builds but generates no steps.
 - `[PluginStepImage]` adds pre/post images.
-- `FilteringAttributes` (Update): the step runs when one of them is present in the request, not only when changed. To react to a real change, compare `Target` with a pre-image.
-- A hand-written step for the same class, message, entity and stage makes the build warn "would run twice" and keep both. If it is already deployed, set `Id` on the attribute to that step's id (the XML under `SdkMessageProcessingSteps/`) to update it in place.
+- `FilteringAttributes` (Update only): the step runs when one of them is present in the request, not only when changed. For a real change, compare `Target` with a pre-image.
+- Also covers async steps (PostOperation only), Associate/Disassociate and custom actions (`MessageId`).
+- A hand-written step for the same class, message, entity and stage makes the build warn "would run twice" and keep both. If it is already deployed, set `Id` on the attribute to that step's id (the XML under `SdkMessageProcessingSteps/`) to update it in place; the build then replaces that XML ("Plugin step file replaced by the generated one").
 
-**Manual `pp-plugin-assembly-step`:** only for what attributes cannot express (Power Fx step types, impersonating a user; edit the generated XML) or Build SDKs without `[PluginStep]`; never for a class that already declares the step. Build the solution once first, then `txc workspace component create pp-plugin-assembly-step --output src/Solutions.Logic --param PluginProjectName=Plugins.Warehouse --param PluginName=UpdateAccountPlugin ...`. The class is `<PluginProjectName>.<PluginName>`, so its namespace must match; with a custom `<AssemblyName>`, also pass `AssemblyName`.
+**Manual `pp-plugin-assembly-step`:** only for what attributes cannot express (Power Fx step types, impersonating a user; edit the generated XML) or Build SDKs without `[PluginStep]`; never for a class that already declares the step. Build the solution once first, then `txc workspace component create pp-plugin-assembly-step --output src/Solutions.Logic --param PluginProjectName=Plugins.Warehouse --param PluginName=UpdateAccountPlugin --param PrimaryEntity=<table>`. `Stage` defaults to Pre-validation, `SdkMessage` to Create; `txc workspace component parameter list pp-plugin-assembly-step` shows the rest. The class is `<PluginProjectName>.<PluginName>`, so its namespace must match; with a custom `<AssemblyName>`, also pass `AssemblyName`.
 
-**Manual `pp-plugin-assembly`:** only with `GeneratePluginAssembly=false` or an older Build SDK. Build and sign the plugin project first (it reads the compiled output), then `txc workspace component create pp-plugin-assembly --output src/Solutions.Logic --param AssemblyId=<new-guid> --param PluginProjectRootPath=../Plugins.Warehouse` (relative to `--output`). Run once per assembly: a second root breaks the next pack.
+**Manual `pp-plugin-assembly`:** only with `GeneratePluginAssembly=false` or an older Build SDK. Build and sign the plugin project first, then `txc workspace component create pp-plugin-assembly --output src/Solutions.Logic --param AssemblyId=<new-guid> --param PluginProjectRootPath=../Plugins.Warehouse` (relative to `--output`). Run once per assembly: a second root breaks the next pack.
+
+Unit-test plugins with FakeXrmEasy (`pp-plugin-test` template).
 
 ## Execution Stages
 
 - **Pre-validation (10)**: reject bad input, outside the transaction.
 - **Pre-operation (20)**: modify data before save.
-- **Post-operation (40)**: side effects, related records; data is already saved, so not for validation.
+- **Post-operation (40)**: side effects, related records; not for validation (data is saved).
 
 See also: [component-creation](component-creation.md), [project-structure](project-structure.md)

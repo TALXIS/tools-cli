@@ -22,12 +22,12 @@ This is a default: the build cares about each project's `ProjectType` and refere
 
 ## Project Types
 
-Each `.csproj` declares `<ProjectType>` and the Build SDK routes it to its build logic. Solution projects are the **hub**: `dotnet add <solution-project> reference <project>.csproj` (e.g. `dotnet add src/Solutions.Logic reference src/Plugins.Warehouse/Plugins.Warehouse.csproj`), then `dotnet build <solution-project>` detects the referenced type and generates its registration data. Manual registration is needed only in the cases in [plugin-development](plugin-development.md).
+Each `.csproj` declares `<ProjectType>` and the Build SDK routes it to its build logic. Solution projects are the **hub**: reference each project from one (`dotnet add <solution-project> reference <project>.csproj`), then `dotnet build <solution-project>` generates its registration data.
 
 | ProjectType | Scaffold | What it is; what the solution build generates |
 |---|---|---|
-| `Solution` | n/a | Dataverse solution XML, one project per Dataverse solution (default roles: DataModel = tables, columns, relationships, option sets; Logic = workflows, business rules, plugin steps; UI = forms, views, model-driven apps, sitemaps; Security = roles, field-level security profiles). Can reference other solution projects (dependency chain). |
-| `Plugin` | `pp-plugin` | Classes extending `PluginBase`. Generates the assembly data.xml and `[PluginStep]` steps with current SDKs; read [plugin-development](plugin-development.md) before running `pp-plugin-assembly`. |
+| `Solution` | `pp-solution` | Dataverse solution XML, one project per Dataverse solution (default roles: DataModel = tables, columns, relationships, option sets; Logic = workflows, business rules, plugin steps; UI = forms, views, model-driven apps, sitemaps; Security = roles, field-level security profiles). Can reference other solution projects (dependency chain). |
+| `Plugin` | `pp-plugin` | Classes extending `PluginBase`; see [plugin-development](plugin-development.md). |
 | `ScriptLibrary` | `pp-script-library` (`PublisherPrefix`, `LibraryName`) | TypeScript + Rollup, one UMD web resource; its global `prefix_name` is the function namespace forms and ribbon buttons call (`prefix_name.Main.onLoad`). `dotnet build` runs npm and generates the web resource: no manual `pp-webresource` or npm. |
 | `WorkflowActivity` | `pp-workflow-activity` | Custom workflow steps extending `WorkflowActivityBase`. Generates assembly data.xml, copies the DLL. |
 | `CodeApp` | `pp-app-code` | Node/TypeScript code-first app. Runs the npm build, generates CanvasApp metadata. |

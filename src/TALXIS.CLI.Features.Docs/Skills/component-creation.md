@@ -20,7 +20,7 @@ Scaffold in dependency order:
 1. **Entity**, then its **Attributes**
 2. **Relationships** — after both entities exist
 3. **Forms** and **Views** — after the entity and its attributes
-4. **Separate projects** (Plugin, ScriptLibrary, WorkflowActivity, CodeApp, PCF) — their own `pp-*` template creates a `.csproj`. Then `dotnet add <solution-project> reference <separate-project>` and `dotnet build <solution-project>`: the Build SDK detects the project type and generates the registration data (assembly, web resource). Plugin assemblies and steps: [plugin-development](plugin-development.md). Script libraries need no `pp-webresource` or manual `npm`.
+4. **Separate projects** (Plugin, ScriptLibrary, WorkflowActivity, CodeApp, PCF) — their own `pp-*` template creates a `.csproj`; reference it from the solution project ([project-structure](project-structure.md)) and build that. Plugins: [plugin-development](plugin-development.md). Script libraries need no `pp-webresource` or manual `npm`.
 5. **Ribbon Buttons** (`pp-ribbon-button`) — after entity and script library; `LibraryLogicalName=prefix_name`
 6. **Form Event Handlers** (`pp-form-event-handler`) — after entity, form and script library; `libraryName=prefix_name.js`, `functionName=prefix_name.ClassName.methodName`
 
@@ -31,7 +31,9 @@ Use the customization prefix of the target solution (`<CustomizationPrefix>` in 
 | Parameter | Used in | Value |
 |---|---|---|
 | `LogicalName` | pp-entity, pp-entity-attribute, pp-optionset-global, pp-app-model | **without** prefix (the template adds it): `warehouseitem` |
-| `EntitySchemaName`, `EntityLogicalName`, `ReferencedEntityName` (lookup target) | pp-entity-attribute/-form/-view, pp-form-*, pp-sitemap-subarea, pp-app-model-component, pp-ribbon-* | **with** prefix: `prefix_warehouseitem` |
+| `EntitySchemaName` | pp-entity-attribute/-form/-view, other pp-form-* fragments | **with** prefix: `prefix_warehouseitem` |
+| `EntityLogicalName` | pp-ribbon-*, pp-sitemap-subarea, pp-app-model-component, pp-form-event-handler, pp-form-subgrid | same |
+| `LookupTarget` | pp-entity-attribute (Lookup) | target table, same |
 | `AppName` | pp-sitemap-*, pp-app-model-component | app module folder **with** prefix: `prefix_warehouseapp` |
 | `Behavior` | pp-entity | `New` defines the entity; `Existing` references an entity owned by another solution (forms/views in a UI solution) |
 
@@ -41,6 +43,5 @@ Some templates run C# file-based apps (`.cs`) that need the .NET 10 SDK.
 
 - ❌ Don't use `txc environment entity create` for development: it changes the live environment and bypasses source control. Use environment commands for inspection, troubleshooting or emergency fixes.
 - ❌ Don't scaffold a Form, View or Relationship before the entities and attributes it references exist.
-- ❌ Don't run `pp-plugin-assembly` or hand-write assembly data.xml: current Build SDKs generate it ([plugin-development](plugin-development.md) lists the exceptions).
 
 See also: [project-structure](project-structure.md), [schema-management](schema-management.md)

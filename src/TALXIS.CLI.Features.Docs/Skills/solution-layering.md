@@ -2,14 +2,7 @@
 
 ## Managed vs Unmanaged
 
-| Aspect | Unmanaged | Managed |
-|---|---|---|
-| Use case | Development | Production deployment |
-| Editable in target | Yes | No (locked) |
-| Uninstall | Components remain | Clean removal |
-| Source control | Source of truth | Generated artifact |
-
-Develop unmanaged, deploy managed.
+Develop unmanaged (source of truth, editable, uninstall leaves components); deploy managed (generated artifact, locked, clean uninstall).
 
 ## The Layer Stack
 
@@ -50,9 +43,6 @@ txc environment publisher create <unique-name> --display-name "<Display Name>" -
 
 ## What NOT to Do
 
-- ❌ Don't deploy unmanaged solutions to production
-- ❌ Don't put everything in one solution when the repository has no convention: segment by concern
 - ❌ Don't uninstall without `txc environment solution uninstall-check <solution-name>`: it may cascade-delete data
-- ❌ Don't ignore layer conflicts: the topmost layer wins, and the unmanaged active layer overrides everything
 
 See also: [deployment-workflow](deployment-workflow.md), [troubleshooting](troubleshooting.md)
