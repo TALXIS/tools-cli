@@ -1,7 +1,5 @@
 # Solution Layering & Segmentation
 
-> **Running these commands.** Commands are written for the CLI: `txc <command>` (`txc <command> --help` lists its arguments and options). With the TALXIS MCP server connected, most commands are also tools, named by joining the command words with `_` (`txc workspace component create` is `workspace_component_create`; hyphens stay, as in `environment_solution_uninstall-check`). If a tool is not in your tool list, run it through the server's `execute_operation` tool. A tool's input schema names its arguments, and those names can differ from the CLI options. A link such as `[plugin-development](plugin-development.md)` is a doc id: `txc docs get plugin-development` prints it.
-
 ## How Solutions Work in Dataverse
 
 Solutions are containers for customizations. They package components (tables, forms, views, plugins, etc.) for transport between environments.
@@ -39,7 +37,7 @@ Higher layers override lower layers. The active (unmanaged) layer always wins.
 
 ## Solution Segmentation (default layout)
 
-When the repository has no convention of its own, a default that works well is to separate concerns into dedicated solutions. Precedence: what the user asks for, then the solutions and names the repository already has (discover them, e.g. `dotnet sln list`), then this layout:
+When the repository has no convention of its own, a default that works well is to separate concerns into dedicated solutions. Discover the solutions the repository already has (`dotnet sln list`) first; otherwise this layout:
 
 - **Solutions.DataModel** — Tables, columns, relationships, option sets
 - **Solutions.Logic** — Plugins, workflows, business rules
@@ -74,7 +72,7 @@ When the repository has no convention of its own, a default that works well is t
 2. `txc environment solution component list <solution-name>` for the full component inventory
 
 ### Publisher Rules
-Defaults, in order of precedence: what the user asks for, then the publisher and prefix the target repository or environment already uses (`txc environment publisher list`), then these:
+Check the publisher and prefix the target repository or environment already uses (`txc environment publisher list`) before creating one; otherwise these defaults:
 - One publisher per organization for consistency
 - Prefix: recommended convention is max 5 characters, lowercase alphanumeric only; the command itself accepts 2–8 alphanumeric characters, starting with a letter and not starting with `mscrm`
 - All components created under this publisher share the prefix

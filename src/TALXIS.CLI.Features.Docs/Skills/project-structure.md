@@ -1,14 +1,12 @@
 # Workspace & Project Organization
 
-> **Running these commands.** Commands are written for the CLI: `txc <command>` (`txc <command> --help` lists its arguments and options). With the TALXIS MCP server connected, most commands are also tools, named by joining the command words with `_` (`txc workspace component create` is `workspace_component_create`; hyphens stay, as in `environment_solution_uninstall-check`). If a tool is not in your tool list, run it through the server's `execute_operation` tool. A tool's input schema names its arguments, and those names can differ from the CLI options. A link such as `[plugin-development](plugin-development.md)` is a doc id: `txc docs get plugin-development` prints it.
-
 ## Overview
 
 A Power Platform monorepo follows a structured layout where solution projects, plugin projects, and package deployer projects coexist. To see what a repository already contains, read its solution file (`.slnx`, or `.sln` in older repos) and each project's `ProjectType`. `dotnet sln list` lists the projects of the solution file; searching the `.csproj` files for `<ProjectType>` shows each one's type.
 
 ## Repository Structure Convention
 
-This is our default layout. Precedence: what the request says first, then what the repository already has (existing project names, folders and solution file are respected, never renamed or assumed), then these defaults. By default every project lives under `src/` as an SDK-style `.csproj`, and all of them are listed in one solution file at the repository root (`.slnx`; older repos use `.sln`). Default project names, by role (examples, not a fixed list): `Solutions.*` (for example `Solutions.DataModel`, `Solutions.Logic`, `Solutions.UI`, `Solutions.Security`), `Plugins.{Domain}`, `Controls.{Domain}`, `Scripts.UI`, `Packages.Main`, and test projects as `src/Tests.*`. CI/CD workflows live in `.github/workflows/` by default. The names are a convention, not a requirement: what the build cares about is each project's `ProjectType` (below) and its references.
+This is our default layout. Existing project names, folders and the solution file are respected, never renamed. By default every project lives under `src/` as an SDK-style `.csproj`, and all of them are listed in one solution file at the repository root (`.slnx`; older repos use `.sln`). Default project names, by role (examples, not a fixed list): `Solutions.*` (for example `Solutions.DataModel`, `Solutions.Logic`, `Solutions.UI`, `Solutions.Security`), `Plugins.{Domain}`, `Controls.{Domain}`, `Scripts.UI`, `Packages.Main`, and test projects as `src/Tests.*`. CI/CD workflows live in `.github/workflows/` by default. The names are a convention, not a requirement: what the build cares about is each project's `ProjectType` (below) and its references.
 
 ## Project Types
 
@@ -79,7 +77,7 @@ For the project types it auto-detects, the build generates the registration data
 
 ## Naming Conventions
 
-These are recommended defaults. What the request says wins, then the repository's existing conventions.
+These are recommended defaults.
 
 - **Entity logical names**: lowercase with publisher prefix (e.g., `prefix_warehouseitem`)
 - **Display names**: Proper case (e.g., `Warehouse Item`)

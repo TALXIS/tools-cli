@@ -1,14 +1,12 @@
 # Creating Dataverse Components
 
-> **Running these commands.** Commands are written for the CLI: `txc <command>` (`txc <command> --help` lists its arguments and options). With the TALXIS MCP server connected, most commands are also tools, named by joining the command words with `_` (`txc workspace component create` is `workspace_component_create`; hyphens stay, as in `environment_solution_uninstall-check`). If a tool is not in your tool list, run it through the server's `execute_operation` tool. A tool's input schema names its arguments, and those names can differ from the CLI options. A link such as `[plugin-development](plugin-development.md)` is a doc id: `txc docs get plugin-development` prints it.
-
 ## Key Concept
 
 Scaffolding creates **local files** in your workspace — it does NOT create components in a live Dataverse environment. Changes are tracked in source control and can be reviewed before deployment.
 
 ## Workflow Chain
 
-1. **Read the workspace** — the solution file (`.slnx`, or `.sln` in older repos; `dotnet sln list` lists its projects) and each project's `ProjectType` show what exists before you create anything. Never assume project names or folders: the request comes first, then what the repository already has, then our defaults
+1. **Read the workspace** — the solution file (`.slnx`, or `.sln` in older repos; `dotnet sln list` lists its projects) and each project's `ProjectType` show what exists before you create anything. Never assume project names or folders
 2. **`txc component type list`** — discover available component types
 3. **`txc workspace component parameter list <template>`** — get required parameters for a component type
 4. **`txc workspace component create <template> --output <dir> --param <key>=<value>`** — scaffold the component locally. `--output` is required: the folder the component is scaffolded into (for `pp-plugin`: the project folder; for solution components, the folder of the solution project that owns them). Repeat `--param` per parameter, for example:

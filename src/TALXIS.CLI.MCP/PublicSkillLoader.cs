@@ -60,20 +60,8 @@ public class PublicSkillLoader
         if (!_skills.TryGetValue(skillId, out var entry))
             return null;
 
-        // Lazy load content from embedded resource
-        if (entry.Content is null)
-        {
-            var resourceName = entry.Assembly.GetManifestResourceNames()
-                .FirstOrDefault(n => n.EndsWith($"Skills.{skillId}.md") || n.EndsWith($"Skills.{skillId.Replace("-", "_")}.md"));
-
-            if (resourceName is null) return null;
-
-            using var stream = entry.Assembly.GetManifestResourceStream(resourceName);
-            if (stream is null) return null;
-
-            using var reader = new StreamReader(stream);
-            entry.Content = reader.ReadToEnd();
-        }
+        // Lazy load content (with the shared note) from the Docs assembly
+        entry.Content ??= TALXIS.CLI.Features.Docs.SkillContent.Load(skillId);
 
         return entry.Content;
     }

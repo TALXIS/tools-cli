@@ -26,28 +26,14 @@ public class DocsGetCliCommand : TxcLeafCommand
             return Task.FromResult(ExitValidationError);
         }
 
-        var assembly = typeof(DocsGetCliCommand).Assembly;
-
-        // Try exact match, then with underscores for hyphens
-        var resourceName = assembly.GetManifestResourceNames()
-            .FirstOrDefault(n => n.EndsWith($"Skills.{SkillId}.md") ||
-                                 n.EndsWith($"Skills.{SkillId.Replace("-", "_")}.md"));
-
-        if (resourceName is null)
+        var content = SkillContent.Load(SkillId);
+        if (content is null)
         {
             Logger.LogError("Skill '{SkillId}' not found. Run `txc docs list` to see available skills.", SkillId);
             return Task.FromResult(ExitValidationError);
         }
 
-        using var stream = assembly.GetManifestResourceStream(resourceName);
-        if (stream is null)
-        {
-            Logger.LogError("Could not load skill '{SkillId}'.", SkillId);
-            return Task.FromResult(ExitError);
-        }
-
-        using var reader = new StreamReader(stream);
-        OutputFormatter.WriteValue("skill", reader.ReadToEnd());
+        OutputFormatter.WriteValue("skill", content);
         return Task.FromResult(ExitSuccess);
     }
 }

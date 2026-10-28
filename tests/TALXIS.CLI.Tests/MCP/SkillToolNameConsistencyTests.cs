@@ -108,49 +108,72 @@ public class SkillToolNameConsistencyTests
         AssertAllReferencesResolve(skills, "public");
     }
 
-    // Public docs are served both by `txc docs get` and over MCP (get_skill_details), so each one
-    // says up front that a command can be run as `txc <command>` or, with the MCP server, as the
-    // tool named by joining the command words with "_". Keep the wording in one place: change it
-    // here and in every doc together.
-    private const string RunningPreamble =
-        "> **Running these commands.** Commands are written for the CLI: `txc <command>` (`txc "
-        + "<command> --help` lists its arguments and options). With the TALXIS MCP server connected, "
-        + "most commands are also tools, named by joining the command words with `_` (`txc workspace "
-        + "component create` is `workspace_component_create`; hyphens stay, as in "
-        + "`environment_solution_uninstall-check`). If a tool is not in your tool list, run it through "
-        + "the server's `execute_operation` tool. A tool's input schema names its arguments, and those "
-        + "names can differ from the CLI options. A link such as "
-        + "`[plugin-development](plugin-development.md)` is a doc id: `txc docs get plugin-development` "
-        + "prints it.";
+    // The shared note (CLI form, MCP tool names, doc ids, names and layouts are defaults) is the same
+    // for every public doc, so it lives once in Skills/_shared-note.md and SkillContent adds it after
+    // the title when a doc is read (by `txc docs get` and by get_skill_details). The docs must not repeat it.
+    private static readonly string[] SharedNoteMarkers = { "**Running these commands.**", "**Names and layout.**" };
 
     [Fact]
-    public void PublicSkills_StartWithTheSameRunningPreamble()
+    public void PublicSkills_DoNotRepeatTheSharedNote()
     {
-        var loader = new PublicSkillLoader();
-        loader.LoadIndex();
+        var skills = LoadPublicSkills();
 
-        var docsAssembly = AppDomain.CurrentDomain.GetAssemblies()
-            .FirstOrDefault(a => a.GetName().Name == "TALXIS.CLI.Features.Docs");
-        if (docsAssembly is null) return;
-
-        var skills = LoadEmbeddedMarkdown(docsAssembly, "TALXIS.CLI.Features.Docs.Skills.");
-        Assert.NotEmpty(skills);
-
-        // The preamble must be the first paragraph after the title.
-        var missing = skills
-            .Where(s =>
-            {
-                var lines = s.Value.Replace("\r\n", "\n").Split('\n');
-                return lines.Length < 3 || !lines[0].StartsWith("# ") || lines[1] != "" || lines[2] != RunningPreamble;
-            })
+        var repeated = skills
+            .Where(s => s.Key != "_shared-note" && SharedNoteMarkers.Any(m => s.Value.Contains(m, StringComparison.Ordinal)))
             .Select(s => $"  {s.Key}.md")
             .OrderBy(n => n, StringComparer.Ordinal)
             .ToList();
 
         Assert.True(
-            missing.Count == 0,
-            "These public docs do not start with the shared 'Running these commands' preamble "
-            + "(title, blank line, preamble):\n" + string.Join("\n", missing));
+            repeated.Count == 0,
+            "These public docs contain the shared note themselves. "
+            + "It lives in Skills/_shared-note.md and is added when a doc is read:\n"
+            + string.Join("\n", repeated));
+    }
+
+    [Fact]
+    public void PublicSkills_AreServedWithTheSharedNoteOnce()
+    {
+        var skills = LoadPublicSkills();
+        var note = skills["_shared-note"].Trim();
+        Assert.All(SharedNoteMarkers, m => Assert.Contains(m, note));
+
+        var wrong = new List<string>();
+        foreach (var id in skills.Keys.Where(k => !k.StartsWith('_')).OrderBy(k => k, StringComparer.Ordinal))
+        {
+            var served = TALXIS.CLI.Features.Docs.SkillContent.Load(id)?.Replace("\r\n", "\n");
+
+            // Title line, blank line, the whole note, a blank line, then the doc's own text; each
+            // part of the note appears exactly once.
+            var titleEnd = served?.IndexOf('\n') ?? -1;
+            var ok = served is not null
+                && titleEnd > 0
+                && served.StartsWith("# ")
+                && served[(titleEnd + 1)..].StartsWith("\n" + note + "\n\n")
+                && SharedNoteMarkers.All(m => served.Split(m).Length == 2);
+            if (!ok) wrong.Add($"  {id}.md");
+        }
+
+        Assert.True(
+            wrong.Count == 0,
+            "These public docs are not served as 'title, blank line, shared note, blank line, doc text':\n"
+            + string.Join("\n", wrong));
+    }
+
+    [Fact]
+    public void SharedParts_AreNotServedAsDocs()
+    {
+        Assert.Null(TALXIS.CLI.Features.Docs.SkillContent.Load("_shared-note"));
+        Assert.Null(TALXIS.CLI.Features.Docs.SkillContent.Load("no-such-doc"));
+        Assert.Null(TALXIS.CLI.Features.Docs.SkillContent.Load(""));
+    }
+
+    private static IReadOnlyDictionary<string, string> LoadPublicSkills()
+    {
+        var docsAssembly = typeof(TALXIS.CLI.Features.Docs.SkillContent).Assembly;
+        var skills = LoadEmbeddedMarkdown(docsAssembly, "TALXIS.CLI.Features.Docs.Skills.");
+        Assert.Contains("_shared-note", skills.Keys);
+        return skills;
     }
 
     [Fact]

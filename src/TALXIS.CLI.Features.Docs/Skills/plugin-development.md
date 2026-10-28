@@ -1,14 +1,12 @@
 # Plugin & Custom Code Development
 
-> **Running these commands.** Commands are written for the CLI: `txc <command>` (`txc <command> --help` lists its arguments and options). With the TALXIS MCP server connected, most commands are also tools, named by joining the command words with `_` (`txc workspace component create` is `workspace_component_create`; hyphens stay, as in `environment_solution_uninstall-check`). If a tool is not in your tool list, run it through the server's `execute_operation` tool. A tool's input schema names its arguments, and those names can differ from the CLI options. A link such as `[plugin-development](plugin-development.md)` is a doc id: `txc docs get plugin-development` prints it.
-
 ## Key Concept
 
 Plugins are server-side .NET classes that execute custom business logic in response to Dataverse events. Scaffold them with `txc workspace component create` — this keeps everything in source control and locally reviewable before deployment.
 
 ## Plugin Project Structure
 
-- Project name and location are defaults: `Plugins.{Domain}/` in `src/` (e.g., `Plugins.Sales`, `Plugins.Warehouse`). Precedence: what the request says, then what the repository already has (`dotnet sln list` shows the projects of the solution file — `.slnx`, or `.sln` in older repos; read each project's `ProjectType`), then this default. Never assume names; discover them.
+- Project name and location are defaults: `Plugins.{Domain}/` in `src/` (e.g., `Plugins.Sales`, `Plugins.Warehouse`). `dotnet sln list` shows the projects of the solution file (`.slnx`, or `.sln` in older repos); read each project's `ProjectType`.
 - `.csproj` requires: `ProjectType=Plugin`, `SignAssembly=true`. Dataverse plugin assemblies target .NET Framework. The Build SDK sets the target (`net472` by default); keep the project's existing target.
 - Plugin class naming is a default too: `{Action}{Entity}Plugin.cs` (e.g., `ValidateContactPlugin.cs`)
 

@@ -1,7 +1,5 @@
 # PCF Control Development
 
-> **Running these commands.** Commands are written for the CLI: `txc <command>` (`txc <command> --help` lists its arguments and options). With the TALXIS MCP server connected, most commands are also tools, named by joining the command words with `_` (`txc workspace component create` is `workspace_component_create`; hyphens stay, as in `environment_solution_uninstall-check`). If a tool is not in your tool list, run it through the server's `execute_operation` tool. A tool's input schema names its arguments, and those names can differ from the CLI options. A link such as `[plugin-development](plugin-development.md)` is a doc id: `txc docs get plugin-development` prints it.
-
 ## Key Concept
 
 Power Apps Component Framework (PCF) controls are custom TypeScript UI components for model-driven and canvas apps. They have their own project structure, manifest, and build chain — distinct from standard Dataverse XML scaffolding.
@@ -14,7 +12,7 @@ Power Apps Component Framework (PCF) controls are custom TypeScript UI component
 
 ## Project Structure
 
-- Default layout (the user's request and the repository's existing layout come first): `Controls.{Domain}/` in `src/` with `ProjectType=Pcf` in `.csproj`
+- Default layout: `Controls.{Domain}/` in `src/` with `ProjectType=Pcf` in `.csproj`
 - Each control has: `ControlManifest.Input.xml` (definition), `index.ts` (implementation), optional CSS
 - Uses `pcf-scripts` for build tooling
 
