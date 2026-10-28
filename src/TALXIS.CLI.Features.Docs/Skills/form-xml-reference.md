@@ -24,7 +24,7 @@ Customizations add XML fragments at specific insertion points rather than replac
 ## Scaffolding Workflow
 
 1. Scaffold the Entity and Attributes **before** scaffolding a Form
-2. Run `txc workspace component create pp-entity-form --output <project-dir> --param FormType=main --param EntitySchemaName=<prefix_table>` (`FormType` is `main`, `dialog`, or `quickCreate`)
+2. Run `txc workspace component create pp-entity-form --output <project-dir> --param FormType=main --param EntitySchemaName=<prefix_table> --param FormId=<form-guid>` (`FormType` is `main`, `dialog`, or `quickCreate`; without `FormId` a random id is generated and printed)
 3. Templates handle ClassIDs, hierarchy, and required attributes automatically
 4. Run `txc workspace component parameter list pp-entity-form` (or any other template name) for template-specific parameters
 
@@ -47,7 +47,7 @@ Build forms top-down. Each level is a separate template call:
 6. **`pp-form-cell`** — Add a cell inside the row (provides the label)
 7. **`pp-form-control`** — Add the field control inside the cell
 
-All form fragment templates require `FormId`, `FormType`, and `EntitySchemaName` parameters, passed as `--param` values. Generate the `FormId` GUID once and reuse it across all calls for the same form, for example:
+The fragment templates `pp-form-tab` to `pp-form-control` locate the form through `FormId`, `FormType` and `EntitySchemaName`. The templates do not mark them required, but their defaults are placeholders, so pass all three. Use the same `FormId` that `pp-entity-form` got (generate one GUID up front, or read it from the existing form file), the same `EntitySchemaName`, and `FormType` `main`, `quick` or `dialog` (`quick` here, where `pp-entity-form` says `quickCreate`). For example:
 
 ```
 txc workspace component create pp-form-tab --output <project-dir> --param FormId=<form-guid> --param FormType=main --param EntitySchemaName=<prefix_table>

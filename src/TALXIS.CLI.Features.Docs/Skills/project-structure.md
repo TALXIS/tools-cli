@@ -4,11 +4,11 @@
 
 ## Overview
 
-A Power Platform monorepo follows a structured layout where solution projects, plugin projects, and package deployer projects coexist. To see what a repository already contains, read its solution file (`.slnx`, or `.sln` in older repos) and each project's `ProjectType`. `dotnet sln list` lists the projects of the solution file, and searching the `.csproj` files for `<ProjectType>` (for example `grep -r "<ProjectType>" --include=*.csproj .`) shows each one's type.
+A Power Platform monorepo follows a structured layout where solution projects, plugin projects, and package deployer projects coexist. To see what a repository already contains, read its solution file (`.slnx`, or `.sln` in older repos) and each project's `ProjectType`. `dotnet sln list` lists the projects of the solution file; searching the `.csproj` files for `<ProjectType>` shows each one's type.
 
 ## Repository Structure Convention
 
-This is our default layout. Precedence: what the request says first, then what the repository already has (existing project names, folders and solution file are respected, never renamed or assumed), then these defaults. By default every project lives under `src/` as an SDK-style `.csproj`, and all of them are listed in one solution file at the repository root (`.slnx`; older repos use `.sln`). Default project names are by role: `Solutions.*` (for example `Solutions.DataModel`, `Solutions.Logic`, `Solutions.UI`, `Solutions.Security`), `Plugins.{Domain}`, `Scripts.UI`, `Packages.Main`, and test projects as `src/Tests.*`. CI/CD workflows live in `.github/workflows/`. The names are a convention, not a requirement: what the build cares about is each project's `ProjectType` (below) and its references.
+This is our default layout. Precedence: what the request says first, then what the repository already has (existing project names, folders and solution file are respected, never renamed or assumed), then these defaults. By default every project lives under `src/` as an SDK-style `.csproj`, and all of them are listed in one solution file at the repository root (`.slnx`; older repos use `.sln`). Default project names, by role (examples, not a fixed list): `Solutions.*` (for example `Solutions.DataModel`, `Solutions.Logic`, `Solutions.UI`, `Solutions.Security`), `Plugins.{Domain}`, `Controls.{Domain}`, `Scripts.UI`, `Packages.Main`, and test projects as `src/Tests.*`. CI/CD workflows live in `.github/workflows/` by default. The names are a convention, not a requirement: what the build cares about is each project's `ProjectType` (below) and its references.
 
 ## Project Types
 
@@ -24,9 +24,9 @@ These contain Dataverse solution metadata and components as XML files (default n
 Each solution project maps to one Dataverse solution. Solution projects are the **hub** — they reference other project types via `dotnet add reference`, and the Build SDK auto-handles each reference type during `dotnet build`.
 
 ### Plugin Projects (`ProjectType=Plugin`)
-- Scaffold with `pp-plugin`, reference it from the solution project that holds the registrations (`dotnet add <solution-project> reference <plugin-project>`) and build that solution project (`dotnet build <solution-project>`), not just the plugin. The build registers the plugin assembly in the referencing solution (`GeneratePluginAssembly` defaults to true), so there is no `pp-plugin-assembly` step; running it after that build adds a second assembly root and the next build fails. Steps come from `[PluginStep]` attributes on the classes (the same build generates them); `pp-plugin-assembly-step` is only for what attributes cannot express or an older Build SDK. See [plugin-development](plugin-development.md).
+- Scaffold with `pp-plugin`, reference it from the solution project that holds the registrations (`dotnet add <solution-project> reference <plugin-project>`) and build that solution project (`dotnet build <solution-project>`), not just the plugin. Current Build SDKs register the assembly and generate `[PluginStep]` steps in that build; the exceptions (older SDK, `GeneratePluginAssembly=false`, repositories that register steps another way) are in [plugin-development](plugin-development.md), which should be read before running `pp-plugin-assembly`.
 - .NET class libraries containing plugin classes that extend `PluginBase`
-- Referenced by solution projects — Build SDK auto-generates plugin assembly data.xml when that solution project is built
+- Referenced by solution projects — the Build SDK generates the plugin assembly data.xml when that solution project is built (current SDKs)
 
 ### Script Library Projects (`ProjectType=ScriptLibrary`)
 - Scaffold with `pp-script-library` (provides `PublisherPrefix` and `LibraryName`)
@@ -46,12 +46,12 @@ Each solution project maps to one Dataverse solution. Solution projects are the 
 - Node.js/TypeScript projects for Power Apps code-first apps
 - Referenced by solution projects — Build SDK runs npm build and generates CanvasApp metadata
 
-### PCF Control Projects
+### PCF Control Projects (`ProjectType=Pcf`)
 - Scaffold with `pp-pcf`
 - Uses Microsoft's PAC infrastructure directly
 - Referenced by solution projects — handled by standard PAC pipeline
 
-### Package Deployer Projects (`ProjectType=PdPackage`)
+### Package Deployer Projects (`ProjectType=PDPackage`)
 - Scaffold with `pp-package`
 - Orchestrates deployment of multiple solutions in order
 - References solution projects — collects their output ZIPs for packaging
@@ -61,14 +61,14 @@ Each solution project maps to one Dataverse solution. Solution projects are the 
 Solution projects act as the hub. When you add a project reference, the Build SDK **auto-detects the referenced project's type** via the `GetProjectType` MSBuild protocol and handles it accordingly:
 
 ```bash
-# From a solution project directory (names are examples; use the repository's own):
-dotnet add reference ../Plugins.Warehouse/Plugins.Warehouse.csproj      # Plugin → auto-generates assembly data.xml
-dotnet add reference ../Scripts.UI/Scripts.UI.csproj                    # ScriptLibrary → auto-generates web resource
-dotnet add reference ../WorkflowActivities/WorkflowActivities.csproj     # WorkflowActivity → auto-generates assembly data.xml
-dotnet add reference ../Solutions.DataModel/Solutions.DataModel.csproj    # Solution → dependency chain
+# dotnet add <solution-project> reference <referenced-project> (names are the default layout's examples; use the repository's own):
+dotnet add src/Solutions.Logic reference src/Plugins.Warehouse/Plugins.Warehouse.csproj            # Plugin → generates assembly data.xml
+dotnet add src/Solutions.UI reference src/Scripts.UI/Scripts.UI.csproj                      # ScriptLibrary → generates web resource
+dotnet add src/Solutions.Logic reference src/WorkflowActivities/WorkflowActivities.csproj           # WorkflowActivity → generates assembly data.xml
+dotnet add src/Solutions.UI reference src/Solutions.DataModel/Solutions.DataModel.csproj             # Solution → dependency chain
 ```
 
-All auto-generation happens during `dotnet build` — no manual registration steps needed.
+For the project types it auto-detects, the build generates the registration data during `dotnet build`; manual steps are needed only in the cases listed in [plugin-development](plugin-development.md).
 
 ## Key Tools
 
@@ -84,7 +84,7 @@ These are recommended defaults. What the request says wins, then the repository'
 - **Entity logical names**: lowercase with publisher prefix (e.g., `prefix_warehouseitem`)
 - **Display names**: Proper case (e.g., `Warehouse Item`)
 - **Publisher prefix**: Recommended convention is lowercase alphanumeric and 5 characters or fewer for consistency
-- **Branch naming**: `users/<name>/<topic>` (trunk-based development)
+- **Branch naming**: follow the repository's existing branch naming
 
 ## Getting Started
 

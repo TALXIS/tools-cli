@@ -25,7 +25,7 @@ Power Apps Component Framework (PCF) controls are custom TypeScript UI component
 
 ## Scaffolding and Build
 
-1. Scaffold with `txc workspace component create pp-pcf --output <controls-dir> --param Name=<ControlName> --param Namespace=<Namespace>` (`<controls-dir>` is where the control project goes; by default `src/Controls.<Domain>`, unless the repository already has a controls project or layout)
+1. Scaffold with `txc workspace component create pp-pcf --output <control-project-dir> --param Name=<ControlName> --param Namespace=<Namespace>` (`--output` is the folder the component is scaffolded into: for `pp-pcf`, the control project folder; by default `src/Controls.<Domain>`, unless the repository already has a controls project or layout)
 2. Run `txc workspace component parameter list pp-pcf` for the full, current list of parameters
 3. Local dev: `npm run build` and `npm start watch` for test harness
 4. Solution packaging includes the control bundle automatically during `pack`

@@ -60,7 +60,7 @@ Tests the full chain: profile → connection → auth → environment. Confirms 
 
 ## Workspace Profile Pinning
 
-`txc config profile pin [<name>]` writes `.txc/workspace.json` in the current directory (the active profile when no name is given), so `txc` automatically uses that profile in this repository. This avoids accidentally running commands against the wrong environment. Which profile a command uses, in order: `--profile`, `TXC_PROFILE`, the workspace pin, the global active profile.
+`txc config profile pin [<name>]` makes a profile the default for this repository: it writes `.txc/workspace.json` in the current directory (pinning the active profile when no name is given), and `txc` then uses that profile for commands run in that directory tree. `txc config profile select` is different: it sets the global active profile, used wherever no pin applies. This avoids accidentally running commands against the wrong environment. Which profile a command uses, in order: `--profile`, `TXC_PROFILE`, the workspace pin, the global active profile.
 
 ## Environment Types
 
@@ -72,7 +72,7 @@ Tests the full chain: profile → connection → auth → environment. Confirms 
 
 ## Best Practices
 
-- Use **service principal auth** for both dev and CI/CD (consistent, scriptable)
+- Interactive sign-in is fine on a developer's own machine; use a **service principal** (or federated credential) for CI/CD and other unattended runs
 - Create **separate profiles** for each environment (dev, test, prod)
 - **Pin profiles** to workspace directories to prevent cross-environment mistakes
 - **Validate profiles** after creation and after credential rotation
@@ -110,7 +110,7 @@ If `txc config profile validate <profile>` fails:
 ## What NOT to Do
 
 - ❌ Don't connect to production for routine development — use dev environments
-- ❌ Don't share credentials between team members — use per-developer service principals
+- ❌ Don't share credentials between team members — each person signs in with their own account, or uses their own service principal
 - ❌ Don't skip profile validation after credential rotation — stale credentials cause confusing errors
 
 See also: [troubleshooting](troubleshooting.md), [deployment-workflow](deployment-workflow.md)

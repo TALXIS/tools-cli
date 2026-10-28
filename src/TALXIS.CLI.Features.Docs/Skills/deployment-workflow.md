@@ -46,14 +46,14 @@ Check the deployment status and review any findings (warnings, errors, informati
 
 ## Build Configuration: Managed vs Unmanaged
 
-The build configuration you pack/publish with decides whether the package contains **managed** or **unmanaged** solutions, and getting it wrong is a common deployment failure.
+For a TALXIS Build SDK solution project the build configuration decides whether the package is **managed** or **unmanaged**, and getting it wrong is a common deployment failure. By default `Debug` builds unmanaged and any other configuration (such as `Release`) builds managed; the project property `SolutionPackageType` (`Unmanaged` or `Managed`) overrides that, so check the project before relying on the default. For a plain unpacked folder, `txc environment solution pack` produces unmanaged unless you add `--managed`.
 
 | Config | Solutions | Use for |
 |---|---|---|
-| `Debug` (`dotnet build`, `dotnet publish -c Debug`) | **unmanaged** | dev/test environments that already hold unmanaged solutions |
-| `Release` (`dotnet publish -c Release`) | **managed** | staging/production |
+| `Debug` (`dotnet build -c Debug`) | **unmanaged** | dev/test environments that already hold unmanaged solutions |
+| `Release` (`dotnet build -c Release`) | **managed** | staging/production |
 
-**You cannot overwrite an unmanaged solution with a managed one (or vice versa).** A `-c Release` package imported over an existing unmanaged solution fails with:
+**You cannot overwrite an unmanaged solution with a managed one (or vice versa).** A managed package (for example from `-c Release`) imported over an existing unmanaged solution fails with:
 
 > You can't overwrite an unmanaged version of this solution with a managed version.
 

@@ -4,11 +4,13 @@
 
 ## When to Use Environment Schema Commands
 
-> **For development, always prefer local scaffolding** via `txc workspace component create <type> --output <project-dir>` (`--param <name>=<value>` sets template parameters). The environment schema commands are for:
+> **For source-controlled development, prefer local scaffolding** via `txc workspace component create <type> --output <project-dir>` (`--param <name>=<value>` sets template parameters). The environment schema commands are for:
 > - **Inspection** — understanding what's deployed in an environment
 > - **Troubleshooting** — diagnosing schema issues in live environments
 > - **Quick fixes** — emergency changes in non-production environments
 > - **Prototyping** — rapid experimentation before codifying locally
+>
+> When the user explicitly asks for a change on the live environment, use these commands: the user's request wins over this default.
 
 ## Available Operations
 
@@ -31,8 +33,8 @@ txc environment entity describe <entityLogicalName>
 
 ## Key Rules
 
-- Always run `txc environment component dependency delete-check --entity <logicalName> [--attribute <name>]` before deleting any component
-- Always run `txc environment solution publish` after schema changes — they won't take effect without it
+- Run `txc environment component dependency delete-check --entity <logicalName> [--attribute <name>]` before deleting a component
+- The create, update and delete commands for tables, columns and many-to-many relationships publish the affected table themselves. After other changes (for example option sets) run `txc environment solution publish` (`--entities <names>` limits it) if the change does not show up
 - Environment schema changes are **not tracked in source control** — codify locally afterward
 - Changes in managed layers can't be undone — only overridden by a new managed import
 
@@ -47,7 +49,7 @@ txc environment entity describe <entityLogicalName>
 
 - ❌ Don't use these commands for routine development — changes bypass source control
 - ❌ Don't delete tables/columns without running `txc environment component dependency delete-check` first
-- ❌ Don't forget to `txc environment solution publish` after schema changes
+- ❌ Don't assume a change is live when it does not show up: run `txc environment solution publish`
 
 ## Metadata Propagation
 

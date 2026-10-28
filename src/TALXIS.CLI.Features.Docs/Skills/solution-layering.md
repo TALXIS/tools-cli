@@ -37,16 +37,16 @@ Dataverse applies customizations in layers. When multiple solutions modify the s
 
 Higher layers override lower layers. The active (unmanaged) layer always wins.
 
-## Solution Segmentation Strategy
+## Solution Segmentation (default layout)
 
-Separate concerns into dedicated solutions:
+When the repository has no convention of its own, a default that works well is to separate concerns into dedicated solutions. Precedence: what the user asks for, then the solutions and names the repository already has (discover them, e.g. `dotnet sln list`), then this layout:
 
 - **Solutions.DataModel** — Tables, columns, relationships, option sets
 - **Solutions.Logic** — Plugins, workflows, business rules
 - **Solutions.UI** — Forms, views, model-driven apps
 - **Solutions.Security** — Security roles, field-level security
 
-### Benefits
+### Why segment
 - Independent deployment cycles per concern
 - Smaller packages = faster imports
 - Clear ownership for team collaboration
@@ -76,7 +76,7 @@ Separate concerns into dedicated solutions:
 ### Publisher Rules
 Defaults, in order of precedence: what the user asks for, then the publisher and prefix the target repository or environment already uses (`txc environment publisher list`), then these:
 - One publisher per organization for consistency
-- Prefix: recommended convention is max 5 characters, lowercase alphanumeric only (e.g., `udpp`); the command itself accepts 2–8 alphanumeric characters, starting with a letter and not starting with `mscrm`
+- Prefix: recommended convention is max 5 characters, lowercase alphanumeric only; the command itself accepts 2–8 alphanumeric characters, starting with a letter and not starting with `mscrm`
 - All components created under this publisher share the prefix
 
 ```
@@ -86,7 +86,7 @@ txc environment publisher create <unique-name> --display-name "<Display Name>" -
 ## What NOT to Do
 
 - ❌ Don't deploy unmanaged solutions to production — always use managed for proper lifecycle management
-- ❌ Don't put all components in a single solution — segment by concern for independent deployment cycles
+- ❌ Don't assume one big solution is fine: when the repository has no convention, segment by concern (see the default layout above) for independent deployment cycles
 - ❌ Don't uninstall solutions without running `txc environment solution uninstall-check <solution-name>` — may cascade-delete data
 - ❌ Don't ignore layer conflicts — the topmost layer always wins, and unmanaged active layers override everything
 

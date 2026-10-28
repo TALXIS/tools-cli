@@ -24,10 +24,12 @@ Imports the data package into the target environment. Handles record creation, u
 |---|---|---|
 | Single record creation | Record-level | `txc environment data record create --entity <logicalName> --data '<json>' --apply` |
 | Single record update | Record-level | `txc environment data record update <record-guid> --entity <logicalName> --data '<json>' --apply` |
-| Batch of 10–100 records | Bulk upsert | `txc environment data bulk upsert --entity <logicalName> --file <records.json>` |
-| Large dataset (100+) | CMT pipeline | `txc data package export` → `txc data package import` |
+| A small batch of records (rule of thumb: up to a few hundred) | Bulk upsert | `txc environment data bulk upsert --entity <logicalName> --file <records.json>` |
+| Larger datasets (rule of thumb: beyond a few hundred records) | CMT pipeline | `txc data package export` → `txc data package import` |
 | Full environment clone | CMT pipeline | Export all tables with complete schema |
 | Seed/reference data | CMT pipeline | Version the schema file in source control |
+
+`--data` takes inline JSON; the single quotes above suit bash, and quoting differs in PowerShell and cmd.exe. `--file <path>` avoids quoting altogether.
 
 The record-level commands (`txc environment data record create`, `update`, `delete`, ...) and the entity, column, relationship and option-set mutating commands need exactly one of `--apply` (run now) or `--stage` (add to a changeset; run it later with `txc environment changeset apply --strategy batch|transaction|bulk`). The `environment data bulk` commands and the package commands do not.
 
@@ -79,7 +81,7 @@ After any data operation, verify the results:
 
 ## Bulk Import Best Practices
 
-**Adaptive Chunk Sizing:** Start with 1000 records per batch. Double on success (cap at 4000), halve on 413/500/timeout errors. This auto-tunes to the environment's capacity.
+**Batch Size:** for `txc data package import --batch-mode`, `--batch-size` sets the records per batch request (default 600; lower is safer, higher is faster). If imports hit timeouts or server errors, lower it and run again.
 
 **FK-Ordered Import:** When importing multiple related tables, import in dependency order:
 1. Tables with no foreign keys first (reference data)

@@ -25,14 +25,16 @@ Choose Custom API when multiple clients or flows need to invoke the same operati
 
 ## Naming Convention
 
-- API name: `{prefix}_{apilogicalname}` (e.g., `talxis_CalculateDiscount`)
+`{prefix}` is the customization prefix of the target solution (`<CustomizationPrefix>` in the solution project's `Other/Solution.xml`, or `txc environment publisher list` for a live environment).
+
+- API name: `{prefix}_{apilogicalname}` (e.g., `prefix_CalculateDiscount`)
 - Request parameter: `{prefix}_{apiname}.{ParamName}`
 - Response property: `{prefix}_{apiname}.{PropertyName}`
 
 ## What NOT to Do
 
 - ❌ Don't create a Custom API without a backing plugin — it won't do anything
-- ❌ Don't forget the customization prefix in naming — it's required
+- ❌ Don't leave out the customization prefix in naming (`CustomizationPrefix`)
 - ❌ Don't use Custom APIs for simple field calculations — use plugins on Update instead
 
 See also: [plugin-development](plugin-development.md), [component-creation](component-creation.md)

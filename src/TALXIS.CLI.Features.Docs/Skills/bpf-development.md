@@ -14,7 +14,7 @@ BPF creation follows a strict 3-step chain. **Order matters.**
 2. **Add Stages** → `txc workspace component create pp-bpf-stage --output <project-dir> --param BPFLogicalName=<bpf-logical-name> --param StageName=<stage> ...`
 3. **Add Steps to Stages** → `txc workspace component create pp-bpf-stage-step --output <project-dir> --param BPFLogicalName=<bpf-logical-name> --param StageName=<stage> ...`
 
-`<project-dir>` is the folder of the solution project that owns the BPF (find it in the repository, for example with `dotnet sln list`). The `--param` names above are the ones these templates require today; run `txc workspace component parameter list <template>` (for example `pp-bpf-stage`) for the full, current list at each step.
+`<project-dir>` is the folder of the solution project that owns the BPF (find it in the repository, for example with `dotnet sln list`). `<prefix>` is the customization prefix of the target solution (see [component-creation](component-creation.md)). The templates themselves mark only `PublisherPrefix` and `BPFName` (`pp-bpf`) and `BPFLogicalName` (`pp-bpf-stage`, `pp-bpf-stage-step`) as required, but in practice also pass `PrimaryEntity` and `StageName` as shown, or placeholders can remain in the generated files. Run `txc workspace component parameter list <template>` (for example `pp-bpf-stage`) for the full, current list at each step.
 
 ## Architecture Decisions
 
