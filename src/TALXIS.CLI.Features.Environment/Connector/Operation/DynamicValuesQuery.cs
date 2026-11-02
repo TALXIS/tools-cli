@@ -155,6 +155,8 @@ internal static class DynamicValuesQuery
         }
 
         reference = pick.Reference;
+        // Every answer names whose connection it was read through, not only the consent question.
+        owner = reference.Owner;
 
         var resolution = await metadata.ResolveOperationAsync(
             request.Profile,
@@ -171,7 +173,6 @@ internal static class DynamicValuesQuery
         else if (!resolution.ConnectionUsed)
         {
             // Who the lookup would act as is what the user is asked about.
-            owner = reference.Owner;
             Write(Answer(DynamicValuesStatus.NeedsConsent,
                 $"Reading this uses connection reference '{reference.LogicalName}' ({reference.DisplayName}), owned by {owner ?? "an unknown user"}: " +
                 "a read-only metadata lookup made as that person; nothing is created or changed. " +
