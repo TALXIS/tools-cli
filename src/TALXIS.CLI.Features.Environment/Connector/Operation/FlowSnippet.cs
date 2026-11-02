@@ -40,7 +40,7 @@ internal static partial class FlowSnippet
             {
                 ["host"] = new JsonObject
                 {
-                    ["apiId"] = operation.ApiId,
+                    ["apiId"] = ConnectorIds.ToPath(operation.ApiId),
                     ["connectionName"] = operation.Connector,
                     ["operationId"] = operation.OperationId,
                 },

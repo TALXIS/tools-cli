@@ -51,7 +51,7 @@ src/
 - **Features** projects depend on **Core** and may reference platform projects for DI wiring.
 - **Platform** projects depend on **Core** and optionally on each other when one plane consumes another (e.g. Application → Dataverse.Runtime).
 - **Core** has no platform or feature dependencies. Shared MSAL/Entra identity infrastructure, provider-agnostic abstractions (`IAccessTokenService`, `IConnectionProvider`, `IConnectionProviderBootstrapper`), and service contracts all live here.
-- The **control plane** (`PowerPlatform.Control`) depends only on **Core**, not on Dataverse — it uses `IAccessTokenService` for token acquisition, and does not read Dataverse tables (enforced by `LayeringTests`). Where a feature needs both, e.g. connection references (Dataverse) and connector metadata (control plane), the feature command composes the two Core contracts.
+- The **control plane** (`PowerPlatform.Control`) depends only on **Core**, not on Dataverse — it uses `IAccessTokenService` for token acquisition, and does not read Dataverse tables (enforced by `LayeringTests`). Where a feature needs both, e.g. connection references (Dataverse) and connector metadata (control plane), the two Core contracts are composed above the control plane: in the feature command, or in an application-plane service.
 
 ## Where Does New Code Go?
 

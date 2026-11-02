@@ -1,11 +1,18 @@
 namespace TALXIS.CLI.Core.Platforms.PowerPlatform;
 
 /// <summary>A connector as it appears in the environment's connector catalog.</summary>
+/// <param name="LogicalName">
+/// The name to use for <c>--connector</c>. Today that is the <paramref name="ApiId"/>
+/// for every connector; a custom connector's own logical name is accepted
+/// once connector names are resolved (TALXIS/tools-cli#201).
+/// </param>
+/// <param name="ApiId">The short connector id, e.g. <c>shared_teams</c>.</param>
 public sealed record ConnectorSummary(
-    string Name,
+    string LogicalName,
+    string ApiId,
     string? DisplayName,
-    string? Description,
-    string? Tier);
+    string? Tier,
+    string? Description);
 
 /// <summary>Kinds of connector operation, as a flow definition has to treat them.</summary>
 public static class ConnectorOperationKind
@@ -32,10 +39,12 @@ public sealed record ConnectorOperationSummary(
     bool IsDeprecated);
 
 /// <summary>A connector plus its operation index.</summary>
+/// <param name="LogicalName">As on <see cref="ConnectorSummary"/>.</param>
+/// <param name="ApiId">The short connector id, e.g. <c>shared_teams</c>.</param>
 public sealed record ConnectorDetail(
-    string Name,
-    string? DisplayName,
+    string LogicalName,
     string ApiId,
+    string? DisplayName,
     int OperationCount,
     int? MatchedOperations,
     IReadOnlyList<ConnectorOperationSummary> Operations);
@@ -49,10 +58,33 @@ public sealed record OperationSearchHit(
     string? ConnectorDisplayName);
 
 /// <summary>
+/// How a <see cref="DynamicValuesRef"/> argument names another parameter of
+/// the same operation: <c>$ref:name</c>, or <c>$ref?:name</c> when it is
+/// passed only if chosen. Anything else is a literal.
+/// </summary>
+public static class ResolverArgument
+{
+    private const string Prefix = "$ref:";
+    private const string OptionalPrefix = "$ref?:";
+
+    public static string Reference(string parameter, bool optional = false)
+        => (optional ? OptionalPrefix : Prefix) + parameter;
+
+    /// <summary>The parameter an argument refers to, or null for a literal.</summary>
+    public static string? Referenced(string? argument, out bool optional)
+    {
+        optional = argument?.StartsWith(OptionalPrefix, StringComparison.Ordinal) ?? false;
+        if (optional)
+            return argument![OptionalPrefix.Length..];
+        return argument?.StartsWith(Prefix, StringComparison.Ordinal) ?? false ? argument[Prefix.Length..] : null;
+    }
+}
+
+/// <summary>
 /// A pointer to the connector operation that resolves a parameter at design
 /// time (the designer's dropdowns, tree pickers and dynamic sub-schemas).
 /// Arguments that reference another parameter of the same operation are
-/// rendered as <c>$ref:name</c>.
+/// written as <see cref="ResolverArgument"/> describes.
 /// </summary>
 /// <remarks>
 /// <see cref="ItemsPath"/>, <see cref="ValuePath"/> and <see cref="TitlePath"/>
@@ -89,7 +121,9 @@ public sealed record OperationParameter(
 /// <summary>
 /// Full specification of one connector operation: what a flow action needs in
 /// <c>type</c>, <c>inputs.host</c> and <c>inputs.parameters</c>, and what it
-/// returns. <see cref="Outputs"/> are named by the key expressions read them
+/// returns. <see cref="ApiId"/> is the short connector id (<c>shared_teams</c>);
+/// a flow definition's <c>host.apiId</c> takes its path form
+/// (<see cref="ConnectorIds.ToPath"/>). <see cref="Outputs"/> are named by the key expressions read them
 /// with (<c>body/value</c>); fields of array items carry a <c>[]</c> segment
 /// (<c>body/value[]/emailaddress1</c>), read inside a loop over the array.
 /// </summary>
@@ -120,7 +154,6 @@ public static class DynamicLookupStatus
     public const string Resolved = "resolved";
     /// <summary>Not callable, e.g. a missing input or a lookup that is not a GET.</summary>
     public const string Skipped = "skipped";
-    public const string Failed = "failed";
 }
 
 /// <summary>
@@ -136,14 +169,31 @@ public sealed record DynamicLookup(
     IReadOnlyList<string>? MissingValues = null);
 
 /// <summary>
-/// The outcome of resolving an operation's dynamic parameters. When
+/// One dynamic parameter or output of an operation to resolve through a connection.
+/// </summary>
+/// <param name="Operation">The operation as <see cref="IConnectorMetadataService.GetOperationAsync"/> returned it.</param>
+/// <param name="Name">The parameter, or with <paramref name="IsOutput"/> the output, to resolve.</param>
+/// <param name="Values">Values chosen for the operation's other parameters, which lookups take as inputs.</param>
+/// <param name="UseConnection">
+/// False returns the plan without calling the connection. Only pass true
+/// once the connection's owner has agreed to it being used.
+/// </param>
+public sealed record OperationResolutionRequest(
+    OperationDetail Operation,
+    string Name,
+    bool IsOutput,
+    IReadOnlyDictionary<string, string> Values,
+    string ConnectionId,
+    bool UseConnection);
+
+/// <summary>
+/// The outcome of resolving one dynamic parameter or output. When
 /// <see cref="ConnectionUsed"/> is false this is only the plan: nothing has
 /// been called through the connection, and <see cref="Lookups"/> lists what
 /// would be.
 /// </summary>
 public sealed record OperationResolution(
     OperationDetail Operation,
-    ConnectionDetail Connection,
     bool ConnectionUsed,
     IReadOnlyList<DynamicLookup> Lookups);
 
@@ -169,7 +219,7 @@ public interface IConnectorMetadataService
 
     /// <summary>
     /// Searches operations across connectors. <paramref name="kind"/> is
-    /// <c>all</c>, <c>actions</c> or <c>triggers</c>.
+    /// <c>all</c>, <c>action</c> or <c>trigger</c>.
     /// </summary>
     Task<IReadOnlyList<OperationSearchHit>> SearchOperationsAsync(
         string? profileName, string search, string? connector, string kind, int top, CancellationToken ct);
@@ -179,29 +229,13 @@ public interface IConnectorMetadataService
         string? profileName, string connector, string operation, CancellationToken ct);
 
     /// <summary>
-    /// Resolves an operation's dynamic parameters (value lists and sub-schemas)
+    /// Resolves one dynamic parameter or output (a value list or a sub-schema)
     /// through an existing connection, the way the flow designer does.
     /// </summary>
-    /// <param name="values">Values chosen for the operation's other parameters, which lookups take as inputs.</param>
-    /// <param name="parameter">Resolve only this parameter; null resolves every dynamic one.</param>
-    /// <param name="useConnection">
-    /// False returns the plan without calling the connection. Only pass true
-    /// once the connection's owner has agreed to it being used.
-    /// </param>
-    /// <param name="output">Resolve only this output (its fields) instead of parameters.</param>
     Task<OperationResolution> ResolveOperationAsync(
-        string? profileName,
-        string connector,
-        string operation,
-        string connectionReference,
-        string connectionId,
-        IReadOnlyDictionary<string, string> values,
-        string? parameter,
-        string? output,
-        bool useConnection,
-        CancellationToken ct);
+        string? profileName, OperationResolutionRequest request, CancellationToken ct);
 
-    /// <summary>A connection's display name, owner and status.</summary>
+    /// <summary>A connection's owner and status.</summary>
     Task<ConnectionDetail> GetConnectionAsync(
         string? profileName, string connector, string connectionId, CancellationToken ct);
 }

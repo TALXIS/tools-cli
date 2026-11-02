@@ -35,8 +35,8 @@ internal static partial class OperationSchemaReader
 
     public static OperationDetail Read(string connector, string operationId, JsonElement payload)
     {
-        var properties = JsonRead.Object(payload, "properties") ?? payload;
-        var inputs = JsonRead.Object(properties, "inputsDefinition");
+        var properties = JsonElementReader.TryGetObject(payload, "properties") ?? payload;
+        var inputs = JsonElementReader.TryGetObject(properties, "inputsDefinition");
 
         var parameters = new List<OperationParameter>();
         if (inputs is { } definition)
@@ -44,15 +44,15 @@ internal static partial class OperationSchemaReader
 
         return new OperationDetail(
             Connector: connector,
-            ApiId: PowerAutomateEndpointProvider.BuildApiId(connector),
+            ApiId: ConnectorIds.ToShort(connector),
             OperationId: operationId,
-            Summary: JsonRead.String(properties, "summary"),
-            Description: JsonRead.String(properties, "description"),
+            Summary: JsonElementReader.TryGetString(properties, "summary"),
+            Description: JsonElementReader.TryGetString(properties, "description"),
             ActionType: InferActionType(properties, operationId),
             IsDeprecated: IsDeprecated(properties),
             Parameters: parameters,
-            IsTrigger: JsonRead.String(properties, "trigger") is not null,
-            Outputs: ReadOutputs(JsonRead.Object(properties, "responsesDefinition")));
+            IsTrigger: JsonElementReader.TryGetString(properties, "trigger") is not null,
+            Outputs: ReadOutputs(JsonElementReader.TryGetObject(properties, "responsesDefinition")));
     }
 
     /// <summary>
@@ -76,26 +76,26 @@ internal static partial class OperationSchemaReader
 
     private static void WalkOutputs(JsonElement schema, string? prefix, bool inArrayItem, List<OperationParameter> outputs, int depth)
     {
-        if (JsonRead.Object(schema, "properties") is not { } members)
+        if (JsonElementReader.TryGetObject(schema, "properties") is not { } members)
             return;
 
         foreach (var member in members.EnumerateObject())
         {
             var spec = member.Value;
             if (spec.ValueKind != JsonValueKind.Object
-                || string.Equals(JsonRead.String(spec, "x-ms-visibility"), "internal", StringComparison.OrdinalIgnoreCase))
+                || string.Equals(JsonElementReader.TryGetString(spec, "x-ms-visibility"), "internal", StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
             // The alias is the expression key (body/value); inside an array
             // item it is relative to the item, so the path is built instead.
-            var name = !inArrayItem && JsonRead.String(spec, "x-ms-property-name-alias") is { Length: > 0 } alias
+            var name = !inArrayItem && JsonElementReader.TryGetString(spec, "x-ms-property-name-alias") is { Length: > 0 } alias
                 ? alias
                 : prefix is null ? member.Name : $"{prefix}/{member.Name}";
-            var type = JsonRead.String(spec, "type");
+            var type = JsonElementReader.TryGetString(spec, "type");
 
-            if (type == "array" && JsonRead.Object(spec, "items") is { } items)
+            if (type == "array" && JsonElementReader.TryGetObject(spec, "items") is { } items)
             {
                 var itemSchema = ReadDynamicRef(items, "x-ms-dynamic-schema", "x-ms-dynamic-properties");
                 outputs.Add(ReadParameter(name, spec, required: false) with { Type = "array", DynamicSchema = itemSchema });
@@ -106,7 +106,7 @@ internal static partial class OperationSchemaReader
             {
                 outputs.Add(ReadParameter(name, spec, required: false) with { Type = type ?? "object", DynamicSchema = dynamic });
             }
-            else if (JsonRead.Object(spec, "properties") is not null && depth < MaxFlattenDepth)
+            else if (JsonElementReader.TryGetObject(spec, "properties") is not null && depth < MaxFlattenDepth)
             {
                 WalkOutputs(spec, name, inArrayItem, outputs, depth + 1);
             }
@@ -125,11 +125,11 @@ internal static partial class OperationSchemaReader
     public static string InferActionType(JsonElement properties, string operationId)
     {
         // The operation API states the type outright; the rest is for payloads without it.
-        if (JsonRead.String(properties, "operationType") is { Length: > 0 } stated)
+        if (JsonElementReader.TryGetString(properties, "operationType") is { Length: > 0 } stated)
             return stated;
 
-        var family = JsonRead.Object(properties, "annotation") is { } annotation
-            ? JsonRead.String(annotation, "family")
+        var family = JsonElementReader.TryGetObject(properties, "annotation") is { } annotation
+            ? JsonElementReader.TryGetString(annotation, "family")
             : null;
 
         foreach (var known in (ReadOnlySpan<string>)[OpenApiConnectionWebhook, OpenApiConnectionNotification, OpenApiConnection])
@@ -143,9 +143,10 @@ internal static partial class OperationSchemaReader
             : OpenApiConnection;
     }
 
-    private static bool IsDeprecated(JsonElement properties)
-        => (properties.TryGetProperty("isDeprecated", out var flag) && flag.ValueKind == JsonValueKind.True)
-            || string.Equals(JsonRead.String(properties, "status"), "Deprecated", StringComparison.OrdinalIgnoreCase);
+    internal static bool IsDeprecated(JsonElement properties)
+        => (properties.ValueKind == JsonValueKind.Object
+                && properties.TryGetProperty("isDeprecated", out var flag) && flag.ValueKind == JsonValueKind.True)
+            || string.Equals(JsonElementReader.TryGetString(properties, "status"), "Deprecated", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Flattens a sub-schema returned by a dynamic lookup into parameters named
@@ -169,7 +170,7 @@ internal static partial class OperationSchemaReader
     {
         // The payload uses "properties" for JSON-schema-shaped inputs and
         // "parameters" for the flattened form; both appear in the wild.
-        var bag = JsonRead.Object(schema, "properties") ?? JsonRead.Object(schema, "parameters");
+        var bag = JsonElementReader.TryGetObject(schema, "properties") ?? JsonElementReader.TryGetObject(schema, "parameters");
         if (bag is not { } members)
             return;
 
@@ -186,7 +187,7 @@ internal static partial class OperationSchemaReader
                 && (requiredNames.Contains(member.Name)
                     || (spec.TryGetProperty("required", out var flag) && flag.ValueKind == JsonValueKind.True));
 
-            if (!HasDynamicSchema(spec) && JsonRead.Object(spec, "properties") is not null && depth < MaxFlattenDepth)
+            if (!HasDynamicSchema(spec) && JsonElementReader.TryGetObject(spec, "properties") is not null && depth < MaxFlattenDepth)
             {
                 var before = parameters.Count;
                 ReadObject(spec, name, required, parameters, depth + 1, includeReadOnly);
@@ -216,12 +217,12 @@ internal static partial class OperationSchemaReader
     private static OperationParameter ReadParameter(string name, JsonElement spec, bool required)
         => new(
             Name: name,
-            Type: JsonRead.String(spec, "type"),
+            Type: JsonElementReader.TryGetString(spec, "type"),
             Required: required,
-            Description: JsonRead.String(spec, "x-ms-summary")
-                ?? JsonRead.String(spec, "title")
-                ?? JsonRead.String(spec, "summary")
-                ?? JsonRead.String(spec, "description"),
+            Description: JsonElementReader.TryGetString(spec, "x-ms-summary")
+                ?? JsonElementReader.TryGetString(spec, "title")
+                ?? JsonElementReader.TryGetString(spec, "summary")
+                ?? JsonElementReader.TryGetString(spec, "description"),
             AllowedValues: ReadAllowedValues(spec),
             DefaultValue: spec.TryGetProperty("default", out var value) ? ToScalarString(value) : null,
             // Two vocabularies are in play: connector Swagger uses
@@ -250,7 +251,8 @@ internal static partial class OperationSchemaReader
         return result.Count == 0 ? null : result;
     }
 
-    private static string? ToScalarString(JsonElement value)
+    /// <summary>A string, number or boolean as text; null for anything else.</summary>
+    internal static string? ToScalarString(JsonElement value)
         => value.ValueKind switch
         {
             JsonValueKind.String => value.GetString(),
@@ -262,18 +264,18 @@ internal static partial class OperationSchemaReader
 
     private static DynamicValuesRef? ReadDynamicRef(JsonElement spec, params string[] extensionNames)
     {
-        var extension = extensionNames.Select(n => JsonRead.Object(spec, n)).FirstOrDefault(e => e is not null);
+        var extension = extensionNames.Select(n => JsonElementReader.TryGetObject(spec, n)).FirstOrDefault(e => e is not null);
         if (extension is not { } source)
             return null;
 
         // A tree extension nests its resolvers under open/browse; either one
         // identifies the operation that supplies values.
-        var operationId = JsonRead.String(source, "operationId");
+        var operationId = JsonElementReader.TryGetString(source, "operationId");
         if (operationId is null)
         {
             foreach (var nested in (ReadOnlySpan<string>)["open", "browse"])
             {
-                if (JsonRead.Object(source, nested) is { } child && JsonRead.String(child, "operationId") is { } id)
+                if (JsonElementReader.TryGetObject(source, nested) is { } child && JsonElementReader.TryGetString(child, "operationId") is { } id)
                 {
                     operationId = id;
                     source = child;
@@ -286,7 +288,7 @@ internal static partial class OperationSchemaReader
             return null;
 
         Dictionary<string, string?>? arguments = null;
-        if (JsonRead.Object(source, "parameters") is { } bag)
+        if (JsonElementReader.TryGetObject(source, "parameters") is { } bag)
         {
             arguments = new Dictionary<string, string?>(StringComparer.Ordinal);
             foreach (var entry in bag.EnumerateObject())
@@ -297,14 +299,14 @@ internal static partial class OperationSchemaReader
         return new DynamicValuesRef(
             operationId,
             arguments,
-            ItemsPath: JsonRead.String(source, "itemsPath") ?? JsonRead.String(source, "value-collection"),
-            ValuePath: JsonRead.String(source, "itemValuePath") ?? JsonRead.String(source, "value-path"),
-            TitlePath: JsonRead.String(source, "itemTitlePath") ?? JsonRead.String(source, "value-title"));
+            ItemsPath: JsonElementReader.TryGetString(source, "itemsPath") ?? JsonElementReader.TryGetString(source, "value-collection"),
+            ValuePath: JsonElementReader.TryGetString(source, "itemValuePath") ?? JsonElementReader.TryGetString(source, "value-path"),
+            TitlePath: JsonElementReader.TryGetString(source, "itemTitlePath") ?? JsonElementReader.TryGetString(source, "value-title"));
     }
 
     /// <summary>
     /// Renders one resolver argument: a literal, or a reference to another
-    /// parameter of the same operation as <c>$ref:name</c>, so the caller can
+    /// parameter of the same operation (<see cref="ResolverArgument"/>), so the caller can
     /// see the resolution order (a Teams message body depends on poster and
     /// location).
     /// </summary>
@@ -314,9 +316,14 @@ internal static partial class OperationSchemaReader
             return ToScalarString(argument) ?? argument.GetRawText();
 
         // An optional input (e.g. $select for a row's fields) is passed when
-        // chosen and left out otherwise; "$ref?:" marks it.
-        if (JsonRead.String(argument, "parameterReference") is { } reference)
-            return (argument.TryGetProperty("required", out var required) && required.ValueKind == JsonValueKind.False ? "$ref?:" : "$ref:") + reference;
+        // chosen and left out otherwise.
+        if (JsonElementReader.TryGetString(argument, "parameterReference") is { } reference)
+            return ResolverArgument.Reference(reference,
+                optional: argument.TryGetProperty("required", out var required) && required.ValueKind == JsonValueKind.False);
+
+        // The older x-ms-dynamic-values vocabulary names the source parameter "parameter".
+        if (JsonElementReader.TryGetString(argument, "parameter") is { } legacy)
+            return ResolverArgument.Reference(legacy);
 
         if (argument.TryGetProperty("value", out var literal))
             return ToScalarString(literal) ?? literal.GetRawText();
