@@ -30,4 +30,8 @@
     <ProjectReference Include="../../src/TALXIS.CLI.Features.Workspace/TALXIS.CLI.Features.Workspace.csproj" />
     <ProjectReference Include="../../src/TALXIS.CLI.Analyzers/TALXIS.CLI.Analyzers.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Environment/Connector/Fixtures/**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
