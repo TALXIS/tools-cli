@@ -33,7 +33,18 @@ public sealed record ConnectorDetail(
     string? DisplayName,
     int OperationCount,
     int? MatchedOperations,
-    IReadOnlyList<ConnectorOperationSummary> Operations);
+    IReadOnlyList<ConnectorOperationSummary> Operations,
+    string? Source = null,
+    string? SourcePath = null);
+
+/// <summary>Where connector metadata was read from; see <see cref="OperationDetail.Source"/>.</summary>
+public static class ConnectorMetadataSource
+{
+    /// <summary>A custom connector's definition in the workspace; nothing was fetched.</summary>
+    public const string Workspace = "workspace";
+    /// <summary>The connected environment.</summary>
+    public const string Environment = "environment";
+}
 
 /// <summary>A hit from the cross-connector operation search.</summary>
 public sealed record OperationSearchHit(
@@ -112,6 +123,8 @@ public sealed record OperationParameter(
 /// (<see cref="ConnectorIds.ToPath"/>). <see cref="Outputs"/> are named by the key expressions read them
 /// with (<c>body/value</c>); fields of array items carry a <c>[]</c> segment
 /// (<c>body/value[]/emailaddress1</c>), read inside a loop over the array.
+/// <see cref="Source"/> says where it was read from (<see cref="ConnectorMetadataSource"/>),
+/// and <see cref="SourcePath"/> the file when it was read from one.
 /// </summary>
 public sealed record OperationDetail(
     string Connector,
@@ -123,7 +136,9 @@ public sealed record OperationDetail(
     bool IsDeprecated,
     IReadOnlyList<OperationParameter> Parameters,
     bool IsTrigger = false,
-    IReadOnlyList<OperationParameter>? Outputs = null);
+    IReadOnlyList<OperationParameter>? Outputs = null,
+    string? Source = null,
+    string? SourcePath = null);
 
 /// <summary>States of a <see cref="DynamicLookup"/>.</summary>
 public static class DynamicLookupStatus

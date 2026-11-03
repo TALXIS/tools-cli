@@ -30,7 +30,7 @@ Scaffold components in dependency order:
 7. **Project Reference** — `dotnet add reference` from solution project to the separate project. The Build SDK auto-detects the project type and handles registration (assembly data.xml, web resource data.xml, etc.) during `dotnet build`
 8. **Ribbon Buttons** (`pp-ribbon-button`) — after entity and script library exist. References the web resource via `LibraryLogicalName=prefix_name`
 9. **Form Event Handlers** (`pp-form-event-handler`) — after entity, form, and script library exist. References via `libraryName=prefix_name.js` and `functionName=prefix_name.ClassName.methodName`
-10. **Cloud Flows** (`pp-flow`) — after the tables the flow reads or writes exist. Connector actions are written by hand and grounded in the connected environment (see [flow-development](flow-development.md))
+10. **Cloud Flows** (`pp-flow`) — after the tables the flow reads or writes exist. Connector actions are written by hand and grounded in the connector's definition: a workspace custom connector's local `apiDefinition.swagger.json`, else the connected environment (see [flow-development](flow-development.md))
 
 ## Key Parameter Conventions
 

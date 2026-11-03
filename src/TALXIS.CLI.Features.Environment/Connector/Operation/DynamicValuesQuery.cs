@@ -40,7 +40,8 @@ public sealed record DynamicValuesAnswer(
     IReadOnlyList<string>? Missing,
     IReadOnlyList<ConnectionChoice>? Choices,
     string? ConnectionReference,
-    string? ConnectionOwner);
+    string? ConnectionOwner,
+    string? Source = null);
 
 /// <summary>A connection reference the user can choose, described so they can tell them apart.</summary>
 public sealed record ConnectionChoice(string LogicalName, string? DisplayName, string? Owner, string? Status);
@@ -82,7 +83,7 @@ internal static class DynamicValuesQuery
 
         var kind = request.IsOutput ? "output" : "parameter";
         var metadata = TxcServices.Get<IConnectorMetadataService>();
-        var operation = await metadata.GetOperationAsync(request.Profile, request.Connector, request.Operation, CancellationToken.None)
+        var operation = await ConnectorMetadataLookup.GetOperationAsync(request.Profile, request.Connector, request.Operation, CancellationToken.None)
             .ConfigureAwait(false);
         var candidates = request.IsOutput ? operation.Outputs ?? [] : operation.Parameters;
         var target = candidates.FirstOrDefault(p => p.Name == request.Name);
@@ -106,7 +107,7 @@ internal static class DynamicValuesQuery
                 Filter(found, v => $"{v.Value} {v.Label}", request.Search),
                 Filter(fields, f => $"{f.Name} {f.Description}", request.Search),
                 Filter(outputs, o => $"{o.Key} {o.Description}", request.Search),
-                missing, choices, reference?.LogicalName, owner);
+                missing, choices, reference?.LogicalName, owner, operation.Source);
 
         var view = ParameterViews.From(operation, target);
         var dynamicKind = request.IsOutput
@@ -138,6 +139,14 @@ internal static class DynamicValuesQuery
                 $"Get their values with: {string.Join("; ", how)}",
                 missing: missing));
             return true;
+        }
+
+        // A lookup runs through the deployed connector, which only the
+        // environment's copy of the operation can address.
+        if (operation.Source == ConnectorMetadataSource.Workspace)
+        {
+            operation = await ConnectorMetadataLookup.GetFromEnvironmentAsync(request.Profile, request.Connector, request.Operation, CancellationToken.None)
+                .ConfigureAwait(false);
         }
 
         var (pick, choices) = await PickConnectionReferenceAsync(request).ConfigureAwait(false);

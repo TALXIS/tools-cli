@@ -1,7 +1,6 @@
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
-using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Core.Platforms.PowerPlatform;
 using TALXIS.CLI.Logging;
 
@@ -11,7 +10,7 @@ namespace TALXIS.CLI.Features.Environment.Connector.Operation;
 [CliWorkflow("environment-inspection")]
 [CliCommand(
     Name = "get",
-    Description = "Answers which parameters an operation needs and what it returns, from the LIVE connected environment. Lists every inputs.parameters key with type, requiredness and allowed values, and every output with the expression that reads it. For dynamic parameters and outputs it gives the exact txc command that fetches their values or fields. Also gives the action type and a JSON skeleton. Requires an active profile."
+    Description = "Answers which parameters an operation needs and what it returns, Lists every inputs.parameters key with type, requiredness and allowed values, and every output with the expression that reads it. For dynamic parameters and outputs it gives the exact txc command that fetches their values or fields. Also gives the action type and a JSON skeleton. A custom connector defined in the workspace (a Connectors.* project) is read from its local apiDefinition.swagger.json with no environment call; any other connector comes from the LIVE connected environment and needs an active profile. The answer's source says which."
 )]
 public class ConnectorOperationGetCliCommand : ConnectivityCommandBase
 {
@@ -25,8 +24,7 @@ public class ConnectorOperationGetCliCommand : ConnectivityCommandBase
 
     protected override async Task<int> ExecuteAsync()
     {
-        var service = TxcServices.Get<IConnectorMetadataService>();
-        var operation = await service.GetOperationAsync(Profile, Connector, Operation, CancellationToken.None)
+        var operation = await ConnectorMetadataLookup.GetOperationAsync(Profile, Connector, Operation, CancellationToken.None)
             .ConfigureAwait(false);
 
         OutputFormatter.WriteData(OperationSpec.From(operation), PrintSpec);
@@ -57,10 +55,12 @@ public sealed record OperationSpec(
     bool IsDeprecated,
     IReadOnlyList<ParameterView> Parameters,
     IReadOnlyList<OutputView> Outputs,
-    System.Text.Json.Nodes.JsonObject Snippet)
+    System.Text.Json.Nodes.JsonObject Snippet,
+    string? Source,
+    string? SourcePath)
 {
     public static OperationSpec From(OperationDetail operation)
         => new(operation.Connector, operation.ApiId, operation.OperationId, operation.Summary, operation.Description, operation.IsTrigger,
             operation.ActionType, operation.IsDeprecated, ParameterViews.From(operation), OutputViews.From(operation),
-            FlowSnippet.Build(operation));
+            FlowSnippet.Build(operation), operation.Source, operation.SourcePath);
 }

@@ -1,8 +1,8 @@
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core;
-using TALXIS.CLI.Core.DependencyInjection;
 using TALXIS.CLI.Core.Platforms.PowerPlatform;
+using TALXIS.CLI.Features.Environment.Connector.Operation;
 using TALXIS.CLI.Logging;
 
 namespace TALXIS.CLI.Features.Environment.Connector;
@@ -11,7 +11,7 @@ namespace TALXIS.CLI.Features.Environment.Connector;
 [CliWorkflow("environment-inspection")]
 [CliCommand(
     Name = "get",
-    Description = "Gets the operation index (actions, triggers, webhook triggers) of one Power Automate connector from the LIVE connected environment. Requires an active profile. Use 'connector operation get' for exact parameter names before writing an action."
+    Description = "Gets the operation index (actions, triggers, webhook triggers) of one Power Automate connector. A custom connector defined in the workspace (a Connectors.* project) is read from its local apiDefinition.swagger.json with no environment call; any other connector comes from the LIVE connected environment and needs an active profile. The answer's source says which. Use 'connector operation get' for exact parameter names before writing an action."
 )]
 public class ConnectorGetCliCommand : ConnectivityCommandBase
 {
@@ -25,8 +25,7 @@ public class ConnectorGetCliCommand : ConnectivityCommandBase
 
     protected override async Task<int> ExecuteAsync()
     {
-        var service = TxcServices.Get<IConnectorMetadataService>();
-        var connector = await service.GetConnectorAsync(Profile, Connector, Filter, CancellationToken.None)
+        var connector = await ConnectorMetadataLookup.GetConnectorAsync(Profile, Connector, Filter, CancellationToken.None)
             .ConfigureAwait(false);
 
         OutputFormatter.WriteData(connector, PrintConnector);
@@ -37,6 +36,7 @@ public class ConnectorGetCliCommand : ConnectivityCommandBase
     private static void PrintConnector(ConnectorDetail connector)
     {
         OutputWriter.WriteLine($"{connector.DisplayName ?? connector.LogicalName} ({connector.ApiId})");
+        OutputWriter.WriteLine(OperationTextRenderer.SourceLine(connector.Source, connector.SourcePath));
         OutputWriter.WriteLine(connector.MatchedOperations is { } matched
             ? $"{matched} of {connector.OperationCount} operations matched"
             : $"{connector.OperationCount} operations");
