@@ -48,7 +48,11 @@ internal static class WorkspaceTableReader
         if (logicalName is null)
             return null;
 
-        var declarations = files.Where(e => string.Equals((string?)e.Entity!.Attribute("Name"), logicalName, StringComparison.OrdinalIgnoreCase)).ToList();
+        // The solution that declares the columns comes first: it is the file an answer cites.
+        var declarations = files
+            .Where(e => string.Equals((string?)e.Entity!.Attribute("Name"), logicalName, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(e => e.Entity!.Element("attributes")?.Elements("attribute").Count() ?? 0)
+            .ToList();
         var targets = ReadLookupTargets(workspaceRoot, logicalName);
         var globalOptions = new Lazy<Dictionary<string, IReadOnlyList<(string, string?)>>>(() => ReadGlobalOptionSets(workspaceRoot));
 

@@ -27,6 +27,11 @@ public sealed class DataverseWorkspaceFieldsTests : IDisposable
     {
         Directory.CreateDirectory(Path.Combine(_root, ".git"));
         Copy(Path.Combine(Fixtures, "datamodel"), Path.Combine(_root, "src", "Solutions.DataModel"));
+        // The lab's UI solution carries the same table with forms only; the columns are cited from DataModel.
+        var ui = Path.Combine(_root, "src", "Solutions.UI", "Entities", "lab_warehouseitem");
+        Directory.CreateDirectory(ui);
+        File.WriteAllText(Path.Combine(ui, "Entity.xml"),
+            """<Entity><Name>lab_warehouseitem</Name><EntityInfo><entity Name="lab_warehouseitem"><attributes /></entity></EntityInfo></Entity>""");
         _host = new ConnectionCommandTestHost { CurrentDirectory = _root };
         _host.Operations.Operation = (_, operation) => Operation(operation);
     }
