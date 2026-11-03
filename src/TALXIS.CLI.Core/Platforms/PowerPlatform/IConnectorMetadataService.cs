@@ -42,6 +42,8 @@ public static class ConnectorMetadataSource
 {
     /// <summary>A custom connector's definition in the workspace; nothing was fetched.</summary>
     public const string Workspace = "workspace";
+    /// <summary>A copy fetched once from an environment and kept in the workspace (<c>.txc/connectors/</c>).</summary>
+    public const string Snapshot = "snapshot";
     /// <summary>The connected environment.</summary>
     public const string Environment = "environment";
 }

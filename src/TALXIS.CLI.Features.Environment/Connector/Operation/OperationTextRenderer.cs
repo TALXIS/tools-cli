@@ -36,7 +36,12 @@ internal static class OperationTextRenderer
 
     /// <summary>Where the answer was read from, so a reader knows whether it reflects the workspace or an environment.</summary>
     public static string SourceLine(string? source, string? path)
-        => path is null ? $"Source: {source ?? ConnectorMetadataSource.Environment}" : $"Source: {source} ({path})";
+        => (source, path) switch
+        {
+            (_, null) => $"Source: {source ?? ConnectorMetadataSource.Environment}",
+            (ConnectorMetadataSource.Environment, _) => $"Source: environment (saved to {path})",
+            _ => $"Source: {source} ({path})",
+        };
 
     public static void PrintOutputs(IReadOnlyList<OutputView> outputs)
     {

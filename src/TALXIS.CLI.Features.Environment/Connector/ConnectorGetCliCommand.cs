@@ -11,7 +11,7 @@ namespace TALXIS.CLI.Features.Environment.Connector;
 [CliWorkflow("environment-inspection")]
 [CliCommand(
     Name = "get",
-    Description = "Gets the operation index (actions, triggers, webhook triggers) of one Power Automate connector. A custom connector defined in the workspace (a Connectors.* project) is read from its local apiDefinition.swagger.json with no environment call; any other connector comes from the LIVE connected environment and needs an active profile. The answer's source says which. Use 'connector operation get' for exact parameter names before writing an action."
+    Description = "Gets the operation index (actions, triggers, webhook triggers) of one Power Automate connector. A custom connector defined in the workspace (a Connectors.* project) is read from its local apiDefinition.swagger.json with no environment call; any other connector is read once from the LIVE connected environment (needs an active profile) and kept in the workspace's .txc/connectors/ snapshot, which later calls read instead. The answer's source says which (workspace, snapshot or environment). Use 'connector operation get' for exact parameter names before writing an action."
 )]
 public class ConnectorGetCliCommand : ConnectivityCommandBase
 {
@@ -23,9 +23,12 @@ public class ConnectorGetCliCommand : ConnectivityCommandBase
     [CliOption(Name = "--filter", Description = "Show only operations whose ID or summary contains this text.", Required = false)]
     public string? Filter { get; set; }
 
+    [CliOption(Name = "--refresh", Description = "Fetch from the environment again and rewrite the workspace snapshot in .txc/connectors/, instead of reading it. Use before a release, or when the connector changed.", Required = false)]
+    public bool Refresh { get; set; }
+
     protected override async Task<int> ExecuteAsync()
     {
-        var connector = await ConnectorMetadataLookup.GetConnectorAsync(Profile, Connector, Filter, CancellationToken.None)
+        var connector = await ConnectorMetadataLookup.GetConnectorAsync(Profile, Connector, Filter, CancellationToken.None, Refresh)
             .ConfigureAwait(false);
 
         OutputFormatter.WriteData(connector, PrintConnector);
