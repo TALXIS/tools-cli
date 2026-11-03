@@ -1,0 +1,495 @@
+{
+  "UpdateOnlyRecord": [
+    {
+      "name": "item/lab_availablequantity",
+      "type": "integer",
+      "required": false,
+      "description": "Available Quantity"
+    },
+    {
+      "name": "item/lab_barcode",
+      "type": "string",
+      "required": false,
+      "description": "Barcode"
+    },
+    {
+      "name": "item/lab_category",
+      "type": "integer",
+      "required": false,
+      "description": "Category"
+    },
+    {
+      "name": "item/transactioncurrencyid@odata.bind",
+      "type": "string",
+      "required": false,
+      "description": "Currency (Currencies)"
+    },
+    {
+      "name": "item/lab_description",
+      "type": "string",
+      "required": false,
+      "description": "Description"
+    },
+    {
+      "name": "item/lab_expirationdate",
+      "type": "string",
+      "required": false,
+      "description": "Expiration Date"
+    },
+    {
+      "name": "item/lab_isperishable",
+      "type": "boolean",
+      "required": false,
+      "description": "Is Perishable"
+    },
+    {
+      "name": "item/lab_locationid@odata.bind",
+      "type": "string",
+      "required": false,
+      "description": "Location (Warehouse Locations)"
+    },
+    {
+      "name": "item/lab_name",
+      "type": "string",
+      "required": false,
+      "description": "Name"
+    },
+    {
+      "name": "item/lab_needsrestock",
+      "type": "boolean",
+      "required": false,
+      "description": "Needs Restock"
+    },
+    {
+      "name": "item/ownerid@odata.bind",
+      "type": "string",
+      "required": false,
+      "description": "Owner (Owners)"
+    },
+    {
+      "name": "item/lab_productid@odata.bind",
+      "type": "string",
+      "required": false,
+      "description": "Product (Products)"
+    },
+    {
+      "name": "item/lab_reorderpoint",
+      "type": "integer",
+      "required": false,
+      "description": "Reorder Point"
+    },
+    {
+      "name": "item/lab_sku",
+      "type": "string",
+      "required": false,
+      "description": "SKU"
+    },
+    {
+      "name": "item/statecode",
+      "type": "integer",
+      "required": false,
+      "description": "Status"
+    },
+    {
+      "name": "item/statuscode",
+      "type": "integer",
+      "required": false,
+      "description": "Status Reason"
+    },
+    {
+      "name": "item/timezoneruleversionnumber",
+      "type": "integer",
+      "required": false,
+      "description": "Time Zone Rule Version Number"
+    },
+    {
+      "name": "item/lab_unitprice",
+      "type": "number",
+      "required": false,
+      "description": "Unit Price"
+    },
+    {
+      "name": "item/utcconversiontimezonecode",
+      "type": "integer",
+      "required": false,
+      "description": "UTC Conversion Time Zone Code"
+    },
+    {
+      "name": "item/lab_weight",
+      "type": "number",
+      "required": false,
+      "description": "Weight (kg)"
+    }
+  ],
+  "CreateRecord": [
+    {
+      "name": "item/lab_availablequantity",
+      "type": "integer",
+      "required": true,
+      "description": "Available Quantity"
+    },
+    {
+      "name": "item/lab_barcode",
+      "type": "string",
+      "required": false,
+      "description": "Barcode"
+    },
+    {
+      "name": "item/lab_category",
+      "type": "integer",
+      "required": false,
+      "description": "Category"
+    },
+    {
+      "name": "item/transactioncurrencyid@odata.bind",
+      "type": "string",
+      "required": false,
+      "description": "Currency (Currencies)"
+    },
+    {
+      "name": "item/lab_description",
+      "type": "string",
+      "required": false,
+      "description": "Description"
+    },
+    {
+      "name": "item/lab_expirationdate",
+      "type": "string",
+      "required": false,
+      "description": "Expiration Date"
+    },
+    {
+      "name": "item/importsequencenumber",
+      "type": "integer",
+      "required": false,
+      "description": "Import Sequence Number"
+    },
+    {
+      "name": "item/lab_isperishable",
+      "type": "boolean",
+      "required": false,
+      "description": "Is Perishable"
+    },
+    {
+      "name": "item/lab_locationid@odata.bind",
+      "type": "string",
+      "required": false,
+      "description": "Location (Warehouse Locations)"
+    },
+    {
+      "name": "item/lab_name",
+      "type": "string",
+      "required": true,
+      "description": "Name"
+    },
+    {
+      "name": "item/lab_needsrestock",
+      "type": "boolean",
+      "required": false,
+      "description": "Needs Restock"
+    },
+    {
+      "name": "item/ownerid@odata.bind",
+      "type": "string",
+      "required": false,
+      "description": "Owner (Owners)"
+    },
+    {
+      "name": "item/lab_productid@odata.bind",
+      "type": "string",
+      "required": false,
+      "description": "Product (Products)"
+    },
+    {
+      "name": "item/overriddencreatedon",
+      "type": "string",
+      "required": false,
+      "description": "Record Created On"
+    },
+    {
+      "name": "item/lab_reorderpoint",
+      "type": "integer",
+      "required": false,
+      "description": "Reorder Point"
+    },
+    {
+      "name": "item/lab_sku",
+      "type": "string",
+      "required": true,
+      "description": "SKU"
+    },
+    {
+      "name": "item/statuscode",
+      "type": "integer",
+      "required": false,
+      "description": "Status Reason"
+    },
+    {
+      "name": "item/timezoneruleversionnumber",
+      "type": "integer",
+      "required": false,
+      "description": "Time Zone Rule Version Number"
+    },
+    {
+      "name": "item/lab_unitprice",
+      "type": "number",
+      "required": false,
+      "description": "Unit Price"
+    },
+    {
+      "name": "item/utcconversiontimezonecode",
+      "type": "integer",
+      "required": false,
+      "description": "UTC Conversion Time Zone Code"
+    },
+    {
+      "name": "item/lab_warehouseitemid",
+      "type": "string",
+      "required": false,
+      "description": "Warehouse Item"
+    },
+    {
+      "name": "item/lab_weight",
+      "type": "number",
+      "required": false,
+      "description": "Weight (kg)"
+    }
+  ],
+  "ListRecords": [
+    {
+      "key": "body/value[]/lab_availablequantity",
+      "type": "integer",
+      "description": "Available Quantity"
+    },
+    {
+      "key": "body/value[]/lab_barcode",
+      "type": "string",
+      "description": "Barcode"
+    },
+    {
+      "key": "body/value[]/lab_category",
+      "type": "integer",
+      "description": "Category"
+    },
+    {
+      "key": "body/value[]/_createdonbehalfby_value@Microsoft.Dynamics.CRM.lookuplogicalname",
+      "type": "string",
+      "description": "Created By (Delegate) (Type)"
+    },
+    {
+      "key": "body/value[]/_createdonbehalfby_value",
+      "type": "string",
+      "description": "Created By (Delegate) (Value)"
+    },
+    {
+      "key": "body/value[]/_createdby_value@Microsoft.Dynamics.CRM.lookuplogicalname",
+      "type": "string",
+      "description": "Created By (Type)"
+    },
+    {
+      "key": "body/value[]/_createdby_value",
+      "type": "string",
+      "description": "Created By (Value)"
+    },
+    {
+      "key": "body/value[]/createdon",
+      "type": "string",
+      "description": "Created On"
+    },
+    {
+      "key": "body/value[]/_transactioncurrencyid_value@Microsoft.Dynamics.CRM.lookuplogicalname",
+      "type": "string",
+      "description": "Currency (Type)"
+    },
+    {
+      "key": "body/value[]/_transactioncurrencyid_value",
+      "type": "string",
+      "description": "Currency (Value)"
+    },
+    {
+      "key": "body/value[]/lab_description",
+      "type": "string",
+      "description": "Description"
+    },
+    {
+      "key": "body/value[]/exchangerate",
+      "type": "number",
+      "description": "Exchange Rate"
+    },
+    {
+      "key": "body/value[]/lab_expirationdate",
+      "type": "string",
+      "description": "Expiration Date"
+    },
+    {
+      "key": "body/value[]/importsequencenumber",
+      "type": "integer",
+      "description": "Import Sequence Number"
+    },
+    {
+      "key": "body/value[]/lab_isperishable",
+      "type": "boolean",
+      "description": "Is Perishable"
+    },
+    {
+      "key": "body/value[]/_lab_locationid_value@Microsoft.Dynamics.CRM.lookuplogicalname",
+      "type": "string",
+      "description": "Location (Type)"
+    },
+    {
+      "key": "body/value[]/_lab_locationid_value",
+      "type": "string",
+      "description": "Location (Value)"
+    },
+    {
+      "key": "body/value[]/_modifiedonbehalfby_value@Microsoft.Dynamics.CRM.lookuplogicalname",
+      "type": "string",
+      "description": "Modified By (Delegate) (Type)"
+    },
+    {
+      "key": "body/value[]/_modifiedonbehalfby_value",
+      "type": "string",
+      "description": "Modified By (Delegate) (Value)"
+    },
+    {
+      "key": "body/value[]/_modifiedby_value@Microsoft.Dynamics.CRM.lookuplogicalname",
+      "type": "string",
+      "description": "Modified By (Type)"
+    },
+    {
+      "key": "body/value[]/_modifiedby_value",
+      "type": "string",
+      "description": "Modified By (Value)"
+    },
+    {
+      "key": "body/value[]/modifiedon",
+      "type": "string",
+      "description": "Modified On"
+    },
+    {
+      "key": "body/value[]/lab_name",
+      "type": "string",
+      "description": "Name"
+    },
+    {
+      "key": "body/value[]/lab_needsrestock",
+      "type": "boolean",
+      "description": "Needs Restock"
+    },
+    {
+      "key": "body/value[]/@odata.id",
+      "type": "string",
+      "description": "OData Id"
+    },
+    {
+      "key": "body/value[]/_ownerid_value@Microsoft.Dynamics.CRM.lookuplogicalname",
+      "type": "string",
+      "description": "Owner (Type)"
+    },
+    {
+      "key": "body/value[]/_ownerid_value",
+      "type": "string",
+      "description": "Owner (Value)"
+    },
+    {
+      "key": "body/value[]/_owningbusinessunit_value@Microsoft.Dynamics.CRM.lookuplogicalname",
+      "type": "string",
+      "description": "Owning Business Unit (Type)"
+    },
+    {
+      "key": "body/value[]/_owningbusinessunit_value",
+      "type": "string",
+      "description": "Owning Business Unit (Value)"
+    },
+    {
+      "key": "body/value[]/_owningteam_value@Microsoft.Dynamics.CRM.lookuplogicalname",
+      "type": "string",
+      "description": "Owning Team (Type)"
+    },
+    {
+      "key": "body/value[]/_owningteam_value",
+      "type": "string",
+      "description": "Owning Team (Value)"
+    },
+    {
+      "key": "body/value[]/_owninguser_value@Microsoft.Dynamics.CRM.lookuplogicalname",
+      "type": "string",
+      "description": "Owning User (Type)"
+    },
+    {
+      "key": "body/value[]/_owninguser_value",
+      "type": "string",
+      "description": "Owning User (Value)"
+    },
+    {
+      "key": "body/value[]/_lab_productid_value@Microsoft.Dynamics.CRM.lookuplogicalname",
+      "type": "string",
+      "description": "Product (Type)"
+    },
+    {
+      "key": "body/value[]/_lab_productid_value",
+      "type": "string",
+      "description": "Product (Value)"
+    },
+    {
+      "key": "body/value[]/overriddencreatedon",
+      "type": "string",
+      "description": "Record Created On"
+    },
+    {
+      "key": "body/value[]/lab_reorderpoint",
+      "type": "integer",
+      "description": "Reorder Point"
+    },
+    {
+      "key": "body/value[]/lab_sku",
+      "type": "string",
+      "description": "SKU"
+    },
+    {
+      "key": "body/value[]/statecode",
+      "type": "integer",
+      "description": "Status"
+    },
+    {
+      "key": "body/value[]/statuscode",
+      "type": "integer",
+      "description": "Status Reason"
+    },
+    {
+      "key": "body/value[]/timezoneruleversionnumber",
+      "type": "integer",
+      "description": "Time Zone Rule Version Number"
+    },
+    {
+      "key": "body/value[]/lab_unitprice",
+      "type": "number",
+      "description": "Unit Price"
+    },
+    {
+      "key": "body/value[]/lab_unitprice_base",
+      "type": "number",
+      "description": "Unit Price (Base)"
+    },
+    {
+      "key": "body/value[]/utcconversiontimezonecode",
+      "type": "integer",
+      "description": "UTC Conversion Time Zone Code"
+    },
+    {
+      "key": "body/value[]/versionnumber",
+      "type": "integer",
+      "description": "Version Number"
+    },
+    {
+      "key": "body/value[]/lab_warehouseitemid",
+      "type": "string",
+      "description": "Warehouse Item"
+    },
+    {
+      "key": "body/value[]/lab_weight",
+      "type": "number",
+      "description": "Weight (kg)"
+    }
+  ]
+}

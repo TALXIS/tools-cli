@@ -14,6 +14,7 @@ Run them from inside the workspace. A **custom connector defined in the workspac
    - every output with the expression that reads it in later steps (`@triggerOutputs()?['body/…']`, `@outputs('Step')?['body/value']`); a dynamic output (e.g. the columns of the chosen table) has `getFields`;
    - the action type and a JSON skeleton.
 3. **What values can a dynamic parameter take / which fields does a dynamic output have?** → run the `getValues` or `getFields` command it printed, filling each `--value` [`environment_connector_operation_parameter_get`, `environment_connector_operation_output_get`]. Add `--filter <text>` to narrow long lists. The answer's `status`:
+   - Dataverse row fields of a **table defined in the workspace** (`item` of CreateRecord / UpdateRecord / UpdateOnlyRecord with `--value entityName=<entity set>`, `body/value` of ListRecords) come from its `Entity.xml` with no connection, columns not deployed yet included (`source: workspace`). Other tables are read through the connection as below.
    - `values` — allowed values with labels; use the value.
    - `fields` — sub-fields: input keys to set (`item/lastname`, `body/recipient`) or outputs with their read expression (`@items('<loop>')?['emailaddress1']`).
    - `needs-values` — choose the listed parameters first; the message has the command for each.

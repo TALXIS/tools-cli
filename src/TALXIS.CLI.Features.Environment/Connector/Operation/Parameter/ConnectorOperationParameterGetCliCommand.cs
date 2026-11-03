@@ -19,7 +19,7 @@ namespace TALXIS.CLI.Features.Environment.Connector.Operation.Parameter;
 [CliWorkflow("environment-inspection")]
 [CliCommand(
     Name = "get",
-    Description = "Gets what one connector operation parameter can take, in one call: its allowed values (e.g. table names, Teams locations) or its sub-fields (e.g. a Dataverse row's item/<column> keys, a Teams message's body/<field> keys). Pass the parameters it depends on with --value. Dynamic values are read through a bound connection reference: without --use-connection the answer only says whose connection would be used; ask the user, then re-run with --use-connection. Requires an active profile."
+    Description = "Gets what one connector operation parameter can take, in one call: its allowed values (e.g. table names, Teams locations) or its sub-fields (e.g. a Dataverse row's item/<column> keys, a Teams message's body/<field> keys). Pass the parameters it depends on with --value. Dynamic values are read through a bound connection reference: without --use-connection the answer only says whose connection would be used; ask the user, then re-run with --use-connection. Dataverse row fields of a table defined in the workspace are read from its Entity.xml instead, with no connection. Requires an active profile unless the answer comes from the workspace."
 )]
 public class ConnectorOperationParameterGetCliCommand : ConnectivityCommandBase
 {

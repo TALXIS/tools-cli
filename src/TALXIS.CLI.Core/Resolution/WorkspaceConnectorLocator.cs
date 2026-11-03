@@ -37,11 +37,6 @@ public static class WorkspaceConnectorLocator
 
     private const string DefaultDefinitionFile = "apiDefinition.swagger.json";
 
-    private static readonly HashSet<string> SkippedDirectories = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "bin", "obj", "node_modules", "packages", "TestResults",
-    };
-
     /// <summary>
     /// The workspace root for <paramref name="startDirectory"/>: the nearest
     /// directory with <c>.txc/workspace.json</c>, else the nearest Git
@@ -65,7 +60,7 @@ public static class WorkspaceConnectorLocator
         var schemaNames = ReadConnectorSchemaNames(workspaceRoot);
         var connectors = new List<WorkspaceConnector>();
 
-        foreach (var project in EnumerateFiles(workspaceRoot, "*.csproj"))
+        foreach (var project in WorkspaceFiles.Enumerate(workspaceRoot, "*.csproj"))
         {
             var properties = ReadProperties(project);
             if (properties is null
@@ -119,7 +114,7 @@ public static class WorkspaceConnectorLocator
     private static HashSet<string> ReadConnectorSchemaNames(string workspaceRoot)
     {
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var file in EnumerateFiles(workspaceRoot, "Solution.xml"))
+        foreach (var file in WorkspaceFiles.Enumerate(workspaceRoot, "Solution.xml"))
         {
             try
             {
@@ -161,40 +156,4 @@ public static class WorkspaceConnectorLocator
         => properties.TryGetValue(name, out var value) && value.Length > 0 && !value.Contains("$(", StringComparison.Ordinal)
             ? value
             : null;
-
-    private static IEnumerable<string> EnumerateFiles(string root, string pattern)
-    {
-        var pending = new Stack<string>();
-        pending.Push(root);
-        while (pending.Count > 0)
-        {
-            var directory = pending.Pop();
-            string[] files, children;
-            try
-            {
-                files = Directory.GetFiles(directory, pattern);
-                children = Directory.GetDirectories(directory);
-            }
-            catch (UnauthorizedAccessException)
-            {
-                // A directory the user cannot read holds nothing they could build either.
-                continue;
-            }
-            catch (IOException)
-            {
-                // Removed while walking.
-                continue;
-            }
-
-            foreach (var file in files)
-                yield return file;
-
-            foreach (var child in children)
-            {
-                var name = Path.GetFileName(child);
-                if (!name.StartsWith('.') && !SkippedDirectories.Contains(name))
-                    pending.Push(child);
-            }
-        }
-    }
 }
