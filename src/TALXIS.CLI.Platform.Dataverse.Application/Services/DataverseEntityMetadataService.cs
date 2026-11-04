@@ -656,22 +656,24 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
     /// <summary>
     /// Builds a detail dictionary from <see cref="AttributeMetadata"/>, including
     /// common fields and type-specific properties based on the concrete subclass.
+    /// Keys are PascalCase identifiers (camelCased in JSON output); shared fields use
+    /// the same names as <see cref="EntityAttributeRecord"/> so JSON matches <c>entity describe</c>.
     /// </summary>
-    private static Dictionary<string, object?> BuildAttributeDetail(AttributeMetadata attr)
+    internal static Dictionary<string, object?> BuildAttributeDetail(AttributeMetadata attr)
     {
         var detail = new Dictionary<string, object?>
         {
-            ["Logical Name"] = attr.LogicalName,
-            ["Schema Name"] = attr.SchemaName,
-            ["Display Name"] = attr.DisplayName?.UserLocalizedLabel?.Label ?? "-",
-            ["Description"] = attr.Description?.UserLocalizedLabel?.Label ?? "-",
-            ["Attribute Type"] = attr.AttributeTypeName?.Value ?? attr.AttributeType?.ToString() ?? "Unknown",
-            ["Required Level"] = attr.RequiredLevel?.Value.ToString() ?? "-",
-            ["Required Level Can Change"] = attr.RequiredLevel?.CanBeChanged,
-            ["Is Custom"] = attr.IsCustomAttribute == true,
-            ["Is Auditable"] = attr.IsAuditEnabled?.Value == true,
-            ["Is Searchable"] = attr.IsValidForAdvancedFind?.Value ?? true,
-            ["Is Secured"] = attr.IsSecured == true,
+            ["LogicalName"] = attr.LogicalName,
+            ["SchemaName"] = attr.SchemaName,
+            ["DisplayName"] = attr.DisplayName?.UserLocalizedLabel?.Label,
+            ["Description"] = attr.Description?.UserLocalizedLabel?.Label,
+            ["AttributeTypeName"] = attr.AttributeTypeName?.Value ?? attr.AttributeType?.ToString() ?? "Unknown",
+            ["RequiredLevel"] = attr.RequiredLevel?.Value.ToString(),
+            ["RequiredLevelCanChange"] = attr.RequiredLevel?.CanBeChanged,
+            ["IsCustomAttribute"] = attr.IsCustomAttribute == true,
+            ["IsAuditable"] = attr.IsAuditEnabled?.Value == true,
+            ["IsSearchable"] = attr.IsValidForAdvancedFind?.Value ?? true,
+            ["IsSecured"] = attr.IsSecured == true,
         };
 
         switch (attr)
@@ -713,8 +715,8 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
                 detail["DateTimeBehavior"] = dt.DateTimeBehavior?.Value;
                 break;
             case PicklistAttributeMetadata p:
-                detail["Is Global Option Set"] = p.OptionSet?.IsGlobal;
-                detail["Option Set Name"] = p.OptionSet?.Name;
+                detail["IsGlobalOptionSet"] = p.OptionSet?.IsGlobal;
+                detail["OptionSetName"] = p.OptionSet?.Name;
                 detail["Options"] = p.OptionSet?.Options?.Select(o => new Dictionary<string, object?>
                 {
                     ["Label"] = o.Label?.UserLocalizedLabel?.Label,
@@ -722,8 +724,8 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
                 }).ToList<object?>();
                 break;
             case MultiSelectPicklistAttributeMetadata ms:
-                detail["Is Global Option Set"] = ms.OptionSet?.IsGlobal;
-                detail["Option Set Name"] = ms.OptionSet?.Name;
+                detail["IsGlobalOptionSet"] = ms.OptionSet?.IsGlobal;
+                detail["OptionSetName"] = ms.OptionSet?.Name;
                 detail["Options"] = ms.OptionSet?.Options?.Select(o => new Dictionary<string, object?>
                 {
                     ["Label"] = o.Label?.UserLocalizedLabel?.Label,

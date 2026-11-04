@@ -149,6 +149,7 @@ public interface IDataverseEntityMetadataService
 
     /// <summary>
     /// Retrieves detailed metadata for a single attribute, including type-specific properties.
+    /// Keys are PascalCase identifiers; shared fields use the <see cref="EntityAttributeRecord"/> names.
     /// </summary>
     Task<Dictionary<string, object?>> GetAttributeDetailAsync(
         string? profileName,
