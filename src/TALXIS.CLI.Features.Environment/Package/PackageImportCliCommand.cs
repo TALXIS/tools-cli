@@ -138,6 +138,11 @@ public class PackageImportCliCommand : ProfiledCliCommand
         }
 
         Logger.LogInformation("Package import completed successfully.");
+        if (result.Solutions is { Count: > 0 } solutions)
+        {
+            WarnAboutSkippedSolutions(solutions);
+            OutputFormatter.WriteList(solutions, PrintSolutionTable);
+        }
         if (!string.IsNullOrWhiteSpace(LogFile))
         {
             Logger.LogInformation("Package Deployer log: {LogPath}", Path.GetFullPath(LogFile));
@@ -152,4 +157,37 @@ public class PackageImportCliCommand : ProfiledCliCommand
         }
         return ExitSuccess;
     }
+
+    private void WarnAboutSkippedSolutions(IReadOnlyList<PackageSolutionImportPlan> solutions)
+    {
+        var skipped = solutions
+            .Where(s => s.Status is PackageSolutionImportStatus.SkippedSameVersion or PackageSolutionImportStatus.SkippedNewerInstalled)
+            .ToList();
+        if (skipped.Count == 0) return;
+
+        var names = string.Join(", ", skipped.Select(s => $"{s.UniqueName} {s.PackageVersion} (installed {s.InstalledVersion})"));
+        if (skipped.Count == solutions.Count)
+        {
+            Logger.LogWarning("Nothing was updated: every solution in the package is already installed at the same or a newer version, so Package Deployer skipped them all: {Solutions}. Bump the solution versions, or import a solution directly with 'txc env solution import'.", names);
+        }
+        else
+        {
+            Logger.LogWarning("Package Deployer skipped {Count} solution(s) already installed at the same or a newer version: {Solutions}.", skipped.Count, names);
+        }
+    }
+
+    // Text-renderer callback — OutputWriter usage is intentional.
+#pragma warning disable TXC003
+    private static void PrintSolutionTable(IReadOnlyList<PackageSolutionImportPlan> solutions)
+    {
+        int nameWidth = Math.Clamp(solutions.Max(s => s.UniqueName.Length), 8, 50);
+        string header = $"{"Solution".PadRight(nameWidth)} | {"Package",-14} | {"Installed",-14} | Status";
+        OutputWriter.WriteLine(header);
+        OutputWriter.WriteLine(new string('-', header.Length + 12));
+        foreach (var s in solutions)
+        {
+            OutputWriter.WriteLine($"{s.UniqueName.PadRight(nameWidth)} | {s.PackageVersion ?? "-",-14} | {s.InstalledVersion ?? "-",-14} | {s.Status}");
+        }
+    }
+#pragma warning restore TXC003
 }

@@ -66,6 +66,32 @@ public class PackageImportConfigReaderTests
         }
     }
 
+    [Fact]
+    public void ReadSolutionsInImportOrder_ReturnsVersions()
+    {
+        var root = CreateTempDirectory();
+        try
+        {
+            var alpha = Path.Combine(root, "Alpha.zip");
+            var beta = Path.Combine(root, "Beta.zip");
+            CreateSolutionZip(alpha, "alpha_solution", "0.0.20000.0");
+            CreateSolutionZip(beta, "beta_solution", "1.2.3.4");
+
+            var pdpkg = Path.Combine(root, "Test.pdpkg.zip");
+            CreateDeployablePackageZip(pdpkg, ("Alpha.zip", alpha), ("Beta.zip", beta));
+
+            var result = new PackageImportConfigReader().ReadSolutionsInImportOrder(pdpkg);
+
+            Assert.Equal(
+                new[] { new PackageSolutionInfo("alpha_solution", "0.0.20000.0"), new PackageSolutionInfo("beta_solution", "1.2.3.4") },
+                result);
+        }
+        finally
+        {
+            TryDeleteDirectory(root);
+        }
+    }
+
     private static void CreateDeployablePackageZip(string pdpkgPath, params (string FileName, string ZipPath)[] solutions)
     {
         using var archive = ZipFile.Open(pdpkgPath, ZipArchiveMode.Create);
@@ -82,7 +108,7 @@ public class PackageImportConfigReaderTests
         }
     }
 
-    private static void CreateSolutionZip(string zipPath, string uniqueName)
+    private static void CreateSolutionZip(string zipPath, string uniqueName, string version = "1.0.0.0")
     {
         using var archive = ZipFile.Open(zipPath, ZipArchiveMode.Create);
         var entry = archive.CreateEntry("solution.xml");
@@ -92,7 +118,7 @@ public class PackageImportConfigReaderTests
                       <ImportExportXml>
                         <SolutionManifest>
                           <UniqueName>{uniqueName}</UniqueName>
-                          <Version>1.0.0.0</Version>
+                          <Version>{version}</Version>
                           <Managed>1</Managed>
                         </SolutionManifest>
                       </ImportExportXml>
