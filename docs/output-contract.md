@@ -81,6 +81,7 @@ public class WidgetListCliCommand : ProfiledCliCommand
 - **`OutputContext` setup** — applies the format flag with TTY auto-detection
 - **Standardized try/catch** — catches `ConfigurationResolutionException`, `OperationCanceledException`, and general exceptions
 - **`ILogger` requirement** — `protected abstract ILogger Logger` ensures every command has logging
+- **Failure hints** - override `GetFailureHint(Exception)` to append a next step (e.g. the command that explains the failure) to the error message
 - **Exit code constants** — `ExitSuccess` (0), `ExitError` (1), `ExitValidationError` (2)
 
 ### What commands must NOT do

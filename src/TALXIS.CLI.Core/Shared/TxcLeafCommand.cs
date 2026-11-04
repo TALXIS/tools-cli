@@ -124,6 +124,9 @@ public abstract class TxcLeafCommand
                 ? root.Message : ex.Message;
             scope.SetError(exitCode, "internal", message);
 
+            var hint = GetFailureHint(ex);
+            if (!string.IsNullOrWhiteSpace(hint)) message = $"{message.TrimEnd()} {hint}";
+
             OutputFormatter.WriteResult("failed", message, exitCode: exitCode);
             Logger.LogError(ex, "Command failed: {Error}", message);
             LogSupportInfo();
@@ -167,6 +170,13 @@ public abstract class TxcLeafCommand
     /// You may still catch domain-specific exceptions for custom exit codes.
     /// </summary>
     protected abstract Task<int> ExecuteAsync();
+
+    /// <summary>
+    /// Optional next step appended to the error message when <see cref="ExecuteAsync"/> fails
+    /// with an unhandled runtime error (for example, the command that shows why a delete was blocked).
+    /// Return <c>null</c> to report the error as is.
+    /// </summary>
+    protected virtual string? GetFailureHint(Exception ex) => null;
 
     /// <summary>
     /// Checks whether this command is a destructive operation (marked with
