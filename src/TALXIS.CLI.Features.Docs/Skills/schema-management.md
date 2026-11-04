@@ -15,12 +15,18 @@
 | Relationships | `txc environment entity relationship create\|list\|delete` (create is many-to-many only; a lookup is `attribute create --type lookup --target-entity <table>`) |
 | Option sets | `txc environment optionset list\|get\|create\|delete`; options: `txc environment optionset option add\|remove` |
 
-Every create, update and delete needs exactly one of `--apply` (run now) or `--stage` (add to a changeset, run later with `txc environment changeset apply --strategy batch|transaction|bulk`). Deletes also ask for confirmation unless `--yes`.
+Every create, update and delete needs exactly one of `--apply` (run now) or `--stage` (add to a changeset, run later with `txc environment changeset apply --strategy batch|transaction|bulk`). Without either, nothing runs: the command exits 2 with a `not-applied` result. Deletes also ask for confirmation unless `--yes`.
+
+Deletes take the object they remove as a positional argument; the table that owns it is `--entity`:
 
 ```
 txc environment entity create --name <schemaName> --display-name "<Label>" --plural-name "<Labels>" --solution <solution-name> --apply
 txc environment entity attribute create <entityLogicalName> --name <schemaName> --type <type> --solution <solution-name> --apply
 txc environment entity describe <entityLogicalName>
+txc environment entity delete <entityLogicalName> --yes --apply
+txc environment entity attribute delete <attributeLogicalName> --entity <entityLogicalName> --yes --apply
+txc environment entity relationship delete <relationshipSchemaName> --yes --apply
+txc environment optionset delete <optionSetName> --yes --apply
 ```
 
 ## Key Rules

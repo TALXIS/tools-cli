@@ -10,7 +10,7 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 
 /// <summary>
 /// Deletes an attribute (column) from a Dataverse entity.
-/// Usage: <c>txc environment entity attribute delete &lt;entity&gt; --name &lt;name&gt;</c>
+/// Usage: <c>txc environment entity attribute delete &lt;attribute&gt; --entity &lt;entity&gt; --apply</c>
 /// </summary>
 [CliDestructive("Permanently deletes the attribute from the remote environment.")]
 [CliCommand(
@@ -25,11 +25,11 @@ public class EntityAttributeDeleteCliCommand : StagedCliCommand, IDestructiveCom
     [CliOption(Name = "--yes", Description = "Skip interactive confirmation for this destructive operation.", Required = false)]
     public bool Yes { get; set; }
 
-    [CliArgument(Description = "The logical name of the entity.")]
-    public string Entity { get; set; } = null!;
+    [CliArgument(Name = "attribute", Description = "The logical name of the attribute to delete.")]
+    public string Attribute { get; set; } = null!;
 
-    [CliOption(Name = "--name", Description = "The logical name of the attribute to delete.", Required = true)]
-    public string Name { get; set; } = null!;
+    [CliOption(Name = "--entity", Description = "The logical name of the entity that owns the attribute.", Required = true)]
+    public string Entity { get; set; } = null!;
 
     protected override async Task<int> ExecuteAsync()
     {
@@ -43,23 +43,23 @@ public class EntityAttributeDeleteCliCommand : StagedCliCommand, IDestructiveCom
                 Category = "schema",
                 OperationType = "DELETE",
                 TargetType = "attribute",
-                TargetDescription = $"{Entity}.{Name}",
+                TargetDescription = $"{Entity}.{Attribute}",
                 Parameters = new Dictionary<string, object?>
                 {
                     ["entity"] = Entity,
-                    ["name"] = Name
+                    ["name"] = Attribute
                 }
             });
-            OutputWriter.WriteLine($"Staged: DELETE attribute '{Entity}.{Name}'");
+            OutputWriter.WriteLine($"Staged: DELETE attribute '{Entity}.{Attribute}'");
             return ExitSuccess;
         }
 
         var service = TxcServices.Get<IDataverseEntityMetadataService>();
         await service.DeleteAttributeAsync(
-            Profile, Entity, Name, CancellationToken.None
+            Profile, Entity, Attribute, CancellationToken.None
         ).ConfigureAwait(false);
 
-        OutputWriter.WriteLine($"Attribute '{Name}' deleted from entity '{Entity}'.");
+        OutputWriter.WriteLine($"Attribute '{Attribute}' deleted from entity '{Entity}'.");
         return ExitSuccess;
     }
 }

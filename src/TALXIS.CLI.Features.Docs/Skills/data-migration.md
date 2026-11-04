@@ -22,6 +22,7 @@ Handles creates, updates and relationship mapping. `--batch-mode` is much faster
 |---|---|
 | Single record create | `txc environment data record create --entity <logicalName> --data '<json>' --apply` |
 | Single record update | `txc environment data record update <record-guid> --entity <logicalName> --data '<json>' --apply` |
+| Single record delete | `txc environment data record delete <record-guid> --entity <logicalName> --yes --apply` |
 | Up to a few hundred records | `txc environment data bulk upsert --entity <logicalName> --file <records.json>` |
 | Larger datasets, environment clone, seed/reference data | CMT: `txc data package export` → `txc data package import` (version the schema file in source control) |
 

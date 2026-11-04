@@ -4,6 +4,10 @@
 
 Every mutating schema command extends `StagedCliCommand`, so it accepts either `--apply` (execute immediately) or `--stage` (queue for batch apply). See [changeset-staging.md](changeset-staging.md) for details on the staging workflow.
 
+Without `--apply` or `--stage` nothing runs: the command exits `2` and prints a `not-applied` result (`{"status": "not-applied", ...}` with `--format json`).
+
+The object a command acts on is a positional argument and the table that owns it is `--entity`, for example `txc env entity delete <entity>`, `txc env entity attribute delete <attribute> --entity <entity>` and `txc env data record delete <record-id> --entity <entity>`.
+
 ---
 
 ## Table of Contents
@@ -73,15 +77,15 @@ txc env entity update --entity tom_project --display-name "Initiative" --apply
 
 ### `txc env entity delete`
 
-Deletes an entity from the environment. Destructive — requires `--yes` to skip confirmation.
+Deletes an entity from the environment. Destructive: `--yes` skips the confirmation prompt.
 
-| Option | Required | Description |
-|--------|----------|-------------|
-| `--entity` | Yes | Entity logical name |
+| Argument/Option | Required | Description |
+|-----------------|----------|-------------|
+| `<entity>` (positional) | Yes | Entity logical name |
 | `--yes` | No | Skip confirmation prompt |
 
 ```sh
-txc env entity delete --entity tom_project --yes --apply
+txc env entity delete tom_project --yes --apply
 ```
 
 ### `txc env entity list`
@@ -287,16 +291,16 @@ txc env entity attribute update account --name name \
 
 ### `txc env entity attribute delete`
 
-Deletes an attribute. Destructive — requires `--yes`.
+Deletes an attribute. Destructive: `--yes` skips the confirmation prompt.
 
 | Argument/Option | Required | Description |
 |-----------------|----------|-------------|
-| `<entity>` (positional) | Yes | Entity logical name |
-| `--name` | Yes | Attribute logical name |
+| `<attribute>` (positional) | Yes | Attribute logical name |
+| `--entity` | Yes | Logical name of the entity that owns the attribute |
 | `--yes` | No | Skip confirmation prompt |
 
 ```sh
-txc env entity attribute delete tom_project --name tom_code --yes --apply
+txc env entity attribute delete tom_code --entity tom_project --yes --apply
 ```
 
 ---
@@ -362,15 +366,15 @@ txc env entity relationship list --entity account
 
 ### `txc env entity relationship delete`
 
-Deletes a relationship. Destructive — requires `--yes`.
+Deletes a relationship. Destructive: `--yes` skips the confirmation prompt.
 
-| Option | Required | Description |
-|--------|----------|-------------|
-| `--name` | Yes | Relationship schema name |
+| Argument/Option | Required | Description |
+|-----------------|----------|-------------|
+| `<name>` (positional) | Yes | Relationship schema name |
 | `--yes` | No | Skip confirmation prompt |
 
 ```sh
-txc env entity relationship delete --name tom_project_account --yes --apply
+txc env entity relationship delete tom_project_account --yes --apply
 ```
 
 ---
@@ -397,14 +401,18 @@ txc env entity optionset global create \
   --options "Low,Medium,High,Critical" --apply
 ```
 
-### `txc env entity optionset global delete`
+### `txc env optionset delete`
 
-Deletes a global option set. Destructive — requires `--yes`.
+Deletes a global option set. Destructive: `--yes` skips the confirmation prompt.
 
-| Option | Required | Description |
-|--------|----------|-------------|
-| `--name` | Yes | Global option set name |
+| Argument/Option | Required | Description |
+|-----------------|----------|-------------|
+| `<name>` (positional) | Yes | Global option set schema name |
 | `--yes` | No | Skip confirmation prompt |
+
+```sh
+txc env optionset delete tom_priority --yes --apply
+```
 
 ### `txc env entity optionset global list`
 
