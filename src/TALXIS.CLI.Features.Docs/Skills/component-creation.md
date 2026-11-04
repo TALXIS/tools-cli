@@ -6,7 +6,7 @@ Scaffolding creates **local files** in the workspace, not components in a live e
 
 1. **Read the workspace**: the solution file's projects (`dotnet sln list`) and each project's `ProjectType`. Never assume project names or folders.
 2. `txc component type list` — available component types.
-3. `txc workspace component parameter list <template>` — parameters of a type.
+3. `txc workspace component parameter list <template>`: parameters of a type. The first rows are `output` (the `--output` option) and `name` (`--param name=<value>`, defaults to the output folder name; templates with their own `Name` symbol, like `pp-pcf`, list that instead); templates such as `pp-package` or `pp-test-ui-feature` declare nothing else.
 4. `txc workspace component create <template> --output <dir> --param <key>=<value>` — `--output` is required: the folder the component is scaffolded into (for `pp-plugin`, the project folder; for solution components, the owning solution project). Repeat `--param` per parameter:
    ```
    txc workspace component create pp-entity-form --output src/Solutions.UI --param FormType=main --param EntitySchemaName=prefix_table
