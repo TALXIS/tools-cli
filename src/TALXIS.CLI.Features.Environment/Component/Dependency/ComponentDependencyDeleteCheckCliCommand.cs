@@ -42,16 +42,9 @@ public class ComponentDependencyDeleteCheckCliCommand : ProfiledCliCommand
             return ExitValidationError;
         }
 
-        var def = ComponentDefinitionRegistry.GetByName(typeName);
-        if (def is null && int.TryParse(typeName, out var parsedCode))
-            def = ComponentDefinitionRegistry.GetByType((ComponentType)parsedCode);
-        if (def is null)
-        {
-            var known = string.Join(", ", ComponentDefinitionRegistry.GetAll().Select(d => d.Name).Take(15));
-            Logger.LogError("Unknown component type '{Type}'. Available types: {Known}.", typeName, known);
-            return ExitValidationError;
-        }
-        var typeCode = (int)def.TypeCode;
+        var resolvedType = ComponentTypeArgument.TryResolve(typeName, Logger);
+        if (resolvedType is null) return ExitValidationError;
+        var typeCode = resolvedType.Value.Code;
 
         var service = TxcServices.Get<ISolutionDependencyService>();
         var deps = await service.CheckDeleteAsync(Profile, id, typeCode, CancellationToken.None).ConfigureAwait(false);
