@@ -10,6 +10,11 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
         private readonly ILogger _logger = TxcLoggerFactory.CreateLogger(nameof(AddReferencePostActionProcessor));
         public Guid ActionId => new Guid("B17581D1-C5C9-4489-8F0A-004BE667B814");
 
+        /// <summary>
+        /// Why the last ProcessInternal call failed, or null when it succeeded.
+        /// </summary>
+        public string? LastError { get; private set; }
+
         public bool Process(IEngineEnvironmentSettings environment, IPostAction action)
         {
             return ProcessInternal(environment, action, System.Environment.CurrentDirectory);
@@ -17,11 +22,11 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
 
         public bool ProcessInternal(IEngineEnvironmentSettings environment, IPostAction action, string outputBasePath)
         {
+            LastError = null;
             var args = action.Args;
             if (!args.TryGetValue("projectFile", out var projectFile) || !args.TryGetValue("referenceFile", out var referenceFile))
             {
-                _logger.LogError("Add reference post-action missing required arguments");
-                return false;
+                return Fail("Add reference post-action missing required arguments");
             }
             try
             {
@@ -45,23 +50,25 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
                 if (!process.WaitForExit(60_000))
                 {
                     process.Kill();
-                    _logger.LogError("dotnet add reference timed out after 60 seconds");
-                    return false;
+                    return Fail("dotnet add reference timed out after 60 seconds");
                 }
                 if (process.ExitCode != 0)
                 {
-                    _logger.LogError("dotnet add reference exited with code {ExitCode}", process.ExitCode);
-                    if (!string.IsNullOrWhiteSpace(stderr))
-                        _logger.LogError("stderr: {Output}", stderr);
-                    return false;
+                    return Fail($"dotnet add reference exited with code {process.ExitCode}: {stderr.Trim()}");
                 }
                 return true;
             }
             catch (Exception ex)
             {
-                _logger.LogError("Failed to add reference: {Message}", ex.Message);
-                return false;
+                return Fail($"Failed to add reference: {ex.Message}");
             }
+        }
+
+        private bool Fail(string error)
+        {
+            _logger.LogError("{Error}", error);
+            LastError = error;
+            return false;
         }
     }
 }

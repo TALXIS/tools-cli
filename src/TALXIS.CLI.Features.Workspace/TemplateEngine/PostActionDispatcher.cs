@@ -69,11 +69,19 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
                 {
                     var basePath = outputBasePath ?? Directory.GetCurrentDirectory();
                     ok = addProjectProcessor.ProcessInternal(_environment, action, null!, templateCreationResult!.CreationResult, basePath);
+                    if (!ok && addProjectProcessor.LastError != null)
+                    {
+                        FailedActionErrors[action.ActionId] = addProjectProcessor.LastError;
+                    }
                 }
                 else if (processor is AddReferencePostActionProcessor addReferenceProcessor)
                 {
                     var basePath = outputBasePath ?? Directory.GetCurrentDirectory();
                     ok = addReferenceProcessor.ProcessInternal(_environment, action, basePath);
+                    if (!ok && addReferenceProcessor.LastError != null)
+                    {
+                        FailedActionErrors[action.ActionId] = addReferenceProcessor.LastError;
+                    }
                 }
                 else if (processor is RunScriptPostActionProcessor runScriptProcessor)
                 {
@@ -91,16 +99,19 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
                 
                 if (!ok)
                 {
+                    var errorDetail = FailedActionErrors.TryGetValue(action.ActionId, out var detail) ? $": {detail}" : "";
+                    if (action.ContinueOnError)
+                    {
+                        _logger.LogWarning("Optional post-action '{ActionLabel}' failed{ErrorDetail}. Continuing (continueOnError is true).", actionLabel, errorDetail);
+                        continue;
+                    }
+
                     result |= PostActionResult.Failure;
                     failedActions.Add(action);
-                    var errorDetail = FailedActionErrors.TryGetValue(action.ActionId, out var detail) ? $": {detail}" : "";
                     _logger.LogError("Post-action '{ActionLabel}' failed{ErrorDetail}", actionLabel, errorDetail);
-                    if (!action.ContinueOnError)
-                    {
-                        _logger.LogError("Stopping post-action execution (continueOnError is false)");
-                        transaction?.Rollback();
-                        break;
-                    }
+                    _logger.LogError("Stopping post-action execution (continueOnError is false)");
+                    transaction?.Rollback();
+                    break;
                 }
             }
             if (!failedActions.Any())
