@@ -77,22 +77,42 @@ public class PostActionTransactionTests : IDisposable
     }
 
     [Fact]
-    public void Rollback_CleansEmptyDirectories()
+    public void Rollback_RemovesTrackedDirectoryThatDidNotExist()
     {
-        var subDir = Path.Combine(_testDir, "sub", "nested");
-        Directory.CreateDirectory(subDir);
-        var file = Path.Combine(subDir, "file.xml");
+        var output = Path.Combine(_testDir, "Repro");
 
         var tx = new PostActionTransaction();
-        tx.TrackFile(file);
-        tx.TrackNewDirectory(subDir);
-        tx.TrackNewDirectory(Path.Combine(_testDir, "sub"));
+        tx.TrackDirectory(output);
 
-        File.WriteAllText(file, "content");
+        Directory.CreateDirectory(Path.Combine(output, "Other"));
+        File.WriteAllText(Path.Combine(output, "Repro.csproj"), "project");
+        File.WriteAllText(Path.Combine(output, "Other", "Solution.xml"), "solution");
         tx.Rollback();
 
-        Assert.False(File.Exists(file));
-        Assert.False(Directory.Exists(subDir));
+        Assert.False(Directory.Exists(output));
+    }
+
+    [Fact]
+    public void Rollback_KeepsWhatExistedInTrackedDirectory()
+    {
+        var existingDir = Path.Combine(_testDir, "existing");
+        Directory.CreateDirectory(existingDir);
+        var existingFile = Path.Combine(existingDir, "keep.xml");
+        File.WriteAllText(existingFile, "original");
+
+        var tx = new PostActionTransaction();
+        tx.TrackDirectory(_testDir);
+
+        File.WriteAllText(existingFile, "modified");
+        File.WriteAllText(Path.Combine(existingDir, "new.xml"), "new");
+        Directory.CreateDirectory(Path.Combine(_testDir, "created", "nested"));
+        File.WriteAllText(Path.Combine(_testDir, "created", "nested", "file.xml"), "new");
+        tx.Rollback();
+
+        Assert.Equal("original", File.ReadAllText(existingFile));
+        Assert.False(File.Exists(Path.Combine(existingDir, "new.xml")));
+        Assert.False(Directory.Exists(Path.Combine(_testDir, "created")));
+        Assert.True(Directory.Exists(_testDir));
     }
 
     public void Dispose()

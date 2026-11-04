@@ -16,8 +16,8 @@ public sealed class PostActionTransaction : IDisposable
     // path → original content (null = file didn't exist before)
     private readonly Dictionary<string, byte[]?> _snapshots = new(StringComparer.OrdinalIgnoreCase);
 
-    // Tracks directories created during post-actions (for cleanup on rollback)
-    private readonly List<string> _createdDirectories = new();
+    // root → directories that existed under it before (null = the root itself didn't exist)
+    private readonly Dictionary<string, HashSet<string>?> _trackedDirectories = new(StringComparer.OrdinalIgnoreCase);
 
     private bool _committed;
 
@@ -35,13 +35,24 @@ public sealed class PostActionTransaction : IDisposable
     }
 
     /// <summary>
-    /// Tracks a directory that was created during post-actions.
-    /// On rollback, these directories are deleted if they were newly created.
+    /// Snapshots a directory tree before anything is written into it.
+    /// On rollback, files and directories that appeared in it afterwards are deleted.
     /// </summary>
-    public void TrackNewDirectory(string path)
+    public void TrackDirectory(string path)
     {
         var fullPath = Path.GetFullPath(path);
-        _createdDirectories.Add(fullPath);
+        if (_trackedDirectories.ContainsKey(fullPath)) return;
+
+        if (!Directory.Exists(fullPath))
+        {
+            _trackedDirectories[fullPath] = null;
+            return;
+        }
+
+        foreach (var file in Directory.EnumerateFiles(fullPath, "*", SearchOption.AllDirectories))
+            TrackFile(file);
+        _trackedDirectories[fullPath] = new HashSet<string>(
+            Directory.EnumerateDirectories(fullPath, "*", SearchOption.AllDirectories), StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -84,19 +95,42 @@ public sealed class PostActionTransaction : IDisposable
             }
         }
 
-        // Remove newly created directories (in reverse order to handle nesting)
-        foreach (var dir in _createdDirectories.AsEnumerable().Reverse())
+        foreach (var (root, existingDirectories) in _trackedDirectories)
         {
-            try
+            if (!Directory.Exists(root)) continue;
+
+            foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories).ToList())
             {
-                if (Directory.Exists(dir) && !Directory.EnumerateFileSystemEntries(dir).Any())
+                if (_snapshots.ContainsKey(file)) continue;
+                try
                 {
-                    Directory.Delete(dir);
+                    _logger.LogInformation("Removing: {Path}", file);
+                    File.Delete(file);
+                    deleted++;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning("Failed to remove '{Path}': {Error}", file, ex.Message);
+                    errors++;
                 }
             }
-            catch (Exception ex)
+
+            var newDirectories = Directory.EnumerateDirectories(root, "*", SearchOption.AllDirectories)
+                .Where(d => existingDirectories is null || !existingDirectories.Contains(d))
+                .OrderByDescending(d => d.Length)
+                .ToList();
+            if (existingDirectories is null) newDirectories.Add(root);
+
+            foreach (var dir in newDirectories)
             {
-                _logger.LogWarning("Failed to remove directory '{Dir}': {Error}", dir, ex.Message);
+                try
+                {
+                    if (!Directory.EnumerateFileSystemEntries(dir).Any()) Directory.Delete(dir);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning("Failed to remove directory '{Dir}': {Error}", dir, ex.Message);
+                }
             }
         }
 
@@ -110,7 +144,7 @@ public sealed class PostActionTransaction : IDisposable
     public void Commit()
     {
         _snapshots.Clear();
-        _createdDirectories.Clear();
+        _trackedDirectories.Clear();
         _committed = true;
     }
 
@@ -118,6 +152,6 @@ public sealed class PostActionTransaction : IDisposable
     {
         // Don't auto-rollback on dispose — the caller decides via Commit/Rollback
         _snapshots.Clear();
-        _createdDirectories.Clear();
+        _trackedDirectories.Clear();
     }
 }
