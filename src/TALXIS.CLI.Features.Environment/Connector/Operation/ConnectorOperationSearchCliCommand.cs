@@ -8,18 +8,19 @@ using TALXIS.CLI.Logging;
 namespace TALXIS.CLI.Features.Environment.Connector.Operation;
 
 [CliReadOnly]
+[CliWorkflow("environment-inspection")]
 [CliCommand(
     Name = "search",
     Description = "Searches Power Automate operations across connectors in the LIVE connected environment, for when the connector is not yet known. Requires an active profile. Deprecated operations are excluded."
 )]
-public class ConnectorOperationSearchCliCommand : ProfiledCliCommand
+public class ConnectorOperationSearchCliCommand : ConnectivityCommandBase
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ConnectorOperationSearchCliCommand));
 
     [CliArgument(Name = "search", Description = "Text to search for in operation names and descriptions, for example \"send email\".")]
     public string Search { get; set; } = null!;
 
-    [CliOption(Name = "--connector", Description = "Limit the search to one connector, for example shared_office365.", Required = false)]
+    [CliOption(Name = "--connector", Description = "Limit the search to one connector. " + ConnectorDescriptions.Identifier, Required = false)]
     public string? Connector { get; set; }
 
     [CliOption(Name = "--kind", Description = "Which operations to return: all, action, or trigger.", Required = false)]
@@ -28,10 +29,19 @@ public class ConnectorOperationSearchCliCommand : ProfiledCliCommand
     [CliOption(Name = "--top", Description = "Maximum number of results to return.", Required = false)]
     public int Top { get; set; } = 20;
 
+    private static readonly string[] Kinds = ["all", "action", "trigger"];
+
     protected override async Task<int> ExecuteAsync()
     {
+        var kind = Kind.Trim().ToLowerInvariant();
+        if (!Kinds.Contains(kind))
+        {
+            Logger.LogError("Invalid --kind '{Kind}'. Expected 'all', 'action' or 'trigger'.", Kind);
+            return ExitValidationError;
+        }
+
         var service = TxcServices.Get<IConnectorMetadataService>();
-        var hits = await service.SearchOperationsAsync(Profile, Search, Connector, Kind, Top, CancellationToken.None)
+        var hits = await service.SearchOperationsAsync(Profile, Search, Connector, kind, Top, CancellationToken.None)
             .ConfigureAwait(false);
 
         OutputFormatter.WriteList(hits, PrintTable);

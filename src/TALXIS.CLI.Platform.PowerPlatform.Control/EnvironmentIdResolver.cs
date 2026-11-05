@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using TALXIS.CLI.Core.Model;
 using TALXIS.CLI.Core.Platforms.PowerPlatform;
+using TALXIS.CLI.Platform.PowerPlatform.Control.Connectivity;
 
 namespace TALXIS.CLI.Platform.PowerPlatform.Control;
 
@@ -60,7 +61,7 @@ internal sealed class EnvironmentIdResolver : IEnvironmentIdResolver
                 .TryGetByEnvironmentUrlAsync(connection, credential, environmentUrl, ct)
                 .ConfigureAwait(false);
         }
-        catch (InvalidOperationException ex) when (credential.Kind is not (CredentialKind.InteractiveBrowser or CredentialKind.DeviceCode))
+        catch (InvalidOperationException ex) when (!SilentConsentHelper.IsUserCredential(credential))
         {
             throw new InvalidOperationException(
                 ex.Message + " An application credential usually cannot list environments: store the environment ID " +

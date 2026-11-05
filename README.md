@@ -132,6 +132,13 @@ txc env setting list --filter powerApps
 txc env setting update powerApps_AllowCodeApps true
 ```
 
+**Create a connection and share it with a deploy identity:**
+```sh
+txc env connection create --connector almlab_connectorsopenfoodfacts --display-name "Food Facts"
+txc env connection permission add <connection-id> --connector almlab_connectorsopenfoodfacts --service-principal <client id>
+```
+See [environment-connections.md](docs/environment-connections.md) for connectors, connections, connection references and deployment.
+
 ### Application Plane
 
 Deploy, inspect, and manage solutions and packages in the target environment.

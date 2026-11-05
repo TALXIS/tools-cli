@@ -39,6 +39,7 @@ public static class DataverseApplicationServiceCollectionExtensions
         services.AddSingleton<ISolutionComponentMutationService, DataverseSolutionComponentMutationService>();
         services.AddSingleton<IPublisherService, DataversePublisherService>();
         services.AddSingleton<IConnectionReferenceService, DataverseConnectionReferenceService>();
+        services.AddSingleton<TALXIS.CLI.Core.Platforms.PowerPlatform.ICustomConnectorNameSource, DataverseCustomConnectorNameSource>();
         services.AddSingleton<IMetadataIdResolver, DataverseMetadataIdResolver>();
         services.AddSingleton<ISolutionLayerMutationService, DataverseSolutionLayerMutationService>();
         services.AddSingleton<ISolutionPackagerService, SolutionPackagerService>();

@@ -12,6 +12,8 @@ Connection (provider + environment URL) ┘
 
 One auth can serve several connections. Commands run as the active profile.
 
+A connection here (`txc config connection create`) is a local record of where to connect (an environment URL). It is unrelated to a Power Platform *connector connection* (the stored sign-in of a connector such as Teams), which lives in the environment and is managed with `txc environment connection create` and the other commands in [connection-management](connection-management.md).
+
 ## First-Time Setup
 
 ### Interactive (a person at a keyboard)

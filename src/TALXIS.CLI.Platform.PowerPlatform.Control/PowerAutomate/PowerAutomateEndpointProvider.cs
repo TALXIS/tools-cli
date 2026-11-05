@@ -25,17 +25,11 @@ internal static class PowerAutomateEndpointProvider
 
     public const string ApiVersion = "1";
 
-    private const string PowerAppsApiVersion = "2016-11-01";
-
     /// <summary>
     /// Hides connectors that only exist for M365 Copilot, matching what the
     /// Power Automate designer sends.
     /// </summary>
     private const string ConnectorHideKey = "M365Copilot";
-
-    /// <summary><c>/powerautomate/apis</c> — the connector catalog.</summary>
-    public static Uri Connectors(Uri baseUri)
-        => new(baseUri, $"powerautomate/apis?api-version={ApiVersion}");
 
     /// <summary>
     /// <c>/powerautomate/apis/{connector}</c> expanded with the connector's
@@ -57,25 +51,6 @@ internal static class PowerAutomateEndpointProvider
             $"powerautomate/apis/{Uri.EscapeDataString(connector)}/apiOperations/{Uri.EscapeDataString(operation)}" +
             $"?api-version={ApiVersion}&addConnectorHideKey={ConnectorHideKey}" +
             "&$expand=properties/inputsDefinition,properties/responsesDefinition,properties/connector");
-
-    /// <summary>
-    /// A connection on the Power Apps API, which reports its owner and status;
-    /// the per-environment host does not expose single connections with this audience.
-    /// </summary>
-    public static Uri Connection(CloudInstance cloud, Guid environmentId, string connector, string connectionId)
-    {
-        var host = cloud switch
-        {
-            CloudInstance.Public => "https://api.powerapps.com/",
-            _ => throw new NotSupportedException(
-                $"Resolving connector lookups through a connection is not wired for cloud '{cloud}' in this release."),
-        };
-
-        var filter = Uri.EscapeDataString($"environment eq '{environmentId:D}'");
-        return new Uri(new Uri(host),
-            $"providers/Microsoft.PowerApps/apis/{Uri.EscapeDataString(connector)}/connections/{Uri.EscapeDataString(connectionId)}" +
-            $"?api-version={PowerAppsApiVersion}&$filter={filter}");
-    }
 
     /// <summary>
     /// For an operation whose lookups only work when the caller supplies the

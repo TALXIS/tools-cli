@@ -16,15 +16,16 @@ namespace TALXIS.CLI.Features.Environment.Connector.Operation.Parameter;
 /// agent can ask first.
 /// </remarks>
 [CliReadOnly]
+[CliWorkflow("environment-inspection")]
 [CliCommand(
     Name = "get",
     Description = "Gets what one connector operation parameter can take, in one call: its allowed values (e.g. table names, Teams locations) or its sub-fields (e.g. a Dataverse row's item/<column> keys, a Teams message's body/<field> keys). Pass the parameters it depends on with --value. Dynamic values are read through a bound connection reference: without --use-connection the answer only says whose connection would be used; ask the user, then re-run with --use-connection. Requires an active profile."
 )]
-public class ConnectorOperationParameterGetCliCommand : ProfiledCliCommand
+public class ConnectorOperationParameterGetCliCommand : ConnectivityCommandBase
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ConnectorOperationParameterGetCliCommand));
 
-    [CliArgument(Name = "connector", Description = "Connector name, for example shared_commondataserviceforapps.")]
+    [CliArgument(Name = "connector", Description = ConnectorDescriptions.Identifier)]
     public string Connector { get; set; } = null!;
 
     [CliArgument(Name = "operation", Description = "Operation ID, for example CreateRecord.")]

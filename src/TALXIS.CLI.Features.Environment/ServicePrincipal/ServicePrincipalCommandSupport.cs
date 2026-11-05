@@ -95,9 +95,9 @@ internal static class ServicePrincipalCommandSupport
             OutputWriter.WriteLine(
                 $"{row.Id} | " +
                 $"{row.ApplicationId} | " +
-                $"{EnvironmentPrincipalCommandSupport.Truncate(row.FullName ?? string.Empty, nameWidth).PadRight(nameWidth)} | " +
+                $"{TableText.Truncate(row.FullName ?? string.Empty, nameWidth).PadRight(nameWidth)} | " +
                 $"{(row.IsDisabled ? "Disabled" : "Enabled").PadRight(stateWidth)} | " +
-                $"{EnvironmentPrincipalCommandSupport.Truncate(row.BusinessUnitName ?? string.Empty, businessUnitWidth).PadRight(businessUnitWidth)}");
+                $"{TableText.Truncate(row.BusinessUnitName ?? string.Empty, businessUnitWidth).PadRight(businessUnitWidth)}");
         }
 #pragma warning restore TXC003
     }
@@ -125,8 +125,8 @@ internal static class ServicePrincipalCommandSupport
         {
             OutputWriter.WriteLine(
                 $"{row.Id} | " +
-                $"{EnvironmentPrincipalCommandSupport.Truncate(row.Name, nameWidth).PadRight(nameWidth)} | " +
-                $"{EnvironmentPrincipalCommandSupport.Truncate(row.BusinessUnitName ?? string.Empty, businessUnitWidth).PadRight(businessUnitWidth)}");
+                $"{TableText.Truncate(row.Name, nameWidth).PadRight(nameWidth)} | " +
+                $"{TableText.Truncate(row.BusinessUnitName ?? string.Empty, businessUnitWidth).PadRight(businessUnitWidth)}");
         }
 #pragma warning restore TXC003
     }

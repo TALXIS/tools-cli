@@ -7,6 +7,7 @@ using TALXIS.CLI.Platform.PowerPlatform.Control.Bap;
 using TALXIS.CLI.Platform.PowerPlatform.Control.Graph;
 using TALXIS.CLI.Platform.PowerPlatform.Control.PowerPlatformRbac;
 using TALXIS.CLI.Platform.PowerPlatform.Control.Strategies;
+using TALXIS.CLI.Tests.Shared;
 
 namespace TALXIS.CLI.Tests.Tenant;
 
@@ -25,7 +26,7 @@ internal sealed class TenantCommandTestHost : IDisposable
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddSingleton<IConfigurationResolver>(new FixedResolver(TestContext()));
+        services.AddSingleton<IConfigurationResolver>(new FixedConfigurationResolver(TestContext()));
         services.AddSingleton(_ => CreateGraphClient(handlers));
         services.AddSingleton(_ => CreateResolver(handlers));
 
@@ -72,34 +73,4 @@ internal sealed class TenantCommandTestHost : IDisposable
         new Credential { Id = "cred", Kind = CredentialKind.InteractiveBrowser },
         ResolutionSource.CommandLine);
 
-    private sealed class FixedResolver(ResolvedProfileContext context) : IConfigurationResolver
-    {
-        public Task<ResolvedProfileContext> ResolveAsync(string? profileName, CancellationToken ct) => Task.FromResult(context);
-    }
-
-    private sealed class FakeAccessTokenService : IAccessTokenService
-    {
-        public Task<string> AcquireForResourceAsync(Connection connection, Credential credential, Uri resourceUri, CancellationToken ct)
-            => Task.FromResult("token");
-    }
-
-    private sealed class FakeHttpClientFactoryWrapper(Queue<Func<HttpRequestMessage, HttpResponseMessage>> handlers) : IHttpClientFactoryWrapper
-    {
-        private readonly Queue<Func<HttpRequestMessage, HttpResponseMessage>> _handlers = handlers;
-
-        public HttpClient Create() => new(new FakeHttpMessageHandler(_handlers));
-    }
-
-    private sealed class FakeHttpMessageHandler(Queue<Func<HttpRequestMessage, HttpResponseMessage>> handlers) : HttpMessageHandler
-    {
-        private readonly Queue<Func<HttpRequestMessage, HttpResponseMessage>> _handlers = handlers;
-
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            if (_handlers.Count == 0)
-                throw new InvalidOperationException("No HTTP handler configured for this request.");
-
-            return Task.FromResult(_handlers.Dequeue()(request));
-        }
-    }
 }

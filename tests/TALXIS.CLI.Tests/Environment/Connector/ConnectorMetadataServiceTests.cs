@@ -60,9 +60,9 @@ public class ConnectorMetadataServiceTests
         var calls = 0;
         var fake = new Fake(_ => ++calls == 1
             ? Json(HttpStatusCode.ServiceUnavailable, "{}")
-            : Json(HttpStatusCode.OK, """{ "value": [] }"""));
+            : Json(HttpStatusCode.OK, """{ "properties": { "inputsDefinition": {} } }"""));
 
-        await fake.Service.ListConnectorsAsync(null, null, CancellationToken.None);
+        await fake.Service.GetOperationAsync(null, "shared_teams", "PostMessageToConversation", CancellationToken.None);
 
         Assert.Equal(2, fake.Requests.Count);
         Assert.Single(fake.Audiences);
@@ -71,27 +71,12 @@ public class ConnectorMetadataServiceTests
     [Fact]
     public async Task MissingEnvironmentId_IsResolvedThroughTheCatalogOnce()
     {
-        var fake = new Fake(_ => Json(HttpStatusCode.OK, """{ "value": [] }"""), storeEnvironmentId: false);
+        var fake = new Fake(_ => Json(HttpStatusCode.OK, """{ "properties": { "inputsDefinition": {} } }"""), storeEnvironmentId: false);
 
-        await fake.Service.ListConnectorsAsync(null, null, CancellationToken.None);
+        await fake.Service.GetOperationAsync(null, "shared_teams", "PostMessageToConversation", CancellationToken.None);
 
         Assert.Equal(1, fake.Catalog.Lookups);
         Assert.StartsWith("111111112222333344445555555555.55.", Assert.Single(fake.Requests).Uri.Host);
-    }
-
-    [Fact]
-    public async Task ListConnectors_FiltersByNameOrDisplayName()
-    {
-        var fake = new Fake(_ => Json(HttpStatusCode.OK, """
-            { "value": [
-              { "name": "shared_teams", "properties": { "displayName": "Microsoft Teams", "tier": "Standard" } },
-              { "name": "shared_office365", "properties": { "displayName": "Office 365 Outlook" } }
-            ] }
-            """));
-
-        var connectors = await fake.Service.ListConnectorsAsync(null, "outlook", CancellationToken.None);
-
-        Assert.Equal("shared_office365", Assert.Single(connectors).LogicalName);
     }
 
     [Fact]
@@ -248,22 +233,12 @@ public class ConnectorMetadataServiceTests
     }
 
     [Fact]
-    public async Task GetConnection_ReadsItsOwnerAndStatus()
-    {
-        var connection = await TeamsFake().Service.GetConnectionAsync(null, "shared_teams", ConnectionId, CancellationToken.None);
-
-        Assert.Equal("Matej", connection.OwnerName);
-        Assert.Equal("matej@contoso.com", connection.OwnerPrincipalName);
-        Assert.Equal("Connected", connection.Status);
-    }
-
-    [Fact]
     public async Task SeveralCallsInOneCommand_ResolveTheProfileOnce()
     {
         var fake = TeamsFake();
 
         await Resolve(fake, "location", useConnection: false, ("poster", "Flow bot"));
-        await fake.Service.GetConnectionAsync(null, "shared_teams", ConnectionId, CancellationToken.None);
+        await fake.Service.GetConnectorAsync(null, "shared_teams", null, CancellationToken.None);
 
         Assert.Equal(1, fake.ProfileResolutions);
     }
@@ -415,7 +390,8 @@ public class ConnectorMetadataServiceTests
                 Cloud = CloudInstance.Public,
             };
             Service = new ConnectorMetadataService(
-                this, new EnvironmentIdResolver(Catalog), new PowerAutomateApiClient(this, new RetryingHttpSender(this)));
+                this, new EnvironmentIdResolver(Catalog), new BuiltInConnectors(),
+                new PowerAutomateApiClient(this, new RetryingHttpSender(this)));
         }
 
         public ConnectorMetadataService Service { get; }
@@ -451,6 +427,16 @@ public class ConnectorMetadataServiceTests
                 owner.Requests.Add(new RecordedRequest(request.Method, request.RequestUri!, request.Headers.Authorization?.ToString(), body, headers));
                 return owner._handler(request);
             }
+        }
+    }
+
+    /// <summary>Every connector is built in: its logical name is its apiId.</summary>
+    private sealed class BuiltInConnectors : IConnectorResolver
+    {
+        public Task<ResolvedConnectorInfo> ResolveAsync(string? profileName, string connector, CancellationToken ct)
+        {
+            var apiId = ConnectorIds.ToShort(connector);
+            return Task.FromResult(new ResolvedConnectorInfo(apiId, apiId, null, IsCustom: false, ConnectorRowId: null));
         }
     }
 

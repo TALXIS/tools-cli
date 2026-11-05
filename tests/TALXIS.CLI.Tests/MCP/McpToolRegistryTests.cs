@@ -64,6 +64,41 @@ public class McpToolRegistryTests
     }
 
     [Fact]
+    public void ListTools_ContainsConnectionManagementTools()
+    {
+        var tools = GetAllTools();
+        var names = tools.Select(t => t.Name).ToList();
+
+        Assert.Contains("environment_connection_create", names);
+        Assert.Contains("environment_connection_list", names);
+        Assert.Contains("environment_connection_get", names);
+        Assert.Contains("environment_connection_test", names);
+        Assert.Contains("environment_connection_delete", names);
+        Assert.Contains("environment_connection_permission_list", names);
+        Assert.Contains("environment_connection_permission_add", names);
+        Assert.Contains("environment_connection_permission_remove", names);
+
+        // Group routers are not tools, and the local 'config connection' tools stay distinct.
+        Assert.DoesNotContain("environment_connection", names);
+        Assert.DoesNotContain("environment_connection_permission", names);
+        Assert.Contains("config_connection_create", names);
+    }
+
+    [Fact]
+    public void ListTools_ContainsConnectionReferenceTools()
+    {
+        var tools = GetAllTools();
+        var names = tools.Select(t => t.Name).ToList();
+
+        Assert.Contains("environment_connection-reference_list", names);
+        Assert.Contains("environment_connection-reference_get", names);
+        Assert.Contains("environment_connection-reference_create", names);
+        Assert.Contains("environment_connection-reference_update", names);
+        Assert.Contains("environment_connection-reference_delete", names);
+        Assert.DoesNotContain("environment_connection-reference", names);
+    }
+
+    [Fact]
     public void ListTools_ContainsConnectorMetadataTools()
     {
         var names = GetAllTools().Select(t => t.Name).ToList();

@@ -1,19 +1,5 @@
 namespace TALXIS.CLI.Core.Platforms.PowerPlatform;
 
-/// <summary>A connector as it appears in the environment's connector catalog.</summary>
-/// <param name="LogicalName">
-/// The name to use for <c>--connector</c>. Today that is the <paramref name="ApiId"/>
-/// for every connector; a custom connector's own logical name is accepted
-/// once connector names are resolved (TALXIS/tools-cli#201).
-/// </param>
-/// <param name="ApiId">The short connector id, e.g. <c>shared_teams</c>.</param>
-public sealed record ConnectorSummary(
-    string LogicalName,
-    string ApiId,
-    string? DisplayName,
-    string? Tier,
-    string? Description);
-
 /// <summary>Kinds of connector operation, as a flow definition has to treat them.</summary>
 public static class ConnectorOperationKind
 {
@@ -39,7 +25,7 @@ public sealed record ConnectorOperationSummary(
     bool IsDeprecated);
 
 /// <summary>A connector plus its operation index.</summary>
-/// <param name="LogicalName">As on <see cref="ConnectorSummary"/>.</param>
+/// <param name="LogicalName">What <c>--connector</c> takes: a custom connector's logical name, or a built-in connector's apiId.</param>
 /// <param name="ApiId">The short connector id, e.g. <c>shared_teams</c>.</param>
 public sealed record ConnectorDetail(
     string LogicalName,
@@ -139,13 +125,6 @@ public sealed record OperationDetail(
     bool IsTrigger = false,
     IReadOnlyList<OperationParameter>? Outputs = null);
 
-/// <summary>A connection, as shown to a user before it is used on their behalf.</summary>
-public sealed record ConnectionDetail(
-    string ConnectionId,
-    string? OwnerName,
-    string? OwnerPrincipalName,
-    string? Status);
-
 /// <summary>States of a <see cref="DynamicLookup"/>.</summary>
 public static class DynamicLookupStatus
 {
@@ -209,10 +188,6 @@ public sealed record OperationResolution(
 /// </remarks>
 public interface IConnectorMetadataService
 {
-    /// <summary>Lists connectors available in the environment, optionally filtered by name.</summary>
-    Task<IReadOnlyList<ConnectorSummary>> ListConnectorsAsync(
-        string? profileName, string? search, CancellationToken ct);
-
     /// <summary>Gets a connector's operation index, optionally filtered by keyword.</summary>
     Task<ConnectorDetail> GetConnectorAsync(
         string? profileName, string connector, string? search, CancellationToken ct);
@@ -235,7 +210,4 @@ public interface IConnectorMetadataService
     Task<OperationResolution> ResolveOperationAsync(
         string? profileName, OperationResolutionRequest request, CancellationToken ct);
 
-    /// <summary>A connection's owner and status.</summary>
-    Task<ConnectionDetail> GetConnectionAsync(
-        string? profileName, string connector, string connectionId, CancellationToken ct);
 }

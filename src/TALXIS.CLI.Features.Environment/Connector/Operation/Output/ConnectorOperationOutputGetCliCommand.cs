@@ -11,15 +11,16 @@ namespace TALXIS.CLI.Features.Environment.Connector.Operation.Output;
 /// returns), each with the expression that reads it.
 /// </summary>
 [CliReadOnly]
+[CliWorkflow("environment-inspection")]
 [CliCommand(
     Name = "get",
     Description = "Gets the fields of one dynamic operation output, such as the columns of the row a Dataverse trigger or List rows returns, each with the exact expression that reads it in a later step. Pass the parameters it depends on with --value. Read through a bound connection reference: without --use-connection the answer only says whose connection would be used; ask the user, then re-run with --use-connection. Requires an active profile."
 )]
-public class ConnectorOperationOutputGetCliCommand : ProfiledCliCommand
+public class ConnectorOperationOutputGetCliCommand : ConnectivityCommandBase
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ConnectorOperationOutputGetCliCommand));
 
-    [CliArgument(Name = "connector", Description = "Connector name, for example shared_commondataserviceforapps.")]
+    [CliArgument(Name = "connector", Description = ConnectorDescriptions.Identifier)]
     public string Connector { get; set; } = null!;
 
     [CliArgument(Name = "operation", Description = "Operation ID, for example CreateRecord.")]

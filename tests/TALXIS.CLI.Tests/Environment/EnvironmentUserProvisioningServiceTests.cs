@@ -5,6 +5,7 @@ using TALXIS.CLI.Core.Platforms.PowerPlatform;
 using TALXIS.CLI.Core.Resolution;
 using TALXIS.CLI.Platform.PowerPlatform.Control;
 using TALXIS.CLI.Platform.PowerPlatform.Control.Graph;
+using TALXIS.CLI.Tests.Shared;
 using Xunit;
 using ConnectionModel = TALXIS.CLI.Core.Model.Connection;
 
@@ -23,7 +24,7 @@ public sealed class EnvironmentUserProvisioningServiceTests
             EnvironmentId = Guid.Parse("55555555-5555-5555-5555-555555555555"),
         };
         var credential = new Credential { Id = "cred", Kind = CredentialKind.InteractiveBrowser };
-        var resolver = new CapturingResolver(new ResolvedProfileContext(
+        var resolver = new FixedConfigurationResolver(new ResolvedProfileContext(
             new Profile { Id = "profile", ConnectionRef = connection.Id, CredentialRef = credential.Id },
             connection,
             credential,
@@ -59,7 +60,7 @@ public sealed class EnvironmentUserProvisioningServiceTests
 
         var sut = new EnvironmentUserProvisioningService(
             resolver,
-            new CapturingCatalog(),
+            new EnvironmentIdResolver(new EmptyEnvironmentCatalog()),
             new MicrosoftGraphClient(new FakeAccessTokenService(), http),
             new EnvironmentSettingsClient(new FakeAccessTokenService(), http),
             new FakeAccessTokenService(),
@@ -90,7 +91,7 @@ public sealed class EnvironmentUserProvisioningServiceTests
             EnvironmentId = Guid.NewGuid(),
         };
         var credential = new Credential { Id = "cred", Kind = CredentialKind.InteractiveBrowser };
-        var resolver = new CapturingResolver(new ResolvedProfileContext(
+        var resolver = new FixedConfigurationResolver(new ResolvedProfileContext(
             new Profile { Id = "profile", ConnectionRef = connection.Id, CredentialRef = credential.Id },
             connection,
             credential,
@@ -103,7 +104,7 @@ public sealed class EnvironmentUserProvisioningServiceTests
 
         var sut = new EnvironmentUserProvisioningService(
             resolver,
-            new CapturingCatalog(),
+            new EnvironmentIdResolver(new EmptyEnvironmentCatalog()),
             new MicrosoftGraphClient(new FakeAccessTokenService(), http),
             new EnvironmentSettingsClient(new FakeAccessTokenService(), http),
             new FakeAccessTokenService(),
@@ -126,7 +127,7 @@ public sealed class EnvironmentUserProvisioningServiceTests
             EnvironmentId = Guid.NewGuid(),
         };
         var credential = new Credential { Id = "cred", Kind = CredentialKind.InteractiveBrowser };
-        var resolver = new CapturingResolver(new ResolvedProfileContext(
+        var resolver = new FixedConfigurationResolver(new ResolvedProfileContext(
             new Profile { Id = "profile", ConnectionRef = connection.Id, CredentialRef = credential.Id },
             connection,
             credential,
@@ -146,7 +147,7 @@ public sealed class EnvironmentUserProvisioningServiceTests
 
         var sut = new EnvironmentUserProvisioningService(
             resolver,
-            new CapturingCatalog(),
+            new EnvironmentIdResolver(new EmptyEnvironmentCatalog()),
             new MicrosoftGraphClient(new FakeAccessTokenService(), http),
             new EnvironmentSettingsClient(new FakeAccessTokenService(), http),
             new FakeAccessTokenService(),
@@ -169,7 +170,7 @@ public sealed class EnvironmentUserProvisioningServiceTests
             EnvironmentId = Guid.NewGuid(),
         };
         var credential = new Credential { Id = "cred", Kind = CredentialKind.InteractiveBrowser };
-        var resolver = new CapturingResolver(new ResolvedProfileContext(
+        var resolver = new FixedConfigurationResolver(new ResolvedProfileContext(
             new Profile { Id = "profile", ConnectionRef = connection.Id, CredentialRef = credential.Id },
             connection,
             credential,
@@ -185,7 +186,7 @@ public sealed class EnvironmentUserProvisioningServiceTests
 
         var sut = new EnvironmentUserProvisioningService(
             resolver,
-            new CapturingCatalog(),
+            new EnvironmentIdResolver(new EmptyEnvironmentCatalog()),
             new MicrosoftGraphClient(new FakeAccessTokenService(), http),
             new EnvironmentSettingsClient(new FakeAccessTokenService(), http),
             new FakeAccessTokenService(),
@@ -209,7 +210,7 @@ public sealed class EnvironmentUserProvisioningServiceTests
             EnvironmentId = Guid.NewGuid(),
         };
         var credential = new Credential { Id = "cred", Kind = CredentialKind.InteractiveBrowser };
-        var resolver = new CapturingResolver(new ResolvedProfileContext(
+        var resolver = new FixedConfigurationResolver(new ResolvedProfileContext(
             new Profile { Id = "profile", ConnectionRef = connection.Id, CredentialRef = credential.Id },
             connection,
             credential,
@@ -222,7 +223,7 @@ public sealed class EnvironmentUserProvisioningServiceTests
 
         var sut = new EnvironmentUserProvisioningService(
             resolver,
-            new CapturingCatalog(),
+            new EnvironmentIdResolver(new EmptyEnvironmentCatalog()),
             new MicrosoftGraphClient(new FakeAccessTokenService(), http),
             new EnvironmentSettingsClient(new FakeAccessTokenService(), http),
             new FakeAccessTokenService(),
@@ -234,45 +235,4 @@ public sealed class EnvironmentUserProvisioningServiceTests
         Assert.Contains("self-elevation failed", ex.Message);
     }
 
-    private sealed class CapturingResolver(ResolvedProfileContext context) : IConfigurationResolver
-    {
-        public Task<ResolvedProfileContext> ResolveAsync(string? profileName, CancellationToken ct)
-            => Task.FromResult(context);
-    }
-
-    private sealed class CapturingCatalog : IPowerPlatformEnvironmentCatalog
-    {
-        public Task<IReadOnlyList<PowerPlatformEnvironmentSummary>> ListAsync(
-            ConnectionModel connection, Credential credential, CancellationToken ct)
-            => Task.FromResult<IReadOnlyList<PowerPlatformEnvironmentSummary>>(Array.Empty<PowerPlatformEnvironmentSummary>());
-
-        public Task<PowerPlatformEnvironmentSummary?> TryGetByEnvironmentUrlAsync(
-            ConnectionModel connection, Credential credential, Uri environmentUrl, CancellationToken ct)
-            => Task.FromResult<PowerPlatformEnvironmentSummary?>(null);
-    }
-
-    private sealed class FakeAccessTokenService : IAccessTokenService
-    {
-        public Task<string> AcquireForResourceAsync(ConnectionModel connection, Credential credential, Uri resourceUri, CancellationToken ct)
-            => Task.FromResult("token");
-    }
-
-    private sealed class FakeHttpClientFactoryWrapper : IHttpClientFactoryWrapper
-    {
-        private readonly Func<HttpRequestMessage, HttpResponseMessage> _handler;
-
-        public FakeHttpClientFactoryWrapper(Func<HttpRequestMessage, HttpResponseMessage> handler) => _handler = handler;
-
-        public HttpClient Create() => new(new FakeHttpMessageHandler(_handler));
-    }
-
-    private sealed class FakeHttpMessageHandler : HttpMessageHandler
-    {
-        private readonly Func<HttpRequestMessage, HttpResponseMessage> _handler;
-
-        public FakeHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> handler) => _handler = handler;
-
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-            => Task.FromResult(_handler(request));
-    }
 }

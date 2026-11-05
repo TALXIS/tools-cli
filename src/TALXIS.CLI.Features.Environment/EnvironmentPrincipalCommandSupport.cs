@@ -73,13 +73,6 @@ internal static class EnvironmentPrincipalCommandSupport
     }
 
     /// <summary>
-    /// Truncates a display value to fit within a fixed-width table column,
-    /// appending a trailing "." marker when truncation occurs.
-    /// </summary>
-    internal static string Truncate(string value, int maxWidth)
-        => value.Length > maxWidth ? value[..(maxWidth - 1)] + "." : value;
-
-    /// <summary>
     /// Matches an already-assigned role against a caller-supplied
     /// <c>--role</c> identifier, which may be either the role's GUID or its
     /// friendly name. Shared by the <c>role add</c> commands for

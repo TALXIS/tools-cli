@@ -8,15 +8,16 @@ using TALXIS.CLI.Logging;
 namespace TALXIS.CLI.Features.Environment.Connector;
 
 [CliReadOnly]
+[CliWorkflow("environment-inspection")]
 [CliCommand(
     Name = "get",
     Description = "Gets the operation index (actions, triggers, webhook triggers) of one Power Automate connector from the LIVE connected environment. Requires an active profile. Use 'connector operation get' for exact parameter names before writing an action."
 )]
-public class ConnectorGetCliCommand : ProfiledCliCommand
+public class ConnectorGetCliCommand : ConnectivityCommandBase
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(ConnectorGetCliCommand));
 
-    [CliArgument(Name = "connector", Description = "Connector name, for example shared_commondataserviceforapps or shared_office365.")]
+    [CliArgument(Name = "connector", Description = ConnectorDescriptions.Identifier)]
     public string Connector { get; set; } = null!;
 
     [CliOption(Name = "--filter", Description = "Show only operations whose ID or summary contains this text.", Required = false)]

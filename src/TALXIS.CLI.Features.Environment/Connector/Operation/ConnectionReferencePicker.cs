@@ -1,7 +1,9 @@
 namespace TALXIS.CLI.Features.Environment.Connector.Operation;
 
 /// <summary>A connection reference as far as choosing one goes.</summary>
-internal sealed record ReferenceCandidate(string LogicalName, string? DisplayName, string? ConnectionId);
+/// <param name="ConnectionId">The connection it is bound to and usable through; null when unbound or broken.</param>
+/// <param name="Owner">Who the connection signs in as.</param>
+internal sealed record ReferenceCandidate(string LogicalName, string? DisplayName, string? ConnectionId, string? Owner = null, string? Status = null);
 
 /// <summary>
 /// The reference to read through; otherwise a question for the user
@@ -30,7 +32,7 @@ internal static class ConnectionReferencePicker
                 return new(null, InputError: $"Connection reference '{requested}' for '{connector}' does not exist. Available: {(references.Count == 0 ? "none" : string.Join(", ", references.Select(r => r.LogicalName)))}.");
             if (string.IsNullOrWhiteSpace(named.ConnectionId))
                 return new(null, Status: DynamicValuesStatus.NeedsConnection,
-                    Message: $"Connection reference '{named.LogicalName}' is not bound to a connection. Ask the user to bind one, then run this again.");
+                    Message: $"Connection reference '{named.LogicalName}' is not bound to a working connection. Ask the user which connection to bind ('txc environment connection list --connector {connector}'), bind it with 'txc environment connection-reference update {named.LogicalName} --connection-id <id>', then run this again.");
             return new(named);
         }
 
@@ -39,7 +41,7 @@ internal static class ConnectionReferencePicker
         {
             1 => new(bound[0]),
             0 => new(null, Status: DynamicValuesStatus.NeedsConnection,
-                Message: $"No connection reference for '{connector}' is bound to a connection. Ask the user to create one and bind it to a connection, then run this again. Don't create a connection without their agreement."),
+                Message: $"No connection reference for '{connector}' is bound to a working connection. Ask the user: reuse one of theirs ('txc environment connection list --connector {connector}') or, if they agree, create one ('txc environment connection create --connector {connector} --display-name <name>'), then bind a reference with 'txc environment connection-reference create|update'. Run this again afterwards."),
             _ => new(null, Status: DynamicValuesStatus.NeedsChoice,
                 Message: $"'{connector}' has {bound.Count} bound connection references (listed below). " +
                     "Ask the user which one the flow should use, then run this again with --connection-reference <logical name>.",

@@ -111,11 +111,11 @@ internal static class UserCliCommandSupport
         foreach (var row in rows)
         {
             OutputWriter.WriteLine(
-                $"{EnvironmentPrincipalCommandSupport.Truncate(row.FullName ?? string.Empty, nameWidth).PadRight(nameWidth)} | " +
-                $"{EnvironmentPrincipalCommandSupport.Truncate(row.UserPrincipalName ?? string.Empty, upnWidth).PadRight(upnWidth)} | " +
-                $"{EnvironmentPrincipalCommandSupport.Truncate(row.PrimaryEmailAddress ?? string.Empty, emailWidth).PadRight(emailWidth)} | " +
+                $"{TableText.Truncate(row.FullName ?? string.Empty, nameWidth).PadRight(nameWidth)} | " +
+                $"{TableText.Truncate(row.UserPrincipalName ?? string.Empty, upnWidth).PadRight(upnWidth)} | " +
+                $"{TableText.Truncate(row.PrimaryEmailAddress ?? string.Empty, emailWidth).PadRight(emailWidth)} | " +
                 $"{(row.IsDisabled ? "disabled" : "enabled").PadRight(stateWidth)} | " +
-                $"{EnvironmentPrincipalCommandSupport.Truncate(row.BusinessUnitName ?? string.Empty, buWidth).PadRight(buWidth)} | {row.Id}");
+                $"{TableText.Truncate(row.BusinessUnitName ?? string.Empty, buWidth).PadRight(buWidth)} | {row.Id}");
         }
     }
 
@@ -147,8 +147,8 @@ internal static class UserCliCommandSupport
         foreach (var row in rows.OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase))
         {
             OutputWriter.WriteLine(
-                $"{EnvironmentPrincipalCommandSupport.Truncate(row.Name, nameWidth).PadRight(nameWidth)} | " +
-                $"{EnvironmentPrincipalCommandSupport.Truncate(row.BusinessUnitName ?? string.Empty, buWidth).PadRight(buWidth)} | {row.Id}");
+                $"{TableText.Truncate(row.Name, nameWidth).PadRight(nameWidth)} | " +
+                $"{TableText.Truncate(row.BusinessUnitName ?? string.Empty, buWidth).PadRight(buWidth)} | {row.Id}");
         }
     }
 
