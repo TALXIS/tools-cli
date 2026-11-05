@@ -2,96 +2,69 @@
 
 ## Overview
 
-`txc` uses a three-tier configuration model to connect to Dataverse environments:
+`txc` connects to Dataverse through three parts:
 
 ```
-Auth (credentials) → Connection (auth + environment URL) → Profile (active config)
+Auth (credential alias)  ┐
+                         ├→ Profile (pairs one auth with one connection; what commands run as)
+Connection (provider + environment URL) ┘
 ```
+
+One auth can serve several connections. Commands run as the active profile.
 
 ## First-Time Setup
 
-### 1. Add Authentication
+### Interactive (a person at a keyboard)
 ```
-Tool: config_auth_add-service-principal
+txc config profile create --url https://<org>.crm.dynamics.com
 ```
-Registers a service principal (client ID + secret or certificate) for authenticating with Dataverse. This is the recommended auth method for development and CI/CD.
+Signs in interactively (device code when no browser is available), creates the credential, connection and profile, and makes it active (`--no-select` to keep the current one). The sign-in needs a person: pass on the link and code it prints and wait.
 
-### 2. Create a Connection
+### Explicit (service principal; CI/CD and unattended use)
 ```
-Tool: config_connection_create
+txc config auth add-service-principal --alias <alias> --tenant <tenant-id> --application-id <app-id> --secret-from-env <ENV_VAR>
+txc config connection create <connection> --provider Dataverse --environment https://<org>.crm.dynamics.com
+txc config profile create --name <profile> --auth <alias> --connection <connection>
+txc config profile validate <profile>
 ```
-Combines an auth entry with a specific environment URL. One auth can be used across multiple connections (different environments, same credentials).
-
-### 3. Create a Profile
-```
-Tool: config_profile_create
-```
-Creates a named profile that references a connection. Profiles are what you switch between when working with different environments.
-
-### 4. Validate the Profile
-```
-Tool: config_profile_validate
-```
-Tests the full chain: profile → connection → auth → environment. Confirms you can reach the Dataverse environment and authenticate successfully.
+- The secret is never a command-line argument: it comes from the variable named by `--secret-from-env`, else piped stdin, else a masked prompt. Never read it from a file in the repository.
+- Federated credential (no secret): `txc config auth add-federated --alias <alias> --tenant <tenant-id> --application-id <app-id>`.
+- Only the first profile created in this mode becomes active; use `txc config profile select <profile>` for others.
+- `validate` tests profile → connection → auth → environment; `--skip-live` runs only structural checks.
 
 ## Profile Management
 
-| Tool | Purpose |
+| Command | Purpose |
 |---|---|
-| `config_profile_get` | Display current profile details (URL, auth method) |
-| `config_profile_validate` | Test that the profile can connect |
-| `config_profile_list` | Show all configured profiles |
+| `txc config profile list` | Show all profiles |
+| `txc config profile get [<name>]` | Show the profile (the global active one by default, not the workspace pin) with its connection URL and credential |
+| `txc config profile validate [<name>]` | Test that the profile can connect |
+| `txc config profile select <name>` | Make a profile the global active one |
+| `txc config auth list` / `txc config connection list` | Show registered credentials / connections |
 
-## Workspace Profile Pinning
-
-Profiles can be pinned to a workspace directory, so `txc` automatically uses the correct profile when you're in that repository. This avoids accidentally running commands against the wrong environment.
-
-## Environment Types
-
-| Type | Purpose | Protection Level |
-|---|---|---|
-| Development | Active development and testing | Low — unmanaged solutions |
-| Test/UAT | Integration testing and user acceptance | Medium — managed solutions |
-| Production | Live users and data | High — managed only, restricted access |
+`txc config profile pin [<name>]` makes a profile the default for this repository (writes `.txc/workspace.json` in the current directory, applying to that directory tree; the active profile when no name is given). `select` sets the global active profile, used where no pin applies. Order of use: `--profile`, `TXC_PROFILE`, the workspace pin, the global active profile.
 
 ## Best Practices
 
-- Use **service principal auth** for both dev and CI/CD (consistent, scriptable)
-- Create **separate profiles** for each environment (dev, test, prod)
-- **Pin profiles** to workspace directories to prevent cross-environment mistakes
-- **Validate profiles** after creation and after credential rotation
-- Never connect to production for routine development — use dev environments
-- If a destructive command is blocked as production, check the target first. Run `config_profile_validate` with the refresh-env-type option to record its real type, and use the allow-production option only for an environment that really is production
+- Separate profiles per environment (dev, test, prod); validate after creation and credential rotation
+- Don't connect to production for routine development
+- Each person signs in with their own account or service principal; don't share credentials
+- If a destructive command is blocked as production, check the target first: `txc config profile validate <profile> --refresh-env-type` records its real type. Add `--allow-production` only for an environment that really is production
 
-## Common Scenarios
-
-### Setting Up a New Environment Connection
+## Switching Environments
 ```
-1. config_auth_add-service-principal { clientId: "<app-id>", clientSecret: "<secret>", tenantId: "<tenant>" }
-2. config_connection_create { name: "dev-connection", authName: "<from step 1>", environmentUrl: "https://org.crm.dynamics.com" }
-3. config_profile_create { name: "dev", connectionName: "dev-connection" }
-4. config_profile_validate { profileName: "dev" }
+txc config profile list
+txc config profile get test       — verify the target
+txc config profile select test
 ```
-
-### Switching Between Environments
-```
-config_profile_list                          — see available profiles
-config_profile_get { profileName: "test" }   — verify target before switching
-```
+For one command, `--profile test` avoids changing the active profile.
 
 ## Troubleshooting Auth
 
-If `config_profile_validate` fails:
-1. Check the environment URL is correct (`config_profile_get`)
+If `txc config profile validate <profile>` fails:
+1. Check the URL: `txc config profile get <profile>`, then `txc config connection get <connection>`
 2. Verify the service principal exists in the target environment's Azure AD
-3. Confirm the service principal has a Dataverse security role assigned (see
-   [security-roles](security-roles.md) for creating the service principal and assigning roles)
-4. Check if credentials (secret/certificate) have expired
-
-## What NOT to Do
-
-- ❌ Don't connect to production for routine development — use dev environments
-- ❌ Don't share credentials between team members — use per-developer service principals
-- ❌ Don't skip profile validation after credential rotation — stale credentials cause confusing errors
+3. Confirm it has a Dataverse security role (see [security-roles](security-roles.md)) and environment-level access (Power Platform admin center)
+4. Check whether the client secret expired (create a new one, re-run `txc config auth add-service-principal` for the same alias)
 
 See also: [troubleshooting](troubleshooting.md), [deployment-workflow](deployment-workflow.md)
