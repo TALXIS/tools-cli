@@ -1,0 +1,102 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "Open Food Facts",
+    "description": "Look up product data (name, brand, quantity, image) by barcode from the Open Food Facts public database. No API key required.",
+    "version": "1.0"
+  },
+  "host": "world.openfoodfacts.org",
+  "basePath": "/api/v2",
+  "schemes": ["https"],
+  "consumes": [],
+  "produces": ["application/json"],
+  "paths": {
+    "/product/{barcode}.json": {
+      "get": {
+        "summary": "Get product by barcode",
+        "description": "Looks up a product by its EAN/UPC barcode and returns its name, brand, quantity, and image URL.",
+        "operationId": "GetProductByBarcode",
+        "x-ms-visibility": "important",
+        "parameters": [
+          {
+            "name": "barcode",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "description": "The product's EAN-13 or UPC-A barcode.",
+            "x-ms-summary": "Barcode"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Product found",
+            "schema": {
+              "$ref": "#/definitions/Product"
+            }
+          }
+        }
+      }
+    },
+    "/product-image": {
+      "get": {
+        "summary": "Get product image",
+        "description": "Proxies the bytes of an image URL (as returned by GetProductByBarcode) through the connector's own server-side code, for callers that can't load the external URL directly.",
+        "operationId": "GetProductImage",
+        "x-ms-visibility": "important",
+        "parameters": [
+          {
+            "name": "imageUrl",
+            "in": "query",
+            "required": true,
+            "type": "string",
+            "description": "The image URL returned by GetProductByBarcode.",
+            "x-ms-summary": "Image URL"
+          }
+        ],
+        "produces": ["image/jpeg", "image/png"],
+        "responses": {
+          "200": {
+            "description": "Image bytes",
+            "schema": {
+              "type": "file"
+            }
+          }
+        },
+        "x-ms-media-kind": "image"
+      }
+    }
+  },
+  "definitions": {
+    "Product": {
+      "type": "object",
+      "properties": {
+        "ean": {
+          "type": "string",
+          "description": "The barcode that was looked up.",
+          "x-ms-summary": "EAN"
+        },
+        "name": {
+          "type": "string",
+          "description": "The product's name.",
+          "x-ms-summary": "Name"
+        },
+        "brand": {
+          "type": "string",
+          "description": "The product's brand.",
+          "x-ms-summary": "Brand"
+        },
+        "quantity": {
+          "type": "string",
+          "description": "The product's package quantity, e.g. '750g' or '1L'. Free text, not a number - Open Food Facts does not normalize units.",
+          "x-ms-summary": "Quantity"
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "URL of the product's front-of-pack image.",
+          "x-ms-summary": "Image URL"
+        }
+      }
+    }
+  }
+}
+

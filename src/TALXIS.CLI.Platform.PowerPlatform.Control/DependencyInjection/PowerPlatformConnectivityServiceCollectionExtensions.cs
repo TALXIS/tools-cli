@@ -43,6 +43,7 @@ public static class PowerPlatformConnectivityServiceCollectionExtensions
 
         services.AddSingleton<PowerAutomateApiClient>();
         services.AddSingleton<IConnectorMetadataService, ConnectorMetadataService>();
+        services.AddSingleton<IConnectorDefinitionReader, SwaggerOperationReader>();
         return services;
     }
 }
