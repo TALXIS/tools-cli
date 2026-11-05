@@ -14,7 +14,7 @@ namespace TALXIS.CLI.Features.Environment.Connector.Operation.Output;
 [CliWorkflow("environment-inspection")]
 [CliCommand(
     Name = "get",
-    Description = "Gets the fields of one dynamic operation output, such as the columns of the row a Dataverse trigger or List rows returns, each with the exact expression that reads it in a later step. Pass the parameters it depends on with --value. Read through a bound connection reference: without --use-connection the answer only says whose connection would be used; ask the user, then re-run with --use-connection. Requires an active profile."
+    Description = "Gets the fields of one dynamic operation output, such as the columns of the row a Dataverse trigger or List rows returns, each with the exact expression that reads it in a later step. Pass the parameters it depends on with --value. Read through a bound connection reference: without --use-connection the answer only says whose connection would be used; ask the user, then re-run with --use-connection. Dataverse row fields of a table defined in the workspace are read from its Entity.xml instead, with no connection. Requires an active profile unless the answer comes from the workspace."
 )]
 public class ConnectorOperationOutputGetCliCommand : ConnectivityCommandBase
 {

@@ -252,6 +252,9 @@ internal sealed class FakeOperations : IConnectorMetadataService
         return Task.FromResult(Operation?.Invoke(connector, operation) ?? throw new NotSupportedException());
     }
 
+    /// <summary>Answers <see cref="ResolveOperationAsync"/>; unset, the call fails.</summary>
+    public Func<OperationResolutionRequest, OperationResolution>? Resolve { get; set; }
+
     public Task<OperationResolution> ResolveOperationAsync(string? profileName, OperationResolutionRequest request, CancellationToken ct)
-        => throw new NotSupportedException();
+        => Task.FromResult(Resolve?.Invoke(request) ?? throw new NotSupportedException());
 }

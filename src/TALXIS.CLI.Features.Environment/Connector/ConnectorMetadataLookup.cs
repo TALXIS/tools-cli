@@ -84,7 +84,7 @@ internal static class ConnectorMetadataLookup
             : null;
 
     /// <summary>The workspace around the current directory; null outside one.</summary>
-    private static string? FindWorkspace()
+    internal static string? FindWorkspace()
         => WorkspaceConnectorLocator.FindWorkspaceRoot(
             TxcServices.GetOptional<IEnvironmentReader>()?.GetCurrentDirectory()
             ?? Directory.GetCurrentDirectory());

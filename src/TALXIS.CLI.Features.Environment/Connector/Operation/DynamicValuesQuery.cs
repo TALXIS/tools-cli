@@ -41,7 +41,8 @@ public sealed record DynamicValuesAnswer(
     IReadOnlyList<ConnectionChoice>? Choices,
     string? ConnectionReference,
     string? ConnectionOwner,
-    string? Source = null);
+    string? Source = null,
+    string? SourcePath = null);
 
 /// <summary>A connection reference the user can choose, described so they can tell them apart.</summary>
 public sealed record ConnectionChoice(string LogicalName, string? DisplayName, string? Owner, string? Status);
@@ -102,12 +103,12 @@ internal static class DynamicValuesQuery
         DynamicValuesAnswer Answer(string status, string message,
             IReadOnlyList<AllowedValue>? found = null, IReadOnlyList<ParameterView>? fields = null,
             IReadOnlyList<OutputView>? outputs = null, IReadOnlyList<string>? missing = null,
-            IReadOnlyList<ConnectionChoice>? choices = null)
+            IReadOnlyList<ConnectionChoice>? choices = null, string? source = null, string? sourcePath = null)
             => new(request.Connector, request.Operation, request.Name, kind, status, message,
                 Filter(found, v => $"{v.Value} {v.Label}", request.Search),
                 Filter(fields, f => $"{f.Name} {f.Description}", request.Search),
                 Filter(outputs, o => $"{o.Key} {o.Description}", request.Search),
-                missing, choices, reference?.LogicalName, owner, operation.Source);
+                missing, choices, reference?.LogicalName, owner, source ?? operation.Source, sourcePath ?? operation.SourcePath);
 
         var view = ParameterViews.From(operation, target);
         var dynamicKind = request.IsOutput
@@ -121,6 +122,22 @@ internal static class DynamicValuesQuery
                     ? "This is a folder or file picker; choose the value with the user."
                     : view.AllowedValues is { Count: > 0 } ? "Static values from the operation spec." : "Nothing to look up.",
                 found: view.AllowedValues));
+            return true;
+        }
+
+        // A Dataverse row of a table defined in the workspace needs no lookup:
+        // its columns are in Entity.xml, including ones not deployed yet.
+        if (dynamicKind == ParameterSource.Fields
+            && ConnectorMetadataLookup.FindWorkspace() is { } workspace
+            && DataverseWorkspaceFields.TryRead(workspace, operation, target, request.IsOutput, values) is { } local)
+        {
+            var count = local.Parameters?.Count ?? local.Outputs!.Count;
+            Write(Answer(DynamicValuesStatus.Fields,
+                request.IsOutput
+                    ? $"{count} fields from {local.File}; read them with the expression shown."
+                    : $"{count} fields from {local.File}; use them as inputs.parameters keys exactly as named.",
+                fields: local.Parameters, outputs: local.Outputs,
+                source: ConnectorMetadataSource.Workspace, sourcePath: local.File));
             return true;
         }
 
