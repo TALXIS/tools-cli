@@ -1,86 +1,48 @@
 # Solution Layering & Segmentation
 
-## How Solutions Work in Dataverse
+## Managed vs Unmanaged
 
-Solutions are containers for customizations. They package components (tables, forms, views, plugins, etc.) for transport between environments.
-
-### Managed vs Unmanaged
-
-| Aspect | Unmanaged | Managed |
-|---|---|---|
-| Use case | Development | Production deployment |
-| Editable in target | Yes | No (locked) |
-| Uninstallable | Components remain | Clean removal |
-| Source control | Yes — this is your source of truth | Generated artifact |
-| Versioning | N/A | Semantic versioning recommended |
-
-**Rule of thumb:** Develop in unmanaged, deploy as managed.
+Develop unmanaged (source of truth, editable, uninstall leaves components); deploy managed (generated artifact, locked, clean uninstall).
 
 ## The Layer Stack
 
-Dataverse applies customizations in layers. When multiple solutions modify the same component, the layer stack determines the final result:
+When several solutions modify one component, layers decide the result: the active (unmanaged) layer wins, then managed solutions from most to least recently imported, then the System base. Higher layers override lower ones.
 
-```
-┌─────────────────────┐  ← Top: Active customizations (unmanaged)
-├─────────────────────┤
-│  Solution C (managed) │  ← Most recently imported managed solution
-├─────────────────────┤
-│  Solution B (managed) │
-├─────────────────────┤
-│  Solution A (managed) │
-├─────────────────────┤
-│  System (base)       │  ← Bottom: Out-of-box Dataverse
-└─────────────────────┘
-```
+## Solution Segmentation (default layout)
 
-Higher layers override lower layers. The active (unmanaged) layer always wins.
+Discover the repository's solutions first (`dotnet sln list`); otherwise separate concerns:
 
-## Solution Segmentation Strategy
+- **Solutions.DataModel**: tables, columns, relationships, option sets
+- **Solutions.Logic**: plugins, workflows, business rules
+- **Solutions.UI**: forms, views, model-driven apps
+- **Solutions.Security**: security roles, field-level security
 
-Separate concerns into dedicated solutions:
+This gives independent deployment cycles, smaller packages, clear ownership and fewer merge conflicts.
 
-- **Solutions.DataModel** — Tables, columns, relationships, option sets
-- **Solutions.Logic** — Plugins, workflows, business rules
-- **Solutions.UI** — Forms, views, model-driven apps
-- **Solutions.Security** — Security roles, field-level security
+## Inspection Commands
 
-### Benefits
-- Independent deployment cycles per concern
-- Smaller packages = faster imports
-- Clear ownership for team collaboration
-- Reduced merge conflicts
-
-## Inspection Tools
-
-| Tool | Purpose |
+| Command | Purpose |
 |---|---|
-| `environment_solution_list` | List all solutions in the environment |
-| `environment_solution_get` | Details of a specific solution (version, publisher, etc.) |
-| `environment_solution_component_list` | All components in a solution |
-| `environment_component_layer_list` | Layer stack for a specific component |
-| `environment_component_layer_get` | Details of a specific layer entry |
+| `txc environment solution list [--managed true\|false]` | Solutions in the environment |
+| `txc environment solution get <solution-name>` | Version, publisher, etc. |
+| `txc environment solution component list <solution-name>` | Components in a solution |
+| `txc environment component layer list --id <guid> --type <type>` (or `--entity <logicalName> [--attribute <name>]`) | Layer stack of a component |
+| `txc environment component layer get --id <guid> --type <type>` (same selectors) | The active layer's component definition (JSON) |
 
-## Common Workflows
+"Which solution owns this component?": `layer list` for it (`--entity` for a table, plus `--attribute` for a column); the topmost managed layer (highest `order`; 1 is the System base) is the effective owner.
 
-### "Which solution owns this component?"
-1. `environment_component_layer_list` with the component ID
-2. Review the layer stack — the topmost managed layer is the effective owner
-3. `environment_component_layer_get` for details on specific layers
+## Publisher Rules
 
-### "What's in this solution?"
-1. `environment_solution_get` for solution metadata
-2. `environment_solution_component_list` for the full component inventory
+Check the publisher and prefix the repository or environment already uses (`txc environment publisher list`); otherwise:
+- One publisher per organization; all components share its prefix
+- Prefix: recommended max 5 lowercase alphanumeric characters; the command accepts 2-8 alphanumeric, starting with a letter, not starting with `mscrm`
 
-### Publisher Rules
-- One publisher per organization for consistency
-- Prefix: recommended repo convention is max 5 characters, lowercase alphanumeric only (e.g., `udpp`); `txc environment publisher create --prefix` accepts 2–8 lowercase alphanumeric characters
-- All components created under this publisher share the prefix
+```
+txc environment publisher create <unique-name> --display-name "<Display Name>" --prefix <prefix> --option-value-prefix <10000-99999>
+```
 
 ## What NOT to Do
 
-- ❌ Don't deploy unmanaged solutions to production — always use managed for proper lifecycle management
-- ❌ Don't put all components in a single solution — segment by concern for independent deployment cycles
-- ❌ Don't uninstall solutions without running `environment_solution_uninstall-check` — may cascade-delete data
-- ❌ Don't ignore layer conflicts — the topmost layer always wins, and unmanaged active layers override everything
+- ❌ Don't uninstall without `txc environment solution uninstall-check <solution-name>`: it may cascade-delete data
 
 See also: [deployment-workflow](deployment-workflow.md), [troubleshooting](troubleshooting.md)
