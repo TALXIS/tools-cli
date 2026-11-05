@@ -10,7 +10,7 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 
 /// <summary>
 /// Deletes an entity (table) from Dataverse.
-/// Usage: <c>txc environment entity delete --entity &lt;name&gt;</c>
+/// Usage: <c>txc environment entity delete &lt;entity&gt; --apply</c>
 /// </summary>
 [CliDestructive("Permanently deletes the entity from the remote environment.")]
 [CliCommand(
@@ -25,7 +25,7 @@ public class EntityDeleteCliCommand : StagedCliCommand, IDestructiveCommand
     [CliOption(Name = "--yes", Description = "Skip interactive confirmation for this destructive operation.", Required = false)]
     public bool Yes { get; set; }
 
-    [CliOption(Name = "--entity", Description = "The logical name of the entity to delete.", Required = true)]
+    [CliArgument(Name = "entity", Description = "The logical name of the entity to delete.")]
     public string Entity { get; set; } = null!;
 
     protected override async Task<int> ExecuteAsync()

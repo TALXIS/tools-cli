@@ -10,7 +10,7 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 
 /// <summary>
 /// Updates entity-level metadata (display name, plural name, description).
-/// Usage: <c>txc environment entity update --entity &lt;name&gt; [--display-name &lt;label&gt;] [--plural-name &lt;label&gt;] [--description &lt;text&gt;]</c>
+/// Usage: <c>txc environment entity update &lt;entity&gt; [--display-name &lt;label&gt;] [--plural-name &lt;label&gt;] [--description &lt;text&gt;]</c>
 /// </summary>
 [CliIdempotent]
 [CliCommand(
@@ -22,7 +22,7 @@ public class EntityUpdateCliCommand : StagedCliCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EntityUpdateCliCommand));
 
-    [CliOption(Name = "--entity", Description = "The logical name of the entity to update.", Required = true)]
+    [CliArgument(Name = "entity", Description = "The logical name of the entity to update.")]
     public string Entity { get; set; } = null!;
 
     [CliOption(Name = "--display-name", Description = "The new display name for the entity.", Required = false)]

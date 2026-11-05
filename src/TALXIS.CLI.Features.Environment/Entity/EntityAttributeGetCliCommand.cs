@@ -10,7 +10,7 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 
 /// <summary>
 /// Retrieves detailed metadata for a single attribute (column) on a Dataverse entity.
-/// Usage: <c>txc environment entity attribute get &lt;entity&gt; --name &lt;name&gt; [-p profile] [--format json]</c>
+/// Usage: <c>txc environment entity attribute get &lt;attribute&gt; --entity &lt;entity&gt; [-p profile] [--format json]</c>
 /// </summary>
 [CliReadOnly]
 [CliCommand(
@@ -22,11 +22,11 @@ public class EntityAttributeGetCliCommand : ProfiledCliCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EntityAttributeGetCliCommand));
 
-    [CliArgument(Description = "Entity logical name.")]
-    public required string Entity { get; set; }
-
-    [CliOption(Name = "--name", Description = "Attribute logical name.", Required = true)]
+    [CliArgument(Name = "attribute", Description = "Attribute logical name.")]
     public string Name { get; set; } = null!;
+
+    [CliOption(Name = "--entity", Description = "Logical name of the entity that owns the attribute.", Required = true)]
+    public required string Entity { get; set; }
 
     protected override async Task<int> ExecuteAsync()
     {

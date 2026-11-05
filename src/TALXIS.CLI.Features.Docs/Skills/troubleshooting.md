@@ -28,6 +28,11 @@ When a component behaves unexpectedly or changes don't take effect:
 3. The topmost layer wins: update the topmost managed solution, remove the unmanaged active layer, or reorder imports
 4. Change not visible: `txc environment solution publish`
 
+## Command Usage Errors
+
+- Exit 2 with `"status": "failed"` on stdout (with `--format json`, the default when piped): the arguments don't match the command. The message names the `--help` to read.
+- Exit 2 with `"status": "not-applied"`: a create, update or delete ran without `--apply` or `--stage`, so nothing changed. Re-run with `--apply`.
+
 ## Authentication Issues
 
 401/403 or connection errors: [environment-management](environment-management.md), Troubleshooting Auth.

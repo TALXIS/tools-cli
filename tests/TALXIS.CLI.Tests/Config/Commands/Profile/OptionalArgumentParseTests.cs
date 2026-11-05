@@ -9,6 +9,7 @@ namespace TALXIS.CLI.Tests.Config.Commands.Profile;
 /// <c>Required = false</c> over to an argument, so these go through the real command tree
 /// instead of setting properties on the command directly.
 /// </summary>
+[Collection("CliParserSerial")]
 public sealed class OptionalArgumentParseTests
 {
     [Theory]
