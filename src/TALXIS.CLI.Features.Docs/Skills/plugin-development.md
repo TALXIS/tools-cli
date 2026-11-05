@@ -1,46 +1,45 @@
 # Plugin & Custom Code Development
 
-## Key Concept
+## Plugin Project
 
-Plugins are server-side .NET classes that execute custom business logic in response to Dataverse events. All plugin scaffolding uses `txc` workspace tools — this keeps everything in source control and locally reviewable before deployment.
-
-## Plugin Project Structure
-
-- Convention: `Plugins.{Domain}/` in `src/` (e.g., `Plugins.Sales`, `Plugins.Warehouse`)
-- `.csproj` requires: `ProjectType=Plugin`, `SignAssembly=true`, target `net462`
-- Plugin classes follow `{Action}{Entity}Plugin.cs` naming (e.g., `ValidateContactPlugin.cs`)
+- Default: `src/Plugins.{Domain}/`, classes `{Action}{Entity}Plugin.cs`.
+- `.csproj` needs `ProjectType=Plugin` and `SignAssembly=true`. Target is .NET Framework (Build SDK default `net472`); keep the project's.
 
 ## Registration Chain
 
-Plugin registration is a 3-step chain. **Order matters** — each step depends on the previous one.
+1. (Empty repository: set up the solution file and `src/` first, see [project-structure](project-structure.md).) `txc workspace component create pp-plugin --output src/Plugins.Warehouse --param PublisherName=<publisher> --param Company=<company>`
+2. Write classes extending `PluginBase`; the constructor calls `: base(typeof(X))`.
+3. Reference the project from the solution project that holds the registrations: `dotnet add src/Solutions.Logic reference src/Plugins.Warehouse/Plugins.Warehouse.csproj`
+4. Declare steps (below).
+5. Build the solution project, not just the plugin: `dotnet build src/Solutions.Logic`. Current Build SDKs register the assembly there (`GeneratePluginAssembly` defaults to true) and generate `[PluginStep]` steps.
 
-1. **Create Plugin Project** → `workspace_component_create` with `Type: pp-plugin`
-2. **Write plugin classes** extending `PluginBase` (one `.cs` file per plugin)
-3. **Build the plugin project** → `dotnet build src/Plugins.{Domain}` — this MUST succeed before step 4
-4. **Register Assembly** → `workspace_component_create` with `Type: pp-plugin-assembly`
-   - Requires the plugin to be built first (reads compiled DLL for metadata)
-5. **Register Steps** → `workspace_component_create` with `Type: pp-plugin-assembly-step`
-6. **Link projects** → `dotnet add reference ../Plugins.{Domain}` from the Logic solution
+### Declaring steps
 
-Call `workspace_component_parameter_list` for required parameters at each step.
+One way per class, message, entity and stage; if the repository's plugins register steps another way, follow it.
 
-**Prerequisites:** The plugin assembly and step templates use C# file-based apps (`.cs`) for code generation — runs natively with .NET 10 SDK.
+**Default: `[PluginStep]` on the class** (`using TALXIS.DevKit.Build.Dataverse.Plugin;`):
 
-## Execution Stage Decision Tree
+```csharp
+[PluginStep("Update", "account", PluginStage.PostOperation,
+    FilteringAttributes = new[] { "name", "telephone1" })]
+```
 
-- **Pre-validation (10)** — input validation, reject bad data early (outside transaction)
-- **Pre-operation (20)** — modify data before save, calculated fields (inside transaction)
-- **Post-operation (40)** — trigger side effects, create related records (inside transaction, after DB write)
+- Needs `GeneratePluginAssembly` not `false` (otherwise the attribute is silently ignored) and Build SDK >= 1.10.0 in **both** the plugin and the solution project (`Sdk="TALXIS.DevKit.Build.Sdk/<version>"`). An older solution project builds but generates no steps.
+- `[PluginStepImage]` adds pre/post images.
+- `FilteringAttributes` (Update only): the step runs when one of them is present in the request, not only when changed. For a real change, compare `Target` with a pre-image.
+- Also covers async steps (PostOperation only), Associate/Disassociate and custom actions (`MessageId`).
+- A hand-written step for the same class, message, entity and stage makes the build warn "would run twice" and keep both. If it is already deployed, set `Id` on the attribute to that step's id (the XML under `SdkMessageProcessingSteps/`) to update it in place; the build then replaces that XML ("Plugin step file replaced by the generated one").
 
-## Testing
+**Manual `pp-plugin-assembly-step`:** only for what attributes cannot express (Power Fx step types, impersonating a user; edit the generated XML) or Build SDKs without `[PluginStep]`; never for a class that already declares the step. Build the solution once first, then `txc workspace component create pp-plugin-assembly-step --output src/Solutions.Logic --param PluginProjectName=Plugins.Warehouse --param PluginName=UpdateAccountPlugin --param PrimaryEntity=<table>`. `Stage` defaults to Pre-validation, `SdkMessage` to Create; `txc workspace component parameter list pp-plugin-assembly-step` shows the rest. The class is `<PluginProjectName>.<PluginName>`, so its namespace must match; with a custom `<AssemblyName>`, also pass `AssemblyName`.
 
-Use FakeXrmEasy for unit testing plugins without a live Dataverse environment.
+**Manual `pp-plugin-assembly`:** only with `GeneratePluginAssembly=false` or an older Build SDK. Build and sign the plugin project first, then `txc workspace component create pp-plugin-assembly --output src/Solutions.Logic --param AssemblyId=<new-guid> --param PluginProjectRootPath=../Plugins.Warehouse` (relative to `--output`). Run once per assembly: a second root breaks the next pack.
 
-## What NOT to Do
+Unit-test plugins with FakeXrmEasy (`pp-plugin-test` template).
 
-- ❌ Don't register assembly before creating the plugin project — the build won't find it
-- ❌ Don't skip `SignAssembly=true` — Dataverse rejects unsigned assemblies
-- ❌ Don't use Post-operation for validation — data is already saved
-- ❌ Don't use Pre-validation if you need related record data — it's outside the transaction
+## Execution Stages
+
+- **Pre-validation (10)**: reject bad input, outside the transaction.
+- **Pre-operation (20)**: modify data before save.
+- **Post-operation (40)**: side effects, related records; not for validation (data is saved).
 
 See also: [component-creation](component-creation.md), [project-structure](project-structure.md)
