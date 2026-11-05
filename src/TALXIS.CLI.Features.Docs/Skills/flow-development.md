@@ -4,6 +4,8 @@ Cloud flows are **solution components authored locally**: a definition JSON unde
 
 Commands are shown as CLI; the MCP tool name is in brackets (spaces become `_`).
 
+Run them from inside the workspace. A **custom connector defined in the workspace** (a `Connectors.*` project) is answered from its own `apiDefinition.swagger.json`, by logical name (`<prefix>_connectors<name>`), connector name or project name: no profile and no environment call, and it works before the connector is deployed. Every other connector is read from the connected environment. Each answer's `source` says which (`workspace` with the file, or `environment`).
+
 ## Three questions per connector step
 
 1. **Which operation?** → `txc environment connector operation search "<what the step does>"` [`environment_connector_operation_search`]. Narrow it with `--kind trigger|action` and `--connector <name>` (e.g. `shared_teams`) when you know them. Take a hit that is not deprecated.
@@ -65,6 +67,7 @@ The skeleton from question 2 has this shape. The `connectionReferences` entry go
 - `type` is the action type from question 2 (`OpenApiConnectionWebhook` for webhook triggers and waiting approvals).
 - `inputs.parameters` keys are flat, slash-joined names exactly as listed; numbers and booleans as JSON literals.
 - `host.connectionName` is the step's key in `connectionReferences`; every connector step has the `authentication` line.
+- A workspace custom connector's skeleton has `<resolved at deploy …>` in `host.apiId` and `api.name`: its environment id only exists once it is deployed. The step binds by `connectionReferenceLogicalName` to a connection reference for that connector; take the id from `txc environment connector list` after deploying.
 - Outputs of an array (`body/value[]/…`) are read inside a `Foreach` over it with `@items('<Foreach name>')?['<field>']`; replace `<loop over …>` in the printed expression with the loop's name. Use `@{...}` to embed an expression inside text.
 - Dataverse lookup columns are filtered as `_<column>_value` (`_parentcustomerid_value`).
 

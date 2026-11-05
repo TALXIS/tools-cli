@@ -27,6 +27,9 @@ internal sealed class ConnectionCommandTestHost : IDisposable
     public FakeOperations Operations { get; } = new();
     public Dictionary<string, string> Environment { get; } = new();
 
+    /// <summary>The directory commands see as current; the process's own when null.</summary>
+    public string? CurrentDirectory { get; set; }
+
     /// <param name="headless">True makes a destructive command without <c>--yes</c> refuse to run.</param>
     public ConnectionCommandTestHost(bool headless = true)
     {
@@ -37,7 +40,8 @@ internal sealed class ConnectionCommandTestHost : IDisposable
         services.AddSingleton<IConnectionReferenceService>(References);
         services.AddSingleton<IConnectorService>(Connectors);
         services.AddSingleton<IConnectorMetadataService>(Operations);
-        services.AddSingleton<IEnvironmentReader>(new FakeEnvironment(Environment));
+        services.AddSingleton<IEnvironmentReader>(new FakeEnvironment(Environment, () => CurrentDirectory));
+        services.AddSingleton<IConnectorDefinitionReader, TALXIS.CLI.Platform.PowerPlatform.Control.PowerAutomate.SwaggerOperationReader>();
         services.AddSingleton<IHeadlessDetector>(new FakeHeadless(headless));
         // Destructive commands resolve the profile first to check it is not
         // production; a Developer environment passes that guard.
@@ -68,10 +72,10 @@ internal sealed class ConnectionCommandTestHost : IDisposable
         _provider.Dispose();
     }
 
-    private sealed class FakeEnvironment(Dictionary<string, string> variables) : IEnvironmentReader
+    private sealed class FakeEnvironment(Dictionary<string, string> variables, Func<string?> currentDirectory) : IEnvironmentReader
     {
         public string? Get(string name) => variables.TryGetValue(name, out var value) ? value : null;
-        public string GetCurrentDirectory() => Directory.GetCurrentDirectory();
+        public string GetCurrentDirectory() => currentDirectory() ?? Directory.GetCurrentDirectory();
     }
 
     private sealed class FakeHeadless(bool isHeadless) : IHeadlessDetector

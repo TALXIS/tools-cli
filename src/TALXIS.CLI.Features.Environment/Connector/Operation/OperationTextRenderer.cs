@@ -13,6 +13,7 @@ internal static class OperationTextRenderer
     public static void Print(OperationSpec spec)
     {
         OutputWriter.WriteLine($"{spec.OperationId} ({spec.ApiId})");
+        OutputWriter.WriteLine(SourceLine(spec.Source, spec.SourcePath));
         if (!string.IsNullOrWhiteSpace(spec.Summary))
             OutputWriter.WriteLine(spec.Summary);
         OutputWriter.WriteLine($"{(spec.IsTrigger ? "Trigger" : "Action")} type: {spec.ActionType}");
@@ -32,6 +33,10 @@ internal static class OperationTextRenderer
             PrintOutputs(spec.Outputs);
         }
     }
+
+    /// <summary>Where the answer was read from, so a reader knows whether it reflects the workspace or an environment.</summary>
+    public static string SourceLine(string? source, string? path)
+        => path is null ? $"Source: {source ?? ConnectorMetadataSource.Environment}" : $"Source: {source} ({path})";
 
     public static void PrintOutputs(IReadOnlyList<OutputView> outputs)
     {

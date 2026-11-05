@@ -14,6 +14,9 @@ namespace TALXIS.CLI.Features.Environment.Connector.Operation;
 /// has one, otherwise a <c>&lt;placeholder&gt;</c> saying what goes there
 /// (listing the allowed values when there are few). Optional parameters are
 /// left out; the parameter table lists them.
+/// A custom connector read from the workspace has no environment id yet: its
+/// <c>host.apiId</c> and <c>api.name</c> are placeholders, and the step binds
+/// by connection reference, which is all a solution flow needs.
 /// </remarks>
 internal static partial class FlowSnippet
 {
@@ -33,6 +36,11 @@ internal static partial class FlowSnippet
                 parameters[p.Name] = p.DefaultValue is { } fallback ? Literal(fallback, p.Type) : Placeholder(p);
         }
 
+        var local = operation.Source == ConnectorMetadataSource.Workspace;
+        var apiName = local
+            ? $"<resolved at deploy: the environment's id for {operation.Connector}, from 'txc environment connector list' once deployed>"
+            : operation.ApiId;
+
         var step = new JsonObject
         {
             ["type"] = operation.ActionType,
@@ -40,7 +48,7 @@ internal static partial class FlowSnippet
             {
                 ["host"] = new JsonObject
                 {
-                    ["apiId"] = ConnectorIds.ToPath(operation.ApiId),
+                    ["apiId"] = local ? apiName : ConnectorIds.ToPath(operation.ApiId),
                     ["connectionName"] = operation.ApiId,
                     ["operationId"] = operation.OperationId,
                 },
@@ -63,7 +71,7 @@ internal static partial class FlowSnippet
                     {
                         ["connectionReferenceLogicalName"] = "<connection reference logical name: see 'txc environment connection-reference list'>",
                     },
-                    ["api"] = new JsonObject { ["name"] = operation.ApiId },
+                    ["api"] = new JsonObject { ["name"] = apiName },
                 },
             },
             [operation.IsTrigger ? "triggers" : "actions"] = new JsonObject
