@@ -4,7 +4,7 @@ Cloud flows are **solution components authored locally**: a definition JSON unde
 
 Commands are shown as CLI; the MCP tool name is in brackets (spaces become `_`).
 
-Run them from inside the workspace. A **custom connector defined in the workspace** (a `Connectors.*` project) is answered from its own `apiDefinition.swagger.json`, by logical name (`<prefix>_connectors<name>`), connector name or project name: no profile and no environment call, and it works before the connector is deployed. Every other connector is read from the connected environment. Each answer's `source` says which (`workspace` with the file, or `environment`).
+Run them from inside the workspace. A **custom connector defined in the workspace** (a `Connectors.*` project) is answered from its own `apiDefinition.swagger.json`, by logical name (`<prefix>_connectors<name>`), connector name or project name: no profile and no environment call, and it works before the connector is deployed. Every other connector is read from the connected environment **once**: `operation get` saves the operation to `.txc/connectors/<connector>/<operation>.json` (`connector get` saves `index.json`), and later calls read that snapshot with no environment call. Commit `.txc/connectors/` with the flow: it is the contract the flow was written against. Pass `--refresh` to fetch again (before a release, or when the connector changed). Each answer's `source` says where it came from: `workspace`, `snapshot` (with the file) or `environment`. Operation `search` and lookups through a connection always ask the environment.
 
 ## Three questions per connector step
 

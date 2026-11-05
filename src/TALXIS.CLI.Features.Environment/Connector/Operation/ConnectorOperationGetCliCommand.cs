@@ -10,7 +10,7 @@ namespace TALXIS.CLI.Features.Environment.Connector.Operation;
 [CliWorkflow("environment-inspection")]
 [CliCommand(
     Name = "get",
-    Description = "Answers which parameters an operation needs and what it returns, Lists every inputs.parameters key with type, requiredness and allowed values, and every output with the expression that reads it. For dynamic parameters and outputs it gives the exact txc command that fetches their values or fields. Also gives the action type and a JSON skeleton. A custom connector defined in the workspace (a Connectors.* project) is read from its local apiDefinition.swagger.json with no environment call; any other connector comes from the LIVE connected environment and needs an active profile. The answer's source says which."
+    Description = "Answers which parameters an operation needs and what it returns, Lists every inputs.parameters key with type, requiredness and allowed values, and every output with the expression that reads it. For dynamic parameters and outputs it gives the exact txc command that fetches their values or fields. Also gives the action type and a JSON skeleton. A custom connector defined in the workspace (a Connectors.* project) is read from its local apiDefinition.swagger.json with no environment call; any other connector is read once from the LIVE connected environment (needs an active profile) and kept in the workspace's .txc/connectors/ snapshot, which later calls read instead. The answer's source says which (workspace, snapshot or environment)."
 )]
 public class ConnectorOperationGetCliCommand : ConnectivityCommandBase
 {
@@ -22,9 +22,12 @@ public class ConnectorOperationGetCliCommand : ConnectivityCommandBase
     [CliArgument(Name = "operation", Description = "Operation ID, for example CreateRecord.")]
     public string Operation { get; set; } = null!;
 
+    [CliOption(Name = "--refresh", Description = "Fetch from the environment again and rewrite the workspace snapshot in .txc/connectors/, instead of reading it. Use before a release, or when the connector changed.", Required = false)]
+    public bool Refresh { get; set; }
+
     protected override async Task<int> ExecuteAsync()
     {
-        var operation = await ConnectorMetadataLookup.GetOperationAsync(Profile, Connector, Operation, CancellationToken.None)
+        var operation = await ConnectorMetadataLookup.GetOperationAsync(Profile, Connector, Operation, CancellationToken.None, Refresh)
             .ConfigureAwait(false);
 
         OutputFormatter.WriteData(OperationSpec.From(operation), PrintSpec);

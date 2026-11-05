@@ -231,11 +231,26 @@ internal sealed class FakeOperations : IConnectorMetadataService
         return Task.FromResult<IReadOnlyList<OperationSearchHit>>([]);
     }
 
+    /// <summary>Answers <see cref="GetConnectorAsync"/>; unset, the call fails.</summary>
+    public Func<string, string?, ConnectorDetail>? Connector { get; set; }
+
+    /// <summary>Answers <see cref="GetOperationAsync"/>; unset, the call fails.</summary>
+    public Func<string, string, OperationDetail>? Operation { get; set; }
+
+    /// <summary>Every metadata fetch made, as <c>connector</c> or <c>connector/operation</c>.</summary>
+    public List<string> Fetches { get; } = [];
+
     public Task<ConnectorDetail> GetConnectorAsync(string? profileName, string connector, string? search, CancellationToken ct)
-        => throw new NotSupportedException();
+    {
+        Fetches.Add(connector);
+        return Task.FromResult(Connector?.Invoke(connector, search) ?? throw new NotSupportedException());
+    }
 
     public Task<OperationDetail> GetOperationAsync(string? profileName, string connector, string operation, CancellationToken ct)
-        => throw new NotSupportedException();
+    {
+        Fetches.Add($"{connector}/{operation}");
+        return Task.FromResult(Operation?.Invoke(connector, operation) ?? throw new NotSupportedException());
+    }
 
     public Task<OperationResolution> ResolveOperationAsync(string? profileName, OperationResolutionRequest request, CancellationToken ct)
         => throw new NotSupportedException();
