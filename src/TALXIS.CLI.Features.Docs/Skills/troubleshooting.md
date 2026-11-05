@@ -34,7 +34,7 @@ When a component behaves unexpectedly or changes don't take effect:
 
 ## Dependency Problems
 
-- Can't delete a component: `txc environment component dependency delete-check --entity <logicalName> [--attribute <name>]` (or `--id <guid> --type <type>`) shows what depends on it; remove or update those first.
+- Can't delete a component: `txc environment component dependency delete-check --entity <logicalName> [--attribute <name>]` (or `--id <guid> --type <type>`) shows what depends on it; remove or update those first. It exits 0 whenever the check ran: read `status` (`safe` or `blocked`) from the output. Exit 1 means the check itself failed, exit 2 means invalid input.
 - Missing required dependencies: `txc environment component dependency required --entity <logicalName> [--attribute <name>]` shows what the component requires; make sure those exist in the target.
 
 ## Wrong Environment

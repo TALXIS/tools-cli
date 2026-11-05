@@ -25,7 +25,7 @@ txc environment entity describe <entityLogicalName>
 
 ## Key Rules
 
-- Run `txc environment component dependency delete-check --entity <logicalName> [--attribute <name>]` before deleting a table or column
+- Run `txc environment component dependency delete-check --entity <logicalName> [--attribute <name>]` before deleting a table or column. A blocked delete still exits 0: check `status` (`safe` or `blocked`) in the output
 - Create, update and delete for tables, columns and many-to-many relationships publish the affected table themselves. After other changes (e.g. option sets), if the change doesn't show up, run `txc environment solution publish` (`--entities <names>` limits it)
 - Environment schema changes are not tracked in source control: codify locally afterward
 - Changes in managed layers can't be undone, only overridden by a new managed import
