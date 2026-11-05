@@ -1,6 +1,6 @@
 # Custom API Development
 
-Custom APIs are custom messages (actions) that expose reusable business logic as callable endpoints with typed request/response, synchronous with a return value. Use one when several clients or flows need the same operation; use a plugin for reactions to data events (Create, Update, Delete) and for simple field calculations. A Custom API does nothing without a backing plugin.
+Custom APIs are custom messages (actions) that expose reusable business logic as callable endpoints with typed request/response, synchronous with a return value. Use one when several clients or flows need the same operation; use a plugin for reactions to data events (Create, Update, Delete) and for simple field calculations. Low-code automation with connectors is a cloud flow ([flow-development](flow-development.md)). A Custom API does nothing without a backing plugin.
 
 ## Registration Workflow
 

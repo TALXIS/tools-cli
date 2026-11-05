@@ -23,6 +23,7 @@ Scaffold in dependency order:
 4. **Separate projects** (Plugin, ScriptLibrary, WorkflowActivity, CodeApp, PCF) — their own `pp-*` template creates a `.csproj`; reference it from the solution project ([project-structure](project-structure.md)) and build that. Plugins: [plugin-development](plugin-development.md). Script libraries need no `pp-webresource` or manual `npm`.
 5. **Ribbon Buttons** (`pp-ribbon-button`) — after entity and script library; `LibraryLogicalName=prefix_name`
 6. **Form Event Handlers** (`pp-form-event-handler`) — after entity, form and script library; `libraryName=prefix_name.js`, `functionName=prefix_name.ClassName.methodName`
+7. **Cloud Flows** (`pp-flow`) — after the tables the flow reads or writes. Connector actions are written by hand and grounded in the connected environment ([flow-development](flow-development.md))
 
 ## Parameter Conventions
 
@@ -30,7 +31,7 @@ Use the customization prefix of the target solution (`<CustomizationPrefix>` in 
 
 | Parameter | Used in | Value |
 |---|---|---|
-| `LogicalName` | pp-entity, pp-entity-attribute, pp-optionset-global, pp-app-model | **without** prefix (the template adds it): `warehouseitem` |
+| `LogicalName` | pp-entity, pp-entity-attribute, pp-optionset-global, pp-app-model, pp-flow | **without** prefix (the template adds it): `warehouseitem` |
 | `EntitySchemaName` | pp-entity-attribute/-form/-view, other pp-form-* fragments | **with** prefix: `prefix_warehouseitem` |
 | `EntityLogicalName` | pp-ribbon-*, pp-sitemap-subarea, pp-app-model-component, pp-form-event-handler, pp-form-subgrid | same |
 | `LookupTarget` | pp-entity-attribute (Lookup) | target table, same |
