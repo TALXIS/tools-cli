@@ -127,5 +127,5 @@ and manage their tenant-wide admin roles.
      consumer scripting against the JSON output can tell the two apart. Attempting
      `--role admin-application` against a `--user` or `--group` fails with a validation error,
      since only applications can be registered as environment-management service principals.
-   - Use `role list --app|--user|--group ..` at any point to see currently assigned tenant roles.
+   - Use `txc tenant service-principal role list --service-principal <app>`, `txc tenant user role list --user <user>` or `txc tenant group role list --group <group-object-id>` at any point to see currently assigned tenant roles.
 
