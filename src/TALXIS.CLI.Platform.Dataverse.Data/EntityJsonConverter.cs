@@ -168,6 +168,11 @@ internal static class EntityJsonConverter
                     if (element.TryGetDecimal(out var moneyVal))
                         return new Money(moneyVal);
                 }
+                if (attrMeta is DecimalAttributeMetadata)
+                {
+                    if (element.TryGetDecimal(out var decimalVal))
+                        return decimalVal;
+                }
                 if (attrMeta is DoubleAttributeMetadata)
                 {
                     return element.GetDouble();
