@@ -165,7 +165,7 @@ See [changeset-staging.md](changeset-staging.md#strategies) for behavioural deta
 When you already have a JSON array of records for **one entity** and want to perform **one operation** on all of them, `txc env data bulk` is the most direct path. No staging state, no changeset file — just push the array and get a result.
 
 ```sh
-# Create many of the same entity in one CreateMultiple request
+# Create many of the same entity with CreateMultiple, 10 records per request by default
 txc env data bulk create --entity contact --file ./new-contacts.json
 
 # Update many existing records (each record must include its primary key)
@@ -185,6 +185,8 @@ Input shape is a JSON array (see [JSON value formats](#json-value-formats) above
 ```
 
 Pass inline with `--data '[…]'` or from a file with `--file ./contacts.json`.
+
+The records go out in batches of `--batch-size` (default 10, max 1000). Each batch is one request, so a table with slow synchronous plugins needs a smaller batch to finish inside the client timeout. The command stops at the first failed batch and reports how many records were committed, failed, not sent, and unknown. Unknown means the batch timed out on the client: Dataverse may still have committed it, so check those records before you run the command again.
 
 ### Staging + `--strategy bulk` vs. `env data bulk`
 
