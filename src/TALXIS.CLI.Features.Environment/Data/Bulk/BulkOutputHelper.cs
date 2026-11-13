@@ -16,12 +16,15 @@ internal static class BulkOutputHelper
             operation = operationName,
             succeeded = result.SucceededCount,
             failed = result.FailedCount,
-            createdIds = result.CreatedIds.Select(id => id.ToString()).ToList()
+            unknown = result.UnknownCount,
+            skipped = result.SkippedCount,
+            createdIds = result.CreatedIds.Select(id => id.ToString()).ToList(),
+            error = result.Error
         };
 
         OutputFormatter.WriteData(payload, _ =>
         {
-            OutputWriter.WriteLine($"{operationName}: {result.SucceededCount} succeeded, {result.FailedCount} failed.");
+            OutputWriter.WriteLine($"{operationName}: {result.SucceededCount} succeeded, {result.FailedCount} failed, {result.UnknownCount} unknown, {result.SkippedCount} not sent.");
             if (result.CreatedIds.Count > 0)
             {
                 OutputWriter.WriteLine("Created IDs:");

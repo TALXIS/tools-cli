@@ -8,13 +8,13 @@ using TALXIS.CLI.Logging;
 namespace TALXIS.CLI.Features.Environment.Data.Bulk;
 
 /// <summary>
-/// Updates multiple records of the same entity type in a single request
+/// Updates multiple records of the same entity type in batched requests
 /// using the Dataverse <c>UpdateMultiple</c> SDK message.
 /// </summary>
 [CliIdempotent]
 [CliCommand(
     Name = "update",
-    Description = "Updates multiple Dataverse records in a single batch request on the LIVE connected environment. Requires an active profile."
+    Description = "Updates multiple Dataverse records in batched requests on the LIVE connected environment. Requires an active profile."
 )]
 public class EnvDataBulkUpdateCliCommand : ProfiledCliCommand
 {
@@ -29,15 +29,22 @@ public class EnvDataBulkUpdateCliCommand : ProfiledCliCommand
     [CliOption(Name = "--data", Description = "Inline JSON array of records.", Required = false)]
     public string? Data { get; set; }
 
+    [CliOption(Name = "--batch-size", Description = "Records sent per request (1-1000). Keep it small for tables with slow synchronous plugins so each request finishes inside the client timeout.", Required = false)]
+    public int BatchSize { get; set; } = BulkInputHelper.DefaultBatchSize;
+
     protected override async Task<int> ExecuteAsync()
     {
         if (!BulkInputHelper.TryParseRecords(File, Data, Logger, out var records))
             return ExitValidationError;
+        if (!BulkInputHelper.IsValidBatchSize(BatchSize, Logger)) return ExitValidationError;
 
         var service = TxcServices.Get<IDataverseBulkService>();
-        var result = await service.UpdateMultipleAsync(Profile, Entity, records, CancellationToken.None).ConfigureAwait(false);
+        var result = await service.UpdateMultipleAsync(Profile, Entity, records, BatchSize, CancellationToken.None).ConfigureAwait(false);
 
         BulkOutputHelper.WriteResult("UpdateMultiple", result);
-        return ExitSuccess;
+        if (result.Error is null) return ExitSuccess;
+
+        Logger.LogError("{Error}", result.Error);
+        return ExitError;
     }
 }
