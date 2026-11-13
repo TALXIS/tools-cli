@@ -806,7 +806,10 @@ internal sealed class ChangesetApplier : IChangesetApplier
                         op.Parameters["targetEntity"]!.ToString()!,
                         Guid.Parse(op.Parameters["target"]!.ToString()!))
                 },
-                Relationship = new Relationship(op.Parameters["relationship"]!.ToString()!)
+                Relationship = ManyToManyRelationship.Create(
+                    op.Parameters["relationship"]!.ToString()!,
+                    op.Parameters["entity"]!.ToString()!,
+                    op.Parameters["targetEntity"]!.ToString()!)
             },
             ("record", "DISASSOCIATE") => new DisassociateRequest
             {
@@ -819,7 +822,10 @@ internal sealed class ChangesetApplier : IChangesetApplier
                         op.Parameters["targetEntity"]!.ToString()!,
                         Guid.Parse(op.Parameters["target"]!.ToString()!))
                 },
-                Relationship = new Relationship(op.Parameters["relationship"]!.ToString()!)
+                Relationship = ManyToManyRelationship.Create(
+                    op.Parameters["relationship"]!.ToString()!,
+                    op.Parameters["entity"]!.ToString()!,
+                    op.Parameters["targetEntity"]!.ToString()!)
             },
             ("file", "UPLOAD") => null, // File uploads use chunked API — handled separately
             _ => throw new NotSupportedException(

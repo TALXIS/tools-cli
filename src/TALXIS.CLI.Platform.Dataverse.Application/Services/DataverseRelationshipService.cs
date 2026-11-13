@@ -1,5 +1,6 @@
 using Microsoft.Xrm.Sdk;
 using TALXIS.CLI.Core.Contracts.Dataverse;
+using TALXIS.CLI.Platform.Dataverse.Data;
 using TALXIS.CLI.Platform.Dataverse.Runtime;
 
 namespace TALXIS.CLI.Platform.Dataverse.Application.Services;
@@ -24,7 +25,7 @@ internal sealed class DataverseRelationshipService : IDataverseRelationshipServi
         conn.Client.Associate(
             entityName,
             recordId,
-            new Relationship(relationshipName),
+            ManyToManyRelationship.Create(relationshipName, entityName, targetEntityName),
             new EntityReferenceCollection { new EntityReference(targetEntityName, targetRecordId) });
     }
 
@@ -42,7 +43,7 @@ internal sealed class DataverseRelationshipService : IDataverseRelationshipServi
         conn.Client.Disassociate(
             entityName,
             recordId,
-            new Relationship(relationshipName),
+            ManyToManyRelationship.Create(relationshipName, entityName, targetEntityName),
             new EntityReferenceCollection { new EntityReference(targetEntityName, targetRecordId) });
     }
 }
