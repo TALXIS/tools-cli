@@ -262,6 +262,12 @@ public sealed class CmtImportRunner
                     $"Data import completed with {_failedStageCount} failed stage(s). See console output above for details.");
             }
 
+            if (request.BatchMode)
+            {
+                var linkError = LinkManyToManyRows(crmServiceClient, workingFolder, request.BatchSize);
+                if (linkError is not null) return new CmtImportResult(false, linkError);
+            }
+
             _logger.LogInformation("Data import completed successfully.");
             return new CmtImportResult(true, null);
         }
@@ -289,6 +295,28 @@ public sealed class CmtImportRunner
                 _logger.LogDebug("Unresolved assemblies during CMT import: {Assemblies}", string.Join(", ", _unresolvedAssemblies));
             }
         }
+    }
+
+    /// <summary>
+    /// Links the N:N rows that CMT's batch mode skips. Returns an error message, or <see langword="null"/> on success.
+    /// </summary>
+    private string? LinkManyToManyRows(CrmServiceClient client, string workingFolder, int batchSize)
+    {
+        var links = CmtManyToManyLinker.ReadLinks(Path.Combine(workingFolder, "data.xml"));
+        if (links.Count == 0) return null;
+
+        _logger.LogInformation("Linking {Count} N:N row(s) from the package (batch mode skips links of rows that already existed)...", links.Count);
+        var result = CmtManyToManyLinker.Link(client, links, batchSize);
+        _logger.LogInformation("N:N rows: {Created} linked, {AlreadyLinked} already linked, {Failed} failed.", result.Created, result.AlreadyLinked, result.Errors.Count);
+
+        if (result.Errors.Count == 0) return null;
+
+        foreach (var error in result.Errors.Take(20))
+        {
+            _logger.LogError("N:N link failed: {Error}", error);
+        }
+
+        return $"{result.Errors.Count} of {links.Count} N:N row(s) could not be linked. See the errors above.";
     }
 
     /// <summary>

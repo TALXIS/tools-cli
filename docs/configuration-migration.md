@@ -138,7 +138,7 @@ txc data package import <path> [options]
 |---|---|---|---|---|
 | `<path>` *(argument)* | — | **Yes** | — | Path to the CMT data package (`.zip` file or folder containing `data.xml` and `data_schema.xml`). |
 | `--connection-count <N>` | — | No | `1` | Opens 1 primary management connection and `N-1` cloned worker connections. Only the cloned connections are used for parallel record import, so the effective parallelism is `N-1`. To get 4 parallel workers, pass `5`. |
-| `--batch-mode` | — | No | `false` | Send records in batches instead of one-by-one. Much faster for large imports. Batches use `ExecuteMultiple` or `UpsertMultiple` depending on org version. **⚠️ Even though the logs show M2M relationship records as processed, they are skipped in batch mode** — omit this flag or run a second pass without it if your package contains M2M relationships. |
+| `--batch-mode` | — | No | `false` | Send records in batches instead of one-by-one. Much faster for large imports. Batches use `ExecuteMultiple` or `UpsertMultiple` depending on org version. CMT skips M2M rows of records that already existed in batch mode, so txc links the M2M rows itself after the import and fails the command if any of them cannot be linked. |
 | `--batch-size <N>` | — | No | `600` | How many records to send per batch request. Only used when `--batch-mode` is on. Lower values are safer, higher values are faster. |
 | `--override-safety-checks` | — | No | `false` | **DANGEROUS:** Skip all duplicate checking. Every record will be created as new, even if it already exists. Use only when importing into a clean empty environment. |
 | `--prefetch-limit <N>` | — | No | `4000` | How many existing records to load into memory per entity for faster duplicate detection. If an entity has more records than this limit, each record is checked individually against the server (slower). Increase for large entities. |
@@ -683,9 +683,9 @@ txc data package import data.zip --connection-count 5
 
 When enabled, records are sent in batches using `ExecuteMultiple` requests instead of individual `Create` / `Update` calls. If the target organization is version **9.2.23083 or higher**, CMT automatically upgrades to `UpsertMultiple` for even better throughput.
 
-> **⚠️ Many-to-many (M2M) relationship records are skipped when `--batch-mode` is enabled.** CMT does not include M2M association records in batch requests. If your data package contains M2M relationships, import without `--batch-mode` or perform a second pass without it to populate those relationships.
+> **M2M rows in batch mode:** CMT's batch mode only remembers the records it created, so it skips the M2M rows of records that already existed and still reports success. txc works around this: after a `--batch-mode` import it links every M2M row from `data.xml` itself, counts rows that were already linked as done, and fails the command if any row cannot be linked.
 
-**When to use:** Any import with more than a few hundred records that does **not** rely on M2M relationships. The performance difference is dramatic — a 10,000-record import that takes 30 minutes one-by-one can complete in 2–3 minutes with batch mode.
+**When to use:** Any import with more than a few hundred records. The performance difference is dramatic — a 10,000-record import that takes 30 minutes one-by-one can complete in 2–3 minutes with batch mode.
 
 ```bash
 txc data package import data.zip --batch-mode
