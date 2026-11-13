@@ -26,7 +26,7 @@ public class DataPackageImportCliCommand : ProfiledCliCommand
     [DefaultValue(1)]
     public int ConnectionCount { get; set; } = 1;
 
-    [CliOption(Name = "--batch-mode", Description = "Send records in batches instead of one-by-one. Much faster for large imports. Batches use ExecuteMultiple or UpsertMultiple depending on org version. WARNING: M2M relationship records are skipped in batch mode — omit this flag or run a second pass without it if your package contains M2M relationships.", Required = false)]
+    [CliOption(Name = "--batch-mode", Description = "Send records in batches instead of one-by-one. Much faster for large imports. Batches use ExecuteMultiple or UpsertMultiple depending on org version. After the import, txc links the M2M rows itself, because CMT skips them in batch mode for rows that already existed.", Required = false)]
     [DefaultValue(false)]
     public bool BatchMode { get; set; }
 
