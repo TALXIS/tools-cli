@@ -39,9 +39,16 @@
     <EmbeddedResource Include="Skills/Internal/**" />
   </ItemGroup>
 
+  <!-- NuGet doesn't copy a package's XML doc file to the output directory by default; TestingBindingsCatalog
+       reads it (as a sibling of the .dll) to describe step bindings, so copy it explicitly when present. -->
+  <ItemGroup Condition="Exists('$(PkgTALXIS_TestKit_Bindings)/lib/net8.0/TALXIS.TestKit.Bindings.xml')">
+    <None Include="$(PkgTALXIS_TestKit_Bindings)/lib/net8.0/TALXIS.TestKit.Bindings.xml" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.5" />
     <PackageReference Include="ModelContextProtocol" Version="1.2.0" />
+    <PackageReference Include="TALXIS.TestKit.Bindings" Version="1.0.10" ExcludeAssets="build;buildTransitive" GeneratePathProperty="true" />
     <ProjectReference Include="../TALXIS.CLI/TALXIS.CLI.csproj" />
     <ProjectReference Include="../TALXIS.CLI.Features.Data/TALXIS.CLI.Features.Data.csproj" />
     <ProjectReference Include="../TALXIS.CLI.Features.Docs/TALXIS.CLI.Features.Docs.csproj" />
