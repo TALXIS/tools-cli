@@ -1,5 +1,5 @@
 using System.IO;
-using TALXIS.CLI.Features.Workspace;
+using TALXIS.CLI.Core.Resolution;
 using Xunit;
 
 namespace TALXIS.CLI.Tests.Workspace;

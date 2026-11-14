@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using TALXIS.CLI.Features.Data.DataModelConverter.Model;
@@ -26,6 +26,9 @@ public static class DBDiagramTranslator
                 break;
             case TableType.NotInSolution:
                 result += "[headercolor: #c0392b] ";
+                break;
+            case TableType.NotInApp:
+                result += "[headercolor: #7f8c8d] //declared outside this app \n";
                 break;
             case TableType.ConnectionTable:
                 result += "[headercolor: #27ae60] ";

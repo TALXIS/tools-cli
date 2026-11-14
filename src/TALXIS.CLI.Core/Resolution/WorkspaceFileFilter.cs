@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace TALXIS.CLI.Features.Workspace;
+namespace TALXIS.CLI.Core.Resolution;
 
 /// <summary>
 /// Decides whether a file inside the workspace should be excluded from
@@ -11,16 +11,16 @@ namespace TALXIS.CLI.Features.Workspace;
 ///         (<c>node_modules</c>, <c>bin</c>, <c>obj</c>, ...). Always
 ///         active unless the caller opts out.</item>
 ///   <item>Patterns parsed from a root-level <c>.gitignore</c>, when one
-///         exists. Subset of the gitignore spec — enough to cover the
+///         exists. Subset of the gitignore spec - enough to cover the
 ///         common "skip everything under foo/" pattern, deliberately
 ///         skips negations (<c>!pattern</c>).</item>
 /// </list>
 /// </summary>
-internal sealed class WorkspaceFileFilter
+public sealed class WorkspaceFileFilter
 {
     /// <summary>
     /// Throwaway directory names that should be skipped by default. Common
-    /// across .NET, Node.js, IDE, and build-output directories — none of
+    /// across .NET, Node.js, IDE, and build-output directories - none of
     /// these ever contain hand-authored Power Platform metadata.
     /// </summary>
     public static readonly IReadOnlyList<string> DefaultIgnoredDirectories = new[]
@@ -124,7 +124,7 @@ internal sealed class WorkspaceFileFilter
             if (isNodeProject)
                 return true;
 
-            // Stop at the workspace root — we don't want to walk above it.
+            // Stop at the workspace root - we don't want to walk above it.
             if (string.Equals(dir, root, StringComparison.OrdinalIgnoreCase))
                 return false;
 
@@ -267,7 +267,7 @@ internal sealed class WorkspaceFileFilter
                 {
                     if (i + 1 < glob.Length && glob[i + 1] == '*')
                     {
-                        // ** — any number of path segments.
+                        // ** - any number of path segments.
                         sb.Append(".*");
                         i++;
                         // Consume a following slash if present, so "**/foo" matches "foo" too.
@@ -276,7 +276,7 @@ internal sealed class WorkspaceFileFilter
                     }
                     else
                     {
-                        // * — any chars except '/'.
+                        // * - any chars except '/'.
                         sb.Append("[^/]*");
                     }
                 }
