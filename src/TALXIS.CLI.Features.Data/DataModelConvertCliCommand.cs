@@ -20,10 +20,17 @@ public class DataModelConvertCliCommand : TxcLeafCommand
     [CliOption(
         Name = "--input",
         Aliases = ["-i"],
-        Description = "Path to the input: a solution project folder (.cdsproj/.csproj with SolutionRootPath), a declarations folder, or a .zip solution file. Defaults to the current directory.",
+        Description = "Path to an input: a solution project folder (.cdsproj/.csproj with SolutionRootPath), a declarations folder, or a .zip solution file. Repeat the option to merge several inputs (earlier ones win on conflicts); defaults to the current directory when neither --input nor --root is given.",
         Required = false
     )]
-    public string? InputPath { get; set; }
+    public List<string> InputPaths { get; set; } = [];
+
+    [CliOption(
+        Name = "--root",
+        Description = "Folder to search for declarations folders, each of which becomes an input after any --input. Repeat the option for several folders; a folder with no declarations is an error.",
+        Required = false
+    )]
+    public List<string> Roots { get; set; } = [];
 
     [CliOption(
         Name = "--target",
@@ -43,7 +50,23 @@ public class DataModelConvertCliCommand : TxcLeafCommand
 
     protected override Task<int> ExecuteAsync()
     {
-        var inputPath = InputPath ?? Directory.GetCurrentDirectory();
+        var inputPaths = new List<string>(InputPaths);
+
+        foreach (var root in Roots)
+        {
+            var discovered = DataModelConverterService.DiscoverDeclarationFolders(root);
+            if (discovered.Count == 0)
+            {
+                throw new ArgumentException($"No declarations were found under root '{root}'. A declarations folder holds Entities/<table>/Entity.xml.");
+            }
+            inputPaths.AddRange(discovered);
+        }
+
+        if (InputPaths.Count == 0 && Roots.Count == 0)
+        {
+            inputPaths.Add(Directory.GetCurrentDirectory());
+        }
+
         var outputDir = OutputDirectory ?? Path.Combine(Directory.GetCurrentDirectory(), ExportsFolderName);
 
         Directory.CreateDirectory(outputDir);
@@ -52,7 +75,7 @@ public class DataModelConvertCliCommand : TxcLeafCommand
         var extension = TargetFormat!.ToLower() == "plainsql" ? "sql" : TargetFormat.ToLower();
         var outputFilePath = Path.Combine(outputDir, $"solution.{extension}");
 
-        DataModelConverterService.ConvertModel(inputPath, TargetFormat!, outputFilePath);
+        DataModelConverterService.ConvertModel(inputPaths, TargetFormat!, outputFilePath);
 
         OutputFormatter.WriteResult("succeeded", $"Output written to: {outputFilePath}");
         return Task.FromResult(ExitSuccess);
