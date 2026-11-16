@@ -406,12 +406,16 @@ Deletes a global option set. Destructive — requires `--yes`.
 | `--name` | Yes | Global option set name |
 | `--yes` | No | Skip confirmation prompt |
 
-### `txc env entity optionset global list`
+### `txc env optionset list`
 
-Lists all global option sets in the environment.
+Lists global option sets in the environment.
+
+| Option | Required | Description |
+|--------|----------|-------------|
+| `--search` | No | Show only option sets whose name or display name contains this text (case-insensitive) |
 
 ```sh
-txc env entity optionset global list
+txc env optionset list --search priority
 ```
 
 ### `txc env entity optionset option add`

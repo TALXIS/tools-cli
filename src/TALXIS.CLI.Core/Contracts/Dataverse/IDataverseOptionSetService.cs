@@ -66,10 +66,12 @@ public interface IDataverseOptionSetService
         CancellationToken ct);
 
     /// <summary>
-    /// Lists all global option sets in the environment.
+    /// Lists global option sets in the environment, optionally filtered by a
+    /// case-insensitive substring of the name or display name.
     /// </summary>
     Task<IReadOnlyList<GlobalOptionSetSummaryRecord>> ListGlobalOptionSetsAsync(
         string? profileName,
+        string? search,
         CancellationToken ct);
 
     /// <summary>

@@ -24,7 +24,7 @@ public class EnvDataQueryODataCliCommand : ProfiledCliCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EnvDataQueryODataCliCommand));
 
-    [CliArgument(Description = "The entity set name or OData path to query.")]
+    [CliArgument(Description = "The entity set name or OData path to query. Table metadata (EntityDefinitions) queries are limited; prefer 'env entity describe'.")]
     public string Entity { get; set; } = string.Empty;
 
     [CliOption(Name = "--select", Description = "Comma-separated list of columns to return ($select).", Required = false)]
@@ -52,4 +52,6 @@ public class EnvDataQueryODataCliCommand : ProfiledCliCommand
         EnvDataQuerySqlCliCommand.OutputQueryResult(result);
         return ExitSuccess;
     }
+
+    protected override string? GetFailureHint(Exception ex) => ODataMetadataPathHint.For(Entity);
 }

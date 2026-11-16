@@ -11,7 +11,8 @@ namespace TALXIS.CLI.Features.Environment.Component.Dependency;
 [CliReadOnly]
 [CliCommand(
     Name = "delete-check",
-    Description = "Check whether a component can be safely deleted by listing blocking dependencies."
+    Description = "Check whether a component in the live environment can be safely deleted by listing blocking dependencies. " +
+        "The result is in the output ('status': 'safe' or 'blocked'). Exit codes: 0 when the check ran (safe or blocked), 1 on a runtime error, 2 on invalid input."
 )]
 public class ComponentDependencyDeleteCheckCliCommand : ProfiledCliCommand
 {
@@ -73,6 +74,7 @@ public class ComponentDependencyDeleteCheckCliCommand : ProfiledCliCommand
             new { status = "blocked", componentId = componentId, componentType = typeName, blockingDependencies = deps.Count, dependencies = deps },
             _ => DependencyOutputHelper.PrintDependencyTable(deps, "Dependent", "Required",
                 $"Deleting component {componentId} ({typeName}) is blocked by {deps.Count} dependency(ies)."));
-        return ExitError;
+        // A blocked delete is a valid check result, not a command failure.
+        return ExitSuccess;
     }
 }

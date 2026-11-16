@@ -62,4 +62,6 @@ public class EntityAttributeDeleteCliCommand : StagedCliCommand, IDestructiveCom
         OutputWriter.WriteLine($"Attribute '{Name}' deleted from entity '{Entity}'.");
         return ExitSuccess;
     }
+
+    protected override string? GetFailureHint(Exception ex) => AttributeDeleteDependencyHint.For(ex, Entity, Name);
 }

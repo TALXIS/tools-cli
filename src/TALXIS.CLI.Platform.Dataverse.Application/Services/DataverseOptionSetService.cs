@@ -162,6 +162,7 @@ internal sealed class DataverseOptionSetService : IDataverseOptionSetService
     /// <inheritdoc />
     public async Task<IReadOnlyList<GlobalOptionSetSummaryRecord>> ListGlobalOptionSetsAsync(
         string? profileName,
+        string? search,
         CancellationToken ct)
     {
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
@@ -172,7 +173,7 @@ internal sealed class DataverseOptionSetService : IDataverseOptionSetService
         var response = (RetrieveAllOptionSetsResponse)
             await conn.Client.ExecuteAsync(new RetrieveAllOptionSetsRequest(), ct).ConfigureAwait(false);
 
-        return response.OptionSetMetadata
+        var rows = response.OptionSetMetadata
             .Where(os => os.IsGlobal == true)
             .OrderBy(os => os.Name, StringComparer.OrdinalIgnoreCase)
             .Select(os => new GlobalOptionSetSummaryRecord(
@@ -180,7 +181,24 @@ internal sealed class DataverseOptionSetService : IDataverseOptionSetService
                 DisplayName: os.DisplayName?.UserLocalizedLabel?.Label,
                 OptionSetType: os.OptionSetType?.ToString() ?? "Unknown",
                 OptionCount: os is OptionSetMetadata osm ? osm.Options.Count : 0,
-                IsCustomOptionSet: os.IsCustomOptionSet == true))
-            .ToList();
+                IsCustomOptionSet: os.IsCustomOptionSet == true));
+
+        return FilterBySearch(rows, search).ToList();
     }
+
+    /// <summary>
+    /// Keeps the rows whose name or display name contains <paramref name="search"/> (case-insensitive).
+    /// </summary>
+    internal static IEnumerable<GlobalOptionSetSummaryRecord> FilterBySearch(
+        IEnumerable<GlobalOptionSetSummaryRecord> rows, string? search)
+    {
+        if (string.IsNullOrWhiteSpace(search)) return rows;
+
+        return rows.Where(r =>
+            Contains(r.Name, search) ||
+            Contains(r.DisplayName, search));
+    }
+
+    private static bool Contains(string? value, string search) =>
+        value is not null && value.Contains(search, StringComparison.OrdinalIgnoreCase);
 }

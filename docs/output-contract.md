@@ -44,6 +44,8 @@ txc env entity list --format text
 
 The base class `TxcLeafCommand.RunAsync()` catches unhandled exceptions and returns `ExitError` (1) automatically. Commands only need explicit exit code handling for validation errors (2).
 
+A check whose answer is "no" is still a successful run: `env component dependency delete-check` exits 0 with `"status": "blocked"` in its output. Reserve non-zero codes for checks that could not run.
+
 ## Command implementation pattern
 
 Every leaf command **must** extend `TxcLeafCommand` (or `ProfiledCliCommand` for environment-facing commands):
@@ -81,6 +83,7 @@ public class WidgetListCliCommand : ProfiledCliCommand
 - **`OutputContext` setup** — applies the format flag with TTY auto-detection
 - **Standardized try/catch** — catches `ConfigurationResolutionException`, `OperationCanceledException`, and general exceptions
 - **`ILogger` requirement** — `protected abstract ILogger Logger` ensures every command has logging
+- **Failure hints** - override `GetFailureHint(Exception)` to append a next step (e.g. the command that explains the failure) to the error message
 - **Exit code constants** — `ExitSuccess` (0), `ExitError` (1), `ExitValidationError` (2)
 
 ### What commands must NOT do

@@ -8,23 +8,26 @@ using TALXIS.CLI.Logging;
 namespace TALXIS.CLI.Features.Environment.OptionSet;
 
 /// <summary>
-/// Lists all global option sets in the environment.
-/// Usage: <c>txc environment optionset list [--format json]</c>
+/// Lists global option sets in the environment.
+/// Usage: <c>txc environment optionset list [--search &lt;term&gt;] [--format json]</c>
 /// </summary>
 [CliReadOnly]
 [CliCommand(
     Name = "list",
-    Description = "List all global option sets in the environment."
+    Description = "List global option sets in the environment. Use --search to filter by name."
 )]
 #pragma warning disable TXC003
 public class OptionSetListCliCommand : ProfiledCliCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(OptionSetListCliCommand));
 
+    [CliOption(Name = "--search", Description = "Filter option sets by name or display name.", Required = false)]
+    public string? Search { get; set; }
+
     protected override async Task<int> ExecuteAsync()
     {
         var service = TxcServices.Get<IDataverseOptionSetService>();
-        var rows = await service.ListGlobalOptionSetsAsync(Profile, CancellationToken.None).ConfigureAwait(false);
+        var rows = await service.ListGlobalOptionSetsAsync(Profile, Search, CancellationToken.None).ConfigureAwait(false);
 
         OutputFormatter.WriteList(rows, PrintOptionSetsTable);
         return ExitSuccess;
