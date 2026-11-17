@@ -26,9 +26,11 @@ namespace TALXIS.CLI.Platform.Dataverse.Runtime;
 ///   <item><see cref="CredentialKind.WorkloadIdentityFederation"/> — fresh
 ///     assertion per call via <c>FederatedAssertionCallbacks.AutoSelect</c>;
 ///     MSAL caches the resulting access token in-memory for its lifetime.</item>
+///   <item><see cref="CredentialKind.ManagedIdentity"/> — endpoint-default
+///     identity selected by the host, with in-memory token caching only.</item>
 /// </list>
 /// <para>
-/// Kinds not yet supported (DeviceCode, ManagedIdentity, AzureCli, Pat)
+/// Kinds not yet supported (AzureCli, Pat)
 /// throw <see cref="NotSupportedException"/> with a remedy message.
 /// </para>
 /// </remarks>

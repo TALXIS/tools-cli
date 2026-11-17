@@ -123,6 +123,35 @@ txc config auth add-federated \
 
 At token acquisition time, the Dataverse provider auto-detects the expected GitHub Actions and Azure DevOps token request environment variables (or `AZURE_FEDERATED_TOKEN_FILE`).
 
+## Managed identity
+
+On an Azure host with managed identity enabled, create a profile without browser login, device codes, or stored secrets:
+
+```sh
+txc config profile create --url "$DATAVERSE_URL" --identity
+txc config profile validate
+```
+
+`--managedIdentity` and `--managed-identity` are equivalent to `--identity`. All three work in headless mode. The normal profile naming and selection rules apply, including `--no-select`.
+
+For credential-only setup, register a reusable credential first:
+
+```sh
+txc config auth login --identity --alias azure-host
+txc config connection create azure-target \
+  --provider dataverse \
+  --environment "$DATAVERSE_URL"
+txc config profile create --name azure --auth azure-host --connection azure-target
+```
+
+Credential registration does not request a token or verify access. Tokens are acquired when a resource is accessed; use `txc config profile validate` to verify the selected profile. Without `--alias`, the credential alias defaults to `managed-identity` (collision-resolved), and repeated setup reuses a matching credential.
+
+MSAL discovers the supported host endpoint automatically, including `MSI_ENDPOINT` and the standard App Service/IMDS endpoints. `txc` sends no identity selector: the endpoint chooses its default identity. There is no client-ID option for this flow, and `DEFAULT_IDENTITY_CLIENT_ID` is not read. Endpoints that require an explicit user-assigned identity selector are not supported by this mode.
+
+`--identity` cannot be combined with `--device-code` or with explicit profile binding (`--auth` / `--connection`). Endpoint or token failures never fall back to interactive authentication. Tokens are cached only in memory; no managed-identity token or endpoint secret is persisted.
+
+The identity still needs permission to access Dataverse and any other APIs a command uses. Environment-catalog discovery during profile creation remains best-effort; without catalog permissions, production guards may require `--allow-production` as described above.
+
 ## Override the target for one command
 
 Use `--profile` when you want to hit a different environment without switching the active default:

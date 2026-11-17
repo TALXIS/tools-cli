@@ -1,4 +1,5 @@
 using DotMake.CommandLine;
+using TALXIS.CLI.Features.Config.Auth;
 using TALXIS.CLI.Features.Config.Profile;
 using Xunit;
 
@@ -11,6 +12,22 @@ namespace TALXIS.CLI.Tests.Config.Commands.Profile;
 /// </summary>
 public sealed class OptionalArgumentParseTests
 {
+    [Theory]
+    [InlineData("--managedIdentity")]
+    [InlineData("--identity")]
+    [InlineData("--managed-identity")]
+    public void ManagedIdentityAliases_BindOnBothSetupCommands(string option)
+    {
+        var login = Cli.Parse<TALXIS.CLI.TxcCliCommand>(["config", "auth", "login", option]);
+        Assert.Empty(login.ParseResult.Errors);
+        Assert.True(login.Bind<AuthLoginCliCommand>().ManagedIdentity);
+
+        var profile = Cli.Parse<TALXIS.CLI.TxcCliCommand>(
+            ["config", "profile", "create", "--url", "https://contoso.crm.dynamics.com/", option]);
+        Assert.Empty(profile.ParseResult.Errors);
+        Assert.True(profile.Bind<ProfileCreateCliCommand>().ManagedIdentity);
+    }
+
     [Theory]
     [InlineData("config", "profile", "validate")]
     [InlineData("config", "profile", "get")]

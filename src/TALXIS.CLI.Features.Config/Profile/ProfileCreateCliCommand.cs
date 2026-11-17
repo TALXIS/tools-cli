@@ -44,11 +44,14 @@ public class ProfileCreateCliCommand : TxcLeafCommand
     [CliOption(Name = "--name", Aliases = ["-n"], Description = "Profile name (slug). Optional — derived from the Power Platform environment name and URL host, or from --connection when omitted.", Required = false)]
     public string? Name { get; set; }
 
-    [CliOption(Name = "--url", Description = "Service URL to bootstrap from. Triggers interactive sign-in (device code when no browser is available), credential upsert, and connection creation in one step.", Required = false)]
+    [CliOption(Name = "--url", Description = "Service URL to bootstrap from. Triggers sign-in (or managed-identity registration with --identity), credential upsert, and connection creation in one step.", Required = false)]
     public string? Url { get; set; }
 
     [CliOption(Name = "--no-select", Description = "Do not make the created profile active. Used only with --url.", Required = false)]
     public bool NoSelect { get; set; }
+
+    [CliOption(Name = "--managed-identity", Aliases = ["--managedIdentity", "--identity"], Description = "Use the host endpoint's default managed identity instead of interactive sign-in. Requires --url.", Required = false)]
+    public bool ManagedIdentity { get; set; }
 
     [CliOption(Name = "--provider", Description = "Connection provider. Optional in --url mode (inferred from the URL host).", Required = false)]
     public ProviderKind? Provider { get; set; }
@@ -92,6 +95,7 @@ public class ProfileCreateCliCommand : TxcLeafCommand
         // credential; explicit *references* one).
         if (hasUrl && (hasAuth || hasConnection)) return Mode.Invalid;
         if (NoSelect && !hasUrl) return Mode.Invalid;
+        if (ManagedIdentity && !hasUrl) return Mode.Invalid;
         if (hasUrl) return Mode.OneLiner;
         if (hasAuth && hasConnection) return Mode.Explicit;
         return Mode.Invalid;
@@ -100,7 +104,7 @@ public class ProfileCreateCliCommand : TxcLeafCommand
     private int LogUsageError()
     {
         Logger.LogError(
-            "Specify either --url <service-url> [--no-select] (quickstart) or --auth <alias> --connection <name> (advanced). " +
+            "Specify either --url <service-url> [--identity] [--no-select] (quickstart) or --auth <alias> --connection <name> (advanced). " +
             "Example: txc config profile create --url https://contoso.crm4.dynamics.com/");
         return ExitError;
     }
@@ -144,7 +148,8 @@ public class ProfileCreateCliCommand : TxcLeafCommand
             EnvironmentUrl: Url!,
             Cloud: Cloud,
             TenantId: Tenant,
-            Description: Description);
+            Description: Description,
+            ManagedIdentity: ManagedIdentity);
 
         var result = await bootstrapper.BootstrapAsync(request, CancellationToken.None).ConfigureAwait(false);
         if (result.Error is not null)
