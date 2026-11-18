@@ -37,7 +37,8 @@ internal sealed class CommandTestHost : IDisposable
         FakeConnectionProvider? dataverseProvider = null,
         FakePowerPlatformEnvironmentCatalog? environmentCatalog = null,
         TALXIS.CLI.Core.Platforms.PowerPlatform.IEnvironmentManagementService? environmentManagement = null,
-        Func<IConnectionStore, IConnectionStore>? decorateConnectionStore = null)
+        Func<IConnectionStore, IConnectionStore>? decorateConnectionStore = null,
+        IAccessTokenService? accessTokens = null)
     {
         Temp = new TempConfigDir();
         Vault = new FakeVault();
@@ -80,6 +81,8 @@ internal sealed class CommandTestHost : IDisposable
         services.AddSingleton<IEnvironmentTypeResolver, TALXIS.CLI.Platform.Dataverse.Runtime.DataverseEnvironmentTypeResolver>();
         if (environmentManagement is not null)
             services.AddSingleton(environmentManagement);
+        if (accessTokens is not null)
+            services.AddSingleton(accessTokens);
         services.AddSingleton(_ =>
             MsalTokenCacheBinder
                 .CreateForTestingAsync(VaultOptions.MsalTokenCache(envReader), Temp.Paths)

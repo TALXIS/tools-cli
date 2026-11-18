@@ -146,6 +146,8 @@ txc config profile create --name azure --auth azure-host --connection azure-targ
 
 Credential registration does not request a token or verify access. Tokens are acquired when a resource is accessed; use `txc config profile validate` to verify the selected profile. Without `--alias`, the credential alias defaults to `managed-identity` (collision-resolved), and repeated setup reuses a matching credential.
 
+`txc config auth get <alias>` requests a token from the endpoint to show the identity's `tenantId`, `applicationId` (client ID), and `objectId`; these values are not saved. With `--check-token`, a credential not used by any profile is checked against the Power Platform admin API (`https://service.powerapps.com/`).
+
 MSAL discovers the supported host endpoint automatically, including `MSI_ENDPOINT` and the standard App Service/IMDS endpoints. `txc` sends no identity selector: the endpoint chooses its default identity. There is no client-ID option for this flow, and `DEFAULT_IDENTITY_CLIENT_ID` is not read. Endpoints that require an explicit user-assigned identity selector are not supported by this mode.
 
 `--identity` cannot be combined with `--device-code` or with explicit profile binding (`--auth` / `--connection`). Endpoint or token failures never fall back to interactive authentication. Tokens are cached only in memory; no managed-identity token or endpoint secret is persisted.
