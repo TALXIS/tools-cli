@@ -14,7 +14,8 @@ public sealed record ProfileBootstrapRequest(
     string EnvironmentUrl,
     CloudInstance? Cloud,
     string? TenantId,
-    string? Description);
+    string? Description,
+    bool ManagedIdentity = false);
 
 /// <summary>
 /// Outcome of a bootstrap attempt. <see cref="Error"/> is populated on

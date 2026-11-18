@@ -1,4 +1,5 @@
 using Microsoft.Identity.Client;
+using Microsoft.Identity.Client.AppConfig;
 using TALXIS.CLI.Core.Abstractions;
 using TALXIS.CLI.Core.Model;
 
@@ -6,7 +7,8 @@ namespace TALXIS.CLI.Core.Identity;
 
 /// <summary>
 /// Builds MSAL public- and confidential-client applications wired to the
-/// correct Entra authority. Callers (connection providers, auth commands)
+/// correct Entra authority, and endpoint-default managed-identity applications.
+/// Callers (connection providers, auth commands)
 /// never instantiate MSAL builders directly — this is the single place
 /// that pins our client constants and authority policy.
 /// </summary>
@@ -32,6 +34,13 @@ public sealed class MsalClientFactory
 
     /// <summary>Redirect URI registered on the <see cref="PublicClientId"/> app.</summary>
     public const string PublicRedirectUri = "http://localhost";
+
+    /// <summary>
+    /// Lets MSAL discover the host's managed-identity endpoint and request its
+    /// default identity, without a client-id selector or persistent token cache.
+    /// </summary>
+    public IManagedIdentityApplication BuildManagedIdentityClient()
+        => ManagedIdentityApplicationBuilder.Create(ManagedIdentityId.SystemAssigned).Build();
 
     /// <summary>
     /// Builds a public-client application (interactive / device-code / silent)

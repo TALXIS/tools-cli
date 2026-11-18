@@ -207,5 +207,6 @@ public sealed class EnvironmentManagementService : IEnvironmentManagementService
             or CredentialKind.DeviceCode
             or CredentialKind.ClientSecret
             or CredentialKind.ClientCertificate
-            or CredentialKind.WorkloadIdentityFederation;
+            or CredentialKind.WorkloadIdentityFederation
+            or CredentialKind.ManagedIdentity;
 }

@@ -23,6 +23,9 @@ public class AuthGetCliCommand : TxcLeafCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(AuthGetCliCommand));
 
+    /// <summary>Tenant-level Power Platform admin (BAP) audience — same one <c>txc env list</c> uses.</summary>
+    private static readonly Uri PowerPlatformAdminAudience = new("https://service.powerapps.com/");
+
     [CliArgument(Description = "Credential alias (id).")]
     public required string Alias { get; set; }
 
@@ -45,6 +48,12 @@ public class AuthGetCliCommand : TxcLeafCommand
             return ExitValidationError;
         }
 
+        // Managed identity credentials are saved without tenant/app ids (the
+        // endpoint decides the identity), so resolve them from a live token.
+        var resolved = cred.Kind == CredentialKind.ManagedIdentity
+            ? await ResolveManagedIdentityClaimsAsync(cred).ConfigureAwait(false)
+            : null;
+
         object? tokenDiagnostics = null;
         if (CheckToken)
         {
@@ -55,8 +64,9 @@ public class AuthGetCliCommand : TxcLeafCommand
         {
             id = cred.Id,
             kind = cred.Kind,
-            tenantId = cred.TenantId,
-            applicationId = cred.ApplicationId,
+            tenantId = cred.TenantId ?? resolved?.TenantId,
+            applicationId = cred.ApplicationId ?? resolved?.ApplicationId,
+            objectId = resolved?.ObjectId,
             cloud = cred.Cloud,
             description = cred.Description,
             audience = cred.Audience,
@@ -90,7 +100,18 @@ public class AuthGetCliCommand : TxcLeafCommand
 
             if (matchingProfile is null)
             {
-                return new { status = "skipped", reason = "No profile found referencing this credential." };
+                // No environment to probe — fall back to the tenant-level
+                // Power Platform admin API, which every supported kind can reach.
+                var adminToken = await tokenService.AcquireForResourceAsync(
+                    BuildTenantConnection(cred), cred, PowerPlatformAdminAudience, CancellationToken.None).ConfigureAwait(false);
+                var adminExpiry = TryParseJwtExpiry(adminToken);
+                return new
+                {
+                    status = "valid",
+                    resource = PowerPlatformAdminAudience.ToString(),
+                    expiresOn = adminExpiry?.ToString("o"),
+                    expiresInMinutes = adminExpiry.HasValue ? Math.Round((adminExpiry.Value - DateTimeOffset.UtcNow).TotalMinutes, 1) : (double?)null,
+                };
             }
 
             var targetConnection = await connectionStore.GetAsync(matchingProfile.ConnectionRef, CancellationToken.None).ConfigureAwait(false);
@@ -133,6 +154,64 @@ public class AuthGetCliCommand : TxcLeafCommand
     /// </summary>
     private static DateTimeOffset? TryParseJwtExpiry(string token)
     {
+        using var doc = TryReadJwtPayload(token);
+        if (doc is not null
+            && doc.RootElement.TryGetProperty("exp", out var expElement)
+            && expElement.TryGetInt64(out var exp))
+        {
+            return DateTimeOffset.FromUnixTimeSeconds(exp);
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Acquires a token from the managed identity endpoint and reads the
+    /// identity's tenant (<c>tid</c>), client id (<c>appid</c>/<c>azp</c>)
+    /// and principal object id (<c>oid</c>). Display-only — nothing is
+    /// persisted, because this command is read-only.
+    /// </summary>
+    private async Task<ManagedIdentityClaims?> ResolveManagedIdentityClaimsAsync(Credential cred)
+    {
+        try
+        {
+            var tokenService = TxcServices.Get<IAccessTokenService>();
+            var token = await tokenService.AcquireForResourceAsync(
+                BuildTenantConnection(cred), cred, PowerPlatformAdminAudience, CancellationToken.None).ConfigureAwait(false);
+
+            using var doc = TryReadJwtPayload(token);
+            if (doc is null) return null;
+            return new ManagedIdentityClaims(
+                ReadStringClaim(doc.RootElement, "tid"),
+                ReadStringClaim(doc.RootElement, "appid") ?? ReadStringClaim(doc.RootElement, "azp"),
+                ReadStringClaim(doc.RootElement, "oid"));
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning("Could not resolve managed identity details for '{Alias}': {Error}", cred.Id, ex.InnerException?.Message ?? ex.Message);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Tenant-level connection used when no profile/environment is involved,
+    /// mirroring the fallback used by <c>txc env list</c>.
+    /// </summary>
+    private static TALXIS.CLI.Core.Model.Connection BuildTenantConnection(Credential cred) => new()
+    {
+        Id = $"auth:{cred.Id}",
+        Provider = ProviderKind.Dataverse,
+        Cloud = cred.Cloud ?? CloudInstance.Public,
+        TenantId = cred.TenantId,
+    };
+
+    private static string? ReadStringClaim(System.Text.Json.JsonElement payload, string name)
+        => payload.TryGetProperty(name, out var value) && value.ValueKind == System.Text.Json.JsonValueKind.String
+            ? value.GetString()
+            : null;
+
+    /// <summary>Decodes a JWT payload (no signature validation — display only).</summary>
+    private static System.Text.Json.JsonDocument? TryReadJwtPayload(string token)
+    {
         try
         {
             var parts = token.Split('.');
@@ -148,16 +227,14 @@ public class AuthGetCliCommand : TxcLeafCommand
             }
 
             var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(payload));
-            using var doc = System.Text.Json.JsonDocument.Parse(json);
-            if (doc.RootElement.TryGetProperty("exp", out var expElement) && expElement.TryGetInt64(out var exp))
-            {
-                return DateTimeOffset.FromUnixTimeSeconds(exp);
-            }
+            return System.Text.Json.JsonDocument.Parse(json);
         }
         catch
         {
             // Best-effort diagnostics — JWT parsing failure is not critical.
+            return null;
         }
-        return null;
     }
+
+    private sealed record ManagedIdentityClaims(string? TenantId, string? ApplicationId, string? ObjectId);
 }

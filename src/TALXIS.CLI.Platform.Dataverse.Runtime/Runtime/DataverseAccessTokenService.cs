@@ -15,6 +15,7 @@ namespace TALXIS.CLI.Platform.Dataverse.Runtime;
 /// shared <see cref="MsalClientFactory"/> + token-cache binder so
 /// all credential kinds go through one code path for authority selection,
 /// scope construction, and cache attachment.
+/// Managed identity uses MSAL's endpoint discovery and in-memory caching only.
 /// </summary>
 /// <remarks>
 /// An <see cref="InMemoryTokenCache"/> sits in front of MSAL to avoid
@@ -107,10 +108,11 @@ public sealed class DataverseAccessTokenService : IDataverseAccessTokenService
                 CredentialKind.ClientSecret => await AcquireClientSecretAsync(connection, credential, scope, cacheKey, ct).ConfigureAwait(false),
                 CredentialKind.ClientCertificate => await AcquireClientCertificateAsync(connection, credential, scope, cacheKey, ct).ConfigureAwait(false),
                 CredentialKind.WorkloadIdentityFederation => await AcquireFederatedAsync(connection, credential, scope, cacheKey, ct).ConfigureAwait(false),
-                CredentialKind.ManagedIdentity or CredentialKind.AzureCli or CredentialKind.Pat =>
+                CredentialKind.ManagedIdentity => await AcquireManagedIdentityAsync(resourceUri, cacheKey, ct).ConfigureAwait(false),
+                CredentialKind.AzureCli or CredentialKind.Pat =>
                     throw new NotSupportedException(
                         $"Credential kind {credential.Kind} is reserved but not yet wired for Dataverse token acquisition in this release. " +
-                        "Use InteractiveBrowser, DeviceCode, ClientSecret, ClientCertificate, or WorkloadIdentityFederation."),
+                        "Use InteractiveBrowser, DeviceCode, ClientSecret, ClientCertificate, WorkloadIdentityFederation, or ManagedIdentity."),
                 _ => throw new NotSupportedException($"Unknown credential kind: {credential.Kind}"),
             };
         }
@@ -118,6 +120,17 @@ public sealed class DataverseAccessTokenService : IDataverseAccessTokenService
         {
             keyLock.Release();
         }
+    }
+
+    private async Task<string> AcquireManagedIdentityAsync(Uri resourceUri, string cacheKey, CancellationToken ct)
+    {
+        var app = _clientFactory.BuildManagedIdentityClient();
+        var result = await app
+            .AcquireTokenForManagedIdentity(resourceUri.GetLeftPart(UriPartial.Authority))
+            .ExecuteAsync(ct)
+            .ConfigureAwait(false);
+        _tokenCache.Set(cacheKey, result);
+        return result.AccessToken;
     }
 
     private async Task<string> AcquirePublicClientSilentAsync(

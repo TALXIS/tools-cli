@@ -12,6 +12,102 @@ namespace TALXIS.CLI.Tests.Config.Commands.Auth;
 [Collection("TxcServicesSerial")]
 public sealed class AuthLoginCommandTests
 {
+    [Theory]
+    [InlineData(null)]
+    [InlineData("azure-host")]
+    public async Task ManagedIdentity_RegistersAndReusesSecretlessCredential_Headlessly(string? alias)
+    {
+        using var host = new CommandTestHost(headless: true);
+        var store = (ICredentialStore)host.Provider.GetService(typeof(ICredentialStore))!;
+        using var output = new StringWriter();
+        using (OutputWriter.RedirectTo(output))
+        {
+            Assert.Equal(0, await new AuthLoginCliCommand { ManagedIdentity = true, Alias = alias }.RunAsync());
+            var original = Assert.Single(await store.ListAsync(default));
+            Assert.Equal(0, await new AuthLoginCliCommand { ManagedIdentity = true, Alias = alias }.RunAsync());
+            var credential = Assert.Single(await store.ListAsync(default));
+
+            Assert.Equal(alias ?? "managed-identity", credential.Id);
+            Assert.Equal(CredentialKind.ManagedIdentity, credential.Kind);
+            Assert.Equal(original.CreatedAt, credential.CreatedAt);
+            Assert.Null(credential.ApplicationId);
+            Assert.Null(credential.SecretRef);
+            Assert.Null(credential.InteractiveUpn);
+            Assert.Null(credential.InteractiveAccountId);
+            Assert.Equal(0, host.Login.Calls);
+            Assert.Empty(host.Vault.Contents);
+        }
+    }
+
+    [Fact]
+    public async Task ManagedIdentity_DefaultAlias_DoesNotReplaceAnotherCredentialKind()
+    {
+        using var host = new CommandTestHost(headless: true);
+        var store = (ICredentialStore)host.Provider.GetService(typeof(ICredentialStore))!;
+        await store.UpsertAsync(new Credential { Id = "managed-identity", Kind = CredentialKind.ClientSecret }, default);
+
+        using (OutputWriter.RedirectTo(new StringWriter()))
+        {
+            Assert.Equal(0, await new AuthLoginCliCommand { ManagedIdentity = true }.RunAsync());
+            Assert.Equal(0, await new AuthLoginCliCommand { ManagedIdentity = true }.RunAsync());
+        }
+
+        var credentials = await store.ListAsync(default);
+        Assert.Equal(2, credentials.Count);
+        Assert.Contains(credentials, c => c.Id == "managed-identity" && c.Kind == CredentialKind.ClientSecret);
+        Assert.Contains(credentials, c => c.Id == "managed-identity-2" && c.Kind == CredentialKind.ManagedIdentity);
+    }
+
+    [Fact]
+    public async Task ManagedIdentity_WithDeviceCode_RejectsBeforeSaving()
+    {
+        using var host = new CommandTestHost();
+        using (OutputWriter.RedirectTo(new StringWriter()))
+            Assert.NotEqual(0, await new AuthLoginCliCommand { ManagedIdentity = true, DeviceCode = true }.RunAsync());
+
+        var store = (ICredentialStore)host.Provider.GetService(typeof(ICredentialStore))!;
+        Assert.Empty(await store.ListAsync(default));
+        Assert.Equal(0, host.Login.Calls);
+    }
+
+    [Fact]
+    public async Task ManagedIdentity_ExplicitAlias_RejectsAnotherCredentialKind()
+    {
+        using var host = new CommandTestHost(headless: true);
+        var store = (ICredentialStore)host.Provider.GetService(typeof(ICredentialStore))!;
+        await store.UpsertAsync(new Credential { Id = "existing", Kind = CredentialKind.ClientSecret }, default);
+
+        using (OutputWriter.RedirectTo(new StringWriter()))
+            Assert.NotEqual(0, await new AuthLoginCliCommand { ManagedIdentity = true, Alias = "existing" }.RunAsync());
+
+        Assert.Equal(CredentialKind.ClientSecret, Assert.Single(await store.ListAsync(default)).Kind);
+        Assert.Equal(0, host.Login.Calls);
+    }
+
+    [Fact]
+    public async Task ManagedIdentity_ReusesMatchingTenantAndCloud_WithoutReplacingOtherBindings()
+    {
+        using var host = new CommandTestHost(headless: true);
+        var store = (ICredentialStore)host.Provider.GetService(typeof(ICredentialStore))!;
+
+        using (OutputWriter.RedirectTo(new StringWriter()))
+        {
+            Assert.Equal(0, await new AuthLoginCliCommand { ManagedIdentity = true }.RunAsync());
+            for (var i = 0; i < 2; i++)
+                Assert.Equal(0, await new AuthLoginCliCommand
+                {
+                    ManagedIdentity = true,
+                    Tenant = "contoso.onmicrosoft.com",
+                    Cloud = CloudInstance.GccHigh,
+                }.RunAsync());
+        }
+
+        var credentials = await store.ListAsync(default);
+        Assert.Equal(2, credentials.Count);
+        Assert.Contains(credentials, c => c.Cloud == CloudInstance.Public && c.TenantId is null);
+        Assert.Contains(credentials, c => c.Cloud == CloudInstance.GccHigh && c.TenantId == "contoso.onmicrosoft.com");
+    }
+
     [Fact]
     public async Task Login_PersistsCredential_WithUpnAlias()
     {

@@ -11,6 +11,7 @@ namespace TALXIS.CLI.Platform.Dataverse.Runtime.Bootstrapping;
 /// <summary>
 /// Dataverse implementation of <see cref="IConnectionProviderBootstrapper"/>.
 /// Drives: sign-in (<see cref="CredentialSignInService"/> picks browser or device code)
+/// or secretless managed-identity registration
 /// → credential alias resolve + upsert → connection upsert. Called by
 /// <c>profile create --url</c>.
 /// </summary>
@@ -18,6 +19,7 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
 {
     private readonly CredentialSignInService _signIn;
     private readonly ICredentialStore _credentials;
+    private readonly IHeadlessDetector _headless;
     private readonly ConnectionUpsertService _connectionUpserts;
     private readonly IConnectionStore _connectionStore;
     private readonly IProfileStore _profiles;
@@ -27,6 +29,7 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
     public DataverseConnectionProviderBootstrapper(
         CredentialSignInService signIn,
         ICredentialStore credentials,
+        IHeadlessDetector headless,
         ConnectionUpsertService connections,
         IConnectionStore connectionStore,
         IProfileStore profiles,
@@ -35,6 +38,7 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
     {
         _signIn = signIn ?? throw new ArgumentNullException(nameof(signIn));
         _credentials = credentials ?? throw new ArgumentNullException(nameof(credentials));
+        _headless = headless ?? throw new ArgumentNullException(nameof(headless));
         _connectionUpserts = connections ?? throw new ArgumentNullException(nameof(connections));
         _connectionStore = connectionStore ?? throw new ArgumentNullException(nameof(connectionStore));
         _profiles = profiles ?? throw new ArgumentNullException(nameof(profiles));
@@ -63,32 +67,46 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
             ?? DataverseCloudMap.TryInferFromEnvironmentUrl(environmentUrl)
             ?? CloudInstance.Public;
 
-        _logger.LogInformation("Signing in for '{Url}'...", request.EnvironmentUrl);
-        var acquired = (await _signIn.SignInAsync(
-            request.TenantId, cloud, explicitAlias: null, forceDeviceCode: false, ct).ConfigureAwait(false)).Credential;
+        Credential credential;
+        string? upn = null;
+        if (request.ManagedIdentity)
+        {
+            _logger.LogInformation("Registering the endpoint-default managed identity for '{Url}'...", request.EnvironmentUrl);
+            credential = await ManagedIdentityCredentialBootstrapper.RegisterAsync(
+                _credentials, _headless, request.TenantId, cloud, explicitAlias: null, ct).ConfigureAwait(false);
+        }
+        else
+        {
+            _logger.LogInformation("Signing in for '{Url}'...", request.EnvironmentUrl);
+            var acquired = (await _signIn.SignInAsync(
+                request.TenantId, cloud, explicitAlias: null, forceDeviceCode: false, ct).ConfigureAwait(false)).Credential;
+            credential = acquired.Credential;
+            upn = acquired.Upn;
+        }
 
-        var names = await ResolveBindingNamesAsync(request, environmentUrl, cloud, acquired, ct).ConfigureAwait(false);
+        var names = await ResolveBindingNamesAsync(request, environmentUrl, cloud, credential, upn, ct).ConfigureAwait(false);
         if (names is null)
         {
             return new ProfileBootstrapResult(
                 string.Empty,
-                acquired.Credential,
+                credential,
                 null,
-                acquired.Upn,
+                upn,
                 $"Cannot derive a profile name from environment '{request.EnvironmentUrl}'. Pass --name explicitly.");
         }
 
         // Now that the environment URL is confirmed, capture the audience
         // and scopes on the credential so token acquisition can use them
         // and diagnostics can report what the credential was consented for.
-        if (Uri.TryCreate(request.EnvironmentUrl, UriKind.Absolute, out var envUriForScopes))
+        // Managed identities have no interactive consent or fixed audience.
+        if (!request.ManagedIdentity && Uri.TryCreate(request.EnvironmentUrl, UriKind.Absolute, out var envUriForScopes))
         {
             var authority = envUriForScopes.GetLeftPart(UriPartial.Authority);
-            if (string.IsNullOrEmpty(acquired.Credential.Audience))
+            if (string.IsNullOrEmpty(credential.Audience))
             {
-                acquired.Credential.Audience = authority;
-                acquired.Credential.Scopes = new[] { authority + "//.default" };
-                await _credentials.UpsertAsync(acquired.Credential, ct).ConfigureAwait(false);
+                credential.Audience = authority;
+                credential.Scopes = new[] { authority + "//.default" };
+                await _credentials.UpsertAsync(credential, ct).ConfigureAwait(false);
             }
         }
 
@@ -99,16 +117,16 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
             cloud,
             organizationId: names.Environment.OrganizationId?.ToString(),
             environmentId: names.Environment.EnvironmentId?.ToString(),
-            tenantId: request.TenantId ?? acquired.TenantId,
+            tenantId: request.TenantId ?? credential.TenantId,
             description: request.Description,
             ct,
             displayName: names.Environment.DisplayName,
             environmentType: names.Environment.EnvironmentType).ConfigureAwait(false);
 
         if (upsert.Error is not null)
-            return new ProfileBootstrapResult(names.ProfileName, acquired.Credential, null, acquired.Upn, upsert.Error);
+            return new ProfileBootstrapResult(names.ProfileName, credential, null, upn, upsert.Error);
 
-        return new ProfileBootstrapResult(names.ProfileName, acquired.Credential, upsert.Connection, acquired.Upn, null);
+        return new ProfileBootstrapResult(names.ProfileName, credential, upsert.Connection, upn, null);
     }
 
     private sealed record EnvironmentMetadata(
@@ -126,18 +144,19 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
         ProfileBootstrapRequest request,
         Uri environmentUrl,
         CloudInstance cloud,
-        InteractiveCredentialResult acquired,
+        Credential credential,
+        string? upn,
         CancellationToken ct)
     {
         var explicitName = string.IsNullOrWhiteSpace(request.Name) ? null : request.Name.Trim();
-        var existingConnection = await FindExistingConnectionAsync(request, cloud, acquired, ct).ConfigureAwait(false);
+        var existingConnection = await FindExistingConnectionAsync(request, cloud, credential, ct).ConfigureAwait(false);
         var existingProfile = existingConnection is null
             ? null
-            : await FindExistingProfileAsync(existingConnection.Id, acquired.Credential.Id, ct).ConfigureAwait(false);
+            : await FindExistingProfileAsync(existingConnection.Id, credential.Id, ct).ConfigureAwait(false);
 
         // Look up environment metadata on every path, not only when deriving a
         // name, so the guard can tell the environment type.
-        var environment = await TryGetEnvironmentAsync(request, environmentUrl, cloud, acquired, ct).ConfigureAwait(false);
+        var environment = await TryGetEnvironmentAsync(request, environmentUrl, cloud, credential, ct).ConfigureAwait(false);
 
         // Fall back to stored metadata so a failed lookup does not wipe it.
         Guid? organizationId = environment?.OrganizationId;
@@ -165,13 +184,13 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
         {
             // Include tenant domain in the slug so multi-customer users can
             // distinguish environments across tenants at a glance.
-            var tenantDomain = CredentialAliasResolver.ExtractTenantShortName(acquired.Upn);
+            var tenantDomain = upn is null ? null : CredentialAliasResolver.ExtractTenantShortName(upn);
             preferredBase = ProviderUrlResolver.DeriveDefaultName(environment.DisplayName, request.EnvironmentUrl, tenantDomain);
         }
 
         if (string.IsNullOrEmpty(preferredBase))
         {
-            var tenantDomain = CredentialAliasResolver.ExtractTenantShortName(acquired.Upn);
+            var tenantDomain = upn is null ? null : CredentialAliasResolver.ExtractTenantShortName(upn);
             preferredBase = ProviderUrlResolver.DeriveDefaultName(null, request.EnvironmentUrl, tenantDomain);
         }
         if (string.IsNullOrEmpty(preferredBase))
@@ -204,7 +223,7 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
         ProfileBootstrapRequest request,
         Uri environmentUrl,
         CloudInstance cloud,
-        InteractiveCredentialResult acquired,
+        Credential credential,
         CancellationToken ct)
     {
         var ephemeralConnection = new Connection
@@ -213,13 +232,13 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
             Provider = request.Provider,
             EnvironmentUrl = environmentUrl.ToString().TrimEnd('/'),
             Cloud = cloud,
-            TenantId = request.TenantId ?? acquired.TenantId,
+            TenantId = request.TenantId ?? credential.TenantId,
         };
 
         try
         {
             return await _environmentCatalog
-                .TryGetByEnvironmentUrlAsync(ephemeralConnection, acquired.Credential, environmentUrl, ct)
+                .TryGetByEnvironmentUrlAsync(ephemeralConnection, credential, environmentUrl, ct)
                 .ConfigureAwait(false);
         }
         catch (Exception ex) when (!ct.IsCancellationRequested)
@@ -236,7 +255,7 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
     private async Task<Connection?> FindExistingConnectionAsync(
         ProfileBootstrapRequest request,
         CloudInstance cloud,
-        InteractiveCredentialResult acquired,
+        Credential credential,
         CancellationToken ct)
     {
         if (!Uri.TryCreate(request.EnvironmentUrl, UriKind.Absolute, out var environmentUrl))
@@ -251,7 +270,7 @@ public sealed class DataverseConnectionProviderBootstrapper : IConnectionProvide
             .Where(c => c.Cloud == cloud)
             .Where(c =>
                 string.IsNullOrWhiteSpace(c.TenantId)
-                || string.Equals(c.TenantId, request.TenantId ?? acquired.TenantId, StringComparison.OrdinalIgnoreCase))
+                || string.Equals(c.TenantId, request.TenantId ?? credential.TenantId, StringComparison.OrdinalIgnoreCase))
             .OrderBy(c => c.Id, StringComparer.OrdinalIgnoreCase)
             .FirstOrDefault();
     }

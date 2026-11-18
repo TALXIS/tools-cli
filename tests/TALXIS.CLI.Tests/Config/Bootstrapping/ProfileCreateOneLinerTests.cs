@@ -16,6 +16,67 @@ public sealed class ProfileCreateOneLinerTests
     private const string DevboxUrl = "https://devbox.crm4.dynamics.com/";
     private const string ContosoUrl = "https://contoso.crm4.dynamics.com/";
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ManagedIdentity_HeadlessSetup_ReusesBindingsWithoutInteractiveMetadata(bool noSelect)
+    {
+        using var host = new CommandTestHost(headless: true);
+        var profiles = (IProfileStore)host.Provider.GetService(typeof(IProfileStore))!;
+        var credentials = (ICredentialStore)host.Provider.GetService(typeof(ICredentialStore))!;
+        var connections = (IConnectionStore)host.Provider.GetService(typeof(IConnectionStore))!;
+        var global = (IGlobalConfigStore)host.Provider.GetService(typeof(IGlobalConfigStore))!;
+        await global.SaveAsync(new GlobalConfig { ActiveProfile = "existing" }, default);
+
+        for (var i = 0; i < 2; i++)
+        {
+            using var output = new StringWriter();
+            using (OutputWriter.RedirectTo(output))
+                Assert.Equal(0, await new ProfileCreateCliCommand
+                {
+                    Url = ContosoUrl,
+                    ManagedIdentity = true,
+                    NoSelect = noSelect,
+                }.RunAsync());
+
+            using var doc = JsonDocument.Parse(output.ToString());
+            Assert.False(doc.RootElement.TryGetProperty("upn", out _));
+        }
+
+        var profile = Assert.Single(await profiles.ListAsync(default));
+        var credential = Assert.Single(await credentials.ListAsync(default));
+        var connection = Assert.Single(await connections.ListAsync(default));
+        Assert.Equal(credential.Id, profile.CredentialRef);
+        Assert.Equal(connection.Id, profile.ConnectionRef);
+        Assert.Equal(CredentialKind.ManagedIdentity, credential.Kind);
+        Assert.Null(credential.ApplicationId);
+        Assert.Null(credential.SecretRef);
+        Assert.Null(credential.InteractiveUpn);
+        Assert.Null(credential.InteractiveAccountId);
+        Assert.Null(credential.Audience);
+        Assert.Null(credential.Scopes);
+        Assert.Equal(0, host.Login.Calls);
+        Assert.Equal(noSelect ? "existing" : profile.Id, (await global.LoadAsync(default)).ActiveProfile);
+    }
+
+    [Fact]
+    public async Task ManagedIdentity_ExplicitBindingMode_RejectsBeforeSaving()
+    {
+        using var host = new CommandTestHost();
+        using (OutputWriter.RedirectTo(new StringWriter()))
+            Assert.NotEqual(0, await new ProfileCreateCliCommand
+            {
+                Auth = "cred",
+                Connection = "conn",
+                ManagedIdentity = true,
+            }.RunAsync());
+
+        Assert.Empty(await ((IProfileStore)host.Provider.GetService(typeof(IProfileStore))!).ListAsync(default));
+        Assert.Empty(await ((ICredentialStore)host.Provider.GetService(typeof(ICredentialStore))!).ListAsync(default));
+        Assert.Empty(await ((IConnectionStore)host.Provider.GetService(typeof(IConnectionStore))!).ListAsync(default));
+        Assert.Equal(0, host.Login.Calls);
+    }
+
     private static async Task<Connection> GetConnectionAsync(CommandTestHost host, string id)
     {
         var connection = await ((IConnectionStore)host.Provider.GetService(typeof(IConnectionStore))!).GetAsync(id, default);

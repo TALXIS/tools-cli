@@ -43,6 +43,26 @@ public sealed class EnvironmentManagementServiceTests
     }
 
     [Fact]
+    public async Task List_FallsBackToManagedIdentityCredential_WhenNoProfileResolves()
+    {
+        var credentials = new InMemoryCredentialStore(new Credential
+        {
+            Id = "managed-identity",
+            Kind = CredentialKind.ManagedIdentity,
+            Cloud = CloudInstance.Public,
+        });
+        var catalog = new CapturingCatalog();
+        var sut = new EnvironmentManagementService(
+            new ThrowingResolver(), credentials, catalog, new CapturingProvisioner());
+
+        await sut.ListAsync(null, credentialId: null, cloud: null, CancellationToken.None);
+
+        Assert.Equal("managed-identity", catalog.LastCredential!.Id);
+        Assert.Equal("auth:managed-identity", catalog.LastConnection!.Id);
+        Assert.Equal(CloudInstance.Public, catalog.LastConnection.Cloud);
+    }
+
+    [Fact]
     public async Task List_WithAuthAndCloud_UsesSelectedCredentialDirectly()
     {
         var credentials = new InMemoryCredentialStore(
