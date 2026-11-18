@@ -53,6 +53,26 @@ public class LayeringTests
     }
 
     /// <summary>
+    /// docs/architecture.md: the control plane depends only on Core and talks
+    /// to Power Platform APIs. Reading Dataverse tables belongs to the
+    /// application or data plane behind a Core contract.
+    /// </summary>
+    [Fact]
+    public void ControlPlane_ShouldNotUseDataverseContracts()
+    {
+        var controlRoot = Path.Combine(SrcRoot, "TALXIS.CLI.Platform.PowerPlatform.Control");
+        var violations = Directory.GetFiles(controlRoot, "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"))
+            .Where(f => File.ReadAllText(f).Contains("TALXIS.CLI.Core.Contracts.Dataverse", StringComparison.Ordinal))
+            .Select(f => Path.GetRelativePath(SrcRoot, f))
+            .ToList();
+
+        Assert.True(violations.Count == 0,
+            "The control plane must not depend on Dataverse service contracts.\n" +
+            $"Violations:\n  {string.Join("\n  ", violations)}");
+    }
+
+    /// <summary>
     /// Commands with a <c>--yes</c> flag are destructive operations. They must carry
     /// <c>[CliDestructive("…")]</c> so MCP clients can prompt for human-in-the-loop
     /// confirmation before execution. The <c>--yes</c> flag itself provides
