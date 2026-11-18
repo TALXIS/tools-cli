@@ -15,6 +15,7 @@ internal sealed class DataverseMetadataIdResolver : IMetadataIdResolver
             throw new InvalidOperationException("Metadata resolution requires a ServiceClient instance.");
 
         var path = $"EntityDefinitions?$filter={Uri.EscapeDataString($"LogicalName eq '{entityLogicalName.Replace("'", "''")}'")}&$select=MetadataId";
+        // ExecuteWebRequest adds a Cookie entry to this dictionary, so never reuse it for a second request.
         var headers = new Dictionary<string, List<string>>();
         using var response = client.ExecuteWebRequest(HttpMethod.Get, path, string.Empty, headers);
         response.EnsureSuccessStatusCode();
@@ -42,6 +43,7 @@ internal sealed class DataverseMetadataIdResolver : IMetadataIdResolver
 
         var filter = Uri.EscapeDataString($"LogicalName eq '{attributeLogicalName.Replace("'", "''")}'");
         var path = $"EntityDefinitions(LogicalName='{entityLogicalName.Replace("'", "''")}')/Attributes?$filter={filter}&$select=MetadataId";
+        // ExecuteWebRequest adds a Cookie entry to this dictionary, so never reuse it for a second request.
         var headers = new Dictionary<string, List<string>>();
         using var response = client.ExecuteWebRequest(HttpMethod.Get, path, string.Empty, headers);
         response.EnsureSuccessStatusCode();
