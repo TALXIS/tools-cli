@@ -1,3 +1,4 @@
+using TALXIS.CLI.Features.Environment.Data.Record;
 using DotMake.CommandLine;
 using Microsoft.Extensions.Logging;
 using TALXIS.CLI.Core.Contracts.Dataverse;
@@ -23,10 +24,10 @@ public class EnvDataBulkUpdateCliCommand : ProfiledCliCommand
     [CliOption(Name = "--entity", Description = "Entity logical name (e.g. account).", Required = true)]
     public string Entity { get; set; } = null!;
 
-    [CliOption(Name = "--file", Description = "Path to a JSON file containing an array of records.", Required = false)]
+    [CliOption(Name = "--file", Description = "Path to a JSON file containing an array of records. Same column formats as --data.", Required = false)]
     public string? File { get; set; }
 
-    [CliOption(Name = "--data", Description = "Inline JSON array of records. Special column types: OptionSet as an integer (e.g. 375970000), Lookup as a GUID string or {Id,LogicalName} object, Money as a decimal (e.g. 1500.50), Boolean as true/false, DateTime as an ISO-8601 UTC string (e.g. 2026-05-01T00:00:00Z).", Required = false)]
+    [CliOption(Name = "--data", Description = "Inline JSON array of records. " + RecordInputHelper.DataFormatHint, Required = false)]
     public string? Data { get; set; }
 
     protected override async Task<int> ExecuteAsync()

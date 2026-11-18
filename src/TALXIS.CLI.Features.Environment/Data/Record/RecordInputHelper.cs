@@ -11,6 +11,14 @@ namespace TALXIS.CLI.Features.Environment.Data.Record;
 internal static class RecordInputHelper
 {
     /// <summary>
+    /// Column value formats shared by every <c>--data</c> option of the record and bulk commands.
+    /// </summary>
+    public const string DataFormatHint =
+        "Column formats: choice as an integer (375970000); multi-select choice as an integer array or a comma-separated string (\"1,2\"); " +
+        "lookup as {\"Id\":\"<guid>\",\"LogicalName\":\"<table>\"}, or a bare GUID string for single-table lookups only (not customer, owner or regarding); " +
+        "money as a decimal; yes/no as true/false; date/time as ISO-8601, read as UTC (2026-05-01T00:00:00Z).";
+
+    /// <summary>
     /// Validates that exactly one of <paramref name="data"/> / <paramref name="file"/>
     /// is provided and parses the JSON into a <see cref="JsonElement"/> object.
     /// </summary>
