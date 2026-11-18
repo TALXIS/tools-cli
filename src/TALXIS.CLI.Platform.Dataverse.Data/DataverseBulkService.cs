@@ -9,8 +9,8 @@ namespace TALXIS.CLI.Platform.Dataverse.Data;
 
 /// <summary>
 /// Dataverse implementation of <see cref="IDataverseBulkService"/>.
-/// Delegates to the SDK <c>CreateMultiple</c>, <c>UpdateMultiple</c>, and
-/// <c>UpsertMultiple</c> messages via <see cref="DataverseCommandBridge"/>.
+/// Sends the SDK <c>CreateMultiple</c>, <c>UpdateMultiple</c>, and
+/// <c>UpsertMultiple</c> messages in batches via <see cref="DataverseCommandBridge"/>.
 /// </summary>
 internal sealed class DataverseBulkService : IDataverseBulkService
 {
@@ -19,24 +19,18 @@ internal sealed class DataverseBulkService : IDataverseBulkService
         string? profileName,
         string entityLogicalName,
         IReadOnlyList<JsonElement> records,
+        int batchSize,
         CancellationToken ct)
     {
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+        var entities = await ToEntitiesAsync(conn, entityLogicalName, records, ct).ConfigureAwait(false);
 
-        var metadata = await RetrieveAttributeMetadataAsync(conn, entityLogicalName, ct).ConfigureAwait(false);
-        var entities = new EntityCollection(
-            records.Select(r => EntityJsonConverter.JsonToEntity(entityLogicalName, r, metadata)).ToList())
+        return await BulkBatchRunner.RunAsync(entityLogicalName, entities, batchSize, async (batch, token) =>
         {
-            EntityName = entityLogicalName
-        };
-
-        var request = new CreateMultipleRequest { Targets = entities };
-        var response = (CreateMultipleResponse)await conn.Client.ExecuteAsync(request, ct).ConfigureAwait(false);
-
-        return new BulkOperationResult(
-            SucceededCount: response.Ids.Length,
-            FailedCount: records.Count - response.Ids.Length,
-            CreatedIds: response.Ids.ToList());
+            var response = (CreateMultipleResponse)await conn.Client
+                .ExecuteAsync(new CreateMultipleRequest { Targets = batch }, token).ConfigureAwait(false);
+            return (response.Ids.Length, response.Ids);
+        }, ct).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -44,30 +38,18 @@ internal sealed class DataverseBulkService : IDataverseBulkService
         string? profileName,
         string entityLogicalName,
         IReadOnlyList<JsonElement> records,
+        int batchSize,
         CancellationToken ct)
     {
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+        // The caller includes the primary key field (e.g. "accountid") so the SDK knows which record to update.
+        var entities = await ToEntitiesAsync(conn, entityLogicalName, records, ct).ConfigureAwait(false);
 
-        var metadata = await RetrieveAttributeMetadataAsync(conn, entityLogicalName, ct).ConfigureAwait(false);
-        // Each record must contain the entity primary ID field so the SDK
-        // knows which record to update.  The ID is resolved inside
-        // EntityJsonConverter.JsonToEntity via the standard attribute mapping;
-        // the caller is responsible for including the primary key field
-        // (e.g. "accountid") in the JSON payload.
-        var entities = new EntityCollection(
-            records.Select(r => EntityJsonConverter.JsonToEntity(entityLogicalName, r, metadata)).ToList())
+        return await BulkBatchRunner.RunAsync(entityLogicalName, entities, batchSize, async (batch, token) =>
         {
-            EntityName = entityLogicalName
-        };
-
-        var request = new UpdateMultipleRequest { Targets = entities };
-        await conn.Client.ExecuteAsync(request, ct).ConfigureAwait(false);
-
-        // UpdateMultipleResponse does not return per-record IDs.
-        return new BulkOperationResult(
-            SucceededCount: records.Count,
-            FailedCount: 0,
-            CreatedIds: Array.Empty<Guid>());
+            await conn.Client.ExecuteAsync(new UpdateMultipleRequest { Targets = batch }, token).ConfigureAwait(false);
+            return (batch.Entities.Count, Array.Empty<Guid>());
+        }, ct).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -75,43 +57,27 @@ internal sealed class DataverseBulkService : IDataverseBulkService
         string? profileName,
         string entityLogicalName,
         IReadOnlyList<JsonElement> records,
+        int batchSize,
         CancellationToken ct)
     {
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+        var entities = await ToEntitiesAsync(conn, entityLogicalName, records, ct).ConfigureAwait(false);
 
+        return await BulkBatchRunner.RunAsync(entityLogicalName, entities, batchSize, async (batch, token) =>
+        {
+            var response = (UpsertMultipleResponse)await conn.Client
+                .ExecuteAsync(new UpsertMultipleRequest { Targets = batch }, token).ConfigureAwait(false);
+            var results = response.Results.Cast<UpsertResponse>().ToList();
+            IReadOnlyList<Guid> createdIds = results.Where(r => r.RecordCreated).Select(r => r.Target.Id).ToList();
+            return (results.Count, createdIds);
+        }, ct).ConfigureAwait(false);
+    }
+
+    private static async Task<List<Entity>> ToEntitiesAsync(
+        DataverseConnection conn, string entityLogicalName, IReadOnlyList<JsonElement> records, CancellationToken ct)
+    {
         var metadata = await RetrieveAttributeMetadataAsync(conn, entityLogicalName, ct).ConfigureAwait(false);
-        var entities = new EntityCollection(
-            records.Select(r => EntityJsonConverter.JsonToEntity(entityLogicalName, r, metadata)).ToList())
-        {
-            EntityName = entityLogicalName
-        };
-
-        var request = new UpsertMultipleRequest { Targets = entities };
-        var response = (UpsertMultipleResponse)await conn.Client.ExecuteAsync(request, ct).ConfigureAwait(false);
-
-        // Each UpsertResult indicates whether the record was Created or Updated
-        // and exposes the record ID for created records.
-        var createdIds = new List<Guid>();
-        int created = 0;
-        int updated = 0;
-
-        foreach (UpsertResponse result in response.Results.Cast<UpsertResponse>())
-        {
-            if (result.RecordCreated)
-            {
-                created++;
-                createdIds.Add(result.Target.Id);
-            }
-            else
-            {
-                updated++;
-            }
-        }
-
-        return new BulkOperationResult(
-            SucceededCount: created + updated,
-            FailedCount: records.Count - (created + updated),
-            CreatedIds: createdIds);
+        return records.Select(r => EntityJsonConverter.JsonToEntity(entityLogicalName, r, metadata)).ToList();
     }
 
     private static async Task<EntityMetadata> RetrieveAttributeMetadataAsync(

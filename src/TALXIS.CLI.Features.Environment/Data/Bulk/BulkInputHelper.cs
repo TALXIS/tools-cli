@@ -11,6 +11,18 @@ namespace TALXIS.CLI.Features.Environment.Data.Bulk;
 /// </summary>
 internal static class BulkInputHelper
 {
+    public const int DefaultBatchSize = 10;
+
+    public const int MaxBatchSize = 1000;
+
+    public static bool IsValidBatchSize(int batchSize, ILogger logger)
+    {
+        if (batchSize is >= 1 and <= MaxBatchSize) return true;
+
+        logger.LogError("--batch-size must be between 1 and {Max}, got {BatchSize}.", MaxBatchSize, batchSize);
+        return false;
+    }
+
     public static bool TryParseRecords(
         string? filePath,
         string? inlineData,
