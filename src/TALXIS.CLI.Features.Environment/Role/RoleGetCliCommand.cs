@@ -10,7 +10,7 @@ namespace TALXIS.CLI.Features.Environment.Role;
 /// <summary>
 /// Gets one Dataverse security role by role name or GUID so you can confirm the
 /// exact value to pass to <c>--role</c> on other <c>txc environment</c> commands.
-/// Usage: <c>txc environment role get --role &lt;name-or-guid&gt;</c>
+/// Usage: <c>txc environment role get &lt;name-or-guid&gt;</c>
 /// </summary>
 [CliReadOnly]
 [CliCommand(
@@ -22,14 +22,14 @@ public class RoleGetCliCommand : ProfiledCliCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(RoleGetCliCommand));
 
-    [CliOption(Name = "--role", Description = "Role name or GUID to resolve for use with other --role options.", Required = true)]
+    [CliArgument(Name = "role", Description = "Role name or GUID to resolve for use with other --role options.")]
     public string Role { get; set; } = null!;
 
     protected override Task<int> ExecuteAsync()
     {
         if (string.IsNullOrWhiteSpace(Role))
         {
-            Logger.LogError("Specify --role with a role name or GUID.");
+            Logger.LogError("Specify the role name or GUID.");
             return Task.FromResult(ExitValidationError);
         }
 

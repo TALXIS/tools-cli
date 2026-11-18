@@ -41,7 +41,13 @@ namespace TALXIS.CLI
 
             try
             {
-                return await Cli.RunAsync<TALXIS.CLI.TxcCliCommand>(args, new CliSettings { EnableDefaultExceptionHandler = true });
+                var parser = Cli.GetParser<TALXIS.CLI.TxcCliCommand>(new CliSettings { EnableDefaultExceptionHandler = true });
+                var parsed = parser.Parse(args);
+                if (!UsageErrorReporter.HasUsageErrors(parsed.ParseResult)) return await parser.RunAsync(args);
+
+                // Text mode keeps the parser's own error output; only the exit code changes.
+                if (!UsageErrorReporter.TryWriteJson(parsed.ParseResult, args)) await parser.RunAsync(args);
+                return UsageErrorReporter.ExitCode;
             }
             finally
             {

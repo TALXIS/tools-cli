@@ -84,6 +84,10 @@ public abstract class TxcLeafCommand
             if (formatError.HasValue)
                 return exitCode = formatError.Value;
 
+            var invocationError = ValidateInvocation();
+            if (invocationError.HasValue)
+                return exitCode = invocationError.Value;
+
             // Production guard runs first so users aren't prompted with --yes
             // only to be immediately blocked for missing --allow-production.
             var guardResult = await PreExecuteAsync().ConfigureAwait(false);
@@ -159,6 +163,13 @@ public abstract class TxcLeafCommand
     /// code to short-circuit.
     /// </summary>
     protected virtual Task<int?> PreExecuteAsync() => Task.FromResult<int?>(null);
+
+    /// <summary>
+    /// Checks option combinations that need no profile or environment, before
+    /// <see cref="PreExecuteAsync"/> resolves either. Return <c>null</c> to proceed,
+    /// or an exit code to short-circuit.
+    /// </summary>
+    protected virtual int? ValidateInvocation() => null;
 
     /// <summary>
     /// Implement command logic here. Return <see cref="ExitSuccess"/>,

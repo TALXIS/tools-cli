@@ -10,7 +10,7 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 
 /// <summary>
 /// Deletes a relationship from Dataverse by its schema name.
-/// Usage: <c>txc environment entity relationship delete --name &lt;relationship-schema-name&gt;</c>
+/// Usage: <c>txc environment entity relationship delete &lt;relationship-schema-name&gt; --apply</c>
 /// </summary>
 [CliDestructive("Permanently deletes the relationship from the remote environment.")]
 [CliCommand(
@@ -25,7 +25,7 @@ public class EntityRelationshipDeleteCliCommand : StagedCliCommand, IDestructive
     [CliOption(Name = "--yes", Description = "Skip interactive confirmation for this destructive operation.", Required = false)]
     public bool Yes { get; set; }
 
-    [CliOption(Name = "--name", Description = "The schema name of the relationship to delete.", Required = true)]
+    [CliArgument(Name = "name", Description = "The schema name of the relationship to delete.")]
     public string Name { get; set; } = null!;
 
     protected override async Task<int> ExecuteAsync()

@@ -112,12 +112,11 @@ public static class OutputFormatter
     {
         if (OutputContext.IsJson)
         {
-            var envelope = new CommandResultEnvelope { Status = status, Message = message, Id = id };
+            var envelope = new CommandResultEnvelope { Status = status, Message = message, Id = id, ExitCode = exitCode };
 
             // Include troubleshooting context on failure
             if (status == "failed")
             {
-                envelope.ExitCode = exitCode;
                 envelope.Support = new SupportContext
                 {
                     SessionId = SupportInfoSessionId,

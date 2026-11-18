@@ -54,7 +54,7 @@ share the same shape: `list`/`get` to find the principal, `role list/add/remove`
 roles.
 
 1. **Find the role** — `txc environment role list [--filter <name>]` /
-   `txc environment role get --role <name-or-guid>`. This is a read-only browse of the roles
+   `txc environment role get <name-or-guid>`. This is a read-only browse of the roles
    already defined in the target environment (via the scaffolding chain above or Dataverse's
    built-in roles) — accepts either the role name or its GUID everywhere `--role` is used below.
 2. **Find the principal:**

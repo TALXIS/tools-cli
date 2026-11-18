@@ -106,6 +106,14 @@ The primary input to a command — the thing it is operating on — is positiona
 
 Flags are for modifiers (`--environment`, `--connection-string`, `--yes`, `--stage-and-upgrade`, etc.), not for the subject of the command.
 
+The same holds for `get`, `update` and `delete`: the thing read, changed or removed is positional, and the parent that scopes it is a named option. A `create` names the new thing with `--name` and its parent the same way.
+
+- `txc environment entity delete <entity>`, not `--entity`.
+- `txc environment entity attribute delete <attribute> --entity <entity>`.
+- `txc environment entity attribute create --entity <entity> --name <schema-name>`.
+- `txc environment data record delete <record-id> --entity <entity>`.
+- `txc environment role get <role>`, not `--role`.
+
 ---
 
 ## `--yes` vs `--force-*`

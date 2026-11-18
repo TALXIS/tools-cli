@@ -242,15 +242,15 @@ txc env entity create --name tom_project \
   --display-name "Project" --plural-name "Projects" \
   --ownership user --apply
 
-txc env entity attribute create tom_project \
+txc env entity attribute create --entity tom_project \
   --name tom_budget --type money --display-name "Budget" --apply
 
 # Or stage everything and apply in one optimised batch
 txc env entity create --name tom_invoice \
   --display-name "Invoice" --plural-name "Invoices" --stage
-txc env entity attribute create tom_invoice \
+txc env entity attribute create --entity tom_invoice \
   --name tom_amount --type money --display-name "Amount" --stage
-txc env entity attribute create tom_invoice \
+txc env entity attribute create --entity tom_invoice \
   --name tom_duedate --type datetime --display-name "Due Date" --stage
 
 txc env changeset status          # review what's queued

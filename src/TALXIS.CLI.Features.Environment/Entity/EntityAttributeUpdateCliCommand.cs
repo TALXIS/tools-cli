@@ -10,7 +10,7 @@ namespace TALXIS.CLI.Features.Environment.Entity;
 
 /// <summary>
 /// Updates an existing attribute (column) on a Dataverse entity.
-/// Usage: <c>txc environment entity attribute update &lt;entity&gt; --name &lt;name&gt; [--display-name &lt;label&gt;] [--description &lt;text&gt;] [--required &lt;none|recommended|required&gt;]</c>
+/// Usage: <c>txc environment entity attribute update &lt;attribute&gt; --entity &lt;entity&gt; [--display-name &lt;label&gt;] [--description &lt;text&gt;] [--required &lt;none|recommended|required&gt;]</c>
 /// </summary>
 [CliIdempotent]
 [CliCommand(
@@ -22,11 +22,11 @@ public class EntityAttributeUpdateCliCommand : StagedCliCommand
 {
     protected override ILogger Logger { get; } = TxcLoggerFactory.CreateLogger(nameof(EntityAttributeUpdateCliCommand));
 
-    [CliArgument(Description = "The logical name of the entity.")]
-    public string Entity { get; set; } = null!;
-
-    [CliOption(Name = "--name", Description = "The logical name of the attribute to update.", Required = true)]
+    [CliArgument(Name = "attribute", Description = "The logical name of the attribute to update.")]
     public string Name { get; set; } = null!;
+
+    [CliOption(Name = "--entity", Description = "The logical name of the entity that owns the attribute.", Required = true)]
+    public string Entity { get; set; } = null!;
 
     [CliOption(Name = "--display-name", Description = "The new display name (label) for the attribute.", Required = false)]
     public string? DisplayName { get; set; }

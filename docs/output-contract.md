@@ -44,6 +44,10 @@ txc env entity list --format text
 
 The base class `TxcLeafCommand.RunAsync()` catches unhandled exceptions and returns `ExitError` (1) automatically. Commands only need explicit exit code handling for validation errors (2).
 
+Usage errors (unknown arguments, missing required options or arguments) exit `2`. In JSON mode the host (`UsageErrorReporter`) also writes a `failed` result envelope to stdout with `exitCode: 2` and the `--help` command to read, so a caller that only reads stdout sees why nothing ran. Text mode keeps the parser's own messages on stderr.
+
+A `StagedCliCommand` run without `--apply` or `--stage` stops before resolving a profile and writes a `not-applied` result (`"Nothing deleted. Re-run with --apply ..."` for destructive commands), exit `2`.
+
 ## Command implementation pattern
 
 Every leaf command **must** extend `TxcLeafCommand` (or `ProfiledCliCommand` for environment-facing commands):

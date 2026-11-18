@@ -21,7 +21,7 @@ public class OptionSetDeleteCliCommand : StagedCliCommand, IDestructiveCommand
     [CliOption(Name = "--yes", Description = "Skip interactive confirmation.", Required = false)]
     public bool Yes { get; set; }
 
-    [CliOption(Name = "--name", Description = "Schema name of the global option set to delete.", Required = true)]
+    [CliArgument(Name = "name", Description = "Schema name of the global option set to delete.")]
     public string Name { get; set; } = null!;
 
     protected override async Task<int> ExecuteAsync()
