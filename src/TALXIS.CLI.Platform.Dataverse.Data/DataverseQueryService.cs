@@ -50,17 +50,19 @@ internal sealed class DataverseQueryService : IDataverseQueryService
         // Web API request targets the correct OData entity set.
         var entitySetName = ResolveEntitySetName(conn, sql);
 
-        var headers = BuildHeaders(includeAnnotations);
+        var effectiveTop = MinTop(top, TryGetSqlTop(sql));
+
         var queryPath = $"{entitySetName}?sql={Uri.EscapeDataString(sql)}";
 
         var records = new List<JsonElement>();
         try
         {
-            using var response = conn.Client.ExecuteWebRequest(HttpMethod.Get, queryPath, string.Empty, headers);
+            using var response = conn.Client.ExecuteWebRequest(
+                HttpMethod.Get, queryPath, string.Empty, BuildHeaders(includeAnnotations));
             await ParseValueArrayAsync(response, records, ct).ConfigureAwait(false);
 
             // Follow @odata.nextLink pages until exhausted or top limit reached.
-            await FollowNextLinksAsync(conn, response, records, top, headers, ct).ConfigureAwait(false);
+            await FollowNextLinksAsync(conn, response, records, effectiveTop, includeAnnotations, ct).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -71,8 +73,8 @@ internal sealed class DataverseQueryService : IDataverseQueryService
         if (!includeAnnotations)
             StripAnnotations(records);
 
-        if (top.HasValue && records.Count > top.Value)
-            records.RemoveRange(top.Value, records.Count - top.Value);
+        if (effectiveTop.HasValue && records.Count > effectiveTop.Value)
+            records.RemoveRange(effectiveTop.Value, records.Count - effectiveTop.Value);
 
         return new DataverseQueryResult(records, records.Count);
     }
@@ -140,19 +142,19 @@ internal sealed class DataverseQueryService : IDataverseQueryService
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
 
         var queryPath = BuildODataQueryPath(entitySetOrPath, select, filter, orderBy, top);
-        var headers = BuildHeaders(includeAnnotations);
 
         var records = new List<JsonElement>();
         try
         {
-            using var response = conn.Client.ExecuteWebRequest(HttpMethod.Get, queryPath, string.Empty, headers);
+            using var response = conn.Client.ExecuteWebRequest(
+                HttpMethod.Get, queryPath, string.Empty, BuildHeaders(includeAnnotations));
             await ParseValueArrayAsync(response, records, ct).ConfigureAwait(false);
 
             // Dataverse can still return @odata.nextLink when $top is specified
             // (for example when the requested top exceeds the server page size).
             // Always follow pagination links and let the helper stop once the
             // requested number of records has been accumulated.
-            await FollowNextLinksAsync(conn, response, records, top, headers, ct).ConfigureAwait(false);
+            await FollowNextLinksAsync(conn, response, records, top, includeAnnotations, ct).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -183,17 +185,45 @@ internal sealed class DataverseQueryService : IDataverseQueryService
     }
 
     /// <summary>
+    /// Extracts the row limit from the outer <c>SELECT [DISTINCT] TOP n</c> / <c>TOP (n)</c> clause,
+    /// or <c>null</c> when the outer query has no TOP clause. A TOP inside a subquery is ignored.
+    /// </summary>
+    internal static int? TryGetSqlTop(string sql)
+    {
+        var match = Regex.Match(sql, @"^\s*SELECT\s+(?:DISTINCT\s+)?TOP\s*\(?\s*(\d+)\s*\)?", RegexOptions.IgnoreCase);
+
+        return match.Success && int.TryParse(match.Groups[1].Value, out var n) ? n : null;
+    }
+
+    /// <summary>
+    /// Returns the smaller of two optional row limits.
+    /// </summary>
+    internal static int? MinTop(int? a, int? b)
+    {
+        if (a.HasValue && b.HasValue) return Math.Min(a.Value, b.Value);
+
+        return a ?? b;
+    }
+
+    /// <summary>
+    /// Extracts the table logical name from the SQL FROM clause, with an optional <c>dbo</c>
+    /// schema prefix and bracketed identifiers, or <c>null</c> when there is no FROM clause.
+    /// </summary>
+    internal static string? TryGetSqlTableName(string sql)
+    {
+        var match = Regex.Match(sql, @"\bFROM\s+(?:\[?dbo\]?\s*\.\s*)?\[?(\w+)\]?", RegexOptions.IgnoreCase);
+
+        return match.Success ? match.Groups[1].Value.ToLowerInvariant() : null;
+    }
+
+    /// <summary>
     /// Extracts the table logical name from the SQL FROM clause and
     /// retrieves its <c>EntitySetName</c> via entity metadata.
     /// </summary>
     private static string ResolveEntitySetName(DataverseConnection conn, string sql)
     {
-        // Simple regex to grab the first table name after FROM.
-        var match = Regex.Match(sql, @"\bFROM\s+(\w+)", RegexOptions.IgnoreCase);
-        if (!match.Success)
-            throw new InvalidOperationException($"Could not parse a table name from the SQL FROM clause in: '{sql}'.");
-
-        var tableName = match.Groups[1].Value.ToLowerInvariant();
+        var tableName = TryGetSqlTableName(sql)
+            ?? throw new InvalidOperationException($"Could not parse a table name from the SQL FROM clause in: '{sql}'.");
 
         var metaRequest = new RetrieveEntityRequest
         {
@@ -208,9 +238,10 @@ internal sealed class DataverseQueryService : IDataverseQueryService
     /// <summary>
     /// Builds custom HTTP headers for ExecuteWebRequest calls.
     /// The Dataverse <c>ServiceClient.ExecuteWebRequest</c> expects headers
-    /// as <c>Dictionary&lt;string, List&lt;string&gt;&gt;</c>.
+    /// as <c>Dictionary&lt;string, List&lt;string&gt;&gt;</c> and adds a <c>Cookie</c> entry to it,
+    /// so every request needs a new dictionary.
     /// </summary>
-    private static Dictionary<string, List<string>> BuildHeaders(bool includeAnnotations)
+    internal static Dictionary<string, List<string>> BuildHeaders(bool includeAnnotations)
     {
         var headers = new Dictionary<string, List<string>>();
         if (includeAnnotations)
@@ -309,13 +340,15 @@ internal sealed class DataverseQueryService : IDataverseQueryService
     /// Follows <c>@odata.nextLink</c> URLs for automatic pagination.
     /// NextLink URLs are absolute; we extract the relative path to pass
     /// to <see cref="Microsoft.PowerPlatform.Dataverse.Client.ServiceClient.ExecuteWebRequest"/>.
+    /// A fresh header dictionary is built per request because the SDK mutates
+    /// the passed dictionary (adds a <c>Cookie</c> entry) and throws on reuse.
     /// </summary>
     private static async Task FollowNextLinksAsync(
         DataverseConnection conn,
         HttpResponseMessage lastResponse,
         List<JsonElement> records,
         int? top,
-        Dictionary<string, List<string>> headers,
+        bool includeAnnotations,
         CancellationToken ct)
     {
         var currentResponse = lastResponse;
@@ -323,6 +356,9 @@ internal sealed class DataverseQueryService : IDataverseQueryService
         while (true)
         {
             ct.ThrowIfCancellationRequested();
+
+            if (top.HasValue && records.Count >= top.Value)
+                break;
 
             var content = await currentResponse.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
             using var doc = JsonDocument.Parse(content);
@@ -338,7 +374,8 @@ internal sealed class DataverseQueryService : IDataverseQueryService
             var relativePath = ExtractRelativePath(nextLinkUrl, conn);
 
             // Dispose paginated responses to avoid socket/handler leaks.
-            var nextResponse = conn.Client.ExecuteWebRequest(HttpMethod.Get, relativePath, string.Empty, headers);
+            var nextResponse = conn.Client.ExecuteWebRequest(
+                HttpMethod.Get, relativePath, string.Empty, BuildHeaders(includeAnnotations));
             try
             {
                 await ParseValueArrayAsync(nextResponse, records, ct).ConfigureAwait(false);
@@ -350,9 +387,6 @@ internal sealed class DataverseQueryService : IDataverseQueryService
                     currentResponse.Dispose();
                 currentResponse = nextResponse;
             }
-
-            if (top.HasValue && records.Count >= top.Value)
-                break;
         }
 
         // Dispose the last paginated response (but not the caller's initial response).

@@ -85,6 +85,7 @@ internal static class SolutionDetailReader
         var path = $"{DataverseSchema.MsdynSolutionComponentCountSummary.EntitySetName}" +
                    $"?$filter={Uri.EscapeDataString(filter)}";
 
+        // ExecuteWebRequest adds a Cookie entry to this dictionary, so never reuse it for a second request.
         var headers = new Dictionary<string, List<string>>
         {
             ["Prefer"] = new() { "odata.include-annotations=*" },

@@ -52,6 +52,7 @@ internal sealed class DataverseSolutionLayerQueryService : ISolutionLayerQuerySe
         // Note: $select does NOT reduce payload — msdyn_componentjson and msdyn_changes are always returned.
         var path = $"{DataverseSchema.MsdynComponentLayer.EntitySetName}?$filter={Uri.EscapeDataString(filter)}";
 
+        // ExecuteWebRequest adds a Cookie entry to this dictionary, so never reuse it for a second request.
         var headers = new Dictionary<string, List<string>>
         {
             ["Prefer"] = new() { "odata.include-annotations=*" },
