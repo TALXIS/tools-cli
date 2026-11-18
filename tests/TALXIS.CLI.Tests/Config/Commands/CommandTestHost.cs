@@ -38,7 +38,8 @@ internal sealed class CommandTestHost : IDisposable
         FakePowerPlatformEnvironmentCatalog? environmentCatalog = null,
         TALXIS.CLI.Core.Platforms.PowerPlatform.IEnvironmentManagementService? environmentManagement = null,
         Func<IConnectionStore, IConnectionStore>? decorateConnectionStore = null,
-        IAccessTokenService? accessTokens = null)
+        IAccessTokenService? accessTokens = null,
+        Action<IServiceCollection>? configureServices = null)
     {
         Temp = new TempConfigDir();
         Vault = new FakeVault();
@@ -93,6 +94,7 @@ internal sealed class CommandTestHost : IDisposable
         services.AddSingleton<
             TALXIS.CLI.Core.Bootstrapping.IConnectionProviderBootstrapper,
             TALXIS.CLI.Platform.Dataverse.Runtime.Bootstrapping.DataverseConnectionProviderBootstrapper>();
+        configureServices?.Invoke(services);
 
         Provider = services.BuildServiceProvider();
         TxcServices.Initialize(Provider);
