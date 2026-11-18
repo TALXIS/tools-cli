@@ -13,10 +13,10 @@ namespace TALXIS.CLI.Features.Config.Auth;
 /// <summary>
 /// <c>txc config auth login</c> — eager interactive sign-in, or secretless
 /// managed-identity registration when <c>--identity</c> is specified.
-/// Persists an <see cref="CredentialKind.InteractiveBrowser"/> or
-/// <see cref="CredentialKind.DeviceCode"/> credential whose refresh token
-/// sits in the shared MSAL cache; no secret material is written to the
-/// txc credential-vault file.
+/// Interactive login persists an <see cref="CredentialKind.InteractiveBrowser"/> or
+/// <see cref="CredentialKind.DeviceCode"/> credential whose refresh token sits
+/// in the shared MSAL cache; managed-identity registration persists endpoint
+/// metadata only. No secret material is written to the txc credential-vault file.
 /// </summary>
 /// <remarks>
 /// Interactive login fails fast with exit 1 in headless contexts — interactive browser is
