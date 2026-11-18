@@ -24,10 +24,10 @@ public class EnvDataRecordCreateCliCommand : StagedCliCommand
     [CliOption(Name = "--entity", Description = "Entity logical name (e.g. account).", Required = true)]
     public string Entity { get; set; } = null!;
 
-    [CliOption(Name = "--data", Description = "Inline JSON object with record attributes.", Required = false)]
+    [CliOption(Name = "--data", Description = "Inline JSON object with record attributes. " + RecordInputHelper.DataFormatHint, Required = false)]
     public string? Data { get; set; }
 
-    [CliOption(Name = "--file", Description = "Path to a JSON file containing record attributes.", Required = false)]
+    [CliOption(Name = "--file", Description = "Path to a JSON file containing record attributes. Same column formats as --data.", Required = false)]
     public string? File { get; set; }
 
     protected override async Task<int> ExecuteAsync()

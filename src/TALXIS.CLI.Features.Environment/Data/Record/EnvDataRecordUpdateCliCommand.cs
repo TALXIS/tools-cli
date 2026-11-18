@@ -30,10 +30,10 @@ public class EnvDataRecordUpdateCliCommand : StagedCliCommand
         ValidationMessage = CliValidation.GuidValidationMessage)]
     public required Guid RecordId { get; set; }
 
-    [CliOption(Name = "--data", Description = "Inline JSON object with attributes to update.", Required = false)]
+    [CliOption(Name = "--data", Description = "Inline JSON object with attributes to update. " + RecordInputHelper.DataFormatHint, Required = false)]
     public string? Data { get; set; }
 
-    [CliOption(Name = "--file", Description = "Path to a JSON file containing attributes to update.", Required = false)]
+    [CliOption(Name = "--file", Description = "Path to a JSON file containing attributes to update. Same column formats as --data.", Required = false)]
     public string? File { get; set; }
 
     protected override async Task<int> ExecuteAsync()
