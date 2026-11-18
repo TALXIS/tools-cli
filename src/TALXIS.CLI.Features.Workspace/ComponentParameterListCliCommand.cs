@@ -23,6 +23,9 @@ public class ComponentParameterListCliCommand : TxcLeafCommand
     [CliArgument(Description = "Component type name, alias, template short name, or integer code (e.g. 'Entity', 'Table', 'pp-entity', '1').")]
     public required string ShortName { get; set; }
 
+    [CliOption(Description = "Known parameter values in key=value form (repeatable). When given, only parameters whose isEnabled condition holds for them are listed (e.g. for pp-entity-attribute, --param AttributeType=Text hides the number, date and option set parameters).")]
+    public List<string> Param { get; set; } = new();
+
     protected override async Task<int> ExecuteAsync()
     {
         using var scaffolder = new TemplateInvoker();
@@ -33,6 +36,12 @@ public class ComponentParameterListCliCommand : TxcLeafCommand
         var resolvedShortName = resolved?.ShortNameList.FirstOrDefault() ?? ShortName;
 
         var parameters = await scaffolder.ListParametersForTemplateAsync(resolvedShortName);
+        var providedValues = ParseParamValues(Param);
+        if (parameters != null && providedValues.Count > 0)
+        {
+            parameters = TemplateParameterConditionEvaluator.FilterEnabled(parameters, providedValues);
+        }
+
         if (parameters == null || parameters.Count == 0)
         {
             OutputFormatter.WriteList(Array.Empty<object>(), _ =>
@@ -52,6 +61,8 @@ public class ComponentParameterListCliCommand : TxcLeafCommand
             defaultValue = (string?)null,
             required = true,
             choices = (string?)null,
+            appliesWhen = (string?)null,
+            requiredWhen = (string?)null,
             description = "Specifies the target project folder path where the component will be created. " +
                           "Required for both creating new projects (solution, plugin, PCF, etc.) and adding components to existing projects. " +
                           "Format: \"src\\Solutions.DataModel\""
@@ -65,6 +76,11 @@ public class ComponentParameterListCliCommand : TxcLeafCommand
                 ? string.Join(", ", p.Choices.Keys)
                 : null;
 
+            var appliesWhen = string.IsNullOrWhiteSpace(p.Precedence.IsEnabledCondition)
+                ? null : p.Precedence.IsEnabledCondition;
+            var requiredWhen = string.IsNullOrWhiteSpace(p.Precedence.IsRequiredCondition)
+                ? null : p.Precedence.IsRequiredCondition;
+
             projected.Add(new
             {
                 name = p.Name,
@@ -73,6 +89,8 @@ public class ComponentParameterListCliCommand : TxcLeafCommand
                 defaultValue = p.DefaultValue?.ToString(),
                 required = isRequired,
                 choices = choiceList,
+                appliesWhen,
+                requiredWhen,
                 description = p.Description
             });
         }
@@ -99,11 +117,27 @@ public class ComponentParameterListCliCommand : TxcLeafCommand
                 if (!string.IsNullOrEmpty((string?)param.choices))
                     sb.Append($"  choices: {param.choices}");
                 OutputWriter.WriteLine(sb.ToString());
+                if (!string.IsNullOrEmpty((string?)param.appliesWhen))
+                    OutputWriter.WriteLine($"    applies when: {param.appliesWhen}");
+                if (!string.IsNullOrEmpty((string?)param.requiredWhen))
+                    OutputWriter.WriteLine($"    required when: {param.requiredWhen}");
                 if (!string.IsNullOrEmpty((string?)param.description))
                     OutputWriter.WriteLine($"    {param.description}");
             }
         });
 
         return ExitSuccess;
+    }
+
+    private static Dictionary<string, string> ParseParamValues(IEnumerable<string> pairs)
+    {
+        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in pairs)
+        {
+            var idx = pair.IndexOf('=');
+            if (idx <= 0 || idx == pair.Length - 1) throw new ArgumentException($"Invalid parameter format: '{pair}'. Use key=value.");
+            values[pair[..idx]] = pair[(idx + 1)..];
+        }
+        return values;
     }
 }
