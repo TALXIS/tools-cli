@@ -87,6 +87,121 @@ public class SolutionPullPipelineTests : IDisposable
         Assert.True(File.Exists(solProj));
     }
 
+    [Fact]
+    public void SharedTable_ExcludedSystemRelationshipsAreNotWritten()
+    {
+        // skt_product is a root component of this solution and of SkillsTestDataModel.
+        var staging = Path.Combine(_base, "staging");
+        var other = Path.Combine(staging, "Other");
+        Directory.CreateDirectory(Path.Combine(other, "Relationships"));
+        File.WriteAllText(Path.Combine(other, "Relationships.xml"),
+            """
+            <?xml version="1.0" encoding="utf-8"?>
+            <EntityRelationships xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+              <EntityRelationship Name="business_unit_skt_product" />
+              <EntityRelationship Name="lk_skt_product_createdby" />
+              <EntityRelationship Name="lk_skt_product_modifiedby" />
+              <EntityRelationship Name="owner_skt_product" />
+              <EntityRelationship Name="skt_skt_supplier_skt_product_supplierid" />
+              <EntityRelationship Name="team_skt_product" />
+              <EntityRelationship Name="TransactionCurrency_skt_product" />
+              <EntityRelationship Name="user_skt_product" />
+            </EntityRelationships>
+            """);
+        WriteEntityRelationships(other, "BusinessUnit", "business_unit_skt_product");
+        WriteEntityRelationships(other, "Owner", "owner_skt_product");
+        WriteEntityRelationships(other, "SystemUser", "lk_skt_product_createdby", "lk_skt_product_modifiedby", "user_skt_product");
+        WriteEntityRelationships(other, "Team", "team_skt_product");
+        WriteEntityRelationships(other, "TransactionCurrency", "TransactionCurrency_skt_product");
+        WriteEntityRelationships(other, "skt_supplier", "skt_skt_supplier_skt_product_supplierid");
+        File.WriteAllText(Path.Combine(other, "Solution.xml"),
+            """
+            <?xml version="1.0" encoding="utf-8"?>
+            <ImportExportXml version="9.2.25063.181" SolutionPackageVersion="9.2" languagecode="1033" generatedBy="CrmLive" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+              <SolutionManifest>
+                <UniqueName>SkillsTestExtra</UniqueName>
+                <Version>1.0.0.0</Version>
+                <Managed>0</Managed>
+                <RootComponents>
+                  <RootComponent type="1" schemaName="skt_product" behavior="0" />
+                </RootComponents>
+                <MissingDependencies>
+                  <MissingDependency>
+                    <Required type="1" schemaName="systemuser" displayName="User" solution="System (5.0)" />
+                    <Dependent type="10" schemaName="lk_skt_product_createdby" displayName="lk_skt_product_createdby" parentSchemaName="skt_product" />
+                  </MissingDependency>
+                  <MissingDependency>
+                    <Required type="1" schemaName="skt_supplier" displayName="Supplier" solution="SkillsTestDataModel" />
+                    <Dependent type="10" schemaName="skt_skt_supplier_skt_product_supplierid" displayName="skt_skt_supplier_skt_product_supplierid" parentSchemaName="skt_product" />
+                  </MissingDependency>
+                </MissingDependencies>
+              </SolutionManifest>
+            </ImportExportXml>
+            """);
+
+        // A previous pull left a system relationship file in the project.
+        var solDir = Path.Combine(_base, "SkillsTestExtra");
+        Directory.CreateDirectory(Path.Combine(solDir, "Other", "Relationships"));
+        WriteEntityRelationships(Path.Combine(solDir, "Other"), "Owner", "owner_skt_product");
+
+        var context = new SolutionPullContext
+        {
+            StagingDirectory = staging,
+            DestinationDirectory = solDir,
+            ReferencedProjectDirectories = []
+        };
+
+        new SystemRelationshipExclusionStep().Execute(context);
+        new SolutionManifestNormalizationStep().Execute(context);
+        var removedFiles = SolutionPullMerge.Merge(staging, solDir);
+
+        string[] systemRelationships =
+        [
+            "business_unit_skt_product", "lk_skt_product_createdby", "lk_skt_product_modifiedby",
+            "owner_skt_product", "team_skt_product", "user_skt_product"
+        ];
+        Assert.Equal(systemRelationships.Order(), context.ExcludedRelationships.Order());
+
+        var written = Directory.GetFiles(solDir, "*.xml", SearchOption.AllDirectories).Select(File.ReadAllText).ToList();
+        foreach (var name in context.ExcludedRelationships)
+            Assert.DoesNotContain(written, contents => contents.Contains(name, StringComparison.OrdinalIgnoreCase));
+
+        Assert.Equal(
+            new[] { "skt_supplier.xml", "TransactionCurrency.xml" },
+            Directory.GetFiles(Path.Combine(solDir, "Other", "Relationships"))
+                .Select(Path.GetFileName)
+                .Order(StringComparer.OrdinalIgnoreCase));
+        Assert.Contains(Path.Combine("Other", "Relationships", "Owner.xml"), removedFiles);
+
+        var index = File.ReadAllText(Path.Combine(solDir, "Other", "Relationships.xml"));
+        Assert.Contains("TransactionCurrency_skt_product", index);
+        Assert.Contains("skt_skt_supplier_skt_product_supplierid", index);
+
+        var solutionXml = File.ReadAllText(Path.Combine(solDir, "Other", "Solution.xml"));
+        Assert.Contains("skt_skt_supplier_skt_product_supplierid", solutionXml);
+        Assert.Contains("<RootComponent type=\"1\" schemaName=\"skt_product\"", solutionXml);
+    }
+
+    private static void WriteEntityRelationships(string otherDirectory, string entity, params string[] names)
+    {
+        var relationships = string.Concat(names.Select(name =>
+            $"""
+              <EntityRelationship Name="{name}">
+                <EntityRelationshipType>OneToMany</EntityRelationshipType>
+                <ReferencingEntityName>skt_product</ReferencingEntityName>
+                <ReferencedEntityName>{entity}</ReferencedEntityName>
+              </EntityRelationship>
+
+            """));
+        File.WriteAllText(
+            Path.Combine(otherDirectory, "Relationships", entity + ".xml"),
+            $"""
+            <?xml version="1.0" encoding="utf-8"?>
+            <EntityRelationships xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+            {relationships}</EntityRelationships>
+            """);
+    }
+
     private static void WriteServerAssembly(string stagingRoot, string nestedFolder, string baseName, string fullName)
     {
         var dir = Path.Combine(stagingRoot, "PluginAssemblies", nestedFolder);
