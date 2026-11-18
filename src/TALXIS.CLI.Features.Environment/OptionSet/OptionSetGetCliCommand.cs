@@ -132,11 +132,11 @@ public class OptionSetGetCliCommand : ProfiledCliCommand
         PrintOptions(detail.Options);
     }
 
-    private static void PrintAttributeDetail(Dictionary<string, object?> detail)
+    internal static void PrintAttributeDetail(Dictionary<string, object?> detail)
     {
-        if (detail.TryGetValue("Logical Name", out var ln)) OutputWriter.WriteLine($"Attribute:    {ln}");
-        if (detail.TryGetValue("Option Set Name", out var osn)) OutputWriter.WriteLine($"Option Set:   {osn}");
-        if (detail.TryGetValue("Is Global Option Set", out var ig)) OutputWriter.WriteLine($"Global:       {ig}");
+        if (detail.TryGetValue("LogicalName", out var ln)) OutputWriter.WriteLine($"Attribute:    {ln}");
+        if (detail.TryGetValue("OptionSetName", out var osn)) OutputWriter.WriteLine($"Option Set:   {osn}");
+        if (detail.TryGetValue("IsGlobalOptionSet", out var ig)) OutputWriter.WriteLine($"Global:       {ig}");
         OutputWriter.WriteLine();
 
         if (detail.TryGetValue("Options", out var opts) && opts is IEnumerable<object?> options)

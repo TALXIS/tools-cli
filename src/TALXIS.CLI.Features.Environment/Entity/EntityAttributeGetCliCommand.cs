@@ -37,10 +37,28 @@ public class EntityAttributeGetCliCommand : ProfiledCliCommand
         return ExitSuccess;
     }
 
-    /// <summary>Prints attribute detail in vertical key:value format.</summary>
-    private static void PrintDetail(Dictionary<string, object?> detail)
+    private static readonly Dictionary<string, string> TextCaptions = new()
     {
-        int keyWidth = detail.Keys.Max(k => k.Length);
+        ["LogicalName"] = "Logical Name",
+        ["SchemaName"] = "Schema Name",
+        ["DisplayName"] = "Display Name",
+        ["AttributeTypeName"] = "Attribute Type",
+        ["RequiredLevel"] = "Required Level",
+        ["RequiredLevelCanChange"] = "Required Level Can Change",
+        ["IsCustomAttribute"] = "Is Custom",
+        ["IsAuditable"] = "Is Auditable",
+        ["IsSearchable"] = "Is Searchable",
+        ["IsSecured"] = "Is Secured",
+        ["IsGlobalOptionSet"] = "Is Global Option Set",
+        ["OptionSetName"] = "Option Set Name",
+    };
+
+    /// <summary>
+    /// Prints attribute detail in vertical key:value format.
+    /// </summary>
+    internal static void PrintDetail(Dictionary<string, object?> detail)
+    {
+        int keyWidth = detail.Keys.Max(k => Caption(k).Length);
 
         foreach (var kvp in detail)
         {
@@ -64,8 +82,10 @@ public class EntityAttributeGetCliCommand : ProfiledCliCommand
             else
             {
                 string displayValue = kvp.Value?.ToString() ?? "-";
-                OutputWriter.WriteLine($"{kvp.Key.PadRight(keyWidth)}  {displayValue}");
+                OutputWriter.WriteLine($"{Caption(kvp.Key).PadRight(keyWidth)}  {displayValue}");
             }
         }
     }
+
+    private static string Caption(string key) => TextCaptions.GetValueOrDefault(key, key);
 }

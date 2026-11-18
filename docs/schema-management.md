@@ -266,6 +266,26 @@ Retrieves detailed metadata for a single attribute.
 txc env entity attribute get account --name name
 ```
 
+With `--format json` the command emits one object per attribute. Keys are camelCase and the shared fields use the same names as `txc env entity describe` (`logicalName`, `schemaName`, `displayName`, `description`, `attributeTypeName`, `isCustomAttribute`, `optionSetName`). The other common keys are `requiredLevel`, `requiredLevelCanChange`, `isAuditable`, `isSearchable` and `isSecured`. Type-specific keys follow, for example `maxLength` and `formatName` for strings, `isGlobalOptionSet`, `optionSetName` and `options` (`[{ "label", "value" }]`) for choices, `targets` for lookups.
+
+```json
+{
+  "logicalName": "name",
+  "schemaName": "Name",
+  "displayName": "Account Name",
+  "description": "Type the company or business name.",
+  "attributeTypeName": "StringType",
+  "requiredLevel": "ApplicationRequired",
+  "requiredLevelCanChange": true,
+  "isCustomAttribute": false,
+  "isAuditable": true,
+  "isSearchable": true,
+  "isSecured": false,
+  "maxLength": 160,
+  "formatName": "Text"
+}
+```
+
 ### `txc env entity attribute update`
 
 Updates an existing attribute's display metadata.
