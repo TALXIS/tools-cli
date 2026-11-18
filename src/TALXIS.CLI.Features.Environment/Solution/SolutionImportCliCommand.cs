@@ -51,6 +51,24 @@ public class SolutionImportCliCommand : ProfiledCliCommand
     [CliOption(Name = "--publish", Description = "Publish all customizations after the import completes (implies waiting for the import to finish).", Required = false)]
     public bool Publish { get; set; }
 
+    /// <summary>
+    /// Builds the import options. <c>--publish</c> forces a waited import, because
+    /// PublishAll fails while the import is still running.
+    /// </summary>
+    internal SolutionImportOptions BuildImportOptions() => new(
+        StageAndUpgrade: StageAndUpgrade,
+        ForceOverwrite: ForceOverwrite,
+        PublishWorkflows: PublishWorkflows,
+        SkipDependencyCheck: SkipDependencyCheck,
+        SkipLowerVersion: SkipLowerVersion,
+        Async: !(Wait || Publish));
+
+    /// <summary>
+    /// Publishes only when asked and when the import actually ran (not skipped by <c>--skip-lower-version</c>).
+    /// </summary>
+    internal static bool ShouldPublish(bool publish, string status)
+        => publish && !status.StartsWith("Skipped", StringComparison.OrdinalIgnoreCase);
+
     protected override async Task<int> ExecuteAsync()
     {
         string solutionPath = Path.GetFullPath(SolutionZip);
@@ -120,21 +138,30 @@ public class SolutionImportCliCommand : ProfiledCliCommand
             solutionPath = tempZipPath;
         }
 
-        // Publishing requires a completed import — otherwise PublishAll fails with
-        // "Cannot start PublishAll because Import is running". So --publish forces a
-        // synchronous (waited) import regardless of --wait.
-        bool waitForCompletion = Wait || Publish;
-
-        var options = new SolutionImportOptions(
-            StageAndUpgrade: StageAndUpgrade,
-            ForceOverwrite: ForceOverwrite,
-            PublishWorkflows: PublishWorkflows,
-            SkipDependencyCheck: SkipDependencyCheck,
-            SkipLowerVersion: SkipLowerVersion,
-            Async: !waitForCompletion);
+        var options = BuildImportOptions();
 
         var service = TxcServices.Get<ISolutionImportService>();
         var result = await service.ImportAsync(Profile, solutionPath, options, CancellationToken.None).ConfigureAwait(false);
+
+        // Publish before writing the payload so JSON output stays a single document.
+        // A publish failure propagates and fails the command.
+        bool published = false;
+        if (ShouldPublish(Publish, result.Status))
+        {
+            Logger.LogInformation("Publishing all customizations...");
+            var publishService = TxcServices.Get<ISolutionPublishService>();
+            await publishService.PublishAsync(Profile, null, CancellationToken.None).ConfigureAwait(false);
+            published = true;
+        }
+        else if (Publish)
+        {
+            Logger.LogInformation("Import was skipped, nothing to publish.");
+        }
+        else if (options.Async)
+        {
+            Logger.LogInformation(
+                "Import queued — customizations are NOT published yet. Run `txc env solution publish` after it completes (or re-run import with --publish) to make changes visible.");
+        }
 
         var payload = new
         {
@@ -150,6 +177,7 @@ public class SolutionImportCliCommand : ProfiledCliCommand
             completedAtUtc = result.CompletedAtUtc?.ToString("O"),
             smartDiffExpected = result.SmartDiffExpected,
             status = result.Status,
+            published,
         };
 
         OutputFormatter.WriteData(payload, _ =>
@@ -163,6 +191,8 @@ public class SolutionImportCliCommand : ProfiledCliCommand
             OutputWriter.WriteLine($"Started (UTC): {result.StartedAtUtc:O}");
             if (result.CompletedAtUtc is { } completed)
                 OutputWriter.WriteLine($"Completed (UTC): {completed:O}");
+            if (published)
+                OutputWriter.WriteLine("Published all customizations.");
 
             // Next-step hint — keeps AI agents from inventing raw SQL queries against the
             // asyncoperation table when they want to check import status. The structured
@@ -173,21 +203,6 @@ public class SolutionImportCliCommand : ProfiledCliCommand
                 OutputWriter.WriteLine($"Next: txc env deployment get --solution-name {result.Source.UniqueName}");
 #pragma warning restore TXC003
         });
-
-        if (Publish)
-        {
-            Logger.LogInformation("Publishing all customizations...");
-            var publishService = TxcServices.Get<ISolutionPublishService>();
-            await publishService.PublishAsync(Profile, null, CancellationToken.None).ConfigureAwait(false);
-#pragma warning disable TXC003
-            OutputWriter.WriteLine("Published all customizations.");
-#pragma warning restore TXC003
-        }
-        else if (!waitForCompletion)
-        {
-            Logger.LogInformation(
-                "Import queued — customizations are NOT published yet. Run `txc env solution publish` after it completes (or re-run import with --publish) to make changes visible.");
-        }
 
         return ExitSuccess;
         }
