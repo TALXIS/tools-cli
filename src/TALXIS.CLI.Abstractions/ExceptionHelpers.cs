@@ -17,4 +17,17 @@ public static class ExceptionHelpers
             ex = ex.InnerException;
         return ex;
     }
+
+    /// <summary>
+    /// Returns the first exception of type <typeparamref name="T"/> in the
+    /// inner-exception chain (including <paramref name="ex"/>), or null.
+    /// </summary>
+    public static T? FindInChain<T>(Exception ex) where T : Exception
+    {
+        for (Exception? current = ex; current is not null; current = current.InnerException)
+        {
+            if (current is T match) return match;
+        }
+        return null;
+    }
 }
