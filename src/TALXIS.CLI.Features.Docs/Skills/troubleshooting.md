@@ -11,6 +11,9 @@ Import failed
   ├─→ Component conflict
   │    └─→ txc environment component layer list --id <component-guid> --type <type>
   │         └─→ Find the solution owning the conflicting component; update it first or remove the conflict
+  ├─→ Conflicting object blocks import (e.g. duplicate security role)
+  │    └─→ txc environment component dependency delete-check --id <component-guid> --type <type>
+  │         └─→ txc environment component delete --id <component-guid> --type <type> (remove the leftover object, then retry)
   ├─→ Missing dependency
   │    └─→ txc environment component dependency required --id <component-guid> --type <type>
   │         └─→ Import the solution containing the required component first
@@ -35,6 +38,7 @@ When a component behaves unexpectedly or changes don't take effect:
 ## Dependency Problems
 
 - Can't delete a component: `txc environment component dependency delete-check --entity <logicalName> [--attribute <name>]` (or `--id <guid> --type <type>`) shows what depends on it; remove or update those first.
+- Delete a leftover object (a security role, plugin step or assembly blocking an import): `txc environment component delete --id <guid> --type <type>` runs the same dependency check and refuses while anything depends on it. `txc environment solution component remove` only unlinks a component from a solution without deleting it.
 - Missing required dependencies: `txc environment component dependency required --entity <logicalName> [--attribute <name>]` shows what the component requires; make sure those exist in the target.
 
 ## Wrong Environment

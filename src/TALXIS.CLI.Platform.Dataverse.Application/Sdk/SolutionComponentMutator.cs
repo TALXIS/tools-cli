@@ -41,4 +41,20 @@ internal static class SolutionComponentMutator
 
         await service.ExecuteAsync(request, ct).ConfigureAwait(false);
     }
+
+    public static async Task DeleteFromEnvironmentAsync(
+        IOrganizationServiceAsync2 service,
+        int componentType,
+        Guid objectId,
+        CancellationToken ct)
+    {
+        if (!SolutionComponentEntityMap.TryGetEntityLogicalName(componentType, out var entityLogicalName) || entityLogicalName is null)
+        {
+            throw new NotSupportedException(
+                $"Deleting component type {componentType} from the environment is not supported. " +
+                $"Supported component entities: {SolutionComponentEntityMap.SupportedSummary}.");
+        }
+
+        await service.DeleteAsync(entityLogicalName, objectId, ct).ConfigureAwait(false);
+    }
 }
