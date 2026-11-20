@@ -9,11 +9,11 @@ namespace TALXIS.CLI.Features.Workspace.Controls;
 /// <c>ControlManifest.xml</c> at run time, so no per-control template is needed.
 /// </summary>
 [CliCommand(
-    Description = "Attach custom controls (PCF) to forms in your local workspace",
+    Description = "Bind custom controls (PCF) to forms in your local workspace",
     Name = "control",
     Children = new[]
     {
-        typeof(ControlAttachCliCommand),
+        typeof(ControlBindCliCommand),
     },
     ShortFormAutoGenerate = CliNameAutoGenerate.None)]
 public class ControlCliCommand
