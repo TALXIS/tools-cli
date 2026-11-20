@@ -177,6 +177,20 @@ internal static class EntityJsonConverter
                     if (element.TryGetInt32(out var singleVal))
                         return new OptionSetValueCollection { new OptionSetValue(singleVal) };
                 }
+                if (attrMeta is IntegerAttributeMetadata)
+                {
+                    if (element.TryGetInt32(out var intVal)) return intVal;
+                        
+
+                    var column = attrMeta.LogicalName ?? "whole number column";
+                    
+                    if (element.TryGetInt64(out var outOfRange))
+                        throw new ArgumentException(
+                            $"Value {outOfRange} for '{column}' is outside the valid whole number range ({int.MinValue} to {int.MaxValue}).");
+
+                    throw new ArgumentException(
+                        $"Value {element.GetRawText()} for '{column}' is not a valid whole number.");
+                }
 
                 // Default: try integer types first, then floating-point.
                 if (element.TryGetInt32(out var i32)) return i32;
