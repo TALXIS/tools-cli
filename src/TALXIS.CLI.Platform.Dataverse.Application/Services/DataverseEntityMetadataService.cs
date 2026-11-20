@@ -123,7 +123,8 @@ internal sealed class DataverseEntityMetadataService : IDataverseEntityMetadataS
                     MaxLength: a is StringAttributeMetadata strAttr ? strAttr.MaxLength : null,
                     Description: a.Description?.UserLocalizedLabel?.Label,
                     OptionSetName: optionSetName,
-                    OptionValues: optionValues);
+                    OptionValues: optionValues,
+                    RequiredLevel: a.RequiredLevel?.Value.ToString());
             })
             .ToList();
     }
