@@ -17,4 +17,10 @@ internal sealed class DataverseSolutionComponentMutationService : ISolutionCompo
         using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
         await SolutionComponentMutator.RemoveAsync(conn.Client, options, ct).ConfigureAwait(false);
     }
+
+    public async Task DeleteFromEnvironmentAsync(string? profileName, int componentType, Guid objectId, CancellationToken ct)
+    {
+        using var conn = await DataverseCommandBridge.ConnectAsync(profileName, ct).ConfigureAwait(false);
+        await SolutionComponentMutator.DeleteFromEnvironmentAsync(conn.Client, componentType, objectId, ct).ConfigureAwait(false);
+    }
 }
