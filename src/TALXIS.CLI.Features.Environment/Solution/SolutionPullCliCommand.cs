@@ -49,6 +49,7 @@ public class SolutionPullCliCommand : ProfiledCliCommand
             excludedWebResources = result.ExcludedWebResources,
             excludedPcfControls = result.ExcludedPcfControls,
             removedFiles = result.RemovedFiles,
+            normalizationChanges = result.NormalizationChanges,
         };
 
         OutputFormatter.WriteData(payload, _ =>
@@ -61,6 +62,7 @@ public class SolutionPullCliCommand : ProfiledCliCommand
             WriteList("Excluded script-library web resource(s)", result.ExcludedWebResources);
             WriteList("Excluded PCF control(s)", result.ExcludedPcfControls);
             WriteList("Removed stale solution file(s)", result.RemovedFiles);
+            WriteList("Applied normalization change(s)", result.NormalizationChanges);
 
             static void WriteList(string label, IReadOnlyList<string> items)
             {

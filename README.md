@@ -171,6 +171,26 @@ txc env component layer list --entity account --attribute revenue
 txc env component dep delete-check --entity tom_project
 ```
 
+**Pulling changes back from the environment:**
+
+```sh
+# First time: scaffold a project from an existing solution and pull its current state
+txc env sln clone MySolution --output ./src/MySolution/
+
+# From then on: sync server-side changes into the existing project
+cd ./src/MySolution/
+txc env sln pull
+```
+
+The environment decides what the solution contains, and pull keeps your local `Solution.xml` in step with it: components added to the solution there show up in `RootComponents` (with their files), components removed from it are dropped, and behavior changes are carried over. Your manifest keeps its own layout. On every pull the export is normalized before it touches your repo:
+
+- server-added system relationships (owner, business unit, team, createdby/modifiedby lookups) and `OrganizationVersion`-style attributes are stripped, so the diff only shows real changes
+- subcomponents follow their entity: `behavior="0"` pulls everything and declares pulled forms as explicit root components, `behavior="1"`/`"2"` stops new server-side subcomponents while keeping everything already pulled. Views never appear in the manifest
+- entity attributes that aren't custom fields and aren't present in your `Entity.xml` are dropped, so a trimmed-down entity stays trimmed across roundtrips
+- binaries built from `ProjectReference`s (plugin assemblies, script-library web resources, PCF controls) stay out of the solution folder, they're build artifacts, not source
+
+A fresh clone adopts the server state once. `git status` after a repeated pull with no server changes is empty, that's the contract.
+
 ### Data Plane
 
 Query, create, update, and bulk-operate on Dataverse records.
