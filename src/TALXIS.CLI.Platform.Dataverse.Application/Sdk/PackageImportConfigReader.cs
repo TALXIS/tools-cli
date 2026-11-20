@@ -30,12 +30,12 @@ public sealed class PackageImportConfigReader
 
         if (Directory.Exists(packageSource))
         {
-            return ReadFromDirectory(Path.GetFullPath(packageSource));
+            return ReadFromDirectory(Path.GetFullPath(packageSource)).Select(s => s.UniqueName).ToList();
         }
 
         if (File.Exists(packageSource))
         {
-            return ReadFromDeployablePackageFile(Path.GetFullPath(packageSource));
+            return ReadFromDeployablePackageFile(Path.GetFullPath(packageSource)).Select(s => s.UniqueName).ToList();
         }
 
         var options = new NuGetPackageInstallOptions(
@@ -49,7 +49,7 @@ public sealed class PackageImportConfigReader
 
         try
         {
-            return ReadFromDeployablePackageFile(installResult.DeployablePackagePath);
+            return ReadFromDeployablePackageFile(installResult.DeployablePackagePath).Select(s => s.UniqueName).ToList();
         }
         finally
         {
@@ -60,7 +60,17 @@ public sealed class PackageImportConfigReader
         }
     }
 
-    private IReadOnlyList<string> ReadFromDirectory(string directory)
+    /// <summary>
+    /// Reads the solutions of a local deployable package file or extracted package folder, in import order.
+    /// </summary>
+    public IReadOnlyList<PackageSolutionInfo> ReadSolutionsInImportOrder(string packagePath)
+    {
+        if (Directory.Exists(packagePath)) return ReadFromDirectory(Path.GetFullPath(packagePath));
+        if (File.Exists(packagePath)) return ReadFromDeployablePackageFile(Path.GetFullPath(packagePath));
+        throw new FileNotFoundException($"Package '{packagePath}' was not found.", packagePath);
+    }
+
+    private IReadOnlyList<PackageSolutionInfo> ReadFromDirectory(string directory)
     {
         var importConfig = Directory
             .EnumerateFiles(directory, "ImportConfig.xml", SearchOption.AllDirectories)
@@ -78,7 +88,7 @@ public sealed class PackageImportConfigReader
             throw new InvalidOperationException($"No <configsolutionfile> entries found in '{importConfig}'.");
         }
 
-        var resolved = new List<string>(solutionPackages.Count);
+        var resolved = new List<PackageSolutionInfo>(solutionPackages.Count);
         foreach (var packageFileName in solutionPackages)
         {
             var candidate = Directory
@@ -92,13 +102,13 @@ public sealed class PackageImportConfigReader
                 throw new InvalidOperationException($"Solution package '{packageFileName}' from ImportConfig.xml was not found under '{directory}'.");
             }
 
-            resolved.Add(ReadSolutionUniqueNameFromSolutionZip(candidate));
+            resolved.Add(ReadSolutionFromSolutionZip(candidate));
         }
 
         return resolved;
     }
 
-    private IReadOnlyList<string> ReadFromDeployablePackageFile(string deployablePackagePath)
+    private IReadOnlyList<PackageSolutionInfo> ReadFromDeployablePackageFile(string deployablePackagePath)
     {
         using var archive = ZipFile.OpenRead(deployablePackagePath);
 
@@ -116,7 +126,7 @@ public sealed class PackageImportConfigReader
             throw new InvalidOperationException($"No <configsolutionfile> entries found in ImportConfig.xml inside '{deployablePackagePath}'.");
         }
 
-        var resolved = new List<string>(solutionPackages.Count);
+        var resolved = new List<PackageSolutionInfo>(solutionPackages.Count);
         foreach (var packageFileName in solutionPackages)
         {
             var solutionZipEntry = archive.Entries
@@ -127,7 +137,7 @@ public sealed class PackageImportConfigReader
                 throw new InvalidOperationException($"Solution package '{packageFileName}' from ImportConfig.xml was not found inside '{deployablePackagePath}'.");
             }
 
-            resolved.Add(ReadSolutionUniqueNameFromSolutionZip(solutionZipEntry));
+            resolved.Add(ReadSolutionFromSolutionZip(solutionZipEntry));
         }
 
         return resolved;
@@ -157,23 +167,23 @@ public sealed class PackageImportConfigReader
             .ToList();
     }
 
-    private static string ReadSolutionUniqueNameFromSolutionZip(string solutionZipPath)
+    private static PackageSolutionInfo ReadSolutionFromSolutionZip(string solutionZipPath)
     {
         using var archive = ZipFile.OpenRead(solutionZipPath);
-        return ReadSolutionUniqueNameFromSolutionZipArchive(archive, solutionZipPath);
+        return ReadSolutionFromSolutionZipArchive(archive, solutionZipPath);
     }
 
-    private static string ReadSolutionUniqueNameFromSolutionZip(ZipArchiveEntry solutionZipEntry)
+    private static PackageSolutionInfo ReadSolutionFromSolutionZip(ZipArchiveEntry solutionZipEntry)
     {
         using var payload = solutionZipEntry.Open();
         using var ms = new MemoryStream();
         payload.CopyTo(ms);
         ms.Position = 0;
         using var archive = new ZipArchive(ms, ZipArchiveMode.Read, leaveOpen: false);
-        return ReadSolutionUniqueNameFromSolutionZipArchive(archive, solutionZipEntry.FullName);
+        return ReadSolutionFromSolutionZipArchive(archive, solutionZipEntry.FullName);
     }
 
-    private static string ReadSolutionUniqueNameFromSolutionZipArchive(ZipArchive archive, string sourceLabel)
+    private static PackageSolutionInfo ReadSolutionFromSolutionZipArchive(ZipArchive archive, string sourceLabel)
     {
         var solutionXml = archive.Entries.FirstOrDefault(e =>
             string.Equals(Path.GetFileName(e.FullName), "solution.xml", StringComparison.OrdinalIgnoreCase));
@@ -194,6 +204,6 @@ public sealed class PackageImportConfigReader
             throw new InvalidOperationException($"UniqueName is missing from solution.xml in '{sourceLabel}'.");
         }
 
-        return uniqueName;
+        return new PackageSolutionInfo(uniqueName, manifest.Element("Version")?.Value?.Trim());
     }
 }

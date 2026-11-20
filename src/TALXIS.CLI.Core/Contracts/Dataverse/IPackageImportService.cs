@@ -31,7 +31,12 @@ public sealed record PackageImportResult(
     /// (equivalent to an MSAL UI-required prompt). The command layer should translate this
     /// into a user-facing hint, without taking a dependency on MSAL types.
     /// </summary>
-    bool InteractiveAuthRequired);
+    bool InteractiveAuthRequired,
+    /// <summary>
+    /// Package solutions compared with the versions installed before the import.
+    /// Null when the comparison could not be made.
+    /// </summary>
+    IReadOnlyList<PackageSolutionImportPlan>? Solutions = null);
 
 /// <summary>
 /// Provider-agnostic service for running a deployable-package import into the target environment.
