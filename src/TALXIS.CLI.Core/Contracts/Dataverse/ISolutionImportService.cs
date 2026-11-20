@@ -33,7 +33,8 @@ public sealed record SolutionImportResult(
     DateTime StartedAtUtc,
     DateTime? CompletedAtUtc,
     bool SmartDiffExpected,
-    string Status);
+    string Status,
+    IReadOnlyList<ControlVersionWarning>? ControlVersionWarnings = null);
 
 /// <summary>
 /// Imports Dataverse solution .zip files into the environment referenced by

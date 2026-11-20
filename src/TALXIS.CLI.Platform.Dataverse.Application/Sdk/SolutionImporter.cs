@@ -159,6 +159,13 @@ public sealed class SolutionImporter
         var path = SelectImportPath(source, existing, options.StageAndUpgrade);
         bool smartDiffExpected = SmartDiffExpected(path, options.ForceOverwrite);
 
+        var controlChecker = new ControlVersionChecker(_service, _logger);
+        var packagedControls = ControlVersionChecker.ReadPackagedControls(solutionZipPath);
+        var installedBefore = await controlChecker.GetInstalledVersionsAsync(packagedControls, cancellationToken).ConfigureAwait(false);
+        var controlWarnings = installedBefore is null
+            ? new List<ControlVersionWarning>()
+            : ControlVersionChecker.FindNotNewer(packagedControls, installedBefore).ToList();
+
         byte[] customizationFile = await File.ReadAllBytesAsync(solutionZipPath, cancellationToken).ConfigureAwait(false);
 
         _logger?.LogInformation("Staging solution {UniqueName} {Version}...", source.UniqueName, source.Version);
@@ -231,6 +238,15 @@ public sealed class SolutionImporter
 
         DateTime? completedAtUtc = options.Async ? null : DateTime.UtcNow;
 
+        if (status == "Succeeded")
+        {
+            var notYetWarned = packagedControls
+                .Where(c => !controlWarnings.Any(w => string.Equals(w.ControlName, c.Name, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+            var installedAfter = await controlChecker.GetInstalledVersionsAsync(notYetWarned, cancellationToken).ConfigureAwait(false);
+            if (installedAfter is not null) controlWarnings.AddRange(ControlVersionChecker.FindNotApplied(notYetWarned, installedAfter));
+        }
+
         return new SolutionImportResult(
             path,
             source,
@@ -240,7 +256,8 @@ public sealed class SolutionImporter
             startedAtUtc,
             completedAtUtc,
             smartDiffExpected,
-            status);
+            status,
+            controlWarnings);
     }
 
     private async Task<string> PollAsyncOperationAsync(Guid asyncOperationId, CancellationToken cancellationToken)

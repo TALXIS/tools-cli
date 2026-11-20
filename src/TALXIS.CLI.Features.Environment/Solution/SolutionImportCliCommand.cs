@@ -128,6 +128,9 @@ public class SolutionImportCliCommand : ProfiledCliCommand
         var service = TxcServices.Get<ISolutionImportService>();
         var result = await service.ImportAsync(Profile, solutionPath, options, CancellationToken.None).ConfigureAwait(false);
 
+        var controlWarnings = result.ControlVersionWarnings ?? [];
+        foreach (var warning in controlWarnings) Logger.LogWarning("{Message}", warning.Message);
+
         var payload = new
         {
             path = FormatPath(result.Path),
@@ -142,6 +145,13 @@ public class SolutionImportCliCommand : ProfiledCliCommand
             completedAtUtc = result.CompletedAtUtc?.ToString("O"),
             smartDiffExpected = result.SmartDiffExpected,
             status = result.Status,
+            controlVersionWarnings = controlWarnings.Select(w => new
+            {
+                controlName = w.ControlName,
+                packagedVersion = w.PackagedVersion,
+                installedVersion = w.InstalledVersion,
+                message = w.Message,
+            }).ToList(),
         };
 
         OutputFormatter.WriteData(payload, _ =>

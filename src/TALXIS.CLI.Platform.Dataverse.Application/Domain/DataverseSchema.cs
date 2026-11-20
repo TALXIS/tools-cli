@@ -21,6 +21,11 @@ public static class DataverseSchema
         public const string EntityName = "importjob";
     }
 
+    public static class CustomControl
+    {
+        public const string EntityName = "customcontrol";
+    }
+
     /// <summary>
     /// Virtual entity: <c>msdyn_solutioncomponentsummary</c>.
     /// Rich, filterable view of solution components used by the maker portal.
