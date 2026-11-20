@@ -6,10 +6,10 @@ namespace TALXIS.CLI.Platform.Dataverse.Application.Pipeline.Steps;
 
 /// <summary>
 /// Normalizes the unpacked export against the local source project via
-/// <see cref="ExportNormalizer"/>: server-added system relationships, components outside
-/// the source solution, and server-enriched attributes.
-/// The local Solution.xml is the source of truth for solution composition: once it declares
-/// root components, pull never overwrites it (bootstrap projects adopt the server manifest once).
+/// <see cref="ExportNormalizer"/>: server-added system relationships and server-enriched attributes.
+/// The environment is the source of truth for solution composition: root components added to or
+/// removed from the solution there are synced into the local Solution.xml, which keeps its own
+/// layout (bootstrap projects adopt the server manifest once).
 /// </summary>
 internal sealed class ExportNormalizationStep : ISolutionPullStep
 {
@@ -43,8 +43,11 @@ internal sealed class ExportNormalizationStep : ISolutionPullStep
             return;
 
         var preserveLocalManifest = sourceSolution.RootComponents.Count > 0;
+        var manifestSynced = preserveLocalManifest && SyncRootComponents(exported, sourceSolution, context);
+
         var options = new ExportNormalizationOptions
         {
+            StripComponentsNotInSource = false,
             NormalizeManagedFlag = !preserveLocalManifest,
             NormalizeSolutionVersion = !preserveLocalManifest
         };
@@ -82,7 +85,7 @@ internal sealed class ExportNormalizationStep : ISolutionPullStep
                 "Solution.xml");
             File.Copy(destinationSolutionXml, stagingSolutionXml, overwrite: true);
 
-            if (DeclareDownloadedSubcomponents(exported, sourceSolution, context) > 0)
+            if (DeclareDownloadedSubcomponents(exported, sourceSolution, context) > 0 || manifestSynced)
                 new XmlWorkspaceWriter().WriteSolutionManifest(source, sourceSolution.UniqueName, context.StagingDirectory);
         }
         else if (DeclareDownloadedSubcomponents(exported, exported.Solutions[0], context) > 0)
@@ -92,6 +95,59 @@ internal sealed class ExportNormalizationStep : ISolutionPullStep
             new XmlWorkspaceWriter().WriteSolutionManifest(exported, exported.Solutions[0].UniqueName, context.StagingDirectory);
         }
     }
+
+    // Runs before normalization so subcomponent rules already see the environment's membership and behavior.
+    private static bool SyncRootComponents(Workspace exported, Solution sourceSolution, SolutionPullContext context)
+    {
+        var serverComponents = exported.Solutions[0].RootComponents
+            .Where(rc => rc.Type != ComponentType.SavedQuery)
+            .ToArray();
+        var changed = false;
+
+        foreach (var serverComponent in serverComponents)
+        {
+            var local = sourceSolution.RootComponents.FirstOrDefault(rc => SameComponent(rc, serverComponent));
+            if (local is null)
+            {
+                sourceSolution.AddRootComponent(new RootComponent
+                {
+                    Type = serverComponent.Type,
+                    SchemaName = serverComponent.SchemaName,
+                    Id = serverComponent.Id,
+                    Behavior = serverComponent.Behavior
+                });
+                context.NormalizationChanges.Add($"Added {Describe(serverComponent)} to the solution manifest: it was added to the solution in the environment.");
+                changed = true;
+            }
+            else if (local.Behavior != serverComponent.Behavior)
+            {
+                context.NormalizationChanges.Add($"Changed behavior of {Describe(local)} from {local.Behavior} to {serverComponent.Behavior} to match the environment.");
+                local.Behavior = serverComponent.Behavior;
+                changed = true;
+            }
+        }
+
+        foreach (var local in sourceSolution.RootComponents.ToArray())
+        {
+            if (serverComponents.Any(rc => SameComponent(rc, local))) continue;
+            // Forms declared on pull for behavior=0 entities are local-only rows; keep them while the form still exists.
+            if (local.Type == ComponentType.SystemForm && exported.Forms.Any(f => Guid.TryParse(f.FormId, out var id) && id == local.Id)) continue;
+
+            sourceSolution.RemoveRootComponent(local.Type, local.SchemaName, local.Id);
+            context.NormalizationChanges.Add($"Removed {Describe(local)} from the solution manifest: it is no longer in the solution in the environment.");
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    private static bool SameComponent(RootComponent left, RootComponent right) =>
+        left.Type == right.Type
+        && ((left.Id.HasValue && left.Id == right.Id)
+            || (!string.IsNullOrEmpty(left.SchemaName) && string.Equals(left.SchemaName, right.SchemaName, StringComparison.OrdinalIgnoreCase)));
+
+    private static string Describe(RootComponent component) =>
+        $"{component.Type} '{component.SchemaName ?? component.Id?.ToString()}'";
 
     // Forms pulled with a behavior=0 entity become explicit RootComponents in the local manifest,
     // so they survive a later switch of the entity to behavior 1/2. Views are plain subcomponents

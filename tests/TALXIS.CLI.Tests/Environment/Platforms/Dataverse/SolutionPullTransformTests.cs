@@ -367,7 +367,7 @@ public class SolutionPullTransformTests : IDisposable
     }
 
     [Fact]
-    public void Normalize_PreservesLocalManifestAsSourceOfTruth()
+    public void Normalize_KeepsLocalManifestWhenMembershipMatches()
     {
         WriteSolutionManifest(_root, "1.0.12606.28000", "0");
         var destinationRoot = CreateDestination(version: "1.0.0.42", managed: "2");
@@ -511,12 +511,12 @@ public class SolutionPullTransformTests : IDisposable
     }
 
     [Fact]
-    public void Normalize_KeepsLocalOnlyRootComponentAfterPull()
+    public void Normalize_RemovesRootComponentsNoLongerInEnvironment()
     {
         WriteSolutionManifest(_root, "1.0.0.0", "2");
         var destinationRoot = Path.Combine(Path.GetTempPath(), "dest_" + Guid.NewGuid().ToString("N"));
         WriteSolutionManifest(destinationRoot, "1.0.0.0", "2",
-            rootComponents: "<RootComponent type=\"1\" schemaName=\"tprt_testitem\" behavior=\"0\" /><RootComponent type=\"60\" id=\"{6db7bd1a-9a3e-477c-85c5-c819e39b5272}\" behavior=\"0\" />");
+            rootComponents: "<RootComponent type=\"1\" schemaName=\"tprt_testitem\" behavior=\"0\" /><RootComponent type=\"1\" schemaName=\"tprt_old\" behavior=\"0\" /><RootComponent type=\"60\" id=\"{6db7bd1a-9a3e-477c-85c5-c819e39b5272}\" behavior=\"0\" />");
 
         try
         {
@@ -524,9 +524,9 @@ public class SolutionPullTransformTests : IDisposable
             _exportNormalizationStep.Execute(context);
 
             var document = XDocument.Load(Path.Combine(_root, "Other", "Solution.xml"));
-            var components = document.Descendants("RootComponent").ToArray();
-            Assert.Equal(2, components.Length);
-            Assert.Contains(components, c => c.Attribute("type")?.Value == "60");
+            var component = Assert.Single(document.Descendants("RootComponent"));
+            Assert.Equal("tprt_testitem", component.Attribute("schemaName")?.Value);
+            Assert.Contains(context.NormalizationChanges, c => c.Contains("tprt_old") && c.Contains("no longer in the solution"));
         }
         finally
         {
@@ -654,17 +654,18 @@ public class SolutionPullTransformTests : IDisposable
     }
 
     [Fact]
-    public void Normalize_RemovesEntityNotInLocalSolution()
+    public void Normalize_AddsEntityAddedInEnvironment()
     {
-        WriteSolutionManifest(_root, "1.0.0.0", "2");
-        var entityDir = Path.Combine(_root, "Entities", "tprt_leaked");
+        WriteSolutionManifest(_root, "1.0.0.0", "2",
+            rootComponents: "<RootComponent type=\"1\" schemaName=\"tprt_testitem\" behavior=\"0\" /><RootComponent type=\"1\" schemaName=\"tprt_new\" behavior=\"0\" />");
+        var entityDir = Path.Combine(_root, "Entities", "tprt_new");
         Directory.CreateDirectory(entityDir);
         File.WriteAllText(Path.Combine(entityDir, "Entity.xml"),
             """
             <Entity xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
               <EntityInfo>
-                <entity Name="tprt_leaked">
-                  <LocalizedNames><LocalizedName description="Leaked" languagecode="1033" /></LocalizedNames>
+                <entity Name="tprt_new">
+                  <LocalizedNames><LocalizedName description="New" languagecode="1033" /></LocalizedNames>
                   <attributes />
                 </entity>
               </EntityInfo>
@@ -677,8 +678,34 @@ public class SolutionPullTransformTests : IDisposable
             var context = CreateContext(destinationRoot);
             _exportNormalizationStep.Execute(context);
 
-            Assert.False(Directory.Exists(entityDir));
-            Assert.Contains(context.NormalizationChanges, c => c.Contains("tprt_leaked"));
+            Assert.True(File.Exists(Path.Combine(entityDir, "Entity.xml")));
+            var document = XDocument.Load(Path.Combine(_root, "Other", "Solution.xml"));
+            Assert.Contains(document.Descendants("RootComponent"), c => c.Attribute("schemaName")?.Value == "tprt_new");
+            Assert.Contains(context.NormalizationChanges, c => c.Contains("tprt_new") && c.Contains("added to the solution in the environment"));
+        }
+        finally
+        {
+            Directory.Delete(destinationRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Normalize_TakesRootComponentBehaviorFromEnvironment()
+    {
+        WriteSolutionManifest(_root, "1.0.0.0", "2");
+        var destinationRoot = Path.Combine(Path.GetTempPath(), "dest_" + Guid.NewGuid().ToString("N"));
+        WriteSolutionManifest(destinationRoot, "1.0.0.0", "2",
+            rootComponents: "<RootComponent type=\"1\" schemaName=\"tprt_testitem\" behavior=\"2\" />");
+
+        try
+        {
+            var context = CreateContext(destinationRoot);
+            _exportNormalizationStep.Execute(context);
+
+            var document = XDocument.Load(Path.Combine(_root, "Other", "Solution.xml"));
+            var component = Assert.Single(document.Descendants("RootComponent"));
+            Assert.Equal("0", component.Attribute("behavior")?.Value);
+            Assert.Contains(context.NormalizationChanges, c => c.Contains("Changed behavior"));
         }
         finally
         {
