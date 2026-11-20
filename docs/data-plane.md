@@ -210,6 +210,9 @@ For schema-driven dataset migration — exporting a curated slice of configurati
 txc data pkg export --schema ./data_schema.xml --output ./data-package --export-files
 txc data pkg import ./data-package
 txc data pkg convert --input export.xlsx --output data.xml
+
+# Tear down everything a previous import created (CI teardown, test fixtures):
+txc data pkg cleanup ./data-package --yes
 ```
 
 See [configuration-migration.md](configuration-migration.md) for the full deep-dive: deduplication logic, batching, parallel channels, prefetch tuning, and other options not exposed by PAC CLI or the CMT GUI.
@@ -227,6 +230,7 @@ See [configuration-migration.md](configuration-migration.md) for the full deep-d
 | All-or-nothing semantics (rollback on any failure) | `record … --stage` × N, then `txc env changeset apply --strategy transaction` |
 | Heterogeneous mix, no rollback, but want a single round-trip | `record … --stage` × N, then `txc env changeset apply --strategy batch` |
 | Schema-driven dataset migration between environments | `txc data pkg export` / `import` (CMT) |
+| Tear down records inserted by a previous CMT import (CI test teardown) | `txc data pkg cleanup` |
 
 ---
 
