@@ -77,10 +77,11 @@ public class ComponentDeleteCliCommand : ProfiledCliCommand, IDestructiveCommand
         var blockers = await dependencyService.CheckDeleteAsync(Profile, id, typeCode, ct).ConfigureAwait(false);
         if (blockers.Count > 0)
         {
+            var blockingComponents = await DescribeBlockersAsync(blockers, ct).ConfigureAwait(false);
+            var unlinkCommands = ComponentUnlinkHint.Build(typeCode, id, blockers);
             OutputFormatter.WriteData(
-                new { status = "blocked", componentId, componentType = typeName, blockingDependencies = blockers.Count, dependencies = blockers },
-                _ => DependencyOutputHelper.PrintDependencyTable(blockers, "Dependent", "Required",
-                    $"Cannot delete {typeName} {componentId}: {blockers.Count} component(s) still depend on it. Remove or repoint them first."));
+                new { status = "blocked", componentId, componentType = typeName, blockingDependencies = blockers.Count, blockingComponents, unlinkCommands, dependencies = blockers },
+                _ => PrintBlocked(typeName, componentId, blockers, blockingComponents, unlinkCommands));
             return ExitError;
         }
 
@@ -96,5 +97,54 @@ public class ComponentDeleteCliCommand : ProfiledCliCommand, IDestructiveCommand
 #pragma warning restore TXC003
             });
         return ExitSuccess;
+    }
+
+    private async Task<IReadOnlyList<BlockingComponent>> DescribeBlockersAsync(IReadOnlyList<DependencyRow> blockers, CancellationToken ct)
+    {
+        var records = TxcServices.Get<IDataverseRecordService>();
+        var result = new List<BlockingComponent>();
+        foreach (var (type, id) in blockers.Select(b => (b.DependentComponentType, b.DependentComponentId)).Distinct())
+        {
+            var typeName = ComponentDefinitionRegistry.GetByType((ComponentType)type)?.Name ?? type.ToString();
+            result.Add(new BlockingComponent(typeName, id, await TryGetNameAsync(records, type, id, ct).ConfigureAwait(false)));
+        }
+        return result;
+    }
+
+    private async Task<string?> TryGetNameAsync(IDataverseRecordService records, int componentType, Guid id, CancellationToken ct)
+    {
+        if (!SolutionComponentEntityMap.TryGetEntityLogicalName(componentType, out var entity) || entity is null) return null;
+        var column = entity == "environmentvariabledefinition" ? "schemaname" : "name";
+        try
+        {
+            var record = await records.GetAsync(Profile, entity, id, [column], includeAnnotations: false, ct).ConfigureAwait(false);
+            return record.TryGetProperty(column, out var value) ? value.GetString() : null;
+        }
+        catch (Exception ex)
+        {
+            // The name is only a convenience; the delete is already refused either way.
+            Logger.LogDebug(ex, "Could not read the name of {Entity} {Id}.", entity, id);
+            return null;
+        }
+    }
+
+    private static void PrintBlocked(
+        string typeName,
+        string componentId,
+        IReadOnlyList<DependencyRow> blockers,
+        IReadOnlyList<BlockingComponent> blockingComponents,
+        IReadOnlyList<string> unlinkCommands)
+    {
+        DependencyOutputHelper.PrintDependencyTable(blockers, "Dependent", "Required",
+            $"Cannot delete {typeName} {componentId}: {blockers.Count} component(s) still depend on it. Remove or repoint them first.");
+
+#pragma warning disable TXC003
+        OutputWriter.WriteLine("\nBlocked by:");
+        foreach (var b in blockingComponents) OutputWriter.WriteLine($"  {b.Type} {(b.Name is null ? "" : $"'{b.Name}' ")}({b.Id})");
+
+        if (unlinkCommands.Count == 0) return;
+        OutputWriter.WriteLine("\nThe role is assigned to the app(s) above. Unlink it, then run the delete again:");
+        foreach (var command in unlinkCommands) OutputWriter.WriteLine($"  {command}");
+#pragma warning restore TXC003
     }
 }

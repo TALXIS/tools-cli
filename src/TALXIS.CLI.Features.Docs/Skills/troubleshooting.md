@@ -14,6 +14,7 @@ Import failed
   ├─→ Conflicting object blocks import (e.g. duplicate security role)
   │    └─→ txc environment component dependency delete-check --id <component-guid> --type <type>
   │         └─→ txc environment component delete --id <component-guid> --type <type> (remove the leftover object, then retry)
+  │              └─→ Role blocked by a model-driven app: run the printed `txc environment data record disassociate` (appmoduleroles_association), then delete again
   ├─→ Missing dependency
   │    └─→ txc environment component dependency required --id <component-guid> --type <type>
   │         └─→ Import the solution containing the required component first

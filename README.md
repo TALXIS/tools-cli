@@ -170,7 +170,7 @@ txc env sln component list MySolution --type entity
 txc env component layer list --entity account --attribute revenue
 txc env component dep delete-check --entity tom_project
 
-# Delete a component from the environment>
+# Delete a component from the environment
 # Checks dependencies first and refuses if anything still depends on it.
 txc env component delete --type Role --id <guid>
 ```
@@ -191,6 +191,12 @@ txc env component delete --type Role --id <guid>
 | `EnvironmentVariableDefinition` | 380 | environment variable definition |
 
 Tables and columns are schema objects and aren't deletable through this command — use the workspace/schema tooling for those.
+
+When the delete is blocked, the output names each blocking component. A security role used by a model-driven app is held by the `appmoduleroles_association` link, which importing a solution without the role doesn't remove. The command prints the unlink for that case, run it and retry the delete:
+
+```bash
+txc env data record disassociate <app id> --entity appmodule --target <role id> --target-entity role --relationship appmoduleroles_association --apply --yes
+```
 
 ### Data Plane
 
