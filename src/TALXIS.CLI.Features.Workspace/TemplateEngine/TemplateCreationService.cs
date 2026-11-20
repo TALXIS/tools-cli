@@ -57,11 +57,7 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
             // Snapshot the output directory BEFORE template creation so we can
             // roll back both template-created files and post-action modifications.
             using var transaction = new PostActionTransaction();
-            if (Directory.Exists(outputPath))
-            {
-                foreach (var file in Directory.EnumerateFiles(outputPath, "*", SearchOption.AllDirectories))
-                    transaction.TrackFile(file);
-            }
+            transaction.TrackDirectory(outputPath);
 
             // Snapshot the nearest .sln/.slnx file — post-actions like AddProjectsToSln
             // modify this file which lives above the output directory.
@@ -89,14 +85,6 @@ namespace TALXIS.CLI.Features.Workspace.TemplateEngine
                 baselineName: null,
                 dryRun: false,
                 cancellationToken: cancellationToken).ConfigureAwait(false);
-
-            // Track files created by the template engine (didn't exist before → delete on rollback)
-            var actualOutputDir = result.OutputBaseDirectory ?? outputPath;
-            if (Directory.Exists(actualOutputDir))
-            {
-                foreach (var file in Directory.EnumerateFiles(actualOutputDir, "*", SearchOption.AllDirectories))
-                    transaction.TrackFile(file);
-            }
 
             // Handle result
             return await HandleCreationResultAsync(result, outputPath, transaction);
